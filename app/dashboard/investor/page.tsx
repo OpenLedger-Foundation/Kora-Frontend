@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
+import { DataTable } from "@/components/ui/data-table";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
@@ -15,18 +16,119 @@ import {
   formatDate,
   formatApr,
   RISK_TIER_COLORS,
-  STATUS_COLORS,
   cn,
 } from "@/lib/utils";
+import type { ColumnDef } from "@/types/table";
 
-// Mock investor positions derived from mock invoices
-const POSITIONS = MOCK_INVOICES.slice(0, 4).map((inv, i) => ({
+interface InvestorPosition {
+  id: string;
+  invoice: (typeof MOCK_INVOICES)[number];
+  investedAmount: number;
+  expectedReturn: number;
+}
+
+const POSITIONS: InvestorPosition[] = MOCK_INVOICES.slice(0, 4).map((inv, i) => ({
+  id: inv.id,
   invoice: inv,
   investedAmount: [15000, 50000, 5000, 100000][i],
-  expectedReturn: [15000 * (1 + inv.terms.discountRate), 50000 * (1 + inv.terms.discountRate), 5000 * (1 + inv.terms.discountRate), 100000 * (1 + inv.terms.discountRate)][i],
-  yieldEarned: [0, 0, 0, 0][i],
-  status: (["active", "active", "active", "active"] as const)[i],
+  expectedReturn: [15000, 50000, 5000, 100000][i] * (1 + inv.terms.discountRate),
 }));
+
+const POSITION_COLUMNS: ColumnDef<InvestorPosition>[] = [
+  {
+    id: "invoice",
+    header: "Invoice",
+    accessor: (row) => row.invoice.metadata.invoiceNumber,
+    cell: (row) => (
+      <div>
+        <p className="font-medium text-foreground">{row.invoice.metadata.invoiceNumber}</p>
+        <p className="text-xs text-muted-foreground">{row.invoice.metadata.category}</p>
+      </div>
+    ),
+  },
+  {
+    id: "debtor",
+    header: "Debtor",
+    accessor: (row) => row.invoice.metadata.debtorName,
+    cell: (row) => <span className="text-muted-foreground">{row.invoice.metadata.debtorName}</span>,
+  },
+  {
+    id: "invested",
+    header: "Invested",
+    accessor: (row) => row.investedAmount,
+    cell: (row) => (
+      <span className="font-medium text-foreground">
+        {formatCurrency(row.investedAmount, "USDC", true)}
+      </span>
+    ),
+  },
+  {
+    id: "expected",
+    header: "Expected Return",
+    accessor: (row) => row.expectedReturn,
+    cell: (row) => (
+      <span className="font-medium text-success">
+        {formatCurrency(row.expectedReturn, "USDC", true)}
+      </span>
+    ),
+  },
+  {
+    id: "yield",
+    header: "Yield",
+    accessor: (row) => row.expectedReturn - row.investedAmount,
+    cell: (row) => (
+      <span className="text-primary">
+        +{formatCurrency(row.expectedReturn - row.investedAmount, "USDC", true)}
+      </span>
+    ),
+  },
+  {
+    id: "apr",
+    header: "APR",
+    accessor: (row) => row.invoice.terms.apr,
+    cell: (row) => (
+      <span className="font-medium text-primary">{formatApr(row.invoice.terms.apr)}</span>
+    ),
+  },
+  {
+    id: "risk",
+    header: "Risk",
+    accessor: (row) => row.invoice.riskTier,
+    cell: (row) => (
+      <span
+        className={cn(
+          "rounded-md border px-2 py-0.5 text-xs font-semibold",
+          RISK_TIER_COLORS[row.invoice.riskTier]
+        )}
+      >
+        {row.invoice.riskTier}
+      </span>
+    ),
+  },
+  {
+    id: "due",
+    header: "Due Date",
+    accessor: (row) => row.invoice.terms.repaymentDate,
+    cell: (row) => (
+      <span className="text-xs text-muted-foreground">
+        {formatDate(row.invoice.terms.repaymentDate)}
+      </span>
+    ),
+  },
+  {
+    id: "actions",
+    header: "",
+    sortable: false,
+    cell: (row) => (
+      <Link
+        href={`/marketplace/${row.invoice.id}`}
+        className="text-xs text-primary hover:opacity-80"
+      >
+        View →
+      </Link>
+    ),
+  },
+];
 
 const totalInvested = POSITIONS.reduce((s, p) => s + p.investedAmount, 0);
 const totalExpected = POSITIONS.reduce((s, p) => s + p.expectedReturn, 0);
@@ -68,11 +170,11 @@ export default function InvestorDashboardPage() {
   if (!isConnected) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800">
-          <BarChart3 className="h-6 w-6 text-zinc-500" />
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <BarChart3 className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Connect your wallet</h2>
-        <p className="text-sm text-zinc-500">Connect to view your investment portfolio</p>
+        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
+        <p className="text-sm text-muted-foreground">Connect to view your investment portfolio</p>
         <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
       </div>
     );
@@ -80,20 +182,18 @@ export default function InvestorDashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Investor Dashboard</h1>
-          <p className="mt-1 text-sm text-zinc-500">Track your invoice financing portfolio</p>
+          <h1 className="text-2xl font-bold text-foreground">Investor Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Track your invoice financing portfolio</p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/marketplace">
+        <Link href="/marketplace">
+          <Button variant="outline">
             <Store className="h-4 w-4" /> Browse Marketplace
-          </Link>
-        </Button>
+          </Button>
+        </Link>
       </div>
 
-      {/* Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STATS.map((stat, i) => (
           <motion.div
@@ -107,73 +207,24 @@ export default function InvestorDashboardPage() {
         ))}
       </div>
 
-      {/* Positions table */}
       <Card>
         <CardHeader>
           <CardTitle>Active Positions</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800 text-left">
-                  {["Invoice", "Debtor", "Invested", "Expected Return", "Yield", "APR", "Risk", "Due Date", ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-xs font-medium text-zinc-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {POSITIONS.map((pos, i) => {
-                  const { invoice } = pos;
-                  const yieldAmt = pos.expectedReturn - pos.investedAmount;
-                  return (
-                    <motion.tr
-                      key={invoice.id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                    >
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-zinc-200">{invoice.metadata.invoiceNumber}</p>
-                        <p className="text-xs text-zinc-600">{invoice.metadata.category}</p>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-400">{invoice.metadata.debtorName}</td>
-                      <td className="px-4 py-3 font-medium text-zinc-200">
-                        {formatCurrency(pos.investedAmount, "USDC", true)}
-                      </td>
-                      <td className="px-4 py-3 text-emerald-400 font-medium">
-                        {formatCurrency(pos.expectedReturn, "USDC", true)}
-                      </td>
-                      <td className="px-4 py-3 text-kora-400">
-                        +{formatCurrency(yieldAmt, "USDC", true)}
-                      </td>
-                      <td className="px-4 py-3 text-kora-400 font-medium">
-                        {formatApr(invoice.terms.apr)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={cn("rounded-md border px-2 py-0.5 text-xs font-semibold", RISK_TIER_COLORS[invoice.riskTier])}>
-                          {invoice.riskTier}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-500 text-xs">
-                        {formatDate(invoice.terms.repaymentDate)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link href={`/marketplace/${invoice.id}`} className="text-xs text-kora-400 hover:text-kora-300">
-                          View →
-                        </Link>
-                      </td>
-                    </motion.tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <CardContent className="p-4 sm:p-6">
+          <DataTable
+            data={POSITIONS}
+            columns={POSITION_COLUMNS}
+            pageSize={5}
+            emptyState={{
+              title: "No positions",
+              message: "Fund invoices on the marketplace to build your portfolio.",
+              illustration: <BarChart3 className="h-10 w-10 text-muted-foreground" />,
+            }}
+          />
         </CardContent>
       </Card>
 
-      {/* Portfolio breakdown */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>
@@ -188,8 +239,12 @@ export default function InvestorDashboardPage() {
             ).map(([tier, amount]) => (
               <div key={tier} className="space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span className={cn("font-medium", RISK_TIER_COLORS[tier].split(" ")[0])}>{tier}</span>
-                  <span className="text-zinc-400">{formatCurrency(amount, "USDC", true)}</span>
+                  <span className={cn("font-medium", RISK_TIER_COLORS[tier].split(" ")[0])}>
+                    {tier}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {formatCurrency(amount, "USDC", true)}
+                  </span>
                 </div>
                 <Progress value={(amount / totalInvested) * 100} className="h-1.5" />
               </div>
@@ -211,10 +266,16 @@ export default function InvestorDashboardPage() {
             ).map(([jurisdiction, amount]) => (
               <div key={jurisdiction} className="space-y-1">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-300">{jurisdiction}</span>
-                  <span className="text-zinc-400">{formatCurrency(amount, "USDC", true)}</span>
+                  <span className="text-foreground">{jurisdiction}</span>
+                  <span className="text-muted-foreground">
+                    {formatCurrency(amount, "USDC", true)}
+                  </span>
                 </div>
-                <Progress value={(amount / totalInvested) * 100} className="h-1.5" indicatorClassName="bg-blue-500" />
+                <Progress
+                  value={(amount / totalInvested) * 100}
+                  className="h-1.5"
+                  indicatorClassName="bg-info"
+                />
               </div>
             ))}
           </CardContent>

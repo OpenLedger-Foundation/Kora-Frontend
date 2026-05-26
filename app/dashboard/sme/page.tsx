@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
+import { DataTable } from "@/components/ui/data-table";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
@@ -14,13 +15,90 @@ import {
   formatCurrency,
   formatDate,
   formatApr,
-  RISK_TIER_COLORS,
   STATUS_COLORS,
   cn,
 } from "@/lib/utils";
+import type { Invoice } from "@/types";
+import type { ColumnDef } from "@/types/table";
 
-// In production, filter by wallet address
 const MY_INVOICES = MOCK_INVOICES.slice(0, 3);
+
+const INVOICE_COLUMNS: ColumnDef<Invoice>[] = [
+  {
+    id: "invoice",
+    header: "Invoice",
+    accessor: (row) => row.metadata.invoiceNumber,
+    cell: (row) => (
+      <div>
+        <p className="font-medium text-foreground">{row.metadata.invoiceNumber}</p>
+        <p className="text-xs text-muted-foreground">{row.metadata.category}</p>
+      </div>
+    ),
+  },
+  {
+    id: "debtor",
+    header: "Debtor",
+    accessor: (row) => row.metadata.debtorName,
+    cell: (row) => <span className="text-muted-foreground">{row.metadata.debtorName}</span>,
+  },
+  {
+    id: "amount",
+    header: "Amount",
+    accessor: (row) => row.metadata.amount,
+    cell: (row) => (
+      <span className="font-medium text-foreground">
+        {formatCurrency(row.metadata.amount, row.metadata.currency, true)}
+      </span>
+    ),
+  },
+  {
+    id: "apr",
+    header: "APR",
+    accessor: (row) => row.terms.apr,
+    cell: (row) => <span className="font-medium text-primary">{formatApr(row.terms.apr)}</span>,
+  },
+  {
+    id: "progress",
+    header: "Progress",
+    accessor: (row) => row.funding.fundingProgress,
+    cell: (row) => (
+      <div className="w-32 space-y-1">
+        <Progress value={row.funding.fundingProgress * 100} className="h-1.5" />
+        <p className="text-xs text-muted-foreground">
+          {Math.round(row.funding.fundingProgress * 100)}%
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: "status",
+    header: "Status",
+    accessor: (row) => row.status,
+    cell: (row) => (
+      <span className={cn("rounded-md px-2 py-0.5 text-xs capitalize", STATUS_COLORS[row.status])}>
+        {row.status.replace(/_/g, " ")}
+      </span>
+    ),
+  },
+  {
+    id: "due",
+    header: "Due Date",
+    accessor: (row) => row.terms.repaymentDate,
+    cell: (row) => (
+      <span className="text-xs text-muted-foreground">{formatDate(row.terms.repaymentDate)}</span>
+    ),
+  },
+  {
+    id: "actions",
+    header: "",
+    sortable: false,
+    cell: (row) => (
+      <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
+        View →
+      </Link>
+    ),
+  },
+];
 
 const STATS = [
   {
@@ -36,13 +114,18 @@ const STATS = [
   },
   {
     label: "Active Invoices",
-    value: MY_INVOICES.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length.toString(),
+    value: MY_INVOICES.filter((i) =>
+      ["listed", "partially_funded", "fully_funded"].includes(i.status)
+    ).length.toString(),
     icon: <FileText className="h-4 w-4" />,
   },
   {
     label: "Pending Repayment",
     value: formatCurrency(
-      MY_INVOICES.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
+      MY_INVOICES.filter((i) => i.status === "fully_funded").reduce(
+        (s, i) => s + i.metadata.amount,
+        0
+      ),
       "USDC",
       true
     ),
@@ -64,11 +147,11 @@ export default function SMEDashboardPage() {
   if (!isConnected) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800">
-          <FileText className="h-6 w-6 text-zinc-500" />
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <FileText className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Connect your wallet</h2>
-        <p className="text-sm text-zinc-500">Connect to view and manage your invoices</p>
+        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
+        <p className="text-sm text-muted-foreground">Connect to view and manage your invoices</p>
         <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
       </div>
     );
@@ -76,20 +159,18 @@ export default function SMEDashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-100">SME Dashboard</h1>
-          <p className="mt-1 text-sm text-zinc-500">Manage your invoice financing</p>
+          <h1 className="text-2xl font-bold text-foreground">SME Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Manage your invoice financing</p>
         </div>
-        <Button asChild>
-          <Link href="/invoice/create">
+        <Link href="/invoice/create">
+          <Button>
             <PlusCircle className="h-4 w-4" /> New Invoice
-          </Link>
-        </Button>
+          </Button>
+        </Link>
       </div>
 
-      {/* Stats */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STATS.map((stat, i) => (
           <motion.div
@@ -103,89 +184,41 @@ export default function SMEDashboardPage() {
         ))}
       </div>
 
-      {/* Invoice table */}
       <Card>
         <CardHeader>
           <CardTitle>My Invoices</CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800 text-left">
-                  {["Invoice", "Debtor", "Amount", "APR", "Progress", "Status", "Due Date", ""].map((h) => (
-                    <th key={h} className="px-4 py-3 text-xs font-medium text-zinc-500">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {MY_INVOICES.map((invoice, i) => (
-                  <motion.tr
-                    key={invoice.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="border-b border-zinc-800/50 hover:bg-zinc-800/30"
-                  >
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium text-zinc-200">{invoice.metadata.invoiceNumber}</p>
-                        <p className="text-xs text-zinc-600">{invoice.metadata.category}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-400">{invoice.metadata.debtorName}</td>
-                    <td className="px-4 py-3 font-medium text-zinc-200">
-                      {formatCurrency(invoice.metadata.amount, invoice.metadata.currency, true)}
-                    </td>
-                    <td className="px-4 py-3 text-kora-400 font-medium">
-                      {formatApr(invoice.terms.apr)}
-                    </td>
-                    <td className="px-4 py-3 w-32">
-                      <div className="space-y-1">
-                        <Progress value={invoice.funding.fundingProgress * 100} className="h-1.5" />
-                        <p className="text-xs text-zinc-600">
-                          {Math.round(invoice.funding.fundingProgress * 100)}%
-                        </p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={cn("rounded-md px-2 py-0.5 text-xs capitalize", STATUS_COLORS[invoice.status])}>
-                        {invoice.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-500 text-xs">
-                      {formatDate(invoice.terms.repaymentDate)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/marketplace/${invoice.id}`}
-                        className="text-xs text-kora-400 hover:text-kora-300"
-                      >
-                        View →
-                      </Link>
-                    </td>
-                  </motion.tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <CardContent className="p-4 sm:p-6">
+          <DataTable
+            data={MY_INVOICES}
+            columns={INVOICE_COLUMNS}
+            pageSize={5}
+            enableSelection
+            bulkActions={
+              <Button type="button" variant="outline" size="sm">
+                Export selected
+              </Button>
+            }
+            emptyState={{
+              title: "No invoices yet",
+              message: "Create your first invoice to start raising liquidity.",
+              illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
+            }}
+          />
         </CardContent>
       </Card>
 
-      {/* Repayment reminder */}
       {MY_INVOICES.some((i) => i.status === "fully_funded") && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mt-6 flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
+          className="mt-6 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/5 p-4"
         >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
-            <p className="text-sm font-medium text-amber-300">Repayment Due Soon</p>
-            <p className="mt-0.5 text-xs text-amber-400/70">
+            <p className="text-sm font-medium text-warning">Repayment Due Soon</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
               You have invoices approaching their repayment date. Ensure sufficient USDC balance.
             </p>
           </div>

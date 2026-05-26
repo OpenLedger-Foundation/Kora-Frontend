@@ -1,0 +1,31 @@
+import type { ReactNode } from "react";
+
+export type TableSortDirection = "asc" | "desc" | null;
+
+export interface ColumnDef<T> {
+  id: string;
+  header: string;
+  accessor?: keyof T | ((row: T) => string | number);
+  cell?: (row: T) => ReactNode;
+  sortable?: boolean;
+  className?: string;
+}
+
+export interface DataTableEmptyState {
+  title?: string;
+  message: string;
+  illustration?: ReactNode;
+}
+
+export interface DataTableProps<T extends { id: string }> {
+  data: T[];
+  columns: ColumnDef<T>[];
+  isLoading?: boolean;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  enableSelection?: boolean;
+  bulkActions?: ReactNode;
+  emptyState?: DataTableEmptyState;
+  getRowId?: (row: T) => string;
+  className?: string;
+}
