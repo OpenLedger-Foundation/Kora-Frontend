@@ -5,6 +5,24 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
 import { useState } from "react";
 import { WalletConnectModal } from "@/components/wallet/WalletConnectModal";
+import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { useUIStore } from "@/store/uiStore";
+
+function ThemedToaster() {
+  const theme = useUIStore((s) => s.theme);
+  return (
+    <Toaster
+      theme={theme}
+      position="bottom-right"
+      toastOptions={{
+        classNames: {
+          toast: "bg-card border border-border text-foreground",
+          description: "text-muted-foreground",
+        },
+      }}
+    />
+  );
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -18,21 +36,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <WalletConnectModal />
-      <Toaster
-        theme="dark"
-        position="bottom-right"
-        toastOptions={{
-          classNames: {
-            toast: "bg-zinc-900 border border-zinc-800 text-zinc-100",
-            description: "text-zinc-400",
-          },
-        }}
-      />
-      {process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true" && (
-        <ReactQueryDevtools initialIsOpen={false} />
-      )}
+      <ThemeProvider>
+        {children}
+        <WalletConnectModal />
+        <ThemedToaster />
+        {process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true" && (
+          <ReactQueryDevtools initialIsOpen={false} />
+        )}
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

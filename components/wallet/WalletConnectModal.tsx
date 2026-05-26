@@ -68,7 +68,7 @@ export function WalletConnectModal() {
     <Dialog open={walletModalOpen} onOpenChange={setWalletModalOpen}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-kora-500/10 text-kora-400">
+          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-kora-muted text-primary">
             <Wallet className="h-5 w-5" />
           </div>
           <DialogTitle>Connect Wallet</DialogTitle>
@@ -81,42 +81,43 @@ export function WalletConnectModal() {
           {WALLETS.map((wallet, i) => (
             <motion.button
               key={wallet.id}
+              type="button"
               initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.06 }}
               onClick={() => handleConnect(wallet.id)}
               disabled={!!connecting}
               className={cn(
-                "flex w-full items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3.5",
-                "text-left transition-all hover:border-zinc-700 hover:bg-zinc-800",
+                "flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3.5",
+                "text-left transition-all hover:border-border hover:bg-muted",
                 "disabled:cursor-not-allowed disabled:opacity-50",
-                connecting === wallet.id && "border-kora-500/30 bg-kora-500/5"
+                connecting === wallet.id && "border-primary/30 bg-kora-muted"
               )}
             >
               <span className="text-2xl">{wallet.icon}</span>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-zinc-100">{wallet.name}</span>
+                  <span className="text-sm font-medium text-foreground">{wallet.name}</span>
                   {wallet.popular && (
-                    <span className="rounded bg-kora-500/10 px-1.5 py-0.5 text-[10px] font-medium text-kora-400">
+                    <span className="rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary">
                       Popular
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 truncate text-xs text-zinc-500">{wallet.description}</p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{wallet.description}</p>
               </div>
               {connecting === wallet.id ? (
-                <Loader2 className="h-4 w-4 animate-spin text-kora-400" />
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
               ) : (
-                <ChevronRight className="h-4 w-4 text-zinc-600" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               )}
             </motion.button>
           ))}
         </div>
 
-        <p className="mt-4 text-center text-xs text-zinc-600">
+        <p className="mt-4 text-center text-xs text-muted-foreground">
           By connecting, you agree to our{" "}
-          <a href="/terms" className="text-zinc-500 hover:text-zinc-300">
+          <a href="/terms" className="text-muted-foreground hover:text-foreground">
             Terms of Service
           </a>
         </p>

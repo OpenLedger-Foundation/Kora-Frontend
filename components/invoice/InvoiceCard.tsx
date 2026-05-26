@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   formatCurrency,
   formatApr,
-  formatDate,
   daysUntil,
   RISK_TIER_COLORS,
   STATUS_COLORS,
@@ -33,14 +32,13 @@ export function InvoiceCard({ invoice, index = 0 }: InvoiceCardProps) {
       transition={{ duration: 0.3, delay: index * 0.05 }}
     >
       <Link href={`/marketplace/${invoice.id}`} className="block group">
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-5 backdrop-blur-sm transition-all duration-200 hover:border-zinc-700 hover:bg-zinc-900 hover:shadow-lg hover:shadow-black/20">
-          {/* Header */}
+        <div className="rounded-xl border border-border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:border-border hover:bg-card hover:shadow-token-lg">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-zinc-100 group-hover:text-white">
+              <p className="truncate text-sm font-medium text-foreground group-hover:text-foreground">
                 {metadata.debtorName}
               </p>
-              <p className="mt-0.5 truncate text-xs text-zinc-500">
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {metadata.invoiceNumber}
               </p>
             </div>
@@ -64,69 +62,64 @@ export function InvoiceCard({ invoice, index = 0 }: InvoiceCardProps) {
             </div>
           </div>
 
-          {/* Amount */}
           <div className="mt-4">
-            <p className="text-2xl font-semibold tracking-tight text-zinc-100">
+            <p className="text-2xl font-semibold tracking-tight text-foreground">
               {formatCurrency(metadata.amount, metadata.currency, true)}
             </p>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Financing {formatCurrency(terms.financingAmount, metadata.currency, true)}
             </p>
           </div>
 
-          {/* Funding progress */}
           <div className="mt-4 space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-zinc-500">
+              <span className="text-muted-foreground">
                 {formatCurrency(funding.totalRaised, metadata.currency, true)} raised
               </span>
-              <span className="font-medium text-zinc-300">
+              <span className="font-medium text-foreground">
                 {Math.round(funding.fundingProgress * 100)}%
               </span>
             </div>
             <Progress value={funding.fundingProgress * 100} />
           </div>
 
-          {/* Meta row */}
-          <div className="mt-4 grid grid-cols-3 gap-3 border-t border-zinc-800 pt-4">
+          <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4">
             <div>
-              <p className="flex items-center gap-1 text-xs text-zinc-500">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <TrendingUp className="h-3 w-3" /> APR
               </p>
-              <p className="mt-0.5 text-sm font-semibold text-kora-400">
+              <p className="mt-0.5 text-sm font-semibold text-primary">
                 {formatApr(terms.apr)}
               </p>
             </div>
             <div>
-              <p className="flex items-center gap-1 text-xs text-zinc-500">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Calendar className="h-3 w-3" /> Tenor
               </p>
-              <p className="mt-0.5 text-sm font-medium text-zinc-300">
+              <p className="mt-0.5 text-sm font-medium text-foreground">
                 {terms.tenor}d
               </p>
             </div>
             <div>
-              <p className="flex items-center gap-1 text-xs text-zinc-500">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Users className="h-3 w-3" /> Investors
               </p>
-              <p className="mt-0.5 text-sm font-medium text-zinc-300">
+              <p className="mt-0.5 text-sm font-medium text-foreground">
                 {funding.investorCount}
               </p>
             </div>
           </div>
 
-          {/* Footer */}
           <div className="mt-4 flex items-center justify-between">
-            <span className="flex items-center gap-1 text-xs text-zinc-500">
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <MapPin className="h-3 w-3" />
               {metadata.jurisdiction} · {metadata.category}
             </span>
-            <span className="text-xs text-zinc-600">
+            <span className="text-xs text-muted-foreground">
               {days > 0 ? `${days}d left` : "Due"}
             </span>
           </div>
 
-          {/* CTA */}
           {status === "listed" || status === "partially_funded" ? (
             <Button size="sm" className="mt-4 w-full" onClick={(e) => e.preventDefault()}>
               Fund Invoice

@@ -79,13 +79,13 @@ export const RISK_TIER_COLORS: Record<string, string> = {
 
 /** Invoice status colour mapping */
 export const STATUS_COLORS: Record<string, string> = {
-  draft: "text-zinc-400 bg-zinc-400/10",
-  pending_mint: "text-yellow-400 bg-yellow-400/10",
-  listed: "text-blue-400 bg-blue-400/10",
-  partially_funded: "text-kora-400 bg-kora-400/10",
-  fully_funded: "text-emerald-400 bg-emerald-400/10",
-  active: "text-emerald-400 bg-emerald-400/10",
-  repaid: "text-purple-400 bg-purple-400/10",
-  defaulted: "text-red-400 bg-red-400/10",
-  cancelled: "text-zinc-500 bg-zinc-500/10",
+  draft: "text-muted-foreground bg-muted",
+  pending_mint: "text-warning bg-warning/10",
+  listed: "text-info bg-info/10",
+  partially_funded: "text-primary bg-kora-muted",
+  fully_funded: "text-success bg-success/10",
+  active: "text-success bg-success/10",
+  repaid: "text-info bg-info/10",
+  defaulted: "text-destructive bg-destructive/10",
+  cancelled: "text-muted-foreground bg-muted",
 };

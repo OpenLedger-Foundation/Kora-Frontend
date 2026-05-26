@@ -49,20 +49,50 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // Kora brand palette
-        kora: {
-          50: "#f0fdf9",
-          100: "#ccfbef",
-          200: "#99f6e0",
-          300: "#5eead4",
-          400: "#2dd4bf",
-          500: "#14b8a6",
-          600: "#0d9488",
-          700: "#0f766e",
-          800: "#115e59",
-          900: "#134e4a",
-          950: "#042f2e",
+        surface: {
+          DEFAULT: "hsl(var(--color-surface))",
+          elevated: "hsl(var(--color-surface-elevated))",
+          muted: "hsl(var(--color-surface-muted))",
         },
+        "text-token": {
+          DEFAULT: "hsl(var(--color-text))",
+          muted: "hsl(var(--color-text-muted))",
+          subtle: "hsl(var(--color-text-subtle))",
+        },
+        success: "hsl(var(--color-success))",
+        warning: "hsl(var(--color-warning))",
+        info: "hsl(var(--color-info))",
+        kora: {
+          DEFAULT: "hsl(var(--color-primary))",
+          muted: "hsl(var(--color-accent-muted))",
+          foreground: "hsl(var(--color-primary-foreground))",
+        },
+      },
+      spacing: {
+        "token-1": "var(--space-1)",
+        "token-2": "var(--space-2)",
+        "token-3": "var(--space-3)",
+        "token-4": "var(--space-4)",
+        "token-5": "var(--space-5)",
+        "token-6": "var(--space-6)",
+        "token-8": "var(--space-8)",
+        "token-10": "var(--space-10)",
+        "token-12": "var(--space-12)",
+      },
+      fontSize: {
+        "token-xs": ["var(--font-size-xs)", { lineHeight: "var(--line-height-normal)" }],
+        "token-sm": ["var(--font-size-sm)", { lineHeight: "var(--line-height-normal)" }],
+        "token-base": ["var(--font-size-base)", { lineHeight: "var(--line-height-normal)" }],
+        "token-lg": ["var(--font-size-lg)", { lineHeight: "var(--line-height-tight)" }],
+        "token-xl": ["var(--font-size-xl)", { lineHeight: "var(--line-height-tight)" }],
+        "token-2xl": ["var(--font-size-2xl)", { lineHeight: "var(--line-height-tight)" }],
+        "token-3xl": ["var(--font-size-3xl)", { lineHeight: "var(--line-height-tight)" }],
+      },
+      boxShadow: {
+        "token-sm": "var(--shadow-sm)",
+        "token-md": "var(--shadow-md)",
+        "token-lg": "var(--shadow-lg)",
+        "token-glow": "var(--shadow-glow)",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -91,8 +121,8 @@ const config: Config = {
           to: { opacity: "1", transform: "translateY(0)" },
         },
         "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 0 0 rgba(20, 184, 166, 0)" },
-          "50%": { boxShadow: "0 0 20px 4px rgba(20, 184, 166, 0.3)" },
+          "0%, 100%": { boxShadow: "0 0 0 0 hsl(var(--color-primary) / 0)" },
+          "50%": { boxShadow: "var(--shadow-glow)" },
         },
       },
       animation: {
@@ -107,7 +137,7 @@ const config: Config = {
         "gradient-conic":
           "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
         "glass-gradient":
-          "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
+          "linear-gradient(135deg, hsl(var(--color-text) / 0.05) 0%, hsl(var(--color-text) / 0.02) 100%)",
       },
     },
   },

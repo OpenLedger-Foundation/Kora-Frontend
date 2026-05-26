@@ -1,26 +1,37 @@
 "use client";
 
-/**
- * useWallet — wraps Stellar Wallets Kit with Zustand store.
- * Handles connect, disconnect, sign, and balance refresh.
- */
 import { useCallback } from "react";
-import { StellarWalletsKit, WalletNetwork, FREIGHTER_ID } from "@creit.tech/stellar-wallets-kit";
+import {
+  StellarWalletsKit,
+  WalletNetwork,
+  FREIGHTER_ID,
+  FreighterModule,
+  xBullModule,
+  LobstrModule,
+  AlbedoModule,
+} from "@creit.tech/stellar-wallets-kit";
 import { useWalletStore } from "@/store";
 import { getAccountBalances } from "@/lib/stellar/client";
 import type { WalletProvider } from "@/types";
 
-// Singleton kit instance
 let kit: StellarWalletsKit | null = null;
+
+const WALLET_NETWORK =
+  process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
+    ? WalletNetwork.PUBLIC
+    : WalletNetwork.TESTNET;
 
 function getKit(): StellarWalletsKit {
   if (!kit) {
     kit = new StellarWalletsKit({
-      network:
-        process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
-          ? WalletNetwork.PUBLIC
-          : WalletNetwork.TESTNET,
+      network: WALLET_NETWORK,
       selectedWalletId: FREIGHTER_ID,
+      modules: [
+        new FreighterModule(),
+        new xBullModule(),
+        new LobstrModule(),
+        new AlbedoModule(),
+      ],
     });
   }
   return kit;
@@ -35,9 +46,8 @@ export function useWallet() {
       const walletKit = getKit();
       walletKit.setWallet(walletId);
 
-      const { address: addr } = await walletKit.getAddress();
+      const addr = await walletKit.getPublicKey();
 
-      // Fetch balances
       let bal = null;
       try {
         const raw = await getAccountBalances(addr);
@@ -61,21 +71,16 @@ export function useWallet() {
     disconnect();
   }, [disconnect]);
 
-  /**
-   * Sign a transaction XDR with the connected wallet.
-   * Returns the signed XDR string.
-   */
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
       if (!isConnected) throw new Error("Wallet not connected");
       const walletKit = getKit();
-      const { signedTxXdr } = await walletKit.signTransaction(xdr, {
-        address: address!,
-        networkPassphrase:
-          process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
-          "Test SDF Network ; September 2015",
+      const { result } = await walletKit.signTx({
+        xdr,
+        publicKeys: [address!],
+        network: WALLET_NETWORK,
       });
-      return signedTxXdr;
+      return result;
     },
     [isConnected, address]
   );

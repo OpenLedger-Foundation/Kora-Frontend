@@ -131,14 +131,16 @@ export default function LandingPage() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
           >
-            <Button size="xl" asChild>
-              <Link href="/marketplace">
+            <Link href="/marketplace">
+              <Button size="xl">
                 Browse Invoices <ArrowRight className="h-5 w-5" />
-              </Link>
-            </Button>
-            <Button size="xl" variant="outline" asChild>
-              <Link href="/invoice/create">Finance My Invoice</Link>
-            </Button>
+              </Button>
+            </Link>
+            <Link href="/invoice/create">
+              <Button size="xl" variant="outline">
+                Finance My Invoice
+              </Button>
+            </Link>
           </motion.div>
         </div>
       </section>
@@ -300,14 +302,16 @@ export default function LandingPage() {
               Join hundreds of SMEs already financing invoices on Kora Protocol.
             </p>
             <div className="relative mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <Button size="xl" asChild>
-                <Link href="/invoice/create">
+              <Link href="/invoice/create">
+                <Button size="xl">
                   Create Invoice <ArrowRight className="h-5 w-5" />
-                </Link>
-              </Button>
-              <Button size="xl" variant="outline" asChild>
-                <Link href="/marketplace">Explore Marketplace</Link>
-              </Button>
+                </Button>
+              </Link>
+              <Link href="/marketplace">
+                <Button size="xl" variant="outline">
+                  Explore Marketplace
+                </Button>
+              </Link>
             </div>
           </GlassCard>
         </div>

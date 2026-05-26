@@ -14,7 +14,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={selectId} className="text-sm font-medium text-zinc-300">
+          <label htmlFor={selectId} className="text-sm font-medium text-foreground">
             {label}
           </label>
         )}
@@ -22,10 +22,10 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           id={selectId}
           ref={ref}
           className={cn(
-            "h-10 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100",
-            "focus:border-kora-500 focus:outline-none focus:ring-1 focus:ring-kora-500/50",
+            "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground",
+            "focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring/50",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            error && "border-red-500/50",
+            error && "border-destructive/50",
             className
           )}
           {...props}
@@ -41,7 +41,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             </option>
           ))}
         </select>
-        {error && <p className="text-xs text-red-400">{error}</p>}
+        {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     );
   }
