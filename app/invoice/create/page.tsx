@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useDropzone } from "react-dropzone";
@@ -20,18 +21,19 @@ import { Select } from "@/components/ui/select";
 import { GlassCard } from "@/components/ui/card";
 import { useWallet } from "@/hooks/useWallet";
 import { useTransaction } from "@/hooks/useTransaction";
-import { useUIStore } from "@/store";
+import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareCreateInvoice } from "@/services/invoiceService";
-import { createInvoiceSchema, type CreateInvoiceSchema } from "@/lib/validations/invoice";
+import {
+  createInvoiceSchema,
+  invoiceDetailsStepSchema,
+  INVOICE_DETAILS_STEP_FIELDS,
+  type CreateInvoiceSchema,
+} from "@/lib/validations/invoice";
 import { cn } from "@/lib/utils";
 
-const STEPS = ["Invoice Details", "Financing Terms", "Upload & Review"];
+const TODAY = new Date().toISOString().split("T")[0];
 
-const CURRENCY_OPTIONS = [
-  { value: "USDC", label: "USDC" },
-  { value: "EURC", label: "EURC" },
-  { value: "XLM", label: "XLM" },
-];
+const STEPS = ["Invoice Details", "Financing Terms", "Upload & Review"];
 
 const JURISDICTION_OPTIONS = [
   { value: "KE", label: "Kenya" },
@@ -63,6 +65,7 @@ export default function CreateInvoicePage() {
   const [submitted, setSubmitted] = useState(false);
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const { createDraft, setCreateDraft, clearCreateDraft } = useInvoiceStore();
   const { execute } = useTransaction();
 
   const {
@@ -70,11 +73,33 @@ export default function CreateInvoicePage() {
     handleSubmit,
     watch,
     trigger,
+    reset,
     formState: { errors },
   } = useForm<CreateInvoiceSchema>({
     resolver: zodResolver(createInvoiceSchema),
-    defaultValues: { currency: "USDC", jurisdiction: "KE", category: "technology" },
+    mode: "onBlur",
+    reValidateMode: "onChange",
+    defaultValues: {
+      currency: "USDC",
+      issueDate: TODAY,
+      jurisdiction: "KE",
+      category: "technology",
+      ...createDraft,
+    },
   });
+
+  useEffect(() => {
+    const subscription = watch((values) => {
+      setCreateDraft(values as Partial<CreateInvoiceSchema>);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, setCreateDraft]);
+
+  const formValues = watch();
+  const step0Valid = useMemo(
+    () => invoiceDetailsStepSchema.safeParse(formValues).success,
+    [formValues]
+  );
 
   const onDrop = useCallback((accepted: File[]) => {
     if (accepted[0]) setFile(accepted[0]);
@@ -89,12 +114,28 @@ export default function CreateInvoicePage() {
 
   const nextStep = async () => {
     const fieldsPerStep: (keyof CreateInvoiceSchema)[][] = [
-      ["invoiceNumber", "debtorName", "debtorAddress", "amount", "currency", "issueDate", "dueDate", "jurisdiction", "category"],
+      [...INVOICE_DETAILS_STEP_FIELDS],
       ["discountRate", "minInvestment"],
       [],
     ];
     const valid = await trigger(fieldsPerStep[step]);
     if (valid) setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  };
+
+  const goBack = () => {
+    setStep((s) => {
+      const prev = Math.max(s - 1, 0);
+      if (prev === 0) {
+        reset({
+          currency: "USDC",
+          issueDate: TODAY,
+          jurisdiction: "KE",
+          category: "technology",
+          ...createDraft,
+        });
+      }
+      return prev;
+    });
   };
 
   const onSubmit = async (data: CreateInvoiceSchema) => {
@@ -109,7 +150,10 @@ export default function CreateInvoicePage() {
         ).then((r) => r.unsignedXdr),
       {
         successMessage: "Invoice minted on Soroban!",
-        onSuccess: () => setSubmitted(true),
+        onSuccess: () => {
+          clearCreateDraft();
+          setSubmitted(true);
+        },
       }
     );
   };
@@ -127,9 +171,9 @@ export default function CreateInvoicePage() {
           </div>
           <h2 className="text-2xl font-bold text-zinc-100">Invoice Created!</h2>
           <p className="mt-2 text-zinc-500">Your invoice NFT has been minted on Soroban.</p>
-          <Button className="mt-6" asChild>
-            <a href="/dashboard/sme">View My Invoices</a>
-          </Button>
+          <Link href="/dashboard/sme">
+            <Button className="mt-6">View My Invoices</Button>
+          </Link>
         </motion.div>
       </div>
     );
@@ -180,20 +224,14 @@ export default function CreateInvoicePage() {
               className="space-y-4"
             >
               <GlassCard className="p-6 space-y-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Input
-                    label="Invoice Number"
-                    placeholder="INV-2024-0001"
-                    error={errors.invoiceNumber?.message}
-                    {...register("invoiceNumber")}
-                  />
-                  <Select
-                    label="Currency"
-                    options={CURRENCY_OPTIONS}
-                    error={errors.currency?.message}
-                    {...register("currency")}
-                  />
-                </div>
+                <input type="hidden" {...register("currency")} value="USDC" />
+                <input type="hidden" {...register("issueDate")} />
+                <Input
+                  label="Invoice Number"
+                  placeholder="INV-2024-0001"
+                  error={errors.invoiceNumber?.message}
+                  {...register("invoiceNumber")}
+                />
                 <Input
                   label="Debtor Company Name"
                   placeholder="Acme Corporation Ltd"
@@ -208,25 +246,12 @@ export default function CreateInvoicePage() {
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Input
-                    label="Invoice Amount"
+                    label="Invoice Amount (USDC)"
                     type="number"
                     placeholder="50000"
+                    hint="Minimum 100 USDC"
                     error={errors.amount?.message}
                     {...register("amount")}
-                  />
-                  <Select
-                    label="Jurisdiction"
-                    options={JURISDICTION_OPTIONS}
-                    error={errors.jurisdiction?.message}
-                    {...register("jurisdiction")}
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Input
-                    label="Issue Date"
-                    type="date"
-                    error={errors.issueDate?.message}
-                    {...register("issueDate")}
                   />
                   <Input
                     label="Due Date"
@@ -235,12 +260,20 @@ export default function CreateInvoicePage() {
                     {...register("dueDate")}
                   />
                 </div>
-                <Select
-                  label="Industry Category"
-                  options={CATEGORY_OPTIONS}
-                  error={errors.category?.message}
-                  {...register("category")}
-                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Select
+                    label="Jurisdiction"
+                    options={JURISDICTION_OPTIONS}
+                    error={errors.jurisdiction?.message}
+                    {...register("jurisdiction")}
+                  />
+                  <Select
+                    label="Industry Category"
+                    options={CATEGORY_OPTIONS}
+                    error={errors.category?.message}
+                    {...register("category")}
+                  />
+                </div>
               </GlassCard>
             </motion.div>
           )}
@@ -382,14 +415,18 @@ export default function CreateInvoicePage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setStep((s) => Math.max(s - 1, 0))}
+            onClick={goBack}
             disabled={step === 0}
           >
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
 
           {step < STEPS.length - 1 ? (
-            <Button type="button" onClick={nextStep}>
+            <Button
+              type="button"
+              onClick={nextStep}
+              disabled={step === 0 && !step0Valid}
+            >
               Next <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (

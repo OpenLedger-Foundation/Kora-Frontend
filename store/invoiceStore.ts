@@ -1,17 +1,27 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type { Invoice, MarketplaceFilters, MarketplaceSort } from "@/types";
+import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
+
+export type InvoiceCreateDraft = Partial<InvoiceDetailsStepSchema> & {
+  currency?: "USDC" | "EURC" | "XLM";
+  issueDate?: string;
+  discountRate?: number;
+  minInvestment?: number;
+  description?: string;
+};
 
 interface InvoiceStore {
-  // Marketplace state
   invoices: Invoice[];
   filters: MarketplaceFilters;
   sort: MarketplaceSort;
   searchQuery: string;
-
-  // Selected invoice
   selectedInvoice: Invoice | null;
 
-  // Actions
+  createDraft: InvoiceCreateDraft;
+  setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
+  clearCreateDraft: () => void;
+
   setInvoices: (invoices: Invoice[]) => void;
   setFilters: (filters: Partial<MarketplaceFilters>) => void;
   resetFilters: () => void;
@@ -22,18 +32,31 @@ interface InvoiceStore {
 
 const DEFAULT_SORT: MarketplaceSort = { key: "apr", direction: "desc" };
 
-export const useInvoiceStore = create<InvoiceStore>((set) => ({
-  invoices: [],
-  filters: {},
-  sort: DEFAULT_SORT,
-  searchQuery: "",
-  selectedInvoice: null,
+export const useInvoiceStore = create<InvoiceStore>()(
+  persist(
+    (set) => ({
+      invoices: [],
+      filters: {},
+      sort: DEFAULT_SORT,
+      searchQuery: "",
+      selectedInvoice: null,
 
-  setInvoices: (invoices) => set({ invoices }),
-  setFilters: (filters) =>
-    set((s) => ({ filters: { ...s.filters, ...filters } })),
-  resetFilters: () => set({ filters: {}, searchQuery: "" }),
-  setSort: (sort) => set({ sort }),
-  setSearchQuery: (searchQuery) => set({ searchQuery }),
-  setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
-}));
+      createDraft: { currency: "USDC" },
+      setCreateDraft: (draft) =>
+        set((s) => ({ createDraft: { ...s.createDraft, ...draft } })),
+      clearCreateDraft: () => set({ createDraft: { currency: "USDC" } }),
+
+      setInvoices: (invoices) => set({ invoices }),
+      setFilters: (filters) =>
+        set((s) => ({ filters: { ...s.filters, ...filters } })),
+      resetFilters: () => set({ filters: {}, searchQuery: "" }),
+      setSort: (sort) => set({ sort }),
+      setSearchQuery: (searchQuery) => set({ searchQuery }),
+      setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
+    }),
+    {
+      name: "kora-invoice-store",
+      partialize: (state) => ({ createDraft: state.createDraft }),
+    }
+  )
+);
