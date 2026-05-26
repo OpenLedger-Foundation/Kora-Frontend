@@ -4,21 +4,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kora-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950 disabled:pointer-events-none disabled:opacity-40 active:scale-[0.98]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-40 active:scale-[0.98]",
   {
     variants: {
       variant: {
         default:
-          "bg-kora-500 text-white shadow-lg shadow-kora-500/20 hover:bg-kora-400 hover:shadow-kora-400/30",
+          "bg-primary text-primary-foreground shadow-token-md hover:opacity-90",
         secondary:
-          "bg-zinc-800 text-zinc-100 border border-zinc-700 hover:bg-zinc-700 hover:border-zinc-600",
+          "bg-secondary text-secondary-foreground border border-border hover:bg-muted",
         outline:
-          "border border-zinc-700 bg-transparent text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100",
+          "border border-border bg-transparent text-foreground hover:bg-muted",
         ghost:
-          "bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100",
+          "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
         destructive:
-          "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20",
-        link: "text-kora-400 underline-offset-4 hover:underline p-0 h-auto",
+          "bg-destructive/10 text-destructive border border-destructive/20 hover:bg-destructive/20",
+        link: "text-primary underline-offset-4 hover:underline p-0 h-auto",
       },
       size: {
         sm: "h-8 px-3 text-xs",
@@ -50,18 +50,20 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         {...props}
       >
-        {loading && (
+        {loading ? (
           <svg
             className="h-4 w-4 animate-spin"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
+            aria-hidden
           >
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
+        ) : (
+          children
         )}
-        {children}
       </Comp>
     );
   }
