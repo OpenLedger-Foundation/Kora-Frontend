@@ -12,10 +12,22 @@ export type InvoiceCreateDraft = Partial<InvoiceDetailsStepSchema> & {
   description?: string;
 };
 
+export const DEFAULT_FILTERS: MarketplaceFilters = {
+  categories: [],
+  jurisdictions: [],
+  riskTiers: [],
+  aprRange: [0, 50],
+  activeOnly: false,
+};
+
+const DEFAULT_SORT: MarketplaceSort = { key: "apr", direction: "desc" };
+const DEFAULT_SORT_BY = "apr_desc";
+
 interface InvoiceStore {
   invoices: Invoice[];
   filters: MarketplaceFilters;
   sort: MarketplaceSort;
+  sortBy: string;
   searchQuery: string;
   selectedInvoice: Invoice | null;
 
@@ -25,20 +37,21 @@ interface InvoiceStore {
 
   setInvoices: (invoices: Invoice[]) => void;
   setFilters: (filters: Partial<MarketplaceFilters>) => void;
+  updateSingleFilter: (key: keyof MarketplaceFilters, value: any) => void;
   resetFilters: () => void;
   setSort: (sort: MarketplaceSort) => void;
+  setSortBy: (sortBy: string) => void;
   setSearchQuery: (q: string) => void;
   setSelectedInvoice: (invoice: Invoice | null) => void;
 }
-
-const DEFAULT_SORT: MarketplaceSort = { key: "apr", direction: "desc" };
 
 export const useInvoiceStore = create<InvoiceStore>()(
   persist(
     (set) => ({
       invoices: [],
-      filters: {},
+      filters: DEFAULT_FILTERS,
       sort: DEFAULT_SORT,
+      sortBy: DEFAULT_SORT_BY,
       searchQuery: "",
       selectedInvoice: null,
 
@@ -48,8 +61,10 @@ export const useInvoiceStore = create<InvoiceStore>()(
 
       setInvoices: (invoices) => set({ invoices }),
       setFilters: (filters) => set((s) => ({ filters: { ...s.filters, ...filters } })),
-      resetFilters: () => set({ filters: {}, searchQuery: "" }),
+      updateSingleFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
+      resetFilters: () => set({ filters: DEFAULT_FILTERS, searchQuery: "" }),
       setSort: (sort) => set({ sort }),
+      setSortBy: (sortBy) => set({ sortBy }),
       setSearchQuery: (searchQuery) => set({ searchQuery }),
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
     }),

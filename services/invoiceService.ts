@@ -23,12 +23,28 @@ export async function fetchInvoices(
 
     // Apply filters
     if (filters.category) data = data.filter((i) => i.metadata.category === filters.category);
+    if (filters.categories && filters.categories.length > 0) {
+      data = data.filter((i) => filters.categories!.includes(i.metadata.category));
+    }
     if (filters.jurisdiction) data = data.filter((i) => i.metadata.jurisdiction === filters.jurisdiction);
+    if (filters.jurisdictions && filters.jurisdictions.length > 0) {
+      data = data.filter((i) => filters.jurisdictions!.includes(i.metadata.jurisdiction));
+    }
     if (filters.riskTier) data = data.filter((i) => i.riskTier === filters.riskTier);
+    if (filters.riskTiers && filters.riskTiers.length > 0) {
+      data = data.filter((i) => filters.riskTiers!.includes(i.riskTier));
+    }
     if (filters.currency) data = data.filter((i) => i.metadata.currency === filters.currency);
     if (filters.minApr) data = data.filter((i) => i.terms.apr >= filters.minApr!);
     if (filters.maxApr) data = data.filter((i) => i.terms.apr <= filters.maxApr!);
+    if (filters.aprRange) {
+      const [min, max] = filters.aprRange;
+      data = data.filter((i) => i.terms.apr >= min && i.terms.apr <= max);
+    }
     if (filters.status) data = data.filter((i) => i.status === filters.status);
+    if (filters.activeOnly) {
+      data = data.filter((i) => i.status === "listed" || i.status === "partially_funded");
+    }
 
     // Apply sort
     data.sort((a, b) => {

@@ -74,6 +74,13 @@ export interface MarketplaceFilters {
   minAmount?: number;
   maxAmount?: number;
   status?: string;
+
+  // Extended UI filter fields
+  categories?: string[];
+  jurisdictions?: string[];
+  riskTiers?: string[];
+  aprRange?: [number, number];
+  activeOnly?: boolean;
 }
 
 export type MarketplaceSortKey = "apr" | "amount" | "duration" | "riskScore" | "createdAt";
