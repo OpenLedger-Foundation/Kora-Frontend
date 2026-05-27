@@ -74,6 +74,10 @@ export function useWallet() {
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
       if (!isConnected) throw new Error("Wallet not connected");
+      if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true" || xdr.startsWith("mock_")) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return `${xdr}_signed`;
+      }
       const walletKit = getKit();
       const { result } = await walletKit.signTx({
         xdr,
