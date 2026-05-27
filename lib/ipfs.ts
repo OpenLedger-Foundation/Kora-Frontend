@@ -19,7 +19,8 @@ const pinataApi = axios.create({
  */
 export async function uploadFileToPinata(
   file: File,
-  name: string
+  name: string,
+  onProgress?: (progress: number) => void
 ): Promise<string> {
   const form = new FormData();
   form.append("file", file);
@@ -30,6 +31,14 @@ export async function uploadFileToPinata(
 
   const { data } = await pinataApi.post("/pinning/pinFileToIPFS", form, {
     headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total && onProgress) {
+        const percentCompleted = Math.round(
+          (progressEvent.loaded * 100) / progressEvent.total
+        );
+        onProgress(percentCompleted);
+      }
+    },
   });
 
   return data.IpfsHash as string;

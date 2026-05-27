@@ -358,7 +358,7 @@ function Switch({
 }
 
 // 5. High-fidelity InvoiceCard Skeleton Component
-export function InvoiceCardSkeleton() {
+function InvoiceCardSkeleton() {
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-4 animate-pulse">
       {/* Header */}

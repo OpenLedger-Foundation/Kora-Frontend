@@ -98,18 +98,41 @@ export async function fetchInvoicesByOwner(ownerAddress: string): Promise<Invoic
  */
 export async function prepareCreateInvoice(
   formData: CreateInvoiceFormData,
-  ownerAddress: string
+  ownerAddress: string,
+  onProgress?: (progress: number) => void
 ): Promise<{ unsignedXdr: string; metadataCid: string }> {
   if (!formData.document) throw new Error("Invoice document is required");
 
   // 1. Upload PDF
   const docCid = await uploadFileToPinata(
     formData.document,
-    `invoice-${formData.invoiceNumber}.pdf`
+    `invoice-${formData.invoiceNumber}.pdf`,
+    onProgress
   );
+
+  // Calculate APR for standard metadata
+  const daysToMaturity = Math.ceil(
+    (new Date(formData.dueDate).getTime() - new Date(formData.listingExpiryDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  const effectiveAPR = daysToMaturity > 0 && formData.discountRate > 0 && formData.discountRate < 1
+    ? (formData.discountRate / (1 - formData.discountRate)) * (365 / daysToMaturity) * 100
+    : 0;
 
   // 2. Build metadata object and upload
   const metadata = {
+    // Standard schema properties
+    name: "Invoice Asset",
+    description: formData.description || "Tokenized Invoice Factoring Asset",
+    image: `ipfs://${docCid}`,
+    properties: {
+      debtor: formData.debtorName,
+      amount: formData.amount,
+      apr: Number(effectiveAPR.toFixed(2)),
+      dueDate: formData.dueDate,
+      jurisdiction: formData.jurisdiction,
+    },
+
+    // Backward compatibility flat properties
     invoiceNumber: formData.invoiceNumber,
     issuerAddress: ownerAddress,
     debtorName: formData.debtorName,
@@ -118,11 +141,10 @@ export async function prepareCreateInvoice(
     currency: formData.currency,
     issueDate: formData.issueDate,
     dueDate: formData.dueDate,
-    description: formData.description,
     jurisdiction: formData.jurisdiction,
     category: formData.category,
     documentHash: docCid,
-    documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY}/${docCid}`,
+    documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"}/${docCid}`,
   };
 
   const metadataCid = await uploadJsonToPinata(

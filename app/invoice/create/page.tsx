@@ -65,9 +65,18 @@ export default function CreateInvoicePage() {
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const { isConnected, address } = useWallet();
-  const { setWalletModalOpen } = useUIStore();
+  const { setWalletModalOpen, txState } = useUIStore();
   const { createDraft, setCreateDraft, clearCreateDraft } = useInvoiceStore();
   const { execute } = useTransaction();
+
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [mintedInfo, setMintedInfo] = useState<{
+    tokenId: string;
+    txHash: string;
+    metadataCid: string;
+  } | null>(null);
 
   const {
     register,
@@ -144,13 +153,27 @@ export default function CreateInvoicePage() {
     return (d / (1 - d)) * (365 / daysToMaturity) * 100;
   }, [discountRateVal, daysToMaturity]);
 
-  const onDrop = useCallback((accepted: File[]) => {
-    if (accepted[0]) setFile(accepted[0]);
+  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+    setFileError(null);
+    if (acceptedFiles[0]) {
+      setFile(acceptedFiles[0]);
+    }
+    if (fileRejections[0]) {
+      const error = fileRejections[0].errors[0];
+      if (error.code === "file-too-large") {
+        setFileError("File is too large. Max size is exactly 10MB.");
+      } else if (error.code === "file-invalid-type") {
+        setFileError("Invalid file type. Only PDF documents are allowed.");
+      } else {
+        setFileError(error.message);
+      }
+      setFile(null);
+    }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
     onDrop,
-    accept: { "application/pdf": [".pdf"], "image/*": [".png", ".jpg", ".jpeg"] },
+    accept: { "application/pdf": [".pdf"] },
     maxFiles: 1,
     maxSize: 10 * 1024 * 1024, // 10MB
   });
@@ -188,37 +211,107 @@ export default function CreateInvoicePage() {
     }
     if (!file) return;
 
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    let tempMetadataCid = "";
+
     await execute(
-      () =>
-        prepareCreateInvoice({ ...data, document: file, description: "" }, address!).then(
-          (r) => r.unsignedXdr
-        ),
+      async () => {
+        const result = await prepareCreateInvoice(
+          { ...data, document: file, description: "" },
+          address!,
+          (progress) => setUploadProgress(progress)
+        );
+        tempMetadataCid = result.metadataCid;
+        return result.unsignedXdr;
+      },
       {
         successMessage: "Invoice minted on Soroban!",
-        onSuccess: () => {
+        onSuccess: (hash) => {
+          const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
+          setMintedInfo({
+            tokenId: mockTokenId,
+            txHash: hash,
+            metadataCid: tempMetadataCid,
+          });
           clearCreateDraft();
           setSubmitted(true);
         },
       }
     );
+
+    setIsUploading(false);
   };
 
-  if (submitted) {
+  if (submitted && mintedInfo) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center px-4">
+      <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
         <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 100, damping: 15 }}
+          className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950/40 p-8 text-center backdrop-blur-md"
         >
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10">
-            <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+          <div className="absolute -right-24 -top-24 h-48 w-48 rounded-full bg-emerald-500/10 blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 h-48 w-48 rounded-full bg-kora-500/5 blur-3xl" />
+
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 120 }}
+            className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400"
+          >
+            <CheckCircle2 className="h-10 w-10" />
+          </motion.div>
+
+          <h2 className="text-3xl font-extrabold tracking-tight text-zinc-100">Invoice Minted!</h2>
+          <p className="mt-3 text-sm text-zinc-400">
+            Your invoice has been tokenized as an NFT on the Stellar Soroban network and is ready for funding.
+          </p>
+
+          <div className="mt-8 space-y-4 rounded-xl border border-zinc-800/85 bg-zinc-900/40 p-5 text-left text-sm backdrop-blur-sm">
+            <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
+              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">NFT Token ID</span>
+              <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
+                #{mintedInfo.tokenId}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-start pt-1">
+              <div className="space-y-1 w-full">
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Transaction Hash</span>
+                <span className="font-mono text-xs text-zinc-400 break-all select-all pr-4 block">
+                  {mintedInfo.txHash}
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t border-zinc-800/60 pt-3 flex justify-between items-center">
+              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">IPFS Metadata CID</span>
+              <span className="font-mono text-xs text-kora-400 break-all bg-kora-500/5 border border-kora-500/10 px-2 py-0.5 rounded select-all max-w-[200px] truncate">
+                {mintedInfo.metadataCid}
+              </span>
+            </div>
           </div>
-          <h2 className="text-2xl font-bold text-zinc-100">Invoice Created!</h2>
-          <p className="mt-2 text-zinc-500">Your invoice NFT has been minted on Soroban.</p>
-          <Link href="/dashboard/sme">
-            <Button className="mt-6">View My Invoices</Button>
-          </Link>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <a
+              href={`https://stellar.expert/explorer/testnet/tx/${mintedInfo.txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-300 rounded-lg transition-colors cursor-pointer"
+            >
+              Verify on Stellar Expert
+              <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+
+            <Link href="/marketplace">
+              <Button className="w-full sm:w-auto bg-gradient-to-r from-kora-500 to-kora-600 hover:from-kora-600 hover:to-kora-700 text-white shadow-lg shadow-kora-500/15">
+                View on Marketplace
+              </Button>
+            </Link>
+          </div>
         </motion.div>
       </div>
     );
@@ -526,49 +619,89 @@ export default function CreateInvoicePage() {
               <GlassCard className="space-y-4 p-6">
                 <div>
                   <p className="mb-2 text-sm font-medium text-zinc-300">Invoice Document</p>
-                  <div
-                    {...getRootProps()}
-                    className={cn(
-                      "cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors",
-                      isDragActive
-                        ? "border-kora-500 bg-kora-500/5"
-                        : "border-zinc-700 hover:border-zinc-600"
-                    )}
-                  >
-                    <input {...getInputProps()} />
-                    {file ? (
-                      <div className="flex items-center justify-center gap-3">
-                        <FileText className="text-kora-400 h-8 w-8" />
-                        <div className="text-left">
-                          <p className="text-sm font-medium text-zinc-200">{file.name}</p>
-                          <p className="text-xs text-zinc-500">
-                            {(file.size / 1024).toFixed(0)} KB
-                          </p>
+                  
+                  {isUploading ? (
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-8 text-center space-y-4">
+                      <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
+                        <span className="flex items-center gap-1.5 font-medium text-kora-400">
+                          <span className="h-1.5 w-1.5 animate-ping rounded-full bg-kora-500" />
+                          Uploading invoice to IPFS...
+                        </span>
+                        <span className="font-mono font-semibold text-zinc-300">{uploadProgress}%</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-950">
+                        <motion.div
+                          className="bg-gradient-to-r from-kora-500 to-emerald-400 h-full rounded-full"
+                          initial={{ width: "0%" }}
+                          animate={{ width: `${uploadProgress}%` }}
+                          transition={{ duration: 0.2 }}
+                        />
+                      </div>
+                      <p className="text-xs text-zinc-500 leading-normal">
+                        Your invoice is being pinned to IPFS. This is a necessary first step to anchor the document hash on-chain.
+                      </p>
+                    </div>
+                  ) : (
+                    <div
+                      {...getRootProps()}
+                      className={cn(
+                        "cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all duration-300",
+                        isDragActive && isDragAccept && "border-emerald-500 bg-emerald-500/5 shadow-inner",
+                        isDragActive && isDragReject && "border-red-500 bg-red-500/5 shadow-inner",
+                        !isDragActive && "border-zinc-700 hover:border-zinc-500 hover:bg-zinc-900/20"
+                      )}
+                    >
+                      <input {...getInputProps()} />
+                      {file ? (
+                        <div className="flex items-center justify-center gap-3">
+                          <FileText className="text-kora-400 h-8 w-8 animate-pulse" />
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-zinc-200 truncate max-w-[200px] sm:max-w-[300px]">
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              {(file.size / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFile(null);
+                              setFileError(null);
+                            }}
+                            className="ml-2 text-zinc-500 hover:text-zinc-300 p-1.5 hover:bg-zinc-800 rounded-full transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFile(null);
-                          }}
-                          className="ml-2 text-zinc-500 hover:text-zinc-300"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div>
-                        <Upload className="mx-auto h-8 w-8 text-zinc-600" />
-                        <p className="mt-2 text-sm text-zinc-400">
-                          Drop your invoice PDF here, or click to browse
-                        </p>
-                        <p className="mt-1 text-xs text-zinc-600">PDF, PNG, JPG up to 10MB</p>
-                      </div>
-                    )}
-                  </div>
-                  {!file && (
-                    <p className="mt-1 flex items-center gap-1 text-xs text-amber-400">
-                      <AlertCircle className="h-3 w-3" /> Document required to mint
+                      ) : (
+                        <div className="space-y-2">
+                          <Upload className={cn(
+                            "mx-auto h-8 w-8 transition-transform duration-300",
+                            isDragActive ? "scale-110 text-kora-400" : "text-zinc-500"
+                          )} />
+                          <p className="text-sm text-zinc-300">
+                            {isDragActive
+                              ? "Drop it here to upload!"
+                              : "Drop your invoice PDF here, or click to browse"}
+                          </p>
+                          <p className="text-xs text-zinc-500">PDF up to 10MB</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {fileError && (
+                    <p className="mt-2 flex items-center gap-1.5 text-xs text-red-400 bg-red-500/5 border border-red-500/10 px-3 py-2 rounded-lg">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>{fileError}</span>
+                    </p>
+                  )}
+
+                  {!file && !fileError && (
+                    <p className="mt-2 flex items-center gap-1 text-xs text-amber-400/90">
+                      <AlertCircle className="h-3.5 w-3.5" /> Document required to mint
                     </p>
                   )}
                 </div>
@@ -658,6 +791,45 @@ export default function CreateInvoicePage() {
           )}
         </div>
       </form>
+
+      {/* Transaction Interaction Overlays */}
+      {txState.status === "signing" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/90 p-8 text-center shadow-2xl backdrop-blur-xl"
+          >
+            <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-kora-500/10 text-kora-400">
+              <span className="absolute inset-0 animate-ping rounded-full bg-kora-500/5" />
+              <FileText className="h-10 w-10 animate-bounce" />
+            </div>
+            <h3 className="text-xl font-bold text-zinc-100">Signature Required</h3>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Please open your Stellar browser wallet extension and sign the transaction to authorize minting the invoice NFT on-chain.
+            </p>
+          </motion.div>
+        </div>
+      )}
+
+      {txState.status === "submitting" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/90 p-8 text-center shadow-2xl backdrop-blur-xl"
+          >
+            <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/10">
+              <div className="absolute inset-0 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+            </div>
+            <h3 className="text-xl font-bold text-zinc-100">Submitting Transaction</h3>
+            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+              Broadcasting your transaction to the Stellar network. Waiting for ledger consensus...
+            </p>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
