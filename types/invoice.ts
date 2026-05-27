@@ -15,15 +15,7 @@ export type RiskTier = "AAA" | "AA" | "A" | "BBB" | "BB" | "B" | "CCC";
 
 export type InvoiceCurrency = "USDC" | "EURC" | "XLM";
 
-export type InvoiceJurisdiction =
-  | "US"
-  | "EU"
-  | "UK"
-  | "NG"
-  | "KE"
-  | "GH"
-  | "ZA"
-  | "OTHER";
+export type InvoiceJurisdiction = "US" | "EU" | "UK" | "NG" | "KE" | "GH" | "ZA" | "OTHER";
 
 export type InvoiceCategory =
   | "technology"
@@ -114,5 +106,6 @@ export interface CreateInvoiceFormData {
   category: InvoiceCategory;
   discountRate: number;
   minInvestment: number;
+  listingExpiryDate: string;
   document: File | null;
 }

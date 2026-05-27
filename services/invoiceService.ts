@@ -23,12 +23,28 @@ export async function fetchInvoices(
 
     // Apply filters
     if (filters.category) data = data.filter((i) => i.metadata.category === filters.category);
+    if (filters.categories && filters.categories.length > 0) {
+      data = data.filter((i) => filters.categories!.includes(i.metadata.category));
+    }
     if (filters.jurisdiction) data = data.filter((i) => i.metadata.jurisdiction === filters.jurisdiction);
+    if (filters.jurisdictions && filters.jurisdictions.length > 0) {
+      data = data.filter((i) => filters.jurisdictions!.includes(i.metadata.jurisdiction));
+    }
     if (filters.riskTier) data = data.filter((i) => i.riskTier === filters.riskTier);
+    if (filters.riskTiers && filters.riskTiers.length > 0) {
+      data = data.filter((i) => filters.riskTiers!.includes(i.riskTier));
+    }
     if (filters.currency) data = data.filter((i) => i.metadata.currency === filters.currency);
     if (filters.minApr) data = data.filter((i) => i.terms.apr >= filters.minApr!);
     if (filters.maxApr) data = data.filter((i) => i.terms.apr <= filters.maxApr!);
+    if (filters.aprRange) {
+      const [min, max] = filters.aprRange;
+      data = data.filter((i) => i.terms.apr >= min && i.terms.apr <= max);
+    }
     if (filters.status) data = data.filter((i) => i.status === filters.status);
+    if (filters.activeOnly) {
+      data = data.filter((i) => i.status === "listed" || i.status === "partially_funded");
+    }
 
     // Apply sort
     data.sort((a, b) => {
@@ -82,18 +98,41 @@ export async function fetchInvoicesByOwner(ownerAddress: string): Promise<Invoic
  */
 export async function prepareCreateInvoice(
   formData: CreateInvoiceFormData,
-  ownerAddress: string
+  ownerAddress: string,
+  onProgress?: (progress: number) => void
 ): Promise<{ unsignedXdr: string; metadataCid: string }> {
   if (!formData.document) throw new Error("Invoice document is required");
 
   // 1. Upload PDF
   const docCid = await uploadFileToPinata(
     formData.document,
-    `invoice-${formData.invoiceNumber}.pdf`
+    `invoice-${formData.invoiceNumber}.pdf`,
+    onProgress
   );
+
+  // Calculate APR for standard metadata
+  const daysToMaturity = Math.ceil(
+    (new Date(formData.dueDate).getTime() - new Date(formData.listingExpiryDate).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  const effectiveAPR = daysToMaturity > 0 && formData.discountRate > 0 && formData.discountRate < 1
+    ? (formData.discountRate / (1 - formData.discountRate)) * (365 / daysToMaturity) * 100
+    : 0;
 
   // 2. Build metadata object and upload
   const metadata = {
+    // Standard schema properties
+    name: "Invoice Asset",
+    description: formData.description || "Tokenized Invoice Factoring Asset",
+    image: `ipfs://${docCid}`,
+    properties: {
+      debtor: formData.debtorName,
+      amount: formData.amount,
+      apr: Number(effectiveAPR.toFixed(2)),
+      dueDate: formData.dueDate,
+      jurisdiction: formData.jurisdiction,
+    },
+
+    // Backward compatibility flat properties
     invoiceNumber: formData.invoiceNumber,
     issuerAddress: ownerAddress,
     debtorName: formData.debtorName,
@@ -102,11 +141,10 @@ export async function prepareCreateInvoice(
     currency: formData.currency,
     issueDate: formData.issueDate,
     dueDate: formData.dueDate,
-    description: formData.description,
     jurisdiction: formData.jurisdiction,
     category: formData.category,
     documentHash: docCid,
-    documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY}/${docCid}`,
+    documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"}/${docCid}`,
   };
 
   const metadataCid = await uploadJsonToPinata(
@@ -142,6 +180,9 @@ export async function prepareFundInvoice(
   amount: number,
   investorAddress: string
 ): Promise<string> {
+  if (USE_MOCK) {
+    return `mock_unsigned_xdr_fund_invoice_${tokenId}_${amount}_${investorAddress}`;
+  }
   return marketplaceContract.fundInvoice(
     { tokenId: BigInt(tokenId), amount: BigInt(Math.round(amount * 1_000_000)) },
     investorAddress
@@ -152,6 +193,12 @@ export async function prepareFundInvoice(
  * Submit a signed XDR and wait for confirmation.
  */
 export async function submitAndConfirm(signedXdr: string): Promise<string> {
+  if (USE_MOCK || signedXdr.startsWith("mock_")) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return Array.from({ length: 64 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join("");
+  }
   const result = await submitTransaction(signedXdr);
   if (result.status === "ERROR") throw new Error("Transaction submission failed");
   const confirmed = await waitForTransaction(result.hash);
