@@ -142,6 +142,9 @@ export async function prepareFundInvoice(
   amount: number,
   investorAddress: string
 ): Promise<string> {
+  if (USE_MOCK) {
+    return `mock_unsigned_xdr_fund_invoice_${tokenId}_${amount}_${investorAddress}`;
+  }
   const tx = await marketplaceContract.fundInvoice(
     BigInt(tokenId),
     BigInt(Math.round(amount * 1_000_000)),
@@ -154,6 +157,12 @@ export async function prepareFundInvoice(
  * Submit a signed XDR and wait for confirmation.
  */
 export async function submitAndConfirm(signedXdr: string): Promise<string> {
+  if (USE_MOCK || signedXdr.startsWith("mock_")) {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    return Array.from({ length: 64 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join("");
+  }
   const result = await submitTransaction(signedXdr);
   if (result.status === "ERROR") throw new Error("Transaction submission failed");
   const confirmed = await waitForTransaction(result.hash);
