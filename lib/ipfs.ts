@@ -5,10 +5,7 @@
 import type { InvoiceMetadata } from "@/types";
 import { withRetry } from "@/lib/utils";
 
-const PINATA_JWT = process.env.PINATA_JWT || "";
-const IPFS_GATEWAY =
-  process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
-const PINATA_BASE = "https://api.pinata.cloud";
+const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
 
 // CID v0 (Qm...) or CID v1 (bafy...)
 const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
@@ -28,7 +25,6 @@ function xhrUpload(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
-    xhr.setRequestHeader("Authorization", `Bearer ${PINATA_JWT}`);
 
     if (onProgress) {
       xhr.upload.onprogress = (e) => {
@@ -42,7 +38,7 @@ function xhrUpload(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(JSON.parse(xhr.responseText));
       } else {
-        reject(new Error(`Pinata upload failed: ${xhr.status} ${xhr.statusText}`));
+        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
       }
     };
 
@@ -57,19 +53,14 @@ function xhrUpload(
  */
 export async function uploadInvoicePDF(
   file: File,
+  walletAddress: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
   const form = new FormData();
   form.append("file", file);
-  form.append(
-    "pinataMetadata",
-    JSON.stringify({ name: `invoice-${file.name}` })
-  );
+  form.append("walletAddress", walletAddress);
 
-  const data = await withRetry(
-    () => xhrUpload(`${PINATA_BASE}/pinning/pinFileToIPFS`, form, onProgress),
-    3
-  );
+  const data = await withRetry(() => xhrUpload(`/api/upload`, form, onProgress), 3);
 
   validateCid(data.IpfsHash);
   return data.IpfsHash;
@@ -80,29 +71,24 @@ export async function uploadInvoicePDF(
  * Returns the validated CID.
  */
 export async function uploadInvoiceMetadata(
-  metadata: InvoiceMetadata
+  metadata: InvoiceMetadata,
+  walletAddress: string
 ): Promise<string> {
   const res = await withRetry(
     () =>
-      fetch(`${PINATA_BASE}/pinning/pinJSONToIPFS`, {
+      fetch(`/api/upload`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${PINATA_JWT}`,
-        },
-        body: JSON.stringify({
-          pinataMetadata: { name: `invoice-metadata-${metadata.invoiceNumber}` },
-          pinataContent: metadata,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress, metadata, name: `invoice-metadata-${metadata.invoiceNumber}` }),
       }).then(async (r) => {
-        if (!r.ok) throw new Error(`Pinata metadata upload failed: ${r.status}`);
-        return r.json() as Promise<{ IpfsHash: string }>;
+        if (!r.ok) throw new Error(`Metadata upload failed: ${r.status}`);
+        return r.json() as Promise<{ cid: string }>; // proxy returns { cid }
       }),
     3
   );
 
-  validateCid(res.IpfsHash);
-  return res.IpfsHash;
+  validateCid(res.cid);
+  return res.cid;
 }
 
 /**
@@ -111,14 +97,15 @@ export async function uploadInvoiceMetadata(
 export async function uploadInvoiceToIPFS(
   file: File,
   metadata: InvoiceMetadata,
+  walletAddress: string,
   onProgress?: (percent: number) => void
 ): Promise<{ pdfCid: string; metadataCid: string }> {
-  const pdfCid = await uploadInvoicePDF(file, onProgress);
+  const pdfCid = await uploadInvoicePDF(file, walletAddress, onProgress);
   const metadataCid = await uploadInvoiceMetadata({
     ...metadata,
     documentHash: pdfCid,
     documentUrl: ipfsUrl(pdfCid),
-  });
+  }, walletAddress);
   return { pdfCid, metadataCid };
 }
 
@@ -132,33 +119,30 @@ export function ipfsUrl(cid: string): string {
 export async function uploadFileToPinata(
   file: File,
   _name: string,
+  walletAddress?: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  return uploadInvoicePDF(file, onProgress);
+  // If walletAddress is provided, forward it; otherwise use empty string.
+  return uploadInvoicePDF(file, walletAddress || "", onProgress);
 }
 
 export async function uploadJsonToPinata(
   metadata: Record<string, unknown>,
   _name: string
 ): Promise<string> {
+  // Proxy JSON upload through our server; walletAddress is not available here
   const res = await withRetry(
     () =>
-      fetch(`${PINATA_BASE}/pinning/pinJSONToIPFS`, {
+      fetch(`/api/upload`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${PINATA_JWT}`,
-        },
-        body: JSON.stringify({
-          pinataMetadata: { name: _name },
-          pinataContent: metadata,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ walletAddress: "", metadata, name: _name }),
       }).then(async (r) => {
-        if (!r.ok) throw new Error(`Pinata upload failed: ${r.status}`);
-        return r.json() as Promise<{ IpfsHash: string }>;
+        if (!r.ok) throw new Error(`Metadata upload failed: ${r.status}`);
+        return r.json() as Promise<{ cid: string }>;
       }),
     3
   );
-  validateCid(res.IpfsHash);
-  return res.IpfsHash;
+  validateCid(res.cid);
+  return res.cid;
 }

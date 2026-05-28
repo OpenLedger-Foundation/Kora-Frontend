@@ -4,7 +4,7 @@
  */
 import type { Invoice, CreateInvoiceFormData, PaginatedResponse, MarketplaceFilters, MarketplaceSort } from "@/types";
 import { MOCK_INVOICES } from "./mockData";
-import { uploadFileToPinata, uploadJsonToPinata } from "@/lib/ipfs";
+import { uploadFileToPinata, uploadInvoiceMetadata } from "@/lib/ipfs";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 
@@ -124,6 +124,7 @@ export async function prepareCreateInvoice(
   const docCid = await uploadFileToPinata(
     formData.document,
     `invoice-${formData.invoiceNumber}.pdf`,
+    ownerAddress,
     onProgress
   );
 
@@ -164,9 +165,9 @@ export async function prepareCreateInvoice(
     documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"}/${docCid}`,
   };
 
-  const metadataCid = await uploadJsonToPinata(
+  const metadataCid = await uploadInvoiceMetadata(
     metadata,
-    `invoice-metadata-${formData.invoiceNumber}`
+    ownerAddress
   );
 
   // 3. Build mint transaction
