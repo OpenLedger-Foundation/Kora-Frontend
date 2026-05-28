@@ -3,17 +3,11 @@
  * Reads network config from environment variables.
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { env } from "@/lib/env";
 
-const RPC_URL =
-  process.env.NEXT_PUBLIC_STELLAR_RPC_URL || "https://soroban-testnet.stellar.org";
-
-const NETWORK_PASSPHRASE =
-  process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ||
-  StellarSdk.Networks.TESTNET;
-
-const HORIZON_URL =
-  process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL ||
-  "https://horizon-testnet.stellar.org";
+const RPC_URL = env.NEXT_PUBLIC_STELLAR_RPC_URL;
+const NETWORK_PASSPHRASE = env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE;
+const HORIZON_URL = env.NEXT_PUBLIC_STELLAR_HORIZON_URL;
 
 // Soroban RPC client
 export const rpc = new StellarSdk.rpc.Server(RPC_URL, { allowHttp: false });

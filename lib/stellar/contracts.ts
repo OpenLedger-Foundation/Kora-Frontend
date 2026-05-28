@@ -5,6 +5,7 @@
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc, networkConfig } from "./client";
+import { env } from "@/lib/env";
 import type {
   MintInvoiceParams,
   FundInvoiceParams,
@@ -136,7 +137,7 @@ async function readCall<T>(
 
 // ─── Invoice Contract ─────────────────────────────────────────────────────────
 
-const INVOICE_CONTRACT_ID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "";
+const INVOICE_CONTRACT_ID = env.NEXT_PUBLIC_INVOICE_CONTRACT_ID;
 
 class InvoiceContractClient {
   readonly contractId = INVOICE_CONTRACT_ID;
@@ -199,8 +200,7 @@ class InvoiceContractClient {
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
-const MARKETPLACE_CONTRACT_ID =
-  process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID ?? "";
+const MARKETPLACE_CONTRACT_ID = env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID;
 
 class MarketplaceContractClient {
   readonly contractId = MARKETPLACE_CONTRACT_ID;

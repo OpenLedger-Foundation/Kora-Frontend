@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useWallet } from "./useWallet";
 import { rpc, submitTransaction } from "@/lib/stellar/client";
+import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
 
 export type TxLifecycleStatus =
@@ -81,7 +82,7 @@ export function useTransaction() {
           setStage("simulating");
           const tx = StellarSdk.TransactionBuilder.fromXDR(
             unsignedXdr,
-            process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || StellarSdk.Networks.TESTNET
+            env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE
           );
           const sim = await rpc.simulateTransaction(tx);
           if (StellarSdk.rpc.Api.isSimulationError(sim)) {

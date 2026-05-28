@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/Navbar";
 import { PageTransition } from "@/components/layout/PageTransition";
+import { env } from "@/lib/env";
 
 const geistSans = Inter({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = JetBrains_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -13,9 +14,7 @@ const geistMono = JetBrains_Mono({ variable: "--font-geist-mono", subsets: ["lat
 // The `template` ensures every page title follows "Page Name | Kora Protocol".
 export const metadata: Metadata = {
   // metadataBase is required for absolute URLs in openGraph/twitter images
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://kora-protocol.vercel.app"
-  ),
+  metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
 
   title: {
     default: "Kora Protocol — On-Chain Invoice Financing",

@@ -41,6 +41,7 @@ import {
 } from "@/lib/utils";
 import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { env } from "@/lib/env";
 
 export default function InvoiceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -129,7 +130,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           };
 
           // 1. Update Memory array directly so the list pages show dynamic updates
-          if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true") {
+          if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
             const mockIdx = MOCK_INVOICES.findIndex((i) => i.id === id);
             if (mockIdx !== -1) {
               MOCK_INVOICES[mockIdx] = updatedInvoice;
@@ -328,7 +329,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                 {metadata.documentHash ? (
                   <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 p-1">
                     <iframe
-                      src={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) + "#toolbar=0&navpanes=0&scrollbar=0"}
+                      src={safeIpfsUrl(metadata.documentHash, env.NEXT_PUBLIC_IPFS_GATEWAY) + "#toolbar=0&navpanes=0&scrollbar=0"}
                       className="w-full h-[450px] rounded"
                       title="Invoice PDF Document"
                     />
@@ -338,7 +339,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                         <code className="text-zinc-300 font-mono text-[10px] select-all">{metadata.documentHash}</code>
                       </div>
                       <a
-                        href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) || safeExternalUrl(metadata.documentUrl)}
+                        href={safeIpfsUrl(metadata.documentHash, env.NEXT_PUBLIC_IPFS_GATEWAY) || safeExternalUrl(metadata.documentUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"

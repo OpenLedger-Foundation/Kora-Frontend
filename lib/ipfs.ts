@@ -4,8 +4,9 @@
  */
 import type { InvoiceMetadata } from "@/types";
 import { withRetry } from "@/lib/utils";
+import { env } from "@/lib/env";
 
-const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
+const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
 // CID v0 (Qm...) or CID v1 (bafy...)
 const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;

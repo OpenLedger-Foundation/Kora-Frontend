@@ -11,6 +11,7 @@ const WalletConnectModal = dynamic(() => import("@/components/wallet/WalletConne
 });
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
+import { env } from "@/lib/env";
 
 function ThemedToaster() {
   const theme = useUIStore((s) => s.theme);
@@ -44,7 +45,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         {children}
         <WalletConnectModal />
         <ThemedToaster />
-        {process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true" && (
+        {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
           <ReactQueryDevtools initialIsOpen={false} />
         )}
       </ThemeProvider>

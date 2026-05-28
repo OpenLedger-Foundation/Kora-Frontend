@@ -13,12 +13,13 @@ import {
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useWalletStore } from "@/store";
 import { getAccountBalances } from "@/lib/stellar/client";
+import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
 
 let kit: StellarWalletsKit | null = null;
 
 const WALLET_NETWORK =
-  process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
+  env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet"
     ? WalletNetwork.PUBLIC
     : WalletNetwork.TESTNET;
 
@@ -88,7 +89,7 @@ export function useWallet() {
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
       if (!isConnected) throw new Error("Wallet not connected");
-      if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true" || xdr.startsWith("mock_")) {
+      if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA || xdr.startsWith("mock_")) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         return `${xdr}_signed`;
       }
