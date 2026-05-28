@@ -20,6 +20,13 @@ const CSP_DIRECTIVES = {
     "https://ipfs.io",
     "https://gateway.pinata.cloud",
     "https://cloudflare-ipfs.com",
+    "https://nftstorage.link",
+    "https://*.ipfs.dweb.link",
+    // Wallet provider icons
+    "https://assets.freighter.app",
+    "https://xbull.app",
+    "https://lobstr.co",
+    "https://albedo.link",
   ],
 
   // Fonts: self only (Google Fonts are loaded via next/font, served from self)
@@ -116,10 +123,26 @@ const nextConfig = {
   },
 
   images: {
+    // Serve modern formats — Next.js negotiates AVIF → WebP → original
+    formats: ["image/avif", "image/webp"],
+
+    // Standard responsive breakpoints
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256],
+
     remotePatterns: [
+      // IPFS gateways (invoice document thumbnails / metadata images)
       { protocol: "https", hostname: "ipfs.io" },
       { protocol: "https", hostname: "gateway.pinata.cloud" },
       { protocol: "https", hostname: "cloudflare-ipfs.com" },
+      { protocol: "https", hostname: "nftstorage.link" },
+      { protocol: "https", hostname: "*.ipfs.dweb.link" },
+
+      // Wallet provider icon CDNs
+      { protocol: "https", hostname: "assets.freighter.app" },
+      { protocol: "https", hostname: "xbull.app" },
+      { protocol: "https", hostname: "lobstr.co" },
+      { protocol: "https", hostname: "albedo.link" },
     ],
   },
 
