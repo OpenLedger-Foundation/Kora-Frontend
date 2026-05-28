@@ -26,7 +26,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     },
     ref
   ) => {
-    const textareaId = id || label?.toLowerCase().replace(/\s+/g, "-") || React.useId();
+    const generatedId = React.useId();
+    const textareaId = id || label?.toLowerCase().replace(/\s+/g, "-") || generatedId;
     const errorId = `${textareaId}-error`;
     const hintId = `${textareaId}-hint`;
 

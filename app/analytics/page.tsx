@@ -5,14 +5,10 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 const Charts = dynamic(() => import("@/components/analytics/Charts"), {
   ssr: false,
-  loading: () => (
-    <div className="space-y-4">
-      <div className="h-56 rounded bg-zinc-900/40" />
-      <div className="h-56 rounded bg-zinc-900/40" />
-    </div>
-  ),
+  loading: () => <AnalyticsSkeleton />,
 });
 import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
+import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";

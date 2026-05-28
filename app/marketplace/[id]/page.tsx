@@ -21,7 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, GlassCard } from "@/components/ui/card";
 import { Progress, InvoiceFundingProgress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, InvoiceDetailSkeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useInvoice } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
@@ -41,7 +41,6 @@ import {
 } from "@/lib/utils";
 import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export default function InvoiceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -55,7 +54,7 @@ export default function InvoiceDetailPage() {
   const [funding, setFunding] = useState(false);
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
 
-  if (!id || isLoading) return <DetailSkeleton />;
+  if (!id || isLoading) return <InvoiceDetailSkeleton />;
   if (!invoice) return notFound();
 
   const { metadata, terms, funding: fundingState, riskTier, status } = invoice;
@@ -557,21 +556,5 @@ Stellar Testnet Transaction Hash: ${txHash}`);
       </div>
     </div>
     </ErrorBoundary>
-  );
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <Skeleton className="mb-6 h-4 w-32" />
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-48 w-full" />
-          ))}
-        </div>
-        <Skeleton className="h-80 w-full" />
-      </div>
-    </div>
   );
 }

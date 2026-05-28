@@ -10,7 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import dynamic from "next/dynamic";
 const DataTable = dynamic(() => import("@/components/ui/data-table").then((m) => m.DataTable), {
   ssr: false,
-  loading: () => <div className="h-48 rounded bg-zinc-900/40" />,
+  loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={9} />,
 });
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
@@ -19,6 +19,7 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { MOCK_INVOICES } from "@/services/mockData";
 import { RiskBadge } from "@/components/ui/badge";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
 import {
   formatCurrency,
   formatDate,

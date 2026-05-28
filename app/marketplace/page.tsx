@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
@@ -614,11 +615,11 @@ function MarketplaceContent() {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="mb-8 space-y-2">
-          <div className="h-8 bg-zinc-900 rounded w-1/4 animate-pulse" />
-          <div className="h-4 bg-zinc-900 rounded w-1/6 animate-pulse" />
+          <Skeleton className="h-8 w-1/4" />
+          <Skeleton className="h-4 w-1/6" />
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(8)].map((_, i) => (
+          {Array.from({ length: 8 }).map((_, i) => (
             <InvoiceCardSkeleton key={i} />
           ))}
         </div>
@@ -835,11 +836,11 @@ export default function MarketplacePage() {
         fallback={
           <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
             <div className="mb-8 space-y-2">
-              <div className="h-8 bg-zinc-900 rounded w-1/4 animate-pulse" />
-              <div className="h-4 bg-zinc-900 rounded w-1/6 animate-pulse" />
+              <Skeleton className="h-8 w-1/4" />
+              <Skeleton className="h-4 w-1/6" />
             </div>
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {[...Array(8)].map((_, i) => (
+              {Array.from({ length: 8 }).map((_, i) => (
                 <InvoiceCardSkeleton key={i} />
               ))}
             </div>

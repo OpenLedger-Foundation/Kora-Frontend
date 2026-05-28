@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -213,8 +213,7 @@ export function DataTable<T extends { id: string }>({
                   </div>
                 </div>
               );
-            }))}
-
+            })}
         {!isLoading && data.length > 0 && (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-muted-foreground">

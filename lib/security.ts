@@ -11,7 +11,7 @@
 export function sanitizeHtml(dirty: string): string {
   if (typeof window === "undefined") return "";
   // Dynamic import is not possible in a sync context; DOMPurify is browser-only.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  // eslint-disable-next-line
   const DOMPurify = require("dompurify");
   return DOMPurify.sanitize(dirty, { USE_PROFILES: { html: true } });
 }
@@ -130,16 +130,6 @@ export function safeStellarAccountUrl(address: string | undefined | null): strin
   if (!/^G[A-Z2-7]{55}$/.test(address)) return "#";
   return `https://stellar.expert/explorer/testnet/account/${address}`;
 }
-
-// ─── IPFS Metadata Sanitization ───────────────────────────────────────────────
-
-const ALLOWED_STRING_KEYS = new Set([
-  "name", "description", "image", "invoiceNumber", "issuerAddress",
-  "debtorName", "debtorAddress", "currency", "issueDate", "dueDate",
-  "jurisdiction", "category", "documentHash", "documentUrl",
-]);
-
-const ALLOWED_NUMBER_KEYS = new Set(["amount", "apr"]);
 
 /**
  * Sanitizes untrusted IPFS metadata to prevent prototype pollution and XSS.
