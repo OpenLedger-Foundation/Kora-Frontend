@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Copy, LogOut, ExternalLink } from "lucide-react";
+import { ChevronDown, LogOut, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { shortenAddress } from "@/lib/utils";
@@ -53,13 +54,10 @@ export function WalletButton() {
           )}
 
           <div className="space-y-1">
-            <button
-              type="button"
-              onClick={() => { navigator.clipboard.writeText(address!); setOpen(false); }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Copy className="h-3.5 w-3.5" /> Copy address
-            </button>
+            <div className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
+              <CopyButton text={address!} />
+              Copy address
+            </div>
             <a
               href={`https://stellar.expert/explorer/testnet/account/${address}`}
               target="_blank"

@@ -68,7 +68,8 @@ export function getFilteredInvoices(
     result = result.filter(
       (i) =>
         i.metadata.debtorName.toLowerCase().includes(q) ||
-        i.metadata.invoiceNumber.toLowerCase().includes(q)
+        i.metadata.invoiceNumber.toLowerCase().includes(q) ||
+        i.metadata.jurisdiction.toLowerCase().includes(q)
     );
   }
 
@@ -131,20 +132,42 @@ export function fromQueryParams(params: URLSearchParams): {
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
+const SEARCH_HISTORY_KEY = "kora-search-history";
+const MAX_HISTORY = 5;
+
+function loadSearchHistory(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveSearchHistory(history: string[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
+}
+
 interface InvoiceStore {
   invoices: Invoice[];
   filters: FilterState;
   sort: SortState;
+  sortBy: string;
   searchQuery: string;
+  searchHistory: string[];
   selectedInvoice: Invoice | null;
   createDraft: InvoiceCreateDraft;
 
   // Actions
   setInvoices: (invoices: Invoice[]) => void;
   setFilters: (filters: Partial<FilterState>) => void;
+  updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   resetFilters: () => void;
   setSort: (sort: Partial<SortState>) => void;
+  setSortBy: (sortBy: string) => void;
   setSearchQuery: (q: string) => void;
+  clearSearchHistory: () => void;
   setSelectedInvoice: (invoice: Invoice | null) => void;
   updateInvoiceFunding: (id: string, newAmount: number) => void;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
@@ -160,7 +183,9 @@ export const useInvoiceStore = create<InvoiceStore>()(
       invoices: [],
       filters: DEFAULT_FILTERS,
       sort: DEFAULT_SORT,
+      sortBy: "apr_desc",
       searchQuery: "",
+      searchHistory: loadSearchHistory(),
       selectedInvoice: null,
       createDraft: { currency: "USDC" },
 
@@ -169,13 +194,32 @@ export const useInvoiceStore = create<InvoiceStore>()(
       setFilters: (filters) =>
         set((s) => ({ filters: { ...s.filters, ...filters } })),
 
+      updateSingleFilter: (key, value) =>
+        set((s) => ({ filters: { ...s.filters, [key]: value } })),
+
       resetFilters: () =>
-        set({ filters: DEFAULT_FILTERS, searchQuery: "" }),
+        set({ filters: DEFAULT_FILTERS, searchQuery: "", sortBy: "apr_desc" }),
 
       setSort: (sort) =>
         set((s) => ({ sort: { ...s.sort, ...sort } })),
 
-      setSearchQuery: (searchQuery) => set({ searchQuery }),
+      setSortBy: (sortBy) => set({ sortBy }),
+
+      setSearchQuery: (searchQuery) =>
+        set((s) => {
+          const trimmed = searchQuery.trim();
+          let history = s.searchHistory;
+          if (trimmed && !history.includes(trimmed)) {
+            history = [trimmed, ...history].slice(0, MAX_HISTORY);
+            saveSearchHistory(history);
+          }
+          return { searchQuery, searchHistory: history };
+        }),
+
+      clearSearchHistory: () => {
+        saveSearchHistory([]);
+        set({ searchHistory: [] });
+      },
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
 

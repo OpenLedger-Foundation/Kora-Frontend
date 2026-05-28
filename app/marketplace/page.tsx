@@ -11,10 +11,7 @@ import {
   ChevronDown,
   RotateCcw,
   FileQuestion,
-  TrendingUp,
-  Calendar,
-  Users,
-  MapPin,
+  Clock,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -448,17 +445,32 @@ function MarketplaceContent() {
     filters,
     sortBy,
     searchQuery,
+    searchHistory,
     setFilters,
     updateSingleFilter,
     resetFilters,
     setSortBy,
     setSearchQuery,
+    clearSearchHistory,
   } = useInvoiceStore();
 
   const { data, isLoading } = useInvoices();
   const [showFilters, setShowFilters] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Close history dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // 1. URL to Zustand Sync Loop (On Mount / Initial Hydration)
   /* Hydrates the client-side Zustand store with initial filters parsed from the URL search queries */
@@ -660,14 +672,52 @@ function MarketplaceContent() {
 
         {/* Search + Sort + Toggle Bar */}
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex-1">
-            <Input
-              placeholder="Search by debtor, invoice number, or category…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={<Search className="h-4 w-4 text-zinc-500" />}
-              className="bg-zinc-950/40 border-zinc-800/80 focus:border-primary/50"
-            />
+          <div className="flex-1" ref={searchRef}>
+            <div className="relative">
+              <Input
+                placeholder="Search by debtor, invoice number, or jurisdiction…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setShowHistory(true)}
+                leftIcon={<Search className="h-4 w-4 text-zinc-500" />}
+                className="bg-zinc-950/40 border-zinc-800/80 focus:border-primary/50"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(""); setShowHistory(false); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+              {showHistory && searchHistory.length > 0 && !searchQuery && (
+                <div className="absolute top-full left-0 z-50 mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl">
+                  <div className="flex items-center justify-between px-2 py-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Recent</span>
+                    <button
+                      type="button"
+                      onClick={clearSearchHistory}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {searchHistory.map((h) => (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => { setSearchQuery(h); setShowHistory(false); }}
+                      className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+                    >
+                      <Clock className="h-3.5 w-3.5 text-zinc-500" />
+                      {h}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex gap-2.5 shrink-0">
             {/* Filter Toggle for Mobile / Drawer triggers */}
