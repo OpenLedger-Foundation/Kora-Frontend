@@ -174,7 +174,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
         {/* ── Left: Invoice Details ─────────────────────────────────────── */}
         <div className="space-y-6 lg:col-span-2">
           {/* Header card */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div layoutId={`invoice-card-${id}`} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">

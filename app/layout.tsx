@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/Navbar";
+import { PageTransition } from "@/components/layout/PageTransition";
 
 const geistSans = Inter({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = JetBrains_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -107,7 +108,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${geistSans.variable} ${geistMono.variable} bg-background antialiased`}>
         <Providers>
           <Navbar />
-          <main className="min-h-screen">{children}</main>
+          <main className="min-h-screen">
+            <PageTransition>{children}</PageTransition>
+          </main>
         </Providers>
       </body>
     </html>

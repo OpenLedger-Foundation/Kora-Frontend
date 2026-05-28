@@ -84,6 +84,7 @@ export function InvoiceCard({ invoice, index = 0 }: InvoiceCardProps) {
       aria-label={`Invoice for ${metadata.debtorName}, Amount: ${formatCurrency(metadata.amount, metadata.currency, true)}, Risk Tier: ${riskTier}, APR: ${formatApr(terms.apr)}`}
     >
       <motion.div
+        layoutId={`invoice-card-${invoice.id}`}
         className="relative overflow-hidden rounded-xl border border-border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:border-border hover:bg-card hover:shadow-token-lg flex flex-col h-full justify-between"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
