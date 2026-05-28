@@ -12,6 +12,7 @@ import {
   X,
   Sun,
   Moon,
+  History,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { WalletButton } from "@/components/wallet/WalletButton";
@@ -23,6 +24,7 @@ const NAV_LINKS = [
   { href: "/dashboard/investor", label: "Invest", icon: BarChart3 },
   { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard },
   { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle },
+  { href: "/transactions", label: "History", icon: History },
 ];
 
 const MENU_ID = "mobile-nav-menu";
