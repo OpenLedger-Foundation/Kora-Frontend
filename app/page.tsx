@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, useInView } from "framer-motion";
 import {
   ArrowRight,
   Shield,
@@ -17,6 +17,27 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/card";
 import { MOCK_STATS } from "@/services/mockData";
 import { formatCurrency } from "@/lib/utils";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+const HERO_HEADLINE = "Invoice Financing, On-Chain";
+
+const HERO_STATS = [
+  {
+    label: "Total Invoices",
+    value: MOCK_STATS.activeInvoices,
+    formatter: (value: number) => value.toLocaleString(),
+  },
+  {
+    label: "Total USDC Financed",
+    value: MOCK_STATS.totalVolumeFinanced,
+    formatter: (value: number) => formatCurrency(value, "USDC", true),
+  },
+  {
+    label: "Average APR",
+    value: MOCK_STATS.averageApr,
+    formatter: (value: number) => `${value.toFixed(1)}%`,
+  },
+];
 
 const STATS = [
   { label: "Total Volume Financed", value: formatCurrency(MOCK_STATS.totalVolumeFinanced, "USDC", true) },
@@ -24,6 +45,39 @@ const STATS = [
   { label: "Liquidity Providers", value: MOCK_STATS.totalInvestors.toLocaleString() },
   { label: "Avg. APR", value: `${MOCK_STATS.averageApr}%` },
 ];
+
+function AnimatedStat({ value, label, formatter }: { value: number; label: string; formatter: (value: number) => string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.4 });
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!inView) return;
+
+    let frameId = 0;
+    const start = performance.now();
+    const duration = 1400;
+
+    const animate = (now: number) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const nextValue = Math.round(value * progress);
+      setCount(nextValue);
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
+    };
+
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [inView, value]);
+
+  return (
+    <div ref={ref} className="rounded-3xl border border-white/10 bg-zinc-950/70 p-6 text-center shadow-2xl shadow-black/10 backdrop-blur-xl">
+      <p className="text-3xl font-semibold text-white sm:text-4xl">{formatter(count)}</p>
+      <p className="mt-2 text-sm uppercase tracking-[0.24em] text-zinc-400">{label}</p>
+    </div>
+  );
+}
 
 const HOW_IT_WORKS = [
   {
@@ -82,65 +136,85 @@ const FEATURES = [
 ];
 
 export default function LandingPage() {
+  const words = useMemo(() => HERO_HEADLINE.split(" "), []);
+
   return (
     <div className="bg-mesh">
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden px-4 pb-24 pt-20 sm:px-6 lg:px-8">
-        {/* Glow */}
-        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-          <div className="h-[600px] w-[600px] rounded-full bg-kora-500/10 blur-[120px]" />
-        </div>
+      <section className="relative overflow-hidden px-4 pb-24 pt-24 sm:px-6 lg:px-8">
+        <div className="absolute inset-0 hero-background" aria-hidden="true" />
+        <div className="absolute inset-0 hero-grid-dots" aria-hidden="true" />
 
-        <div className="relative mx-auto max-w-4xl text-center">
+        <div className="relative mx-auto max-w-6xl text-center">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            initial="hidden"
+            animate="visible"
+            variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.12 } } }}
+            className="relative z-10"
           >
-            <span className="inline-flex items-center gap-2 rounded-full border border-kora-500/20 bg-kora-500/5 px-4 py-1.5 text-xs font-medium text-kora-400">
-              <span className="h-1.5 w-1.5 rounded-full bg-kora-400 animate-pulse" />
+            <motion.span
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.05 }}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.26em] text-cyan-200/90"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 animate-pulse" />
               Live on Stellar Testnet
-            </span>
+            </motion.span>
+
+            <motion.h1
+              variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
+              className="mx-auto mt-6 max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-6xl lg:text-7xl"
+            >
+              {words.map((word, index) => (
+                <motion.span
+                  key={`${word}-${index}`}
+                  variants={{ hidden: { opacity: 0, y: 18 }, visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } } }}
+                  className="inline-block mr-2 whitespace-nowrap"
+                >
+                  {word}
+                </motion.span>
+              ))}
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 22 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.18 }}
+              className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-zinc-300 sm:text-xl"
+            >
+              Unlock working capital for emerging market SMEs with on-chain invoice financing, stablecoin liquidity and transparent investor access — all non-custodial.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.3 }}
+              className="mt-12 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5"
+            >
+              <Link href="/invoice/create">
+                <Button size="xl" className="min-w-[220px]">
+                  Finance My Invoice
+                </Button>
+              </Link>
+              <Link href="/marketplace">
+                <Button size="xl" variant="outline" className="min-w-[220px]">
+                  Browse Marketplace
+                </Button>
+              </Link>
+            </motion.div>
           </motion.div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="mt-6 text-5xl font-bold tracking-tight text-zinc-100 sm:text-6xl lg:text-7xl"
-          >
-            Invoice Financing,{" "}
-            <span className="bg-gradient-to-r from-kora-400 to-cyan-400 bg-clip-text text-transparent">
-              On-Chain
-            </span>
-          </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="mx-auto mt-6 max-w-2xl text-lg text-zinc-400"
-          >
-            SMEs tokenize unpaid invoices as NFTs and sell them at a discount to global
-            liquidity providers — unlocking instant stablecoin liquidity without banks.
-          </motion.p>
-
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center"
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.7, delay: 0.45 }}
+            className="relative z-10 mx-auto mt-16 grid gap-4 sm:grid-cols-3"
           >
-            <Link href="/marketplace">
-              <Button size="xl">
-                Browse Invoices <ArrowRight className="h-5 w-5" />
-              </Button>
-            </Link>
-            <Link href="/invoice/create">
-              <Button size="xl" variant="outline">
-                Finance My Invoice
-              </Button>
-            </Link>
+            {HERO_STATS.map((stat) => (
+              <AnimatedStat key={stat.label} value={stat.value} label={stat.label} formatter={stat.formatter} />
+            ))}
           </motion.div>
         </div>
       </section>
