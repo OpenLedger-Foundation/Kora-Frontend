@@ -8,6 +8,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { shortenAddress } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { safeStellarAccountUrl } from "@/lib/security";
 
 export function WalletButton() {
   const { isConnected, address, balance, disconnectWallet } = useWallet();
@@ -59,7 +60,7 @@ export function WalletButton() {
               Copy address
             </div>
             <a
-              href={`https://stellar.expert/explorer/testnet/account/${address}`}
+              href={safeStellarAccountUrl(address)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"

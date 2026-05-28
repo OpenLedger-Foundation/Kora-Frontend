@@ -69,7 +69,7 @@ export function useTransaction() {
   const execute = useCallback(
     async (
       buildFn: () => Promise<string>,
-      options?: { onSuccess?: (hash: string) => void; successMessage?: string }
+      options?: { onSuccess?: (hash: string) => void; successMessage?: string; onError?: (err: unknown) => void }
     ): Promise<string | null> => {
       try {
         // 1. Build
@@ -133,6 +133,7 @@ export function useTransaction() {
           description: message,
           action: { label: "Retry", onClick: () => setState({ status: "idle" }) },
         });
+        options?.onError?.(err);
         return null;
       }
     },

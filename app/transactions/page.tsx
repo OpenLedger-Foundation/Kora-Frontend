@@ -27,6 +27,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useUIStore, useTransactionStore } from "@/store";
 import type { TxRecord, TxType } from "@/store/transactionStore";
 import { formatCurrency, formatDate, shortenAddress, cn, exportCsv } from "@/lib/utils";
+import { safeStellarTxUrl } from "@/lib/security";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -159,7 +160,7 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 
       <div className="flex shrink-0 items-center gap-1">
         <a
-          href={`https://stellar.expert/explorer/testnet/tx/${tx.hash}`}
+          href={safeStellarTxUrl(tx.hash)}
           target="_blank"
           rel="noopener noreferrer"
           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

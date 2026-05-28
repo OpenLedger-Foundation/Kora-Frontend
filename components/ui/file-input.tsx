@@ -4,6 +4,7 @@ import * as React from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, FileText, Trash2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeExternalUrl } from "@/lib/security";
 
 export interface FileInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "defaultValue"> {
   label?: string;
@@ -208,7 +209,7 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
               <div className="flex items-center gap-1 shrink-0">
                 {fileUrl && (
                   <a
-                    href={fileUrl}
+                    href={fileUrl.startsWith("blob:") ? fileUrl : safeExternalUrl(fileUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}

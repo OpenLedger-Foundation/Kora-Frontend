@@ -39,9 +39,11 @@ import {
   STATUS_COLORS,
   cn,
 } from "@/lib/utils";
+import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
 
 export default function InvoiceDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = validateRouteId(params.id) ?? "";
   const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
@@ -51,7 +53,7 @@ export default function InvoiceDetailPage() {
   const [funding, setFunding] = useState(false);
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
 
-  if (isLoading) return <DetailSkeleton />;
+  if (!id || isLoading) return <DetailSkeleton />;
   if (!invoice) return notFound();
 
   const { metadata, terms, funding: fundingState, riskTier, status } = invoice;
@@ -222,7 +224,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                 )}
                 {metadata.documentUrl && (
                   <a
-                    href={metadata.documentUrl}
+                    href={safeExternalUrl(metadata.documentUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-4 inline-flex items-center gap-2 text-sm text-kora-400 hover:text-kora-300"
@@ -324,7 +326,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                 {metadata.documentHash ? (
                   <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 p-1">
                     <iframe
-                      src={`${process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"}/${metadata.documentHash}#toolbar=0&navpanes=0&scrollbar=0`}
+                      src={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) + "#toolbar=0&navpanes=0&scrollbar=0"}
                       className="w-full h-[450px] rounded"
                       title="Invoice PDF Document"
                     />
@@ -334,7 +336,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                         <code className="text-zinc-300 font-mono text-[10px] select-all">{metadata.documentHash}</code>
                       </div>
                       <a
-                        href={process.env.NEXT_PUBLIC_IPFS_GATEWAY ? `${process.env.NEXT_PUBLIC_IPFS_GATEWAY}/${metadata.documentHash}` : metadata.documentUrl}
+                        href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) || safeExternalUrl(metadata.documentUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
@@ -517,7 +519,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     </p>
                     <div className="pt-2">
                       <a
-                        href={fundTxHash.startsWith("mock_") ? "#" : `https://stellar.expert/explorer/testnet/tx/${fundTxHash}`}
+                        href={safeStellarTxUrl(fundTxHash)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs text-kora-400 hover:text-kora-300 font-semibold"
@@ -537,7 +539,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
               <Card className="p-4">
                 <p className="mb-2 text-xs text-zinc-500">On-Chain</p>
                 <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${invoice.txHash}`}
+                  href={safeStellarTxUrl(invoice.txHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-xs text-kora-400 hover:text-kora-300"

@@ -30,6 +30,7 @@ import {
   type CreateInvoiceSchema,
 } from "@/lib/validations/invoice";
 import { cn } from "@/lib/utils";
+import { safeStellarTxUrl } from "@/lib/security";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -296,7 +297,7 @@ export default function CreateInvoicePage() {
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <a
-              href={`https://stellar.expert/explorer/testnet/tx/${mintedInfo.txHash}`}
+              href={safeStellarTxUrl(mintedInfo.txHash)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-300 rounded-lg transition-colors cursor-pointer"

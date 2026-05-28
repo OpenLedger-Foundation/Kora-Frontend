@@ -24,6 +24,7 @@ import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
 import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
+import { sanitizeQueryParam } from "@/lib/security";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -438,7 +439,7 @@ function MarketplaceContent() {
     
     const activeOnly = searchParams.get("activeOnly") === "true";
     const sortByParam = searchParams.get("sortBy") || "apr_desc";
-    const qParam = searchParams.get("q") || "";
+    const qParam = sanitizeQueryParam(searchParams.get("q"));
 
     const urlPage = Number(searchParams.get("page") || 1);
     const urlPageSize = Number(searchParams.get("pageSize") || 10);

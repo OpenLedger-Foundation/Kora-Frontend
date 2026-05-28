@@ -13,6 +13,7 @@ import {
 import { useUIStore } from "@/store";
 import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
+import { safeExternalUrl } from "@/lib/security";
 
 const WALLETS = [
   {
@@ -197,7 +198,7 @@ export function WalletConnectModal() {
                       </button>
                     ) : (
                       <a
-                        href={wallet.installUrl}
+                        href={safeExternalUrl(wallet.installUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Install ${wallet.name} extension`}
