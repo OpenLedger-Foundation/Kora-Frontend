@@ -249,7 +249,7 @@ export async function prepareRepayInvoice(
   if (USE_MOCK) {
     return `mock_unsigned_xdr_repay_invoice_${tokenId}_${ownerAddress}`;
   }
-  return (invoiceContract as any).repayInvoice({ tokenId: BigInt(tokenId) }, ownerAddress);
+  return marketplaceContract.repayInvoice({ tokenId: BigInt(tokenId) }, ownerAddress);
 }
 
 /**

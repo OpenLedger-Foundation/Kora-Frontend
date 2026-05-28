@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PlusCircle, TrendingUp, FileText, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -7,14 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
+import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
 import dynamic from "next/dynamic";
-const DataTable = dynamic(() => import("@/components/ui/data-table").then((m) => m.DataTable), {
-  ssr: false,
-  loading: () => <div className="h-48 rounded bg-zinc-900/40" />,
-});
+import type { DataTableProps } from "@/types/table";
+const DataTable = dynamic<DataTableProps<Invoice>>(
+  () => import("@/components/ui/data-table").then((m) => m.DataTable),
+  { ssr: false, loading: () => <div className="h-48 rounded bg-zinc-900/40" /> }
+);
 import { useWallet } from "@/hooks/useWallet";
 import { useSMEInvoices } from "@/hooks/useInvoices";
 import { useTransaction } from "@/hooks/useTransaction";
+import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { prepareRepayInvoice } from "@/services/invoiceService";
 import { useUIStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
@@ -33,7 +37,10 @@ export default function SMEDashboardPage() {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const invoicesQuery = useSMEInvoices(address ?? undefined);
-  const { execute } = useTransaction();
+  const { execute, status: txStatus } = useTransaction();
+  const { data: usdcBalance = 0 } = useUsdcBalance(address ?? undefined);
+
+  const [repayTarget, setRepayTarget] = useState<Invoice | null>(null);
 
   if (!isConnected) {
     return (
@@ -89,8 +96,11 @@ export default function SMEDashboardPage() {
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
     await execute(() => prepareRepayInvoice(inv.tokenId, address), {
-      successMessage: "Repayment submitted",
-      onSuccess: () => invoicesQuery.refetch(),
+      successMessage: "Yield distributed to investors",
+      onSuccess: () => {
+        invoicesQuery.refetch();
+        setRepayTarget(null);
+      },
     });
   };
 
@@ -204,7 +214,7 @@ export default function SMEDashboardPage() {
                     return (
                       <div className="flex items-center gap-2">
                         {canRepay && (
-                          <Button size="sm" onClick={() => handleRepay(row)}>
+                          <Button size="sm" onClick={() => setRepayTarget(row)}>
                             Repay
                           </Button>
                         )}
@@ -256,6 +266,19 @@ export default function SMEDashboardPage() {
           </div>
         </motion.div>
       )}
+
+      <RepaymentDialog
+        invoice={repayTarget}
+        open={!!repayTarget}
+        onOpenChange={(open) => { if (!open) setRepayTarget(null); }}
+        onConfirm={handleRepay}
+        isLoading={txStatus !== "idle" && txStatus !== "confirmed" && txStatus !== "failed"}
+        insufficientBalance={
+          !!repayTarget &&
+          usdcBalance <
+            repayTarget.funding.totalRaised * (1 + repayTarget.terms.discountRate)
+        }
+      />
     </div>
   );
 }
