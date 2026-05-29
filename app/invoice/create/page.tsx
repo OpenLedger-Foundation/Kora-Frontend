@@ -446,9 +446,13 @@ export default function CreateInvoicePage() {
                 {/* Discount Rate Dual-Input Component */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-zinc-200">Discount Rate (%)</label>
+                    <label className="text-sm font-semibold text-zinc-200" id="discount-rate-label">
+                      Discount Rate (%)
+                    </label>
                     <div className="w-24">
                       <Input
+                        id="discount-rate-input"
+                        aria-labelledby="discount-rate-label"
                         type="number"
                         step="0.1"
                         min="0.5"

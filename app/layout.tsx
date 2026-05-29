@@ -108,9 +108,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} bg-background antialiased`}>
+        <a
+          href="#content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-foreground"
+        >
+          Skip to content
+        </a>
         <Providers>
           <Navbar />
-          <main className="min-h-screen">
+<main id="content" className="min-h-screen">
             <PageTransition>{children}</PageTransition>
           </main>
         </Providers>

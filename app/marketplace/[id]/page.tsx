@@ -50,9 +50,11 @@ export default function InvoiceDetailPage() {
   const { setWalletModalOpen } = useUIStore();
   const { execute } = useTransaction();
   const queryClient = useQueryClient();
-  const [amount, setAmount] = useState("");
-  const [funding, setFunding] = useState(false);
-  const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+   const [amount, setAmount] = useState("");
+   const [funding, setFunding] = useState(false);
+   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+   const [iframeLoaded, setIframeLoaded] = useState(false);
+   const [iframeError, setIframeError] = useState(false);
 
   if (!id || isLoading) return <InvoiceDetailSkeleton />;
   if (!invoice) return notFound();
@@ -316,47 +318,107 @@ Stellar Testnet Transaction Hash: ${txHash}`);
             </Card>
           </motion.div>
 
-          {/* IPFS PDF Document Preview */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-zinc-500" /> IPFS Document Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {metadata.documentHash ? (
-                  <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 p-1">
-                    <iframe
-                      src={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) + "#toolbar=0&navpanes=0&scrollbar=0"}
-                      className="w-full h-[450px] rounded"
-                      title="Invoice PDF Document"
-                    />
-                    <div className="p-3 flex flex-wrap items-center justify-between gap-3 bg-zinc-950/80 border-t border-zinc-800 text-xs">
-                      <div className="truncate max-w-full text-zinc-400">
-                        <span className="font-semibold text-zinc-500 mr-1">IPFS CID:</span>
-                        <code className="text-zinc-300 font-mono text-[10px] select-all">{metadata.documentHash}</code>
-                      </div>
-                      <a
-                        href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) || safeExternalUrl(metadata.documentUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
-                      >
-                        Open in external gateway <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
-                    <FileText className="h-8 w-8 text-zinc-600 mb-2" />
-                    <p className="text-sm font-medium text-zinc-400">No document preview available</p>
-                    <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF hash.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+           {/* IPFS PDF Document Preview */}
+           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+             <Card>
+               <CardHeader>
+                 <CardTitle className="flex items-center gap-2">
+                   <FileText className="h-4 w-4 text-zinc-500" /> IPFS Document Preview
+                 </CardTitle>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                 {metadata.documentHash ? (
+                   <div className="relative">
+                     {/* Mobile view: download only */}
+                     <div className="hidden sm:block">
+                       <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
+                         <iframe
+                           src={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) + "#toolbar=0&navpanes=0&scrollbar=0"}
+                           className="w-full h-[450px] rounded"
+                           title="Invoice PDF Document"
+                           referrerPolicy="no-referrer"
+                           sandbox="allow-scripts allow-same-origin allow-popups"
+                           onLoad={() => setIframeLoaded(true)}
+                           onError={() => setIframeError(true)}
+                         />
+                         {!iframeLoaded && !iframeError && (
+                           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50">
+                             <InvoiceDetailSkeleton className="h-[450px] w-full" />
+                           </div>
+                         )}
+                         {iframeError && (
+                           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/50 p-6 text-center">
+                             <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
+                             <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
+                             <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document from IPFS.</p>
+                             <a
+                               href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY)}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                             >
+                               Download PDF <ExternalLink className="h-3 w-3" />
+                             </a>
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                     
+                     {/* Desktop view: download only on mobile */}
+                     <div className="block sm:hidden bg-zinc-900 rounded-lg border border-zinc-800 p-6 text-center">
+                       {!iframeLoaded && !iframeError && (
+                         <div className="flex flex-col items-center justify-center py-8">
+                           <InvoiceDetailSkeleton className="h-16 w-32" />
+                         </div>
+                       )}
+                       {iframeError && (
+                         <div className="flex flex-col items-center justify-center">
+                           <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
+                           <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
+                           <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document from IPFS.</p>
+                           <a
+                             href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY)}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                           >
+                             Download PDF <ExternalLink className="h-3 w-3" />
+                           </a>
+                         </div>
+                       )}
+                       {!iframeError && (
+                         <div className="flex flex-col items-center justify-center">
+                           <FileText className="h-10 w-10 text-zinc-500 mb-4" />
+                           <p className="text-sm font-medium text-zinc-400 mb-2">PDF ready for download</p>
+                           <a
+                             href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY)}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                           >
+                             Download PDF <ExternalLink className="h-3 w-3" />
+                           </a>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 ) : (
+                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
+                     <FileText className="h-8 w-8 text-zinc-600 mb-2" />
+                     <p className="text-sm font-medium text-zinc-400">No document preview available</p>
+                     <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF hash.</p>
+                   </div>
+                 )}
+                 ) : (
+                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
+                     <FileText className="h-8 w-8 text-zinc-600 mb-2" />
+                     <p className="text-sm font-medium text-zinc-400">No document preview available</p>
+                     <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF hash.</p>
+                   </div>
+                 )}
+               </CardContent>
+             </Card>
+           </motion.div>
         </div>
 
         {/* ── Right: Fund Panel ─────────────────────────────────────────── */}
