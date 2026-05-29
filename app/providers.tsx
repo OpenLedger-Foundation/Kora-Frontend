@@ -5,10 +5,14 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
 import { useState } from "react";
 import dynamic from "next/dynamic";
-const WalletConnectModal = dynamic(() => import("@/components/wallet/WalletConnectModal"), {
-  ssr: false,
-  loading: () => null,
-});
+const WalletConnectModal = dynamic(
+  () => import("@/components/wallet/WalletConnectModal").then((m) => m.WalletConnectModal),
+  { ssr: false, loading: () => null }
+);
+const InstallPrompt = dynamic(
+  () => import("@/components/pwa/InstallPrompt").then((m) => m.InstallPrompt),
+  { ssr: false, loading: () => null }
+);
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
 
@@ -43,6 +47,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider>
         {children}
         <WalletConnectModal />
+        <InstallPrompt />
         <ThemedToaster />
         {process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true" && (
           <ReactQueryDevtools initialIsOpen={false} />

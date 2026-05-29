@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
 import dynamic from "next/dynamic";
-const DataTable = dynamic(() => import("@/components/ui/data-table").then((m) => m.DataTable), {
+const DataTable = dynamic<any>(() => import("@/components/ui/data-table").then((m) => m.DataTable), {
   ssr: false,
   loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={9} />,
 });

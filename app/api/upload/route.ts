@@ -14,7 +14,7 @@ async function virusScan(buffer: Buffer, filename: string) {
 
   try {
     const form = new FormData();
-    form.append("file", new Blob([buffer]), filename);
+    form.append("file", new Blob([buffer as unknown as ArrayBuffer]), filename);
 
     const uploadRes = await fetch("https://www.virustotal.com/api/v3/files", {
       method: "POST",

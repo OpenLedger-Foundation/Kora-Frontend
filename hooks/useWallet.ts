@@ -140,7 +140,8 @@ export function useWallet() {
 
       // Sign the challenge with the wallet
       const walletKit = getKit();
-      const { result: signature } = await walletKit.signMessage({
+      // signMessage may not exist on all wallet kit versions — cast to any
+      const { result: signature } = await (walletKit as any).signMessage({
         message: challenge,
         publicKey: publicKey,
       });
