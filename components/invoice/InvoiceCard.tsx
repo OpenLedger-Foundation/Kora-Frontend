@@ -176,9 +176,11 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
           </div>
 
           {status === "listed" || status === "partially_funded" ? (
-            <Button size="sm" className="mt-4 w-full relative z-20" onClick={(e) => e.preventDefault()}>
-              Fund Invoice
-            </Button>
+            <div className="mt-4 w-full relative z-20">
+              <div className="text-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm font-semibold text-primary transition-colors">
+                Fund Invoice
+              </div>
+            </div>
           ) : null}
         </div>
 

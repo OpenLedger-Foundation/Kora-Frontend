@@ -78,6 +78,12 @@ export default function InvoiceDetailPage() {
   // Precise holding period Expected Return Calculator
   const expectedReturn = amountNum * (1 + ((terms.apr / 100) * (daysToMaturity / 365)));
 
+  const documentPreviewUrl =
+    metadata.documentUrl && safeExternalUrl(metadata.documentUrl) !== "#"
+      ? safeExternalUrl(metadata.documentUrl)
+      : safeIpfsUrl(metadata.documentHash, env.NEXT_PUBLIC_IPFS_GATEWAY);
+  const hasDocument = Boolean(documentPreviewUrl && documentPreviewUrl !== "#");
+
   // Input validations for min-investment and remaining capacities
   let inputError = "";
   if (amountNum > 0) {
@@ -326,13 +332,12 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                  </CardTitle>
                </CardHeader>
                <CardContent className="space-y-4">
-                 {metadata.documentHash ? (
+                 {hasDocument ? (
                    <div className="relative">
-                     {/* Mobile view: download only */}
                      <div className="hidden sm:block">
                        <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
                          <iframe
-                           src={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY) + "#toolbar=0&navpanes=0&scrollbar=0"}
+                           src={`${documentPreviewUrl}#toolbar=0&navpanes=0&scrollbar=0`}
                            className="w-full h-[450px] rounded"
                            title="Invoice PDF Document"
                            referrerPolicy="no-referrer"
@@ -349,9 +354,9 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/50 p-6 text-center">
                              <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
                              <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
-                             <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document from IPFS.</p>
+                             <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document.</p>
                              <a
-                               href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY)}
+                               href={documentPreviewUrl}
                                target="_blank"
                                rel="noopener noreferrer"
                                className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
@@ -362,8 +367,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                          )}
                        </div>
                      </div>
-                     
-                     {/* Desktop view: download only on mobile */}
+
                      <div className="block sm:hidden bg-zinc-900 rounded-lg border border-zinc-800 p-6 text-center">
                        {!iframeLoaded && !iframeError && (
                          <div className="flex flex-col items-center justify-center py-8">
@@ -374,9 +378,9 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                          <div className="flex flex-col items-center justify-center">
                            <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
                            <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
-                           <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document from IPFS.</p>
+                           <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document.</p>
                            <a
-                             href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY)}
+                             href={documentPreviewUrl}
                              target="_blank"
                              rel="noopener noreferrer"
                              className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
@@ -390,7 +394,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                            <FileText className="h-10 w-10 text-zinc-500 mb-4" />
                            <p className="text-sm font-medium text-zinc-400 mb-2">PDF ready for download</p>
                            <a
-                             href={safeIpfsUrl(metadata.documentHash, process.env.NEXT_PUBLIC_IPFS_GATEWAY)}
+                             href={documentPreviewUrl}
                              target="_blank"
                              rel="noopener noreferrer"
                              className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
@@ -405,14 +409,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
                      <FileText className="h-8 w-8 text-zinc-600 mb-2" />
                      <p className="text-sm font-medium text-zinc-400">No document preview available</p>
-                     <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF hash.</p>
-                   </div>
-                 )}
-                 ) : (
-                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
-                     <FileText className="h-8 w-8 text-zinc-600 mb-2" />
-                     <p className="text-sm font-medium text-zinc-400">No document preview available</p>
-                     <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF hash.</p>
+                     <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF preview or document URL.</p>
                    </div>
                  )}
                </CardContent>
