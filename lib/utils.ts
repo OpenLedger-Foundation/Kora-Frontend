@@ -204,6 +204,68 @@ export async function withRetry<T>(
   throw lastError;
 }
 
+/** Risk tier APR multipliers for risk-adjusted returns */
+export const RISK_TIER_MULTIPLIERS: Record<string, number> = {
+  AAA: 1.0,  // No adjustment
+  AA: 1.05,  // 5% boost
+  A: 1.1,    // 10% boost
+  BBB: 1.15, // 15% boost
+  BB: 1.2,   // 20% boost
+  B: 1.25,   // 25% boost
+  CCC: 1.3,  // 30% boost
+};
+
+/**
+ * Calculate APR from discount rate and days to maturity.
+ * Formula: APR = (discount / (1 - discount)) * (365 / days) * 100
+ * 
+ * @param discountRate - Discount as decimal (e.g., 0.05 for 5%)
+ * @param daysToMaturity - Number of days until maturity
+ * @returns APR as percentage (e.g., 12.5 for 12.5% APR)
+ */
+export function calculateAPR(discountRate: number, daysToMaturity: number): number {
+  if (daysToMaturity <= 0 || discountRate <= 0 || discountRate >= 1) {
+    return 0;
+  }
+  return (discountRate / (1 - discountRate)) * (365 / daysToMaturity) * 100;
+}
+
+/**
+ * Calculate expected return for an investor at maturity.
+ * Formula: return = amount * discountRate
+ * 
+ * @param amount - Investment amount
+ * @param discountRate - Discount as decimal (e.g., 0.05 for 5%)
+ * @returns Expected return amount
+ */
+export function calculateExpectedReturn(amount: number, discountRate: number): number {
+  return amount * discountRate;
+}
+
+/**
+ * Calculate risk-adjusted return based on APR and risk tier.
+ * Formula: adjustedAPR = APR * riskMultiplier
+ * 
+ * @param apr - APR as percentage
+ * @param riskTier - Risk tier (e.g., "AAA", "BB")
+ * @returns Risk-adjusted APR as percentage
+ */
+export function calculateRiskAdjustedReturn(apr: number, riskTier: string): number {
+  const multiplier = RISK_TIER_MULTIPLIERS[riskTier] ?? 1.0;
+  return apr * multiplier;
+}
+
+/**
+ * Get color coding for APR based on thresholds.
+ * @param apr - APR as percentage
+ * @returns Tailwind color class
+ */
+export function getAPRColor(apr: number): string {
+  if (apr >= 15) return "text-emerald-400";  // Green: excellent
+  if (apr >= 8) return "text-amber-400";     // Amber: good
+  return "text-red-400";                      // Red: low
+}
+
 /**
  * Convert an array of objects to a CSV file and trigger a browser download.
  * @param rows   Array of plain objects (all rows must share the same keys)

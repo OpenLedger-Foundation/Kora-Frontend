@@ -1,0 +1,399 @@
+"use client";
+
+import React from "react";
+import { Download, FileText, Calendar, TrendingUp, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerSection,
+} from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatCurrency, formatDate, formatPercentage, daysUntil, cn } from "@/lib/utils";
+import type { InvoicePosition, Invoice } from "@/types";
+
+interface YieldTimelineEvent {
+  date: string;
+  label: string;
+  amount?: number;
+  type: "funding" | "maturity" | "claim" | "repaid";
+}
+
+interface PositionDetailDrawerProps {
+  position: InvoicePosition | null;
+  invoice: Invoice | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  loading?: boolean;
+}
+
+/**
+ * Build a yield timeline from position and invoice data.
+ */
+function buildYieldTimeline(position: InvoicePosition, invoice: Invoice): YieldTimelineEvent[] {
+  const events: YieldTimelineEvent[] = [];
+
+  // Funding event
+  events.push({
+    date: position.investedAt,
+    label: "Investment",
+    amount: position.investedAmount,
+    type: "funding",
+  });
+
+  // Maturity event
+  events.push({
+    date: invoice.terms.repaymentDate,
+    label: "Expected Maturity",
+    type: "maturity",
+  });
+
+  // Expected return event (on maturity date)
+  if (position.expectedReturn > 0) {
+    events.push({
+      date: invoice.terms.repaymentDate,
+      label: "Expected Yield",
+      amount: position.expectedReturn,
+      type: "claim",
+    });
+  }
+
+  // If position is repaid, add repaid event
+  if (position.status === "repaid") {
+    events.push({
+      date: invoice.updatedAt,
+      label: "Repaid",
+      amount: position.investedAmount + position.expectedReturn,
+      type: "repaid",
+    });
+  }
+
+  return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+/**
+ * Get color for timeline event.
+ */
+function getTimelineEventColor(type: YieldTimelineEvent["type"]): string {
+  switch (type) {
+    case "funding":
+      return "bg-primary text-primary-foreground";
+    case "maturity":
+      return "bg-blue-500 text-white";
+    case "claim":
+      return "bg-emerald-500 text-white";
+    case "repaid":
+      return "bg-emerald-600 text-white";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+/**
+ * Get icon for timeline event.
+ */
+function getTimelineEventIcon(type: YieldTimelineEvent["type"]): React.ReactNode {
+  switch (type) {
+    case "funding":
+      return <Calendar className="w-4 h-4" />;
+    case "maturity":
+      return <Calendar className="w-4 h-4" />;
+    case "claim":
+      return <TrendingUp className="w-4 h-4" />;
+    case "repaid":
+      return <TrendingUp className="w-4 h-4" />;
+    default:
+      return null;
+  }
+}
+
+/**
+ * PositionDetailDrawer shows full position details including yield accrual timeline.
+ */
+export function PositionDetailDrawer({
+  position,
+  invoice,
+  open,
+  onOpenChange,
+  loading = false,
+}: PositionDetailDrawerProps) {
+  if (!position || !invoice) {
+    return (
+      <Drawer
+        open={open && loading}
+        onOpenChange={onOpenChange}
+        title="Position Details"
+        size="lg"
+      >
+        <DrawerContent>
+          <div className="space-y-4">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  const timeline = buildYieldTimeline(position, invoice);
+  const daysRemaining = daysUntil(invoice.terms.repaymentDate);
+  const roi = position.investedAmount > 0 
+    ? ((position.expectedReturn / position.investedAmount) * 100)
+    : 0;
+
+  const handleExportPDF = () => {
+    // Use window.print() for PDF export
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Position Details - ${invoice.metadata.invoiceNumber}</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              h1 { color: #333; margin-bottom: 20px; }
+              .section { margin-bottom: 30px; }
+              .section-title { font-weight: bold; font-size: 14px; color: #555; margin-bottom: 10px; }
+              table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th { background-color: #f0f0f0; }
+            </style>
+          </head>
+          <body>
+            <h1>Position Details Report</h1>
+            <div class="section">
+              <div class="section-title">Invoice Information</div>
+              <table>
+                <tr>
+                  <th>Field</th>
+                  <th>Value</th>
+                </tr>
+                <tr>
+                  <td>Invoice Number</td>
+                  <td>${invoice.metadata.invoiceNumber}</td>
+                </tr>
+                <tr>
+                  <td>Debtor</td>
+                  <td>${invoice.metadata.debtorName}</td>
+                </tr>
+                <tr>
+                  <td>Invoice Amount</td>
+                  <td>${formatCurrency(invoice.metadata.amount, invoice.metadata.currency)}</td>
+                </tr>
+              </table>
+            </div>
+            <div class="section">
+              <div class="section-title">Position Details</div>
+              <table>
+                <tr>
+                  <th>Field</th>
+                  <th>Value</th>
+                </tr>
+                <tr>
+                  <td>Invested Amount</td>
+                  <td>${formatCurrency(position.investedAmount, invoice.metadata.currency)}</td>
+                </tr>
+                <tr>
+                  <td>Expected Return</td>
+                  <td>${formatCurrency(position.expectedReturn, invoice.metadata.currency)}</td>
+                </tr>
+                <tr>
+                  <td>ROI</td>
+                  <td>${roi.toFixed(2)}%</td>
+                </tr>
+                <tr>
+                  <td>Status</td>
+                  <td>${position.status}</td>
+                </tr>
+              </table>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
+
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Position Details"
+      size="lg"
+    >
+      <DrawerContent>
+        {/* Key Metrics */}
+        <DrawerSection title="Investment Summary" description="Your position details">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-border p-3 bg-muted/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Invested Amount
+              </p>
+              <p className="mt-1 text-lg font-bold text-foreground">
+                {formatCurrency(position.investedAmount, invoice.metadata.currency)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border p-3 bg-muted/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Expected Return
+              </p>
+              <p className="mt-1 text-lg font-bold text-emerald-400">
+                {formatCurrency(position.expectedReturn, invoice.metadata.currency)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border p-3 bg-muted/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                ROI
+              </p>
+              <p className="mt-1 text-lg font-bold text-primary">
+                {roi.toFixed(2)}%
+              </p>
+            </div>
+            <div className="rounded-lg border border-border p-3 bg-muted/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Status
+              </p>
+              <p className="mt-1">
+                <Badge
+                  variant={
+                    position.status === "active"
+                      ? "default"
+                      : position.status === "repaid"
+                      ? "secondary"
+                      : "destructive"
+                  }
+                >
+                  {position.status}
+                </Badge>
+              </p>
+            </div>
+          </div>
+        </DrawerSection>
+
+        {/* Dates */}
+        <DrawerSection title="Key Dates" description="Investment and maturity timeline">
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border p-3 bg-muted/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Investment Date
+              </p>
+              <p className="mt-1 text-sm font-medium text-foreground">
+                {formatDate(position.investedAt)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border p-3 bg-muted/30">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Maturity Date
+              </p>
+              <p className="mt-1 text-sm font-medium text-foreground">
+                {formatDate(invoice.terms.repaymentDate)}
+              </p>
+              {daysRemaining > 0 && (
+                <p className="mt-1 text-xs text-amber-400">
+                  {daysRemaining} day{daysRemaining !== 1 ? "s" : ""} remaining
+                </p>
+              )}
+            </div>
+          </div>
+        </DrawerSection>
+
+        {/* Yield Timeline */}
+        <DrawerSection
+          title="Yield Accrual Timeline"
+          description="Key milestones in your investment lifecycle"
+        >
+          <div className="space-y-4">
+            {timeline.map((event, idx) => (
+              <div key={idx} className="flex gap-4">
+                {/* Timeline line and dot */}
+                <div className="flex flex-col items-center">
+                  <div
+                    className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
+                      getTimelineEventColor(event.type)
+                    )}
+                  >
+                    {getTimelineEventIcon(event.type)}
+                  </div>
+                  {idx < timeline.length - 1 && (
+                    <div className="w-0.5 h-12 bg-border mt-2" />
+                  )}
+                </div>
+
+                {/* Event details */}
+                <div className="pt-1 pb-4">
+                  <p className="font-semibold text-foreground">{event.label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {formatDate(event.date)}
+                  </p>
+                  {event.amount && (
+                    <p className="text-sm font-medium text-primary mt-1">
+                      {formatCurrency(event.amount, invoice.metadata.currency)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DrawerSection>
+
+        {/* Related Invoice */}
+        <DrawerSection title="Related Invoice" description="View the original invoice">
+          <Link href={`/marketplace/${invoice.id}`}>
+            <Button variant="outline" className="w-full justify-start" asChild>
+              <a>
+                <FileText className="w-4 h-4 mr-2" />
+                {invoice.metadata.invoiceNumber}
+              </a>
+            </Button>
+          </Link>
+          <div className="mt-3 rounded-lg border border-border p-3 bg-muted/30 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Debtor</span>
+              <span className="font-medium">{invoice.metadata.debtorName}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Amount</span>
+              <span className="font-medium">
+                {formatCurrency(invoice.metadata.amount, invoice.metadata.currency)}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">APR</span>
+              <span className="font-medium text-primary">{invoice.terms.apr.toFixed(2)}%</span>
+            </div>
+          </div>
+        </DrawerSection>
+
+        {/* Yield Earned */}
+        {position.yieldEarned > 0 && (
+          <DrawerSection title="Yield Information" description="Current yield status">
+            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
+              <div className="flex items-start gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-400 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-emerald-400">Yield Earned</p>
+                  <p className="text-sm text-emerald-300 mt-0.5">
+                    {formatCurrency(position.yieldEarned, invoice.metadata.currency)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </DrawerSection>
+        )}
+
+        {/* Action Buttons */}
+        <div className="space-y-2 pt-2">
+          <Button onClick={handleExportPDF} variant="outline" className="w-full">
+            <Download className="w-4 h-4 mr-2" />
+            Export as PDF
+          </Button>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}

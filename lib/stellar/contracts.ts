@@ -196,6 +196,19 @@ class InvoiceContractClient {
       sourcePublicKey
     );
   }
+
+  /**
+   * Cancel an invoice (owner only). Only cancellable if pending or unfunded.
+   * Status code: 6 for cancelled
+   * Returns unsigned XDR string.
+   */
+  async cancelInvoice(
+    tokenId: bigint,
+    sourcePublicKey: string
+  ): Promise<string> {
+    // Status code 6 = cancelled
+    return this.updateStatus(tokenId, 6, sourcePublicKey);
+  }
 }
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────

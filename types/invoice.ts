@@ -79,6 +79,7 @@ export interface Invoice {
   updatedAt: string;
   ownerAddress: string; // SME wallet
   txHash?: string; // mint transaction
+  listingExpiry?: string; // ISO 8601, when listing expires from marketplace
 }
 
 export interface InvoicePosition {
