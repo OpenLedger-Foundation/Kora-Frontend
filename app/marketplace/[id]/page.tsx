@@ -41,6 +41,7 @@ import {
 } from "@/lib/utils";
 import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { env } from "@/lib/env";
 
 export default function InvoiceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -131,7 +132,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           };
 
           // 1. Update Memory array directly so the list pages show dynamic updates
-          if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true") {
+          if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
             const mockIdx = MOCK_INVOICES.findIndex((i) => i.id === id);
             if (mockIdx !== -1) {
               MOCK_INVOICES[mockIdx] = updatedInvoice;

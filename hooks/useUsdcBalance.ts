@@ -2,8 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getAccountBalances } from "@/lib/stellar/client";
+import { env } from "@/lib/env";
 
-const USE_MOCK = process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+const USE_MOCK = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
 
 /**
  * Returns the wallet's USDC balance as a number.

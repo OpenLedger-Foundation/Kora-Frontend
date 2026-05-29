@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { env } from "@/lib/env";
 import type { WalletState, WalletProvider } from "@/types";
 
 interface WalletStore extends WalletState {
@@ -18,9 +19,7 @@ export const useWalletStore = create<WalletStore>()(
       publicKey: null,
       isConnected: false,
       provider: null,
-      network:
-        (process.env.NEXT_PUBLIC_STELLAR_NETWORK as WalletState["network"]) ||
-        "testnet",
+      network: (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletState["network"]) || "testnet",
       balance: null,
       isVerified: false,
       verifiedAt: null,
