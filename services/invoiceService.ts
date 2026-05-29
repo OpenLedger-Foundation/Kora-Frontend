@@ -170,6 +170,7 @@ export async function prepareCreateInvoice(
 
     // Backward compatibility flat properties
     invoiceNumber: formData.invoiceNumber,
+    issuerName: ownerAddress, // wallet address used as issuer name when not provided
     issuerAddress: ownerAddress,
     debtorName: formData.debtorName,
     debtorAddress: formData.debtorAddress,

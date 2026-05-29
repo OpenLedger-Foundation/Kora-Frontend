@@ -94,6 +94,14 @@ export const metadata: Metadata = {
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#09090b" },
   ],
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Kora",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 // Security: this is a static compile-time string with zero user input — safe for dangerouslySetInnerHTML.
@@ -105,6 +113,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* Apple PWA meta — Next.js metadata API doesn't cover all apple-* tags */}
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} bg-background antialiased`}>
         <a

@@ -94,7 +94,7 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
       <VerificationModal
         isOpen={isOpen}
         isLoading={isLoading}
-        error={error}
+        error={error ?? undefined}
         actionType={actionType}
         onVerify={handleVerify}
         onCancel={handleCancel}
