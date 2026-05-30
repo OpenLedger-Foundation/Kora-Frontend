@@ -10,6 +10,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -23,6 +24,13 @@ export function WalletButton() {
   const { setWalletModalOpen } = useUIStore();
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
+
+  const handleDisconnect = async () => {
+    await disconnectWallet();
+    setConfirmDisconnectOpen(false);
+    setOpen(false);
+  };
 
   if (!isConnected) {
     return (
@@ -88,7 +96,7 @@ export function WalletButton() {
             </button>
             <button
               type="button"
-              onClick={() => { disconnectWallet(); setOpen(false); }}
+              onClick={() => setConfirmDisconnectOpen(true)}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
             >
               <LogOut className="h-3.5 w-3.5" /> Disconnect
@@ -106,6 +114,25 @@ export function WalletButton() {
             </DialogDescription>
           </DialogHeader>
           <NotificationSettings />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmDisconnectOpen} onOpenChange={setConfirmDisconnectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disconnect wallet?</DialogTitle>
+            <DialogDescription>
+              Are you sure? This will clear wallet-dependent data and end your current session.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDisconnectOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDisconnect}>
+              Disconnect
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

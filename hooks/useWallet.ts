@@ -12,8 +12,10 @@ import {
 } from "@creit.tech/stellar-wallets-kit";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useWalletStore, useUIStore } from "@/store";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { getAccountBalances } from "@/lib/stellar/client";
+import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
 
@@ -57,6 +59,8 @@ export function useWallet() {
     isVerificationExpired,
   } = useWalletStore();
   const router = useRouter();
+  const pathname = usePathname();
+  const queryClient = useQueryClient();
 
   const connectWallet = useCallback(
     async (walletId: string = FREIGHTER_ID) => {
@@ -93,9 +97,34 @@ export function useWallet() {
   );
 
   const disconnectWallet = useCallback(() => {
+    const walletAddress = address;
     kit = null;
+    queryClient.clear();
+    useInvoiceStore.setState({
+      invoices: [],
+      selectedInvoice: null,
+      searchQuery: "",
+      createDraft: { currency: "USDC" },
+    });
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("kora-wallet");
+    }
     disconnect();
-  }, [disconnect]);
+
+    if (
+      pathname?.startsWith("/dashboard") ||
+      pathname === "/invoice/create" ||
+      pathname?.startsWith("/invoice/create/")
+    ) {
+      router.push("/marketplace");
+    }
+
+    if (walletAddress) {
+      void queryClient.invalidateQueries({
+        predicate: (q) => JSON.stringify(q.queryKey).includes(walletAddress),
+      });
+    }
+  }, [address, disconnect, pathname, queryClient, router]);
 
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
