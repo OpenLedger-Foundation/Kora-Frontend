@@ -67,9 +67,9 @@ export function useWallet() {
       try {
         const raw = await getAccountBalances(addr);
         bal = {
-          xlm: raw["XLM"] || "0",
-          usdc: raw["USDC"] || "0",
-          eurc: raw["EURC"] || "0",
+          xlm: raw.xlm,
+          usdc: raw.usdc,
+          eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
         };
       } catch {
         // Account may not be funded yet on testnet
@@ -109,9 +109,9 @@ export function useWallet() {
     try {
       const raw = await getAccountBalances(address);
       setBalance({
-        xlm: raw["XLM"] || "0",
-        usdc: raw["USDC"] || "0",
-        eurc: raw["EURC"] || "0",
+        xlm: raw.xlm,
+        usdc: raw.usdc,
+        eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
       });
     } catch {
       // silently fail
