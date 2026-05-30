@@ -118,7 +118,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
                   {formatApr(terms.apr)}
                 </Badge>
                 {isExpired && (
-                  <Badge variant="secondary" className="font-semibold px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
+                  <Badge variant="default" className="font-semibold px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
                     Expired
                   </Badge>
                 )}

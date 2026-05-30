@@ -3,6 +3,13 @@
 import React from "react";
 import { toast } from "sonner";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
+import { useUIStore } from "@/store/uiStore";
+
+export type NotificationPreferenceType =
+  | "txConfirmed"
+  | "invoiceFunded"
+  | "maturityReminder"
+  | "yieldAvailable";
 
 interface TxToastProps {
   message: string;
@@ -61,7 +68,19 @@ export function ErrorToast({ message, description, onRetry, toastId }: ErrorToas
 }
 
 export function useToast() {
-  const showLoading = (message: string, id: string | number) => {
+  const notificationPreferences = useUIStore((s) => s.notificationPreferences);
+
+  const shouldNotify = (type?: NotificationPreferenceType) => {
+    if (!type) return true;
+    return notificationPreferences[type];
+  };
+
+  const showLoading = (
+    message: string,
+    id: string | number,
+    type?: NotificationPreferenceType
+  ) => {
+    if (!shouldNotify(type)) return id;
     return toast.loading(
       <div role="status" aria-live="polite" className="font-medium text-foreground">
         {message}
@@ -73,8 +92,14 @@ export function useToast() {
     );
   };
 
-  const showSuccess = (message: string, txHash?: string, id?: string | number) => {
+  const showSuccess = (
+    message: string,
+    txHash?: string,
+    id?: string | number,
+    type?: NotificationPreferenceType
+  ) => {
     const toastId = id ?? Math.random().toString();
+    if (!shouldNotify(type)) return toastId;
     return toast.success(<TxToast message={message} txHash={txHash} />, {
       id: toastId,
       duration: 4000,
@@ -85,9 +110,11 @@ export function useToast() {
     message: string,
     description?: string,
     onRetry?: () => void,
-    id?: string | number
+    id?: string | number,
+    type?: NotificationPreferenceType
   ) => {
     const toastId = id ?? Math.random().toString();
+    if (!shouldNotify(type)) return toastId;
     return toast.error(
       <ErrorToast
         message={message}

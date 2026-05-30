@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { env } from "@/lib/env";
 
 const PINATA_BASE = "https://api.pinata.cloud";
-const PINATA_JWT = env.PINATA_JWT ?? "";
-const VIRUSTOTAL_API_KEY = env.VIRUSTOTAL_API_KEY ?? "";
+const PINATA_JWT = process.env.PINATA_JWT ?? "";
+const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY ?? "";
 
 // In-memory rate limit store: walletAddress -> timestamps (ms)
 const RATE_LIMIT_WINDOW = 1000 * 60 * 60; // 1 hour

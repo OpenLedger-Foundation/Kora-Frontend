@@ -30,7 +30,7 @@ export interface SelectProps {
   className?: string;
   disabled?: boolean;
   name?: string;
-  onBlur?: () => void;
+  onBlur?: React.FocusEventHandler<HTMLSelectElement>;
   id?: string;
 }
 
@@ -288,7 +288,6 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           onBlur={onBlur}
           className="hidden"
           disabled={disabled}
-          readOnly
           {...props}
         >
           {placeholder && <option value="">{placeholder}</option>}
@@ -416,16 +415,16 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
 
                     return (
                       <button
-                        key={opt.value}
+                        key={(opt as Option).value}
                         type="button"
-                        onClick={() => handleSelectValue(opt.value)}
+                        onClick={() => handleSelectValue((opt as Option).value)}
                         className={cn(
                           "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100 transition-colors text-left",
-                          isSelected(opt.value) && "bg-zinc-900/60 text-kora-400 hover:bg-zinc-900"
+                          isSelected((opt as Option).value) && "bg-zinc-900/60 text-kora-400 hover:bg-zinc-900"
                         )}
                       >
-                        <HighlightText text={opt.label} highlight={searchQuery} />
-                        {isSelected(opt.value) && <Check className="h-4 w-4 text-kora-500 shrink-0" />}
+                        <HighlightText text={(opt as Option).label} highlight={searchQuery} />
+                        {isSelected((opt as Option).value) && <Check className="h-4 w-4 text-kora-500 shrink-0" />}
                       </button>
                     );
                   })

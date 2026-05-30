@@ -1,22 +1,36 @@
-/**
- * Vitest global setup — runs before every test file.
- */
 import "@testing-library/jest-dom";
-import { expect, afterEach, beforeAll, afterAll, vi } from "vitest";
+import path from "node:path";
+import Module from "node:module";
 import { cleanup } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { server } from "./app/invoice/__tests__/mocks/server";
 
-// ── Cleanup ───────────────────────────────────────────────────────────────────
+const moduleAny = Module as any;
+const originalResolveFilename = moduleAny._resolveFilename;
+moduleAny._resolveFilename = function patchedResolveFilename(
+  request: string,
+  parent: unknown,
+  isMain: boolean,
+  options: unknown
+) {
+  if (typeof request === "string" && request.startsWith("@/")) {
+    request = path.join(process.cwd(), request.slice(2));
+  }
+  return originalResolveFilename.call(this, request, parent, isMain, options);
+};
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  server.resetHandlers();
 });
 
-// ── Browser API stubs ─────────────────────────────────────────────────────────
+beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
+afterAll(() => server.close());
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -32,28 +46,25 @@ global.IntersectionObserver = class IntersectionObserver {
   constructor() {}
   disconnect() {}
   observe() {}
-  takeRecords() { return []; }
+  takeRecords() {
+    return [];
+  }
   unobserve() {}
 } as any;
 
-if (typeof URL.createObjectURL === "undefined") {
-  Object.defineProperty(URL, "createObjectURL", {
-    value: vi.fn(() => "blob:mock-url"),
-    writable: true,
-  });
-}
-
-// ── Module mocks ──────────────────────────────────────────────────────────────
-
-// next/image — use createElement to avoid JSX in .ts file
 vi.mock("next/image", () => ({
-  default: ({ src, alt, ...rest }: any) => {
+  default: ({ alt, ...props }: any) => {
     const React = require("react");
-    return React.createElement("img", { src, alt, ...rest });
+    return React.createElement("img", { alt: alt ?? "", ...props });
   },
 }));
 
-// next/link
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  usePathname: () => "/invoice/create",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: any) => {
     const React = require("react");
@@ -61,15 +72,6 @@ vi.mock("next/link", () => ({
   },
 }));
 
-// next/navigation
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), refresh: vi.fn() }),
-  usePathname: () => "/",
-  useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({}),
-}));
-
-// framer-motion — passthrough without animations
 vi.mock("framer-motion", async () => {
   const actual = await vi.importActual<typeof import("framer-motion")>("framer-motion");
   const React = require("react");
@@ -87,14 +89,19 @@ vi.mock("framer-motion", async () => {
   };
 });
 
-// sonner toast — no-op
 vi.mock("sonner", () => ({
   toast: {
     loading: vi.fn(),
     success: vi.fn(),
     error: vi.fn(),
     promise: vi.fn(),
+    dismiss: vi.fn(),
   },
 }));
 
-expect.extend({});
+if (typeof URL.createObjectURL === "undefined") {
+  Object.defineProperty(URL, "createObjectURL", {
+    value: vi.fn(() => "blob:mock-url"),
+    writable: true,
+  });
+}

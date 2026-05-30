@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useToast } from "./useToast";
+import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
 import { rpc, submitTransaction } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
@@ -64,14 +65,19 @@ export function useTransaction() {
   const setStage = (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
     setState((s) => ({ ...s, status, ...extra }));
     if (status !== "idle" && status !== "confirmed" && status !== "failed") {
-      toast.loading(STAGE_MESSAGES[status], TOAST_ID);
+      toast.loading(STAGE_MESSAGES[status], TOAST_ID, "txConfirmed");
     }
   };
 
   const execute = useCallback(
     async (
       buildFn: () => Promise<string>,
-      options?: { onSuccess?: (hash: string) => void; successMessage?: string; onError?: (err: unknown) => void }
+      options?: {
+        onSuccess?: (hash: string) => void;
+        successMessage?: string;
+        successNotificationType?: NotificationPreferenceType;
+        onError?: (err: unknown) => void;
+      }
     ): Promise<string | null> => {
       try {
         // 1. Build
@@ -120,7 +126,12 @@ export function useTransaction() {
 
         // 6. Confirmed
         setState({ status: "confirmed", txHash: hash });
-        toast.success(options?.successMessage ?? "Transaction confirmed!", hash, TOAST_ID);
+        toast.success(
+          options?.successMessage ?? "Transaction confirmed!",
+          hash,
+          TOAST_ID,
+          options?.successNotificationType ?? "txConfirmed"
+        );
 
         options?.onSuccess?.(hash);
         return hash;
@@ -131,7 +142,8 @@ export function useTransaction() {
           "Transaction failed",
           message,
           () => setState({ status: "idle" }),
-          TOAST_ID
+          TOAST_ID,
+          "txConfirmed"
         );
         options?.onError?.(err);
         return null;

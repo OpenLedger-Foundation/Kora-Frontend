@@ -48,9 +48,9 @@ function parseEnv() {
     const serverResult = serverSchema.safeParse(process.env);
     if (!serverResult.success) {
       const issues = serverResult.error.issues;
-      const required = issues.filter((i) => i.code !== "z.ZodIssueCode.invalid_type" || i.received !== "undefined");
-      if (isProd && required.length > 0) {
-        const msg = required.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
+      const hasMissingPinataJwt = issues.some((i) => i.path.join(".") === "PINATA_JWT");
+      if (isProd && hasMissingPinataJwt) {
+        const msg = issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
         throw new Error(`❌ Missing required server environment variables:\n${msg}`);
       } else if (!isProd) {
         issues.forEach((i) => {

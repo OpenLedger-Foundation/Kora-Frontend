@@ -116,6 +116,7 @@ export default function InvoiceDetailPage() {
       () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
       {
         successMessage: "Invoice funded successfully!",
+        successNotificationType: "invoiceFunded",
         onSuccess: (txHash) => {
           // DoD Requirement: Clear instructions and trace of exposes final txHash to developer console
           console.log(`[Stellar/Soroban Factoring ESCROW Confirmation]
@@ -349,7 +350,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                          />
                          {!iframeLoaded && !iframeError && (
                            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50">
-                             <InvoiceDetailSkeleton className="h-[450px] w-full" />
+                             <InvoiceDetailSkeleton />
                            </div>
                          )}
                          {iframeError && (
@@ -373,7 +374,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                      <div className="block sm:hidden bg-zinc-900 rounded-lg border border-zinc-800 p-6 text-center">
                        {!iframeLoaded && !iframeError && (
                          <div className="flex flex-col items-center justify-center py-8">
-                           <InvoiceDetailSkeleton className="h-16 w-32" />
+                           <InvoiceDetailSkeleton />
                          </div>
                        )}
                        {iframeError && (

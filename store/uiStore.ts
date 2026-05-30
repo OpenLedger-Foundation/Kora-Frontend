@@ -4,6 +4,24 @@ import type { TxState } from "@/types";
 
 export type Theme = "light" | "dark" | "system";
 
+export type MaturityReminderDays = 1 | 3 | 7;
+
+export interface NotificationPreferences {
+  txConfirmed: boolean;
+  invoiceFunded: boolean;
+  maturityReminder: boolean;
+  yieldAvailable: boolean;
+  maturityReminderDays: MaturityReminderDays;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  txConfirmed: true,
+  invoiceFunded: true,
+  maturityReminder: true,
+  yieldAvailable: true,
+  maturityReminderDays: 3,
+};
+
 interface UIStore {
   walletModalOpen: boolean;
   setWalletModalOpen: (open: boolean) => void;
@@ -22,6 +40,10 @@ interface UIStore {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+
+  notificationPreferences: NotificationPreferences;
+  setNotificationPreferences: (prefs: Partial<NotificationPreferences>) => void;
+  resetNotificationPreferences: () => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -48,10 +70,24 @@ export const useUIStore = create<UIStore>()(
         const next = get().theme === "system" ? "dark" : get().theme === "dark" ? "light" : "system";
         set({ theme: next });
       },
+
+      notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
+      setNotificationPreferences: (prefs) =>
+        set((s) => ({
+          notificationPreferences: {
+            ...s.notificationPreferences,
+            ...prefs,
+          },
+        })),
+      resetNotificationPreferences: () =>
+        set({ notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES }),
     }),
     {
       name: "kora-ui-store",
-      partialize: (state) => ({ theme: state.theme }),
+      partialize: (state) => ({
+        theme: state.theme,
+        notificationPreferences: state.notificationPreferences,
+      }),
     }
   )
 );

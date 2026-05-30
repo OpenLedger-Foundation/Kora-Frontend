@@ -262,10 +262,10 @@ export function PositionDetailDrawer({
                 <Badge
                   variant={
                     position.status === "active"
-                      ? "default"
+                      ? "info"
                       : position.status === "repaid"
-                      ? "secondary"
-                      : "destructive"
+                      ? "success"
+                      : "danger"
                   }
                 >
                   {position.status}

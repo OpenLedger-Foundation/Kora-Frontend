@@ -30,6 +30,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useSMEInvoices } from "@/hooks/useInvoices";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
+import { useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { prepareRepayInvoice } from "@/services/invoiceService";
 import { useUIStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
@@ -65,6 +66,14 @@ export default function SMEDashboardPage() {
     errors: Array<{ id: string; error: string }>;
   } | null>(null);
 
+  const myInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
+    (inv: Invoice) => inv.ownerAddress === address
+  );
+
+  useMaturityReminder(
+    myInvoices.filter((invoice) => ["listed", "partially_funded", "fully_funded"].includes(invoice.status))
+  );
+
   if (!isConnected) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
@@ -77,10 +86,6 @@ export default function SMEDashboardPage() {
       </div>
     );
   }
-  const myInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
-    (inv: Invoice) => inv.ownerAddress === address
-  );
-
   const STATS = [
     {
       label: "Total Financed",
@@ -120,6 +125,7 @@ export default function SMEDashboardPage() {
     if (!address) return;
     await execute(() => prepareRepayInvoice(inv.tokenId, address), {
       successMessage: "Yield distributed to investors",
+      successNotificationType: "yieldAvailable",
       onSuccess: () => {
         invoicesQuery.refetch();
         setRepayTarget(null);

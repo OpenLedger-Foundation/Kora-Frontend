@@ -41,7 +41,7 @@ export function CancelInvoiceDialog({
   const { metadata, terms, funding, status } = invoice;
   const isFunded = funding.totalRaised > 0;
   const canCancel =
-    status === "pending" || status === "active" || (status === "listed" && funding.totalRaised === 0);
+    status === "pending_mint" || status === "draft" || (status === "listed" && funding.totalRaised === 0);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
@@ -132,7 +132,7 @@ export function CancelInvoiceDialog({
             Keep Invoice
           </Button>
           <Button
-            variant="destructive"
+            variant="danger"
             onClick={onConfirm}
             disabled={loading || isFunded || !canCancel}
           >
