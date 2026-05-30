@@ -215,6 +215,7 @@ class InvoiceContractClient {
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
 const MARKETPLACE_CONTRACT_ID = env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID;
+const TOKEN_CONTRACT_ID = env.NEXT_PUBLIC_TOKEN_CONTRACT_ID;
 
 class MarketplaceContractClient {
   readonly contractId = MARKETPLACE_CONTRACT_ID;
@@ -316,6 +317,22 @@ function parseOnChainInvoice(val: StellarSdk.xdr.ScVal): OnChainInvoice {
 
 export const invoiceContract = new InvoiceContractClient();
 export const marketplaceContract = new MarketplaceContractClient();
+
+/**
+ * Build an unsigned transaction to mint testnet USDC to a wallet.
+ */
+export async function buildTestnetUsdcMintTx(
+  recipient: string,
+  sourcePublicKey: string,
+  amount: bigint = BigInt("10000000000")
+): Promise<string> {
+  return buildCall(
+    TOKEN_CONTRACT_ID,
+    "mint",
+    [scvAddress(recipient), scvI128(amount)],
+    sourcePublicKey
+  );
+}
 
 // Re-export low-level helpers for advanced use
 export { buildCall, readCall, parseSorobanError, simulate };

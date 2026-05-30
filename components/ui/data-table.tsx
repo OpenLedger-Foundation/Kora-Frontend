@@ -141,6 +141,7 @@ export function DataTable<T extends { id: string }>({
         <p className="mt-2 text-sm text-muted-foreground">
           {emptyState?.message ?? "No data to display"}
         </p>
+        {emptyState?.action && <div className="mt-4">{emptyState.action}</div>}
       </div>
     );
   }
