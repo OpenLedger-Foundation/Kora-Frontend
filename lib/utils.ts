@@ -170,6 +170,81 @@ export const RISK_TIER_COLORS: Record<string, string> = {
   CCC: "text-red-600 bg-red-600/10 border-red-600/20",
 };
 
+/** Historical Average APR per Risk Tier */
+export const RISK_TIER_APR: Record<string, number> = {
+  AAA: 8.5,
+  AA: 10.2,
+  A: 12.5,
+  BBB: 15.8,
+  BB: 19.5,
+  B: 24.0,
+  CCC: 32.0,
+};
+
+/** Yield Projection Benchmarks */
+export const YIELD_BENCHMARKS = {
+  SAVINGS_APY: 4.0,
+  T_BILLS_APY: 5.0,
+};
+
+export interface YieldProjectionPoint {
+  month: number;
+  monthName: string;
+  portfolio: number;
+  savings: number;
+  tbills: number;
+}
+
+export interface YieldProjectionResult {
+  data: YieldProjectionPoint[];
+  totalYield: number;
+  annualizedReturn: number;
+  invoicesNeeded: number;
+}
+
+/**
+ * Calculate yield projection over a given horizon
+ */
+export function calculateYieldProjection(
+  amount: number,
+  tier: string,
+  horizonMonths: number
+): YieldProjectionResult {
+  const apr = RISK_TIER_APR[tier] || 12;
+  const monthlyRate = apr / 100 / 12;
+  const savingsMonthlyRate = YIELD_BENCHMARKS.SAVINGS_APY / 100 / 12;
+  const tbillsMonthlyRate = YIELD_BENCHMARKS.T_BILLS_APY / 100 / 12;
+
+  const data: YieldProjectionPoint[] = [];
+  
+  for (let m = 0; m <= horizonMonths; m++) {
+    const date = new Date();
+    date.setMonth(date.getMonth() + m);
+    const monthName = format(date, "MMM yy");
+
+    data.push({
+      month: m,
+      monthName,
+      portfolio: amount * Math.pow(1 + monthlyRate, m),
+      savings: amount * Math.pow(1 + savingsMonthlyRate, m),
+      tbills: amount * Math.pow(1 + tbillsMonthlyRate, m),
+    });
+  }
+
+  const finalPortfolio = data[data.length - 1].portfolio;
+  const totalYield = finalPortfolio - amount;
+  
+  // Simple heuristic for invoices needed: average $5k per invoice
+  const invoicesNeeded = Math.ceil(amount / 5000);
+
+  return {
+    data,
+    totalYield,
+    annualizedReturn: apr,
+    invoicesNeeded,
+  };
+}
+
 /** Invoice status colour mapping */
 export const STATUS_COLORS: Record<string, string> = {
   draft: "text-muted-foreground bg-muted",

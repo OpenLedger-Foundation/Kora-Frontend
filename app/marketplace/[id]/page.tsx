@@ -25,6 +25,7 @@ import { Skeleton, InvoiceDetailSkeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useInvoice } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
+import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareFundInvoice } from "@/services/invoiceService";
@@ -39,6 +40,8 @@ import {
   cn,
 } from "@/lib/utils";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
+import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
+import { InvoiceMetadataViewer } from "@/components/invoice/InvoiceMetadataViewer";
 import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { env } from "@/lib/env";
@@ -48,6 +51,7 @@ export default function InvoiceDetailPage() {
   const id = validateRouteId(params.id) ?? "";
   const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address } = useWallet();
+  const { data: positions } = usePositions(address ?? undefined);
   const { setWalletModalOpen } = useUIStore();
   const { execute } = useTransaction();
   const queryClient = useQueryClient();
@@ -59,6 +63,9 @@ export default function InvoiceDetailPage() {
 
   if (!id || isLoading) return <InvoiceDetailSkeleton />;
   if (!invoice) return notFound();
+
+  // Post-fund reveal check
+  const isFunded = positions?.some((p) => p.invoiceId === id) || !!fundTxHash;
 
   const { metadata, terms, funding: fundingState, riskTier, status } = invoice;
   const days = daysUntil(terms.repaymentDate);
@@ -191,10 +198,10 @@ Stellar Testnet Transaction Hash: ${txHash}`);
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs text-zinc-500">{metadata.invoiceNumber}</p>
-                    <h1 className="mt-1 text-xl font-bold text-zinc-100">{metadata.debtorName}</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">{metadata.issuerName}</p>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{metadata.invoiceNumber}</p>
+                    <DebtorDisplay invoice={invoice} isFunded={isFunded} className="mt-1" />
+                    <p className="mt-1.5 text-sm font-medium text-zinc-500">{metadata.issuerName}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <RiskBadge tier={riskTier} />
@@ -212,14 +219,6 @@ Stellar Testnet Transaction Hash: ${txHash}`);
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Building2 className="h-4 w-4 text-zinc-600" />
-                    <span>{metadata.debtorAddress}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <MapPin className="h-4 w-4 text-zinc-600" />
-                    <span>{metadata.jurisdiction} · {metadata.category}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
                     <Calendar className="h-4 w-4 text-zinc-600" />
                     <span>Issued {formatDate(metadata.issueDate)}</span>
                   </div>
@@ -229,7 +228,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                   </div>
                 </div>
                 {metadata.description && (
-                  <p className="mt-4 text-sm text-zinc-500">{metadata.description}</p>
+                  <p className="mt-4 text-sm text-zinc-500 leading-relaxed">{metadata.description}</p>
                 )}
                 {metadata.documentUrl && (
                   <a
@@ -415,6 +414,11 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                </CardContent>
              </Card>
            </motion.div>
+
+           {/* Metadata Viewer */}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <InvoiceMetadataViewer invoice={invoice} isFunded={isFunded} />
+            </motion.div>
         </div>
 
         {/* ── Right: Fund Panel ─────────────────────────────────────────── */}

@@ -28,6 +28,7 @@ import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { useDebounce } from "@/hooks/useDebounce";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -369,22 +370,8 @@ function MarketplaceContent() {
   }, [searchParams, isUrlHydrated, setFilters, setSortBy, setSearchQuery]);
 
   // 2. Debouncing Changes to Prevent URL History Thrashing
-  const [debouncedFilters, setDebouncedFilters] = useState(filters);
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 400); // 400ms delay debounces slider adjustments
-    return () => clearTimeout(handler);
-  }, [filters]);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300); // 300ms delay debounces search input queries
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
+  const debouncedFilters = useDebounce(filters, 400);
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   useEffect(() => {
     setPage(1);

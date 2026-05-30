@@ -10,6 +10,7 @@ import type {
   MintInvoiceParams,
   FundInvoiceParams,
   RepayInvoiceParams,
+  ClaimYieldParams,
   OnChainInvoice,
 } from "@/types/contract";
 
@@ -263,6 +264,22 @@ class MarketplaceContractClient {
       [scvAddress(investor)],
       sourcePublicKey,
       (val) => val
+    );
+  }
+
+  /**
+   * Investor claims yield from a repaid position.
+   * Returns unsigned XDR string.
+   */
+  async claimYield(
+    params: ClaimYieldParams,
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "claim_yield",
+      [scvU64(params.tokenId)],
+      sourcePublicKey
     );
   }
 }

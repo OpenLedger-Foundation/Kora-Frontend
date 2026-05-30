@@ -13,6 +13,8 @@ export type InvoiceStatus =
 
 export type RiskTier = "AAA" | "AA" | "A" | "BBB" | "BB" | "B" | "CCC";
 
+export type DebtorPrivacyLevel = "full" | "partial" | "anonymized";
+
 export type InvoiceCurrency = "USDC" | "EURC" | "XLM";
 
 export type InvoiceJurisdiction = "US" | "EU" | "UK" | "NG" | "KE" | "GH" | "ZA" | "OTHER";
@@ -74,6 +76,7 @@ export interface Invoice {
   funding: InvoiceFunding;
   riskTier: RiskTier;
   riskScore: number; // 0–100
+  debtorPrivacy: DebtorPrivacyLevel;
   status: InvoiceStatus;
   createdAt: string;
   updatedAt: string;
@@ -105,6 +108,7 @@ export interface CreateInvoiceFormData {
   description: string;
   jurisdiction: InvoiceJurisdiction;
   category: InvoiceCategory;
+  debtorPrivacy: DebtorPrivacyLevel;
   discountRate: number;
   minInvestment: number;
   listingExpiryDate: string;

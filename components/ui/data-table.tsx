@@ -38,6 +38,7 @@ export function DataTable<T extends { id: string }>({
   pageSizeOptions = [5, 10, 20],
   enableSelection = false,
   bulkActions,
+  onSelectionChange,
   emptyState,
   getRowId = (row) => row.id,
   className,
@@ -83,6 +84,7 @@ export function DataTable<T extends { id: string }>({
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      onSelectionChange?.(Array.from(next));
       return next;
     });
   };
@@ -97,6 +99,7 @@ export function DataTable<T extends { id: string }>({
       } else {
         pageIds.forEach((id) => next.add(id));
       }
+      onSelectionChange?.(Array.from(next));
       return next;
     });
   };

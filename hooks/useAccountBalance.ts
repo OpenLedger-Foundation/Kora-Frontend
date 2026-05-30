@@ -1,174 +1,85 @@
 "use client";
 
-/**
- * TanStack Query hooks for Horizon account data.
- *
- * All queries share a 30-second stale time and retry once on failure.
- * AccountNotFoundError is treated as a non-retryable condition so the
- * query settles immediately rather than burning retry budget.
- */
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  getAccountBalances,
-  getAccountTransactions,
-  getUSDCBalance,
-  checkAccountExists,
-  AccountNotFoundError,
-} from "@/lib/stellar/client";
-import { queryKeys } from "@/lib/queryKeys";
-import type { AccountBalances, PaginatedTransactions } from "@/types/stellar";
+import { getAccountBalances } from "@/lib/stellar/client";
+import { env } from "@/lib/env";
 
-const STALE_30S = 30_000;
-const GC_5MIN = 5 * 60 * 1000;
+const USE_MOCK = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
 
-// ─── Retry helper ─────────────────────────────────────────────────────────────
+/** Auto-refresh interval in milliseconds (60 seconds). */
+const AUTO_REFRESH_INTERVAL = 60_000;
 
-/**
- * Do not retry when the account simply doesn't exist — that's a known state,
- * not a transient failure. Retry once for everything else.
- */
-function shouldRetry(failureCount: number, error: unknown): boolean {
-  if (error instanceof AccountNotFoundError) return false;
-  return failureCount < 1;
+export interface AccountBalance {
+  usdc: number;
+  xlm: number;
+  eurc: number;
 }
 
-// ─── useAccountBalances ───────────────────────────────────────────────────────
-
 /**
- * Fetches XLM and USDC balances (plus any other assets) for the given address.
+ * Fetches and caches the full account balance for a given Stellar address.
  *
- * Returns `undefined` while loading and `null` when the account is not found.
- *
- * @example
- * const { data, isLoading, error } = useAccountBalances(address);
- * data?.xlm   // spendable XLM string
- * data?.usdc  // USDC trustline balance string
+ * Features:
+ * - Returns USDC, XLM, and EURC balances as numbers
+ * - Auto-refreshes every 60 seconds while the tab is visible
+ * - Exposes a `refetch` function for manual refresh
+ * - Falls back to a large mock balance when mock mode is enabled
  */
-export function useAccountBalances(address: string | undefined) {
-  return useQuery<AccountBalances | null, Error>({
-    queryKey: queryKeys.account.balances(address ?? ""),
-    enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    retry: shouldRetry,
-    queryFn: async () => {
-      try {
-        return await getAccountBalances(address!);
-      } catch (err) {
-        if (err instanceof AccountNotFoundError) return null;
-        throw err;
-      }
-    },
-  });
-}
-
-// ─── useUSDCBalance ───────────────────────────────────────────────────────────
-
-/**
- * Returns the USDC trustline balance as a `number`.
- * Returns `0` when the account has no USDC trustline or does not exist.
- *
- * @example
- * const { data: usdcBalance } = useUSDCBalance(address);
- */
-export function useUSDCBalance(address: string | undefined) {
-  return useQuery<number, Error>({
-    queryKey: queryKeys.account.usdcBalance(address ?? ""),
-    enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    retry: shouldRetry,
-    queryFn: async () => {
-      try {
-        return await getUSDCBalance(address!);
-      } catch (err) {
-        if (err instanceof AccountNotFoundError) return 0;
-        throw err;
-      }
-    },
-  });
-}
-
-// ─── useAccountTransactions ───────────────────────────────────────────────────
-
-/**
- * Fetches a page of transaction history for the given address.
- *
- * Pass `cursor` (the `nextCursor` from a previous page) to fetch subsequent pages.
- * The query key includes both `limit` and `cursor` so each page is cached independently.
- *
- * @example
- * const { data } = useAccountTransactions(address, 20);
- * // Load next page:
- * const { data: page2 } = useAccountTransactions(address, 20, data?.nextCursor);
- */
-export function useAccountTransactions(
-  address: string | undefined,
-  limit = 20,
-  cursor?: string
-) {
-  return useQuery<PaginatedTransactions | null, Error>({
-    queryKey: queryKeys.account.transactions(address ?? "", limit, cursor),
-    enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    retry: shouldRetry,
-    queryFn: async () => {
-      try {
-        return await getAccountTransactions(address!, limit, cursor);
-      } catch (err) {
-        if (err instanceof AccountNotFoundError) return null;
-        throw err;
-      }
-    },
-  });
-}
-
-// ─── useCheckAccountExists ────────────────────────────────────────────────────
-
-/**
- * Returns `true` if the account exists on Horizon, `false` otherwise.
- * Primarily used before attempting to fund a new account via friendbot or transfer.
- *
- * @example
- * const { data: exists } = useCheckAccountExists(address);
- * if (exists === false) { // fund the account }
- */
-export function useCheckAccountExists(address: string | undefined) {
-  return useQuery<boolean, Error>({
-    queryKey: queryKeys.account.exists(address ?? ""),
-    enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    // Never retry existence checks — the answer is deterministic
-    retry: false,
-    queryFn: () => checkAccountExists(address!),
-  });
-}
-
-// ─── Prefetch helper ──────────────────────────────────────────────────────────
-
-/**
- * Returns a function that warms the balance cache for a given address.
- * Useful to call on wallet connect before the balance is needed in the UI.
- *
- * @example
- * const prefetch = usePrefetchAccountBalances();
- * prefetch(walletAddress);
- */
-export function usePrefetchAccountBalances() {
+export function useAccountBalance(address: string | undefined) {
   const queryClient = useQueryClient();
-  return (address: string) =>
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.account.balances(address),
-      queryFn: async () => {
-        try {
-          return await getAccountBalances(address);
-        } catch (err) {
-          if (err instanceof AccountNotFoundError) return null;
-          throw err;
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const query = useQuery({
+    queryKey: ["account-balance", address],
+    enabled: !!address,
+    staleTime: 30_000,
+    queryFn: async (): Promise<AccountBalance> => {
+      if (USE_MOCK || !address) {
+        return { usdc: 999_999, xlm: 10_000, eurc: 5_000 };
+      }
+      const raw = await getAccountBalances(address);
+      return {
+        usdc: parseFloat(raw["USDC"] ?? "0"),
+        xlm: parseFloat(raw["XLM"] ?? "0"),
+        eurc: parseFloat(raw["EURC"] ?? "0"),
+      };
+    },
+  });
+
+  // Auto-refresh every 60s, only when the tab is visible
+  useEffect(() => {
+    if (!address) return;
+
+    const scheduleRefresh = () => {
+      intervalRef.current = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          queryClient.invalidateQueries({ queryKey: ["account-balance", address] });
         }
-      },
-      staleTime: STALE_30S,
-    });
+      }, AUTO_REFRESH_INTERVAL);
+    };
+
+    scheduleRefresh();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // Immediately refresh when tab becomes visible again
+        queryClient.invalidateQueries({ queryKey: ["account-balance", address] });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [address, queryClient]);
+
+  return {
+    balance: query.data ?? null,
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    isError: query.isError,
+    refetch: query.refetch,
+  };
 }

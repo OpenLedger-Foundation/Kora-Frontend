@@ -25,6 +25,7 @@ export interface DataTableProps<T extends { id: string }> {
   pageSizeOptions?: number[];
   enableSelection?: boolean;
   bulkActions?: ReactNode;
+  onSelectionChange?: (selectedIds: string[]) => void;
   emptyState?: DataTableEmptyState;
   getRowId?: (row: T) => string;
   className?: string;

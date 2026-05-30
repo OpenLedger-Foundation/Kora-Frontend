@@ -60,6 +60,12 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const PRIVACY_OPTIONS = [
+  { value: "full", label: "Full (Name + Address)" },
+  { value: "partial", label: "Partial (Name Only)" },
+  { value: "anonymized", label: "Anonymized (Industry + Country)" },
+];
+
 export default function CreateInvoicePage() {
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
@@ -95,6 +101,7 @@ export default function CreateInvoicePage() {
       issueDate: TODAY,
       jurisdiction: "KE",
       category: "technology",
+      debtorPrivacy: "full",
       ...createDraft,
     },
   });
@@ -436,6 +443,13 @@ export default function CreateInvoicePage() {
                     {...register("category")}
                   />
                 </div>
+
+                <Select
+                  label="Debtor Privacy Level"
+                  options={PRIVACY_OPTIONS}
+                  error={errors.debtorPrivacy?.message}
+                  {...register("debtorPrivacy")}
+                />
 
                 <div className="rounded-2xl border border-zinc-800/70 bg-zinc-950/70 p-5 shadow-inner shadow-zinc-950/20">
                   <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">

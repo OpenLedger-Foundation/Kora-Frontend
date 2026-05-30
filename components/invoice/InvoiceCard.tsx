@@ -18,6 +18,7 @@ import {
 } from "@/lib/utils";
 import { useCountdown, formatCountdown } from "@/hooks/useCountdown";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
+import { DebtorDisplay } from "./DebtorDisplay";
 import type { Invoice } from "@/types";
 
 interface InvoiceCardProps {
@@ -104,10 +105,8 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                {metadata.debtorName}
-              </p>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <DebtorDisplay invoice={invoice} className="group-hover:text-primary transition-colors" />
+              <p className="mt-1 truncate text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                 {metadata.invoiceNumber}
               </p>
             </div>

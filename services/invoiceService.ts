@@ -107,16 +107,22 @@ export async function fetchInvoicesByOwner(ownerAddress: string): Promise<Invoic
 
 export async function fetchPositions(investorAddress: string) {
   if (USE_MOCK) {
-    // Build mock positions from MOCK_INVOICES for the demo
-    const positions = MOCK_INVOICES.slice(0, 6).map((inv, i) => ({
-      invoiceId: inv.id,
-      invoice: inv,
-      investedAmount: [15000, 50000, 5000, 100000, 25000, 8000][i % 6],
-      expectedReturn: ([15000, 50000, 5000, 100000, 25000, 8000][i % 6]) * (1 + inv.terms.discountRate),
-      yieldEarned: 0,
-      investedAt: new Date().toISOString(),
-      status: inv.status === "repaid" ? "repaid" : "active",
-    }));
+    const amounts = [15000, 50000, 5000, 100000, 25000, 8000];
+    const positions = MOCK_INVOICES.slice(0, 6).map((inv, i) => {
+      const invested = amounts[i % 6];
+      const isRepaid = inv.status === "repaid" || i === 1; // force inv_002 as repaid
+      const yieldEarned = isRepaid ? Math.round(invested * inv.terms.discountRate) : 0;
+      return {
+        invoiceId: inv.id,
+        invoice: inv,
+        investedAmount: invested,
+        expectedReturn: invested * (1 + inv.terms.discountRate),
+        yieldEarned,
+        investedAt: new Date().toISOString(),
+        status: isRepaid ? ("repaid" as const) : ("active" as const),
+        claimed: false,
+      };
+    });
     return positions;
   }
   throw new Error("Live positions fetch not yet implemented");
@@ -282,9 +288,23 @@ export async function prepareClaimPosition(
   if (USE_MOCK) {
     return `mock_unsigned_xdr_claim_position_${positionId}_${investorAddress}`;
   }
-  return (marketplaceContract as any).claimPosition(
-    { positionId: BigInt(positionId) },
+  return marketplaceContract.claimYield(
+    { tokenId: BigInt(positionId) },
     investorAddress
   );
 }
+
+/**
+ * Cancel a pending/listed invoice — returns unsigned XDR for wallet signing.
+ */
+export async function prepareCancelInvoice(
+  tokenId: string,
+  ownerAddress: string
+): Promise<string> {
+  if (USE_MOCK) {
+    return `mock_unsigned_xdr_cancel_invoice_${tokenId}_${ownerAddress}`;
+  }
+  return marketplaceContract.cancelInvoice({ tokenId: BigInt(tokenId) }, ownerAddress);
+}
+
 
