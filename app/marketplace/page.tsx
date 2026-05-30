@@ -14,6 +14,7 @@ import {
   FileQuestion,
   Clock,
 } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -268,28 +269,7 @@ function Switch({
 }
 
 // 6. Premium Styled Empty State
-function EmptyState({ onClear }: { onClear: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center border border-zinc-850 bg-zinc-900/10 rounded-2xl backdrop-blur-sm shadow-inner">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500 mb-6 shadow-lg">
-        <FileQuestion className="h-8 w-8 text-primary/70 animate-pulse" />
-      </div>
-      <h3 className="text-lg font-bold text-zinc-100 tracking-tight">
-        No invoices match your filters
-      </h3>
-      <p className="mt-2 text-sm text-zinc-400 max-w-sm">
-        We couldn&apos;t find any active listings matching your current selection. Try resetting your filters to explore other opportunities.
-      </p>
-      <button
-        onClick={onClear}
-        className="mt-6 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-transform hover:scale-102 hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50"
-      >
-        <RotateCcw className="h-4 w-4" />
-        Clear All Filters
-      </button>
-    </div>
-  );
-}
+// Marketplace-specific empty state replaced by shared EmptyState component
 
 // ─── Marketplace Content (State & Layout) ───────────────────────────────────
 
@@ -684,7 +664,12 @@ function MarketplaceContent() {
                 ))}
               </div>
             ) : filteredInvoices.length === 0 ? (
-              <EmptyState onClear={resetFilters} />
+              <EmptyState
+                title="No invoices match your filters"
+                description="We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities."
+                cta={{ label: "Clear All Filters", onClick: resetFilters }}
+                variant="marketplace"
+              />
             ) : (
               <>
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

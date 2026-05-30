@@ -29,6 +29,7 @@ import type { TxRecord, TxType } from "@/store/transactionStore";
 import { formatCurrency, formatDate, cn, exportCsv } from "@/lib/utils";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { safeStellarTxUrl } from "@/lib/security";
+import EmptyState from "@/components/ui/EmptyState";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -104,19 +105,7 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function EmptyHistory() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 px-6 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-        <History className="h-7 w-7 text-muted-foreground" aria-hidden />
-      </div>
-      <p className="mt-4 text-base font-semibold text-foreground">No transactions yet</p>
-      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-        Your on-chain activity will appear here once you mint, fund, or repay invoices.
-      </p>
-    </div>
-  );
-}
+// Replaced by shared EmptyState component in components/ui/EmptyState.tsx
 
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 
@@ -427,7 +416,11 @@ export default function TransactionHistoryPage() {
         <CardContent className="space-y-3 p-4">
           {filtered.length === 0 ? (
             transactions.length === 0 ? (
-              <EmptyHistory />
+              <EmptyState
+                title="No transactions yet"
+                description="Your on-chain activity will appear here once you mint, fund, or repay invoices."
+                variant="transactions"
+              />
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Search className="h-8 w-8 text-muted-foreground" aria-hidden />

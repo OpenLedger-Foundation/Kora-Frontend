@@ -1,109 +1,76 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 
-interface CountdownTime {
-  days: number;
-  hours: number;
-  minutes: number;
-  seconds: number;
-  isExpired: boolean;
+type Urgency = "normal" | "warning" | "urgent" | "expired";
+
+function toNumber(d: string | Date | number) {
+  if (typeof d === "string") return new Date(d).getTime();
+  if (typeof d === "number") return d;
+  return d.getTime();
 }
 
-/**
- * Hook to track countdown time until a target date.
- * Updates every minute by default.
- * @param targetDate - Target date string (ISO 8601) or Date object
- * @param updateInterval - Update interval in milliseconds (default: 60000 = 1 minute)
- * @returns Countdown object with days, hours, minutes, seconds, and isExpired flag
- */
-export function useCountdown(
-  targetDate: string | Date | null | undefined,
-  updateInterval = 60000
-): CountdownTime {
-  const [countdown, setCountdown] = useState<CountdownTime>({
-    days: 0,
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-    isExpired: true,
-  });
+export function useCountdown(targetDate: string | Date | number, updateMs = 60_000) {
+  const targetTs = toNumber(targetDate);
+  const [now, setNow] = useState(() => Date.now());
+  const prevHoursRef = useRef<number | null>(null);
+  const [announce, setAnnounce] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!targetDate) {
-      setCountdown({
-        days: 0,
-        hours: 0,
-        minutes: 0,
-        seconds: 0,
-        isExpired: true,
-      });
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), updateMs);
+    return () => clearInterval(id);
+  }, [targetTs, updateMs]);
+
+  const diff = Math.max(0, targetTs - now);
+  const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const minutes = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000));
+  const isExpired = diff <= 0;
+
+  let urgency: Urgency = "normal";
+  if (isExpired) urgency = "expired";
+  else if (diff < 24 * 60 * 60 * 1000) urgency = "urgent";
+  else if (diff < 3 * 24 * 60 * 60 * 1000) urgency = "warning";
+
+  // Announce once every hour: when minutes === 0, or when expired
+  useEffect(() => {
+    if (isExpired) {
+      setAnnounce("Expired");
       return;
     }
-
-    const calculateCountdown = () => {
-      const target = typeof targetDate === "string" ? new Date(targetDate) : targetDate;
-      const now = new Date();
-      const diffMs = target.getTime() - now.getTime();
-
-      if (diffMs <= 0) {
-        setCountdown({
-          days: 0,
-          hours: 0,
-          minutes: 0,
-          seconds: 0,
-          isExpired: true,
-        });
-        return;
+    if (minutes === 0) {
+      // only announce when hours changed (avoid repeating every minute when minutes===0 due to timing)
+      if (prevHoursRef.current !== hours) {
+        prevHoursRef.current = hours;
+        const d = days > 0 ? `${days} day${days > 1 ? "s" : ""}` : null;
+        const h = `${hours} hour${hours !== 1 ? "s" : ""}`;
+        setAnnounce(d ? `${d} and ${h} remaining` : `${h} remaining`);
       }
+    }
+  }, [minutes, hours, days, isExpired]);
 
-      const totalSeconds = Math.floor(diffMs / 1000);
-      const days = Math.floor(totalSeconds / 86400);
-      const hours = Math.floor((totalSeconds % 86400) / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
+  // Clear announce after a short time so assistive tech doesn't repeat unnecessarily
+  useEffect(() => {
+    if (!announce) return;
+    const t = setTimeout(() => setAnnounce(null), 5000);
+    return () => clearTimeout(t);
+  }, [announce]);
 
-      setCountdown({
-        days,
-        hours,
-        minutes,
-        seconds,
-        isExpired: false,
-      });
-    };
-
-    // Calculate immediately
-    calculateCountdown();
-
-    // Set up interval for updates
-    const interval = setInterval(calculateCountdown, updateInterval);
-
-    return () => clearInterval(interval);
-  }, [targetDate, updateInterval]);
-
-  return countdown;
+  return {
+    days,
+    hours,
+    minutes,
+    isExpired,
+    urgency,
+    announce,
+  } as const;
 }
 
-/**
- * Format countdown as readable string.
- * @param countdown - Countdown object from useCountdown
- * @returns Formatted string like "Expires in 3 days 5 hours"
- */
-export function formatCountdown(countdown: CountdownTime): string {
-  if (countdown.isExpired) {
-    return "Expired";
-  }
-
-  const parts = [];
-  if (countdown.days > 0) parts.push(`${countdown.days} day${countdown.days !== 1 ? "s" : ""}`);
-  if (countdown.hours > 0) parts.push(`${countdown.hours} hour${countdown.hours !== 1 ? "s" : ""}`);
-  if (countdown.minutes > 0 && countdown.days === 0) {
-    parts.push(`${countdown.minutes} minute${countdown.minutes !== 1 ? "s" : ""}`);
-  }
-
-  if (parts.length === 0) {
-    return "Expires in less than a minute";
-  }
-
-  return `Expires in ${parts.join(" ")}`;
+export default useCountdown;
+// Helper to format the countdown into the compact string used across the UI
+export function formatCountdown(c: { days: number; hours: number; minutes: number; isExpired: boolean }) {
+  if (c.isExpired) return "Expired";
+  if (c.days === 0) return "Expires today";
+  return `${c.days}d ${c.hours}h ${c.minutes}m`;
 }
