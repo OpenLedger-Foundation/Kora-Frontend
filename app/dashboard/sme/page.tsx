@@ -44,6 +44,7 @@ import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import type { Invoice } from "@/types";
 import type { ColumnDef } from "@/types/table";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 
 
 export default function SMEDashboardPage() {
@@ -332,9 +333,12 @@ export default function SMEDashboardPage() {
                             Cancel
                           </Button>
                         )}
-                        <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
-                          View →
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <ShareInvoiceButton id={row.id} invoiceTitle={row.metadata.invoiceNumber} summary={row.metadata.description} />
+                          <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
+                            View →
+                          </Link>
+                        </div>
                       </div>
                     );
                   },

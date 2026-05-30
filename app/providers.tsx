@@ -16,6 +16,9 @@ const InstallPrompt = dynamic(
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
+import dynamic from "next/dynamic";
+
+const OnboardingTour = dynamic(() => import("@/components/onboarding/OnboardingTour").then((m) => m.default), { ssr: false, loading: () => null });
 
 function ThemedToaster() {
   const theme = useUIStore((s) => s.theme);
@@ -49,6 +52,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         {children}
+        <OnboardingTour />
         <WalletConnectModal />
         <InstallPrompt />
         <ThemedToaster />

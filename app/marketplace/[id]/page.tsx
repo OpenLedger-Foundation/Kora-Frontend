@@ -30,6 +30,7 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareFundInvoice } from "@/services/invoiceService";
 import { Badge, RiskBadge } from "@/components/ui/badge";
+import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
   formatCurrency,
@@ -39,6 +40,7 @@ import {
   daysUntil,
   cn,
 } from "@/lib/utils";
+import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import { InvoiceMetadataViewer } from "@/components/invoice/InvoiceMetadataViewer";
@@ -207,6 +209,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     <RiskBadge tier={riskTier} />
                     <div className="flex items-center gap-2">
                       <InvoiceStatusBadge status={status} />
+                      <ShareInvoiceButton id={id} invoiceTitle={metadata.invoiceNumber} summary={metadata.description} />
                       {funding && (
                         <span className="rounded-md bg-yellow-600/20 px-2 py-0.5 text-[11px] text-yellow-300">
                           Pending confirmation
@@ -262,7 +265,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     { label: "Repayment Date", value: formatDate(terms.repaymentDate) },
                     { label: "Min Investment", value: formatCurrency(terms.minInvestment, metadata.currency, true) },
                     { label: "Max Investment", value: formatCurrency(terms.maxInvestment, metadata.currency, true) },
-                    { label: "Days Remaining", value: days > 0 ? `${days} days` : "Overdue" },
+                    { label: "Days Remaining", value: <CountdownTimer targetDate={terms.repaymentDate} compact={false} /> },
                   ].map(({ label, value, highlight }) => (
                     <div key={label} className="rounded-lg bg-zinc-800/50 p-3">
                       <p className="text-xs text-zinc-500">{label}</p>
@@ -438,7 +441,9 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Maturity</p>
-                  <p className="text-xl font-bold text-zinc-200 mt-0.5">{daysToMaturity} days</p>
+                  <p className="text-xl font-bold text-zinc-200 mt-0.5"><CountdownTimer targetDate={terms.repaymentDate} compact={false} /></p>
+                  {/* Backwards-compat test hook: keep numeric days for integration tests */}
+                  <div data-testid="days-to-maturity" className="sr-only">{daysToMaturity} days</div>
                 </div>
               </div>
 

@@ -16,7 +16,8 @@ import {
   daysUntil,
   cn,
 } from "@/lib/utils";
-import { useCountdown, formatCountdown } from "@/hooks/useCountdown";
+import useCountdown from "@/hooks/useCountdown";
+import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { DebtorDisplay } from "./DebtorDisplay";
 import type { Invoice } from "@/types";
@@ -190,7 +191,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               ) : (
                 <>
                   <Calendar className="h-3 w-3" />
-                  {countdown.isExpired ? "Due" : formatCountdown(countdown)}
+                  <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
                 </>
               )}
             </span>
