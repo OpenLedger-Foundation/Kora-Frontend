@@ -347,128 +347,81 @@ export default function InvestorDashboardPage() {
           </Link>
         </div>
 
-        {/* Stats */}
-        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07 }}
-            >
-              <StatCard {...stat} />
-            </motion.div>
-          ))}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Positions</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+          <DataTable
+            data={positionsData}
+            columns={POSITION_COLUMNS}
+            pageSize={5}
+            emptyState={{
+              title: "No positions",
+              message: "Fund invoices on the marketplace to build your portfolio.",
+              illustration: <BarChart3 className="h-10 w-10 text-muted-foreground" />,
+            }}
+          />
+        </CardContent>
+          </Card>
         </div>
 
-        {/* Positions table */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Positions</CardTitle>
-            {claimablePositions.length > 0 ? (
-              <Button
-                size="sm"
-                onClick={handleClaimAll}
-                disabled={isClaimingAll || txStatus === "signing"}
-              >
-                {isClaimingAll ? (
-                  <>
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    Claiming…
-                  </>
-                ) : (
-                  `Claim All (${claimablePositions.length})`
-                )}
-              </Button>
-            ) : positions.length > 0 ? (
-              <span className="flex items-center gap-1 text-xs text-success">
-                <CheckCircle2 className="h-3 w-3" /> Nothing to claim
-              </span>
-            ) : null}
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6">
-            <DataTable
-              data={positions}
-              columns={columns}
-              pageSize={5}
-              emptyState={{
-                title: "No positions",
-                message:
-                  "Fund invoices on the marketplace to build your portfolio.",
-                illustration: (
-                  <BarChart3 className="h-10 w-10 text-muted-foreground" />
-                ),
-              }}
-            />
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Allocation by Risk Tier</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+            {Object.entries(
+              POSITIONS.reduce<Record<string, number>>((acc, p) => {
+                acc[p.invoice.riskTier] = (acc[p.invoice.riskTier] || 0) + p.investedAmount;
+                return acc;
+              }, {})
+            ).map(([tier, amount]) => (
+              <div key={tier} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <RiskBadge tier={tier as import("@/components/ui/badge").AnyRiskTier} />
+                  <span className="text-muted-foreground">
+                    {formatCurrency(amount, "USDC", true)}
+                  </span>
+                </div>
+                <Progress value={(amount / totalInvested) * 100} className="h-1.5" />
+              </div>
+            ))}
           </CardContent>
         </Card>
 
-        {/* Allocation charts */}
-        {positions.length > 0 && (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Allocation by Risk Tier</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {Object.entries(
-                  positions.reduce<Record<string, number>>((acc, p) => {
-                    acc[p.invoice.riskTier] =
-                      (acc[p.invoice.riskTier] || 0) + p.investedAmount;
-                    return acc;
-                  }, {})
-                ).map(([tier, amount]) => (
-                  <div key={tier} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <RiskBadge
-                        tier={
-                          tier as import("@/components/ui/badge").AnyRiskTier
-                        }
-                      />
-                      <span className="text-muted-foreground">
-                        {formatCurrency(amount, "USDC", true)}
-                      </span>
-                    </div>
-                    <Progress
-                      value={totalInvested > 0 ? (amount / totalInvested) * 100 : 0}
-                      className="h-1.5"
-                    />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Allocation by Jurisdiction</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {Object.entries(
-                  positions.reduce<Record<string, number>>((acc, p) => {
-                    const j =
-                      (p.invoice as any).metadata?.jurisdiction ?? "OTHER";
-                    acc[j] = (acc[j] || 0) + p.investedAmount;
-                    return acc;
-                  }, {})
-                ).map(([jurisdiction, amount]) => (
-                  <div key={jurisdiction} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-foreground">{jurisdiction}</span>
-                      <span className="text-muted-foreground">
-                        {formatCurrency(amount, "USDC", true)}
-                      </span>
-                    </div>
-                    <Progress
-                      value={totalInvested > 0 ? (amount / totalInvested) * 100 : 0}
-                      className="h-1.5"
-                      indicatorClassName="bg-info"
-                    />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Allocation by Jurisdiction</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {Object.entries(
+              POSITIONS.reduce<Record<string, number>>((acc, p) => {
+                const j = p.invoice.metadata.jurisdiction;
+                acc[j] = (acc[j] || 0) + p.investedAmount;
+                return acc;
+              }, {})
+            ).map(([jurisdiction, amount]) => (
+              <div key={jurisdiction} className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-foreground">{jurisdiction}</span>
+                  <span className="text-muted-foreground">
+                    {formatCurrency(amount, "USDC", true)}
+                  </span>
+                </div>
+                <Progress
+                  value={(amount / totalInvested) * 100}
+                  className="h-1.5"
+                  indicatorClassName="bg-info"
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        </div>
       </div>
     </ErrorBoundary>
   );

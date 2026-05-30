@@ -134,11 +134,13 @@ export default function SMEDashboardPage() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>My Invoices</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>My Invoices</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
           <DataTable
             data={myInvoices}
             columns={(() => {
@@ -249,14 +251,16 @@ export default function SMEDashboardPage() {
             }}
           />
         </CardContent>
-      </Card>
+          </Card>
+        </div>
 
-      {myInvoices.some((i) => i.status === "fully_funded") && (
+        <div className="space-y-6">
+          {myInvoices.some((i) => i.status === "fully_funded") && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mt-6 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/5 p-4"
+          className="flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/5 p-4"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
@@ -266,7 +270,9 @@ export default function SMEDashboardPage() {
             </p>
           </div>
         </motion.div>
-      )}
+          )}
+        </div>
+      </div>
 
       <RepaymentDialog
         invoice={repayTarget}
