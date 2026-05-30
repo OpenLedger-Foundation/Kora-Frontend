@@ -11,7 +11,8 @@ import {
   AlbedoModule,
 } from "@creit.tech/stellar-wallets-kit";
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { useWalletStore } from "@/store";
+import { useWalletStore, useUIStore } from "@/store";
+import { useRouter } from "next/navigation";
 import { getAccountBalances } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
@@ -55,6 +56,7 @@ export function useWallet() {
     clearVerification,
     isVerificationExpired,
   } = useWalletStore();
+  const router = useRouter();
 
   const connectWallet = useCallback(
     async (walletId: string = FREIGHTER_ID) => {
@@ -77,6 +79,15 @@ export function useWallet() {
 
       connect(walletId as WalletProvider, addr, addr);
       if (bal) setBalance(bal);
+      try {
+        const intended = useUIStore.getState().intendedDestination;
+        if (intended) {
+          useUIStore.getState().setIntendedDestination(null);
+          router.push(intended);
+        }
+      } catch {
+        // best-effort redirect; ignore failures
+      }
     },
     [connect, setBalance]
   );

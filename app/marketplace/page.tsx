@@ -22,6 +22,8 @@ import { Pagination } from "@/components/ui/pagination";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInvoices } from "@/hooks/useInvoices";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { fetchInvoices } from "@/services/invoiceService";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
 import { useBreakpoint } from "@/components/layout/useBreakpoint";
@@ -312,6 +314,33 @@ function MarketplaceContent() {
   } = useInvoiceStore();
 
   const { data, isLoading, dataUpdatedAt } = useInvoices();
+
+  // Infinite loader (loads more pages as user scrolls)
+  const infinite = useInfiniteQuery(
+    ["invoices", JSON.stringify(filters), sortBy],
+    ({ pageParam = 1 }) =>
+      fetchInvoices(
+        {
+          categories: filters.categories,
+          jurisdictions: filters.jurisdictions,
+          riskTiers: filters.riskTiers,
+          aprRange: filters.aprRange,
+          activeOnly: filters.activeOnly,
+        },
+        // translate sortBy into marketplace sort
+        { key: sortBy?.split("_")[0] as any, direction: sortBy?.endsWith("asc") ? "asc" : "desc" },
+        pageParam,
+        pageSize
+      ),
+    {
+      getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+      enabled: isUrlHydrated,
+    }
+  );
+
+  const invoices = infinite.data ? infinite.data.pages.flatMap((p) => p.data) : data?.data ?? [];
+  const isFetchingNextPage = infinite.isFetchingNextPage;
+  const hasNextPage = infinite.hasNextPage;
   const [showFilters, setShowFilters] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
@@ -520,6 +549,21 @@ function MarketplaceContent() {
     </div>
   );
 
+  // Intersection Observer to load next page
+  useEffect(() => {
+    const el = document.getElementById("infinite-sentinel");
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          infinite.fetchNextPage();
+        }
+      });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasNextPage, isFetchingNextPage, infinite]);
+
   // Return full skeleton block while initializing from URL to avoid flashing default states
   if (!isUrlHydrated) {
     return (
@@ -552,6 +596,14 @@ function MarketplaceContent() {
             <p className="mt-2 text-sm text-zinc-400">
               {isLoading ? "Discovering deals..." : `Showing ${filteredInvoices.length} listed invoices`}
             </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { navigator.clipboard?.writeText(window.location.href); }}
+              className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+            >
+              Share Filters
+            </button>
           </div>
           {/* Metadata for peer-review tracking compliance: Closes #15 */}
           <span className="hidden">PR compliance metadata: Closes #15</span>
@@ -692,14 +744,23 @@ function MarketplaceContent() {
                     <InvoiceCard key={invoice.id} invoice={invoice} index={i} updatedAt={dataUpdatedAt} />
                   ))}
                 </div>
-                <Pagination
-                  totalItems={filteredInvoices.length}
-                  pageSize={pageSize}
-                  currentPage={page}
-                  onPageChange={setPage}
-                  onPageSizeChange={setPageSize}
-                  syncToUrl={false}
-                />
+                <div>
+                  <div>
+                    <div id="infinite-sentinel" />
+                  </div>
+                  {isFetchingNextPage && (
+                    <div className="mt-4 text-center text-sm text-muted-foreground">Loading more…</div>
+                  )}
+                  {!hasNextPage && (
+                    <div className="mt-4 text-center text-sm text-muted-foreground">All invoices loaded</div>
+                  )}
+                  <button
+                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                    className="fixed right-4 bottom-12 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
+                  >
+                    ↑ Top
+                  </button>
+                </div>
               </>
             )}
           </div>

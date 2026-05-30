@@ -8,6 +8,10 @@ interface UIStore {
   walletModalOpen: boolean;
   setWalletModalOpen: (open: boolean) => void;
 
+  // intended destination when wallet connect is required
+  intendedDestination: string | null;
+  setIntendedDestination: (dest: string | null) => void;
+
   txState: TxState;
   setTxState: (state: Partial<TxState>) => void;
   resetTxState: () => void;
@@ -25,6 +29,9 @@ export const useUIStore = create<UIStore>()(
     (set, get) => ({
       walletModalOpen: false,
       setWalletModalOpen: (walletModalOpen) => set({ walletModalOpen }),
+
+      intendedDestination: null,
+      setIntendedDestination: (intendedDestination) => set({ intendedDestination }),
 
       txState: { status: "idle" },
       setTxState: (state) =>
