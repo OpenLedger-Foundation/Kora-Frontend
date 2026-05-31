@@ -1,37 +1,265 @@
 /**
- * Stellar/Soroban RPC client singleton.
- * Reads network config from environment variables.
+ * lib/stellar/client.ts
+ *
+ * Resilient Stellar/Soroban RPC client with:
+ *  - Multiple endpoint support (primary + configurable fallbacks)
+ *  - Automatic failover on error
+ *  - Per-endpoint exponential backoff retry (1s → 2s → 4s)
+ *  - Circuit breaker: opens after 5 consecutive failures, resets after 60s
+ *  - Startup latency health-check to rank endpoints
+ *  - Dev-mode console logging for all failover/circuit events
  */
+
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { env } from "@/lib/env";
+import { logger } from "@/lib/logger";
 import type {
   AccountBalances,
   AccountTransaction,
   PaginatedTransactions,
 } from "@/types/stellar";
 
-const RPC_URL = env.NEXT_PUBLIC_STELLAR_RPC_URL;
+// ─── Endpoint configuration ───────────────────────────────────────────────────
+
+const PRIMARY_URL = env.NEXT_PUBLIC_STELLAR_RPC_URL;
+const FALLBACK_URLS: string[] = env.NEXT_PUBLIC_STELLAR_RPC_FALLBACK_URLS
+  ? env.NEXT_PUBLIC_STELLAR_RPC_FALLBACK_URLS
+      .split(",")
+      .map((u) => u.trim())
+      .filter(Boolean)
+  : [];
+
+/** All RPC endpoints in priority order (primary first) */
+const ALL_RPC_URLS: string[] = [PRIMARY_URL, ...FALLBACK_URLS];
+
 const NETWORK_PASSPHRASE = env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE;
 const HORIZON_URL = env.NEXT_PUBLIC_STELLAR_HORIZON_URL;
 
-// Soroban RPC client
-export const rpc = new StellarSdk.rpc.Server(RPC_URL, { allowHttp: false });
+// ─── Circuit breaker ──────────────────────────────────────────────────────────
 
-// Horizon server (for account info, balances)
+const CIRCUIT_FAILURE_THRESHOLD = 5;   // consecutive failures before opening
+const CIRCUIT_RESET_MS = 60_000;       // 60 s before half-open retry
+
+type CircuitState = "closed" | "open" | "half-open";
+
+interface EndpointCircuit {
+  url: string;
+  state: CircuitState;
+  consecutiveFailures: number;
+  openedAt: number | null;
+}
+
+const circuits = new Map<string, EndpointCircuit>(
+  ALL_RPC_URLS.map((url) => [
+    url,
+    { url, state: "closed", consecutiveFailures: 0, openedAt: null },
+  ])
+);
+
+function getCircuit(url: string): EndpointCircuit {
+  if (!circuits.has(url)) {
+    circuits.set(url, { url, state: "closed", consecutiveFailures: 0, openedAt: null });
+  }
+  return circuits.get(url)!;
+}
+
+function recordSuccess(url: string): void {
+  const c = getCircuit(url);
+  if (c.state !== "closed" || c.consecutiveFailures > 0) {
+    logger.info("rpc-circuit", `Circuit closed for ${url}`);
+  }
+  c.state = "closed";
+  c.consecutiveFailures = 0;
+  c.openedAt = null;
+}
+
+function recordFailure(url: string): void {
+  const c = getCircuit(url);
+  c.consecutiveFailures += 1;
+  if (c.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD && c.state === "closed") {
+    c.state = "open";
+    c.openedAt = Date.now();
+    logger.warn("rpc-circuit", `Circuit OPENED for ${url} after ${c.consecutiveFailures} failures`);
+  }
+}
+
+function isAvailable(url: string): boolean {
+  const c = getCircuit(url);
+  if (c.state === "closed") return true;
+  if (c.state === "open") {
+    const elapsed = Date.now() - (c.openedAt ?? 0);
+    if (elapsed >= CIRCUIT_RESET_MS) {
+      c.state = "half-open";
+      logger.info("rpc-circuit", `Circuit HALF-OPEN for ${url}, probing…`);
+      return true;
+    }
+    return false;
+  }
+  // half-open: allow one probe through
+  return true;
+}
+
+// ─── Retry with exponential backoff ──────────────────────────────────────────
+
+const RETRY_ATTEMPTS = 3;
+const RETRY_BASE_MS = 1_000;
+
+async function withRetry<T>(
+  url: string,
+  fn: (server: StellarSdk.rpc.Server) => Promise<T>
+): Promise<T> {
+  const server = new StellarSdk.rpc.Server(url, { allowHttp: url.startsWith("http://") });
+  let lastErr: unknown;
+
+  for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+    try {
+      const result = await fn(server);
+      recordSuccess(url);
+      return result;
+    } catch (err) {
+      lastErr = err;
+      const delay = RETRY_BASE_MS * Math.pow(2, attempt); // 1s, 2s, 4s
+      logger.debug("rpc-retry", `Attempt ${attempt + 1}/${RETRY_ATTEMPTS} failed for ${url}, retrying in ${delay}ms`, { err });
+      if (attempt < RETRY_ATTEMPTS - 1) {
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+
+  recordFailure(url);
+  throw lastErr;
+}
+
+// ─── Resilient RPC client ─────────────────────────────────────────────────────
+
+/**
+ * Executes `fn` against each available RPC endpoint in order.
+ * Skips endpoints whose circuit breaker is open.
+ * Falls back to the next endpoint on failure.
+ */
+async function callWithFailover<T>(
+  fn: (server: StellarSdk.rpc.Server) => Promise<T>,
+  operationName = "rpc-call"
+): Promise<T> {
+  const available = ALL_RPC_URLS.filter(isAvailable);
+
+  if (available.length === 0) {
+    throw new Error("All RPC endpoints are unavailable (circuit breakers open)");
+  }
+
+  let lastErr: unknown;
+
+  for (let i = 0; i < available.length; i++) {
+    const url = available[i];
+    if (i > 0) {
+      logger.warn("rpc-failover", `Failing over to endpoint ${i + 1}/${available.length}: ${url}`, { operation: operationName });
+    }
+    try {
+      return await withRetry(url, fn);
+    } catch (err) {
+      lastErr = err;
+      logger.warn("rpc-failover", `Endpoint ${url} exhausted for ${operationName}`, { err });
+    }
+  }
+
+  throw lastErr;
+}
+
+// ─── Startup health check ─────────────────────────────────────────────────────
+
+/**
+ * Pings all configured RPC endpoints, measures latency, and re-orders
+ * ALL_RPC_URLS so the fastest endpoint is tried first.
+ * Called once on module load in the browser; no-ops on the server.
+ */
+async function runHealthCheck(): Promise<void> {
+  if (typeof window === "undefined") return; // server-side: skip
+  if (ALL_RPC_URLS.length <= 1) return;      // nothing to rank
+
+  logger.debug("rpc-health", `Pinging ${ALL_RPC_URLS.length} RPC endpoints…`);
+
+  const results = await Promise.allSettled(
+    ALL_RPC_URLS.map(async (url) => {
+      const start = performance.now();
+      const server = new StellarSdk.rpc.Server(url, { allowHttp: url.startsWith("http://") });
+      await server.getHealth();
+      const latency = Math.round(performance.now() - start);
+      return { url, latency };
+    })
+  );
+
+  const ranked: Array<{ url: string; latency: number }> = [];
+  for (const r of results) {
+    if (r.status === "fulfilled") {
+      ranked.push(r.value);
+      logger.debug("rpc-health", `${r.value.url} — ${r.value.latency}ms`);
+    } else {
+      const url = ALL_RPC_URLS[results.indexOf(r)];
+      logger.warn("rpc-health", `${url} — unreachable`, { err: r.reason });
+      recordFailure(url);
+    }
+  }
+
+  // Re-order ALL_RPC_URLS in-place by ascending latency
+  ranked.sort((a, b) => a.latency - b.latency);
+  const rankedUrls = ranked.map((r) => r.url);
+  // Preserve any URLs that failed (keep them at the end)
+  const failed = ALL_RPC_URLS.filter((u) => !rankedUrls.includes(u));
+  ALL_RPC_URLS.length = 0;
+  ALL_RPC_URLS.push(...rankedUrls, ...failed);
+
+  logger.info("rpc-health", `Endpoint ranking: ${ALL_RPC_URLS.join(" > ")}`);
+}
+
+// Fire health check on module load (browser only, non-blocking)
+if (typeof window !== "undefined") {
+  runHealthCheck().catch((err) =>
+    logger.warn("rpc-health", "Health check failed", { err })
+  );
+}
+
+// ─── Public RPC proxy ─────────────────────────────────────────────────────────
+
+/**
+ * Drop-in replacement for `StellarSdk.rpc.Server` that routes all calls
+ * through the failover + circuit-breaker logic.
+ *
+ * Exposes the same methods used across the codebase:
+ *   rpc.getAccount, rpc.simulateTransaction, rpc.sendTransaction,
+ *   rpc.getTransaction, rpc.getHealth
+ */
+export const rpc = {
+  getAccount: (publicKey: string) =>
+    callWithFailover((s) => s.getAccount(publicKey), "getAccount"),
+
+  simulateTransaction: (tx: StellarSdk.Transaction) =>
+    callWithFailover((s) => s.simulateTransaction(tx), "simulateTransaction"),
+
+  sendTransaction: (tx: StellarSdk.Transaction) =>
+    callWithFailover((s) => s.sendTransaction(tx), "sendTransaction"),
+
+  getTransaction: (hash: string) =>
+    callWithFailover((s) => s.getTransaction(hash), "getTransaction"),
+
+  getHealth: () =>
+    callWithFailover((s) => s.getHealth(), "getHealth"),
+
+  /** Expose circuit state for the DevPanel */
+  getCircuitStates: (): ReadonlyMap<string, Readonly<EndpointCircuit>> => circuits,
+};
+
+// ─── Horizon server ───────────────────────────────────────────────────────────
+
 export const horizon = new StellarSdk.Horizon.Server(HORIZON_URL);
 
 export const networkConfig = {
-  rpcUrl: RPC_URL,
+  rpcUrl: PRIMARY_URL,
   networkPassphrase: NETWORK_PASSPHRASE,
   horizonUrl: HORIZON_URL,
 };
 
 // ─── USDC asset definition ────────────────────────────────────────────────────
 
-/**
- * The canonical USDC asset on Stellar (issued by Centre / Circle).
- * Issuer is the same on both testnet and mainnet for the official asset.
- */
 export const USDC_ASSET = new StellarSdk.Asset(
   "USDC",
   "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
@@ -64,10 +292,8 @@ export class HorizonNetworkError extends Error {
 
 function normaliseHorizonError(err: unknown, address?: string): never {
   if (err instanceof Error) {
-    // Horizon SDK wraps HTTP errors — check the response status
     const anyErr = err as { response?: { status?: number } };
     const status = anyErr.response?.status;
-
     if (status === 404) throw new AccountNotFoundError(address ?? "unknown");
     if (status === 429) throw new HorizonRateLimitError();
     if (status !== undefined) throw new HorizonNetworkError(`HTTP ${status}: ${err.message}`);
@@ -77,22 +303,10 @@ function normaliseHorizonError(err: unknown, address?: string): never {
 
 // ─── Account helpers ──────────────────────────────────────────────────────────
 
-/**
- * Fetch raw account details from Horizon.
- */
 export async function getAccount(publicKey: string) {
   return horizon.loadAccount(publicKey);
 }
 
-/**
- * Fetch typed XLM + USDC + all token balances for a given account.
- *
- * - XLM balance has the minimum reserve subtracted so callers see spendable XLM.
- * - USDC is parsed from the trustline matching the canonical USDC issuer.
- * - All other credit assets are included in `otherAssets`.
- *
- * Throws `AccountNotFoundError` if the account does not exist on-chain.
- */
 export async function getAccountBalances(address: string): Promise<AccountBalances> {
   let account: Awaited<ReturnType<typeof horizon.loadAccount>>;
   try {
@@ -107,7 +321,6 @@ export async function getAccountBalances(address: string): Promise<AccountBalanc
 
   for (const b of account.balances) {
     if (b.asset_type === "native") {
-      // Subtract the base reserve (0.5 XLM per entry) so callers see spendable balance
       const raw = parseFloat(b.balance);
       const subentryCount =
         "subentry_count" in account ? (account as { subentry_count: number }).subentry_count : 0;
@@ -119,7 +332,6 @@ export async function getAccountBalances(address: string): Promise<AccountBalanc
     ) {
       const code = b.asset_code;
       const issuer = b.asset_issuer;
-
       if (code === "USDC" && issuer === USDC_ASSET.getIssuer()) {
         usdc = b.balance;
       } else {
@@ -131,23 +343,11 @@ export async function getAccountBalances(address: string): Promise<AccountBalanc
   return { xlm, usdc, otherAssets };
 }
 
-/**
- * Returns only the USDC trustline balance as a number.
- * Returns `0` if the account has no USDC trustline.
- *
- * Throws `AccountNotFoundError` if the account does not exist.
- */
 export async function getUSDCBalance(address: string): Promise<number> {
   const balances = await getAccountBalances(address);
   return parseFloat(balances.usdc);
 }
 
-/**
- * Returns `true` if the account exists on Horizon, `false` if it does not.
- * Used before attempting to fund a new account.
- *
- * Network errors other than 404 are re-thrown.
- */
 export async function checkAccountExists(address: string): Promise<boolean> {
   try {
     await horizon.loadAccount(address);
@@ -155,18 +355,13 @@ export async function checkAccountExists(address: string): Promise<boolean> {
   } catch (err) {
     const anyErr = err as { response?: { status?: number } };
     if (anyErr.response?.status === 404) return false;
-    // Re-throw unexpected errors
     normaliseHorizonError(err, address);
   }
 }
 
-/**
- * Funds a testnet account with XLM via Friendbot.
- */
 export async function fundTestnetAccount(address: string): Promise<void> {
   const url = `https://friendbot.stellar.org?addr=${encodeURIComponent(address)}`;
   const response = await fetch(url);
-
   if (!response.ok) {
     let message = `Friendbot request failed (${response.status})`;
     try {
@@ -174,25 +369,13 @@ export async function fundTestnetAccount(address: string): Promise<void> {
       if (typeof data?.detail === "string" && data.detail.length > 0) {
         message = data.detail;
       }
-    } catch {
-      // best-effort parse only
-    }
+    } catch { /* best-effort */ }
     throw new Error(message);
   }
 }
 
 // ─── Transaction history ──────────────────────────────────────────────────────
 
-/**
- * Fetch paginated transaction history for an account from Horizon.
- *
- * @param address  - Stellar public key
- * @param limit    - Number of records per page (1–200, default 20)
- * @param cursor   - Paging token from a previous response for cursor-based pagination
- *
- * Returns a `PaginatedTransactions` object with the records and the next cursor.
- * Throws `AccountNotFoundError` if the account does not exist.
- */
 export async function getAccountTransactions(
   address: string,
   limit = 20,
@@ -204,9 +387,7 @@ export async function getAccountTransactions(
     .limit(Math.min(Math.max(limit, 1), 200))
     .order("desc");
 
-  if (cursor) {
-    builder = builder.cursor(cursor);
-  }
+  if (cursor) builder = builder.cursor(cursor);
 
   let page: Awaited<ReturnType<typeof builder.call>>;
   try {
@@ -229,30 +410,19 @@ export async function getAccountTransactions(
     ledger: tx.ledger_attr,
   }));
 
-  // The next cursor is the paging_token of the last record
   const nextCursor =
     records.length > 0 ? records[records.length - 1].pagingToken : undefined;
 
-  return {
-    records,
-    nextCursor,
-    hasMore: records.length === limit,
-  };
+  return { records, nextCursor, hasMore: records.length === limit };
 }
 
 // ─── Transaction submission ───────────────────────────────────────────────────
 
-/**
- * Submit a signed XDR transaction to the Soroban RPC.
- */
 export async function submitTransaction(signedXdr: string) {
   const tx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
-  return rpc.sendTransaction(tx);
+  return rpc.sendTransaction(tx as StellarSdk.Transaction);
 }
 
-/**
- * Poll for transaction confirmation.
- */
 export async function waitForTransaction(
   hash: string,
   maxAttempts = 30,

@@ -5,6 +5,10 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { useUIStore } from "@/store/uiStore";
+import { env } from "@/lib/env";
+
 const WalletConnectModal = dynamic(
   () => import("@/components/wallet/WalletConnectModal").then((m) => m.WalletConnectModal),
   { ssr: false, loading: () => null }
@@ -13,12 +17,14 @@ const InstallPrompt = dynamic(
   () => import("@/components/pwa/InstallPrompt").then((m) => m.InstallPrompt),
   { ssr: false, loading: () => null }
 );
-import { ThemeProvider } from "@/components/layout/ThemeProvider";
-import { useUIStore } from "@/store/uiStore";
-import { env } from "@/lib/env";
-import dynamic from "next/dynamic";
-
-const OnboardingTour = dynamic(() => import("@/components/onboarding/OnboardingTour").then((m) => m.default), { ssr: false, loading: () => null });
+const OnboardingTour = dynamic(
+  () => import("@/components/onboarding/OnboardingTour").then((m) => m.default),
+  { ssr: false, loading: () => null }
+);
+const DevPanel = dynamic(
+  () => import("@/components/dev/DevPanel").then((m) => m.DevPanel),
+  { ssr: false, loading: () => null }
+);
 
 function ThemedToaster() {
   const theme = useUIStore((s) => s.theme);
@@ -57,7 +63,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <InstallPrompt />
         <ThemedToaster />
         {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
-          <ReactQueryDevtools initialIsOpen={false} />
+          <>
+            <ReactQueryDevtools initialIsOpen={false} />
+            <DevPanel />
+          </>
         )}
       </ThemeProvider>
     </QueryClientProvider>
