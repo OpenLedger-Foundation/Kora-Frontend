@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PlusCircle, TrendingUp, FileText, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -15,6 +15,7 @@ import {
   BatchActionToolbar, 
   BatchResultSummary 
 } from "@/components/dashboard/BatchActionToolbar";
+import { ExportDropdown } from "@/components/dashboard/ExportDropdown";
 import { 
   prepareCancelInvoice, 
   submitAndConfirm 
@@ -40,6 +41,7 @@ import {
   formatApr,
   cn,
 } from "@/lib/utils";
+import { todaySlug, type CsvColumn } from "@/lib/export";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import type { Invoice } from "@/types";
@@ -55,6 +57,8 @@ export default function SMEDashboardPage() {
   const { execute, status: txStatus } = useTransaction();
   const { data: usdcBalance = 0 } = useUsdcBalance(address ?? undefined);
 
+  const pdfRef = useRef<HTMLDivElement>(null);
+
   const [repayTarget, setRepayTarget] = useState<Invoice | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
@@ -69,6 +73,31 @@ export default function SMEDashboardPage() {
   const myInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
     (inv: Invoice) => inv.ownerAddress === address
   );
+
+  // CSV column definitions for full invoice export
+  const SME_CSV_COLUMNS: CsvColumn<Invoice>[] = [
+    { header: "Invoice Number",  accessor: (r) => r.metadata.invoiceNumber },
+    { header: "Debtor",          accessor: (r) => r.metadata.debtorName },
+    { header: "Debtor Address",  accessor: (r) => r.metadata.debtorAddress },
+    { header: "Amount",          accessor: (r) => r.metadata.amount },
+    { header: "Currency",        accessor: (r) => r.metadata.currency },
+    { header: "Financing Amount",accessor: (r) => r.terms.financingAmount },
+    { header: "Discount Rate %", accessor: (r) => (r.terms.discountRate * 100).toFixed(2) },
+    { header: "APR %",           accessor: (r) => r.terms.apr.toFixed(2) },
+    { header: "Min Investment",  accessor: (r) => r.terms.minInvestment },
+    { header: "Tenor (days)",    accessor: (r) => r.terms.tenor },
+    { header: "Status",          accessor: (r) => r.status },
+    { header: "Risk Tier",       accessor: (r) => r.riskTier },
+    { header: "Total Raised",    accessor: (r) => r.funding.totalRaised },
+    { header: "Funding Progress",accessor: (r) => `${Math.round(r.funding.fundingProgress * 100)}%` },
+    { header: "Investor Count",  accessor: (r) => r.funding.investorCount },
+    { header: "Issue Date",      accessor: (r) => formatDate(r.metadata.issueDate) },
+    { header: "Due Date",        accessor: (r) => formatDate(r.metadata.dueDate) },
+    { header: "Repayment Date",  accessor: (r) => formatDate(r.terms.repaymentDate) },
+    { header: "Jurisdiction",    accessor: (r) => r.metadata.jurisdiction },
+    { header: "Category",        accessor: (r) => r.metadata.category },
+    { header: "Created At",      accessor: (r) => formatDate(r.createdAt) },
+  ];
 
   useMaturityReminder(
     myInvoices.filter((invoice) => ["listed", "partially_funded", "fully_funded"].includes(invoice.status))
@@ -222,17 +251,25 @@ export default function SMEDashboardPage() {
 
   return (
     <ErrorBoundary>
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div ref={pdfRef} className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">SME Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">Manage your invoice financing</p>
         </div>
-        <Link href="/invoice/create">
-          <Button>
-            <PlusCircle className="h-4 w-4" /> New Invoice
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <ExportDropdown
+            csvData={myInvoices}
+            csvColumns={SME_CSV_COLUMNS}
+            baseFilename={`kora-sme-report-${todaySlug()}`}
+            pdfRef={pdfRef}
+          />
+          <Link href="/invoice/create">
+            <Button>
+              <PlusCircle className="h-4 w-4" /> New Invoice
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

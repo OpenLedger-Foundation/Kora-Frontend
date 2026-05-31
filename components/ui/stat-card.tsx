@@ -56,7 +56,13 @@ export function StatCard({
 
   const trendIcon = trend ? trend.percentage : 0;
   const trendNode = trend ? (
-    <div className={cn("ml-2 flex items-center text-sm font-medium", trend.percentage > 0 ? "text-emerald-400" : trend.percentage < 0 ? "text-red-400" : "text-zinc-400") }>
+    <div className={cn("ml-2 flex items-center text-sm font-medium",
+      trend.percentage > 0
+        ? "text-emerald-700 dark:text-emerald-400"
+        : trend.percentage < 0
+          ? "text-red-700 dark:text-red-400"
+          : "text-zinc-500 dark:text-zinc-400"
+    )}>
       {trend.percentage > 0 ? <ArrowUp className="h-3 w-3" /> : trend.percentage < 0 ? <ArrowDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
       <span className="ml-1">{Math.abs(trend.percentage).toFixed(1)}%</span>
     </div>

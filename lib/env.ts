@@ -4,6 +4,7 @@ import { z } from "zod";
 const clientSchema = z.object({
   NEXT_PUBLIC_STELLAR_NETWORK: z.enum(["testnet", "mainnet", "futurenet"]).default("testnet"),
   NEXT_PUBLIC_STELLAR_RPC_URL: z.string().url(),
+  NEXT_PUBLIC_STELLAR_RPC_FALLBACK_URLS: z.string().optional(), // comma-separated fallback URLs
   NEXT_PUBLIC_STELLAR_HORIZON_URL: z.string().url(),
   NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: z.string().min(1),
   NEXT_PUBLIC_INVOICE_CONTRACT_ID: z.string().min(1),
