@@ -91,6 +91,10 @@ export interface RepayInvoiceParams {
   tokenId: bigint;
 }
 
+export interface ClaimYieldParams {
+  tokenId: bigint;
+}
+
 // ─── API Response Wrappers ────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {

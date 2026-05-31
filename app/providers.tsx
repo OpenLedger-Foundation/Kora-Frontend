@@ -11,9 +11,18 @@ const WalletConnectModal = dynamic(
     ssr: false,
     loading: () => null,
   }
+  { ssr: false, loading: () => null }
+);
+const InstallPrompt = dynamic(
+  () => import("@/components/pwa/InstallPrompt").then((m) => m.InstallPrompt),
+  { ssr: false, loading: () => null }
 );
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
+import { env } from "@/lib/env";
+import dynamic from "next/dynamic";
+
+const OnboardingTour = dynamic(() => import("@/components/onboarding/OnboardingTour").then((m) => m.default), { ssr: false, loading: () => null });
 
 function ThemedToaster() {
   const theme = useUIStore((s) => s.theme);
@@ -21,9 +30,11 @@ function ThemedToaster() {
     <Toaster
       theme={theme}
       position="bottom-right"
+      style={{ zIndex: 99999 }}
       toastOptions={{
+        duration: 4000,
         classNames: {
-          toast: "bg-card border border-border text-foreground",
+          toast: "bg-card border border-border text-foreground z-[99999]",
           description: "text-muted-foreground",
         },
       }}
@@ -45,9 +56,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         {children}
+        <OnboardingTour />
         <WalletConnectModal />
+        <InstallPrompt />
         <ThemedToaster />
-        {process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true" && (
+        {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
           <ReactQueryDevtools initialIsOpen={false} />
         )}
       </ThemeProvider>

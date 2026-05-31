@@ -5,10 +5,12 @@
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc, networkConfig } from "./client";
+import { env } from "@/lib/env";
 import type {
   MintInvoiceParams,
   FundInvoiceParams,
   RepayInvoiceParams,
+  ClaimYieldParams,
   OnChainInvoice,
 } from "@/types/contract";
 
@@ -136,7 +138,7 @@ async function readCall<T>(
 
 // ─── Invoice Contract ─────────────────────────────────────────────────────────
 
-const INVOICE_CONTRACT_ID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "";
+const INVOICE_CONTRACT_ID = env.NEXT_PUBLIC_INVOICE_CONTRACT_ID;
 
 class InvoiceContractClient {
   readonly contractId = INVOICE_CONTRACT_ID;
@@ -195,12 +197,24 @@ class InvoiceContractClient {
       sourcePublicKey
     );
   }
+
+  /**
+   * Cancel an invoice (owner only). Only cancellable if pending or unfunded.
+   * Status code: 6 for cancelled
+   * Returns unsigned XDR string.
+   */
+  async cancelInvoice(
+    tokenId: bigint,
+    sourcePublicKey: string
+  ): Promise<string> {
+    // Status code 6 = cancelled
+    return this.updateStatus(tokenId, 6, sourcePublicKey);
+  }
 }
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
-const MARKETPLACE_CONTRACT_ID =
-  process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID ?? "";
+const MARKETPLACE_CONTRACT_ID = env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID;
 
 class MarketplaceContractClient {
   readonly contractId = MARKETPLACE_CONTRACT_ID;
@@ -262,6 +276,22 @@ class MarketplaceContractClient {
       [scvAddress(investor)],
       sourcePublicKey,
       (val) => val
+    );
+  }
+
+  /**
+   * Investor claims yield from a repaid position.
+   * Returns unsigned XDR string.
+   */
+  async claimYield(
+    params: ClaimYieldParams,
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "claim_yield",
+      [scvU64(params.tokenId)],
+      sourcePublicKey
     );
   }
 }

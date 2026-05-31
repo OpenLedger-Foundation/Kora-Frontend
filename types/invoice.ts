@@ -23,6 +23,8 @@ export type InvoiceCancelled = InvoiceBase & { status: "cancelled" };
 
 export type RiskTier = "AAA" | "AA" | "A" | "BBB" | "BB" | "B" | "CCC";
 
+export type DebtorPrivacyLevel = "full" | "partial" | "anonymized";
+
 export type InvoiceCurrency = "USDC" | "EURC" | "XLM";
 
 export type InvoiceJurisdiction = "US" | "EU" | "UK" | "NG" | "KE" | "GH" | "ZA" | "OTHER";
@@ -84,10 +86,13 @@ export interface InvoiceBase {
   funding: InvoiceFunding;
   riskTier: RiskTier;
   riskScore: number; // 0–100
+  debtorPrivacy: DebtorPrivacyLevel;
+  status: InvoiceStatus;
   createdAt: string;
   updatedAt: string;
   ownerAddress: string; // SME wallet
   txHash?: string; // mint transaction
+  listingExpiry?: string; // ISO 8601, when listing expires from marketplace
 }
 
 export type Invoice =
@@ -124,6 +129,7 @@ export interface CreateInvoiceFormData {
   description: string;
   jurisdiction: InvoiceJurisdiction;
   category: InvoiceCategory;
+  debtorPrivacy: DebtorPrivacyLevel;
   discountRate: number;
   minInvestment: number;
   listingExpiryDate: string;

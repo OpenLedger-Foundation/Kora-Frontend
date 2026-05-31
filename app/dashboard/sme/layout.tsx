@@ -25,6 +25,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+import { ConnectWalletGuard } from "@/components/layout/ConnectWalletGuard";
+
 export default function SMEDashboardLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
+  return <ConnectWalletGuard>{children}</ConnectWalletGuard>;
 }

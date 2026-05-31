@@ -8,13 +8,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
 import { DataTable } from "@/components/ui/data-table";
+import dynamic from "next/dynamic";
+const DataTable = dynamic<any>(() => import("@/components/ui/data-table").then((m) => m.DataTable), {
+  ssr: false,
+  loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={9} />,
+});
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
+import { useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { MOCK_INVOICES } from "@/services/mockData";
 import { RiskBadge } from "@/components/ui/badge";
+import { DashboardSkeleton } from "@/components/ui/skeleton";
 import {
   formatCurrency,
   formatDate,
@@ -23,6 +30,7 @@ import {
   cn,
 } from "@/lib/utils";
 import type { ColumnDef } from "@/types/table";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface InvestorPosition {
   id: string;
@@ -168,6 +176,23 @@ export default function InvestorDashboardPage() {
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const { execute } = useTransaction();
 
+  const rawPositions = positionsQuery.data;
+  const positionsData: InvestorPosition[] = rawPositions
+    ? rawPositions.map((p) => ({
+        id: p.invoiceId,
+        invoice: p.invoice,
+        investedAmount: p.investedAmount,
+        expectedReturn: p.expectedReturn,
+        status: p.status as "active" | "repaid",
+      }))
+    : POSITIONS;
+
+  useMaturityReminder(
+    positionsData
+      .filter((position) => position.status === "active")
+      .map((position) => position.invoice)
+  );
+
   if (!isConnected) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
@@ -270,19 +295,9 @@ export default function InvestorDashboardPage() {
     },
   ];
 
-  const rawPositions = positionsQuery.data;
-  const positionsData: InvestorPosition[] = rawPositions
-    ? rawPositions.map((p) => ({
-        id: p.invoiceId,
-        invoice: p.invoice,
-        investedAmount: p.investedAmount,
-        expectedReturn: p.expectedReturn,
-        status: p.status as "active" | "repaid",
-      }))
-    : POSITIONS;
-
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <ErrorBoundary>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Investor Dashboard</h1>
@@ -381,5 +396,6 @@ export default function InvestorDashboardPage() {
         </Card>
       </div>
     </div>
+    </ErrorBoundary>
   );
 }

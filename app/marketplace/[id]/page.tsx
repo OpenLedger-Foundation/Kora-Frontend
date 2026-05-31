@@ -21,14 +21,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, GlassCard } from "@/components/ui/card";
 import { Progress, InvoiceFundingProgress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, InvoiceDetailSkeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useInvoice } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
+import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareFundInvoice } from "@/services/invoiceService";
 import { Badge, RiskBadge } from "@/components/ui/badge";
+import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
   formatCurrency,
@@ -36,24 +38,37 @@ import {
   formatDate,
   formatRelativeDate,
   daysUntil,
-  STATUS_COLORS,
   cn,
 } from "@/lib/utils";
 import type { Invoice } from "@/types";
+import CountdownTimer from "@/components/ui/CountdownTimer";
+import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
+import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
+import { InvoiceMetadataViewer } from "@/components/invoice/InvoiceMetadataViewer";
+import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { env } from "@/lib/env";
 
 export default function InvoiceDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams<{ id: string }>();
+  const id = validateRouteId(params.id) ?? "";
   const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address } = useWallet();
+  const { data: positions } = usePositions(address ?? undefined);
   const { setWalletModalOpen } = useUIStore();
   const { execute } = useTransaction();
   const queryClient = useQueryClient();
-  const [amount, setAmount] = useState("");
-  const [funding, setFunding] = useState(false);
-  const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+   const [amount, setAmount] = useState("");
+   const [funding, setFunding] = useState(false);
+   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+   const [iframeLoaded, setIframeLoaded] = useState(false);
+   const [iframeError, setIframeError] = useState(false);
 
-  if (isLoading) return <DetailSkeleton />;
+  if (!id || isLoading) return <InvoiceDetailSkeleton />;
   if (!invoice) return notFound();
+
+  // Post-fund reveal check
+  const isFunded = positions?.some((p) => p.invoiceId === id) || !!fundTxHash;
 
   const { metadata, terms, funding: fundingState, riskTier, status } = invoice;
   const days = daysUntil(terms.repaymentDate);
@@ -72,6 +87,12 @@ export default function InvoiceDetailPage() {
   
   // Precise holding period Expected Return Calculator
   const expectedReturn = amountNum * (1 + ((terms.apr / 100) * (daysToMaturity / 365)));
+
+  const documentPreviewUrl =
+    metadata.documentUrl && safeExternalUrl(metadata.documentUrl) !== "#"
+      ? safeExternalUrl(metadata.documentUrl)
+      : safeIpfsUrl(metadata.documentHash, env.NEXT_PUBLIC_IPFS_GATEWAY);
+  const hasDocument = Boolean(documentPreviewUrl && documentPreviewUrl !== "#");
 
   // Input validations for min-investment and remaining capacities
   let inputError = "";
@@ -96,6 +117,7 @@ export default function InvoiceDetailPage() {
       () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
       {
         successMessage: "Invoice funded successfully!",
+        successNotificationType: "invoiceFunded",
         onSuccess: (txHash) => {
           // DoD Requirement: Clear instructions and trace of exposes final txHash to developer console
           console.log(`[Stellar/Soroban Factoring ESCROW Confirmation]
@@ -127,7 +149,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           };
 
           // 1. Update Memory array directly so the list pages show dynamic updates
-          if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true") {
+          if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
             const mockIdx = MOCK_INVOICES.findIndex((i) => i.id === id);
             if (mockIdx !== -1) {
               MOCK_INVOICES[mockIdx] = updatedInvoice;
@@ -162,6 +184,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
   };
 
   return (
+    <ErrorBoundary>
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       {/* Back */}
       <Link
@@ -179,17 +202,16 @@ Stellar Testnet Transaction Hash: ${txHash}`);
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs text-zinc-500">{metadata.invoiceNumber}</p>
-                    <h1 className="mt-1 text-xl font-bold text-zinc-100">{metadata.debtorName}</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">{metadata.issuerName}</p>
+                  <div className="flex flex-col gap-1">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{metadata.invoiceNumber}</p>
+                    <DebtorDisplay invoice={invoice} isFunded={isFunded} className="mt-1" />
+                    <p className="mt-1.5 text-sm font-medium text-zinc-500">{metadata.issuerName}</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <RiskBadge tier={riskTier} />
                     <div className="flex items-center gap-2">
-                      <span className={cn("rounded-md px-2 py-0.5 text-xs capitalize", STATUS_COLORS[status])}>
-                        {status.replace(/_/g, " ")}
-                      </span>
+                      <InvoiceStatusBadge status={status} />
+                      <ShareInvoiceButton id={id} invoiceTitle={metadata.invoiceNumber} summary={metadata.description} />
                       {funding && (
                         <span className="rounded-md bg-yellow-600/20 px-2 py-0.5 text-[11px] text-yellow-300">
                           Pending confirmation
@@ -202,14 +224,6 @@ Stellar Testnet Transaction Hash: ${txHash}`);
               <CardContent>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Building2 className="h-4 w-4 text-zinc-600" />
-                    <span>{metadata.debtorAddress}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <MapPin className="h-4 w-4 text-zinc-600" />
-                    <span>{metadata.jurisdiction} · {metadata.category}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
                     <Calendar className="h-4 w-4 text-zinc-600" />
                     <span>Issued {formatDate(metadata.issueDate)}</span>
                   </div>
@@ -219,11 +233,11 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                   </div>
                 </div>
                 {metadata.description && (
-                  <p className="mt-4 text-sm text-zinc-500">{metadata.description}</p>
+                  <p className="mt-4 text-sm text-zinc-500 leading-relaxed">{metadata.description}</p>
                 )}
                 {metadata.documentUrl && (
                   <a
-                    href={metadata.documentUrl}
+                    href={safeExternalUrl(metadata.documentUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-4 inline-flex items-center gap-2 text-sm text-kora-400 hover:text-kora-300"
@@ -253,7 +267,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     { label: "Repayment Date", value: formatDate(terms.repaymentDate) },
                     { label: "Min Investment", value: formatCurrency(terms.minInvestment, metadata.currency, true) },
                     { label: "Max Investment", value: formatCurrency(terms.maxInvestment, metadata.currency, true) },
-                    { label: "Days Remaining", value: days > 0 ? `${days} days` : "Overdue" },
+                    { label: "Days Remaining", value: <CountdownTimer targetDate={terms.repaymentDate} compact={false} /> },
                   ].map(({ label, value, highlight }) => (
                     <div key={label} className="rounded-lg bg-zinc-800/50 p-3">
                       <p className="text-xs text-zinc-500">{label}</p>
@@ -313,47 +327,103 @@ Stellar Testnet Transaction Hash: ${txHash}`);
             </Card>
           </motion.div>
 
-          {/* IPFS PDF Document Preview */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-zinc-500" /> IPFS Document Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {metadata.documentHash ? (
-                  <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 p-1">
-                    <iframe
-                      src={`${process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"}/${metadata.documentHash}#toolbar=0&navpanes=0&scrollbar=0`}
-                      className="w-full h-[450px] rounded"
-                      title="Invoice PDF Document"
-                    />
-                    <div className="p-3 flex flex-wrap items-center justify-between gap-3 bg-zinc-950/80 border-t border-zinc-800 text-xs">
-                      <div className="truncate max-w-full text-zinc-400">
-                        <span className="font-semibold text-zinc-500 mr-1">IPFS CID:</span>
-                        <code className="text-zinc-300 font-mono text-[10px] select-all">{metadata.documentHash}</code>
-                      </div>
-                      <a
-                        href={process.env.NEXT_PUBLIC_IPFS_GATEWAY ? `${process.env.NEXT_PUBLIC_IPFS_GATEWAY}/${metadata.documentHash}` : metadata.documentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
-                      >
-                        Open in external gateway <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
-                    <FileText className="h-8 w-8 text-zinc-600 mb-2" />
-                    <p className="text-sm font-medium text-zinc-400">No document preview available</p>
-                    <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF hash.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+           {/* IPFS PDF Document Preview */}
+           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+             <Card>
+               <CardHeader>
+                 <CardTitle className="flex items-center gap-2">
+                   <FileText className="h-4 w-4 text-zinc-500" /> IPFS Document Preview
+                 </CardTitle>
+               </CardHeader>
+               <CardContent className="space-y-4">
+                 {hasDocument ? (
+                   <div className="relative">
+                     <div className="hidden sm:block">
+                       <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
+                         <iframe
+                           src={`${documentPreviewUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                           className="w-full h-[450px] rounded"
+                           title="Invoice PDF Document"
+                           referrerPolicy="no-referrer"
+                           sandbox="allow-scripts allow-same-origin allow-popups"
+                           onLoad={() => setIframeLoaded(true)}
+                           onError={() => setIframeError(true)}
+                         />
+                         {!iframeLoaded && !iframeError && (
+                           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50">
+                             <InvoiceDetailSkeleton />
+                           </div>
+                         )}
+                         {iframeError && (
+                           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/50 p-6 text-center">
+                             <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
+                             <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
+                             <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document.</p>
+                             <a
+                               href={documentPreviewUrl}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                             >
+                               Download PDF <ExternalLink className="h-3 w-3" />
+                             </a>
+                           </div>
+                         )}
+                       </div>
+                     </div>
+
+                     <div className="block sm:hidden bg-zinc-900 rounded-lg border border-zinc-800 p-6 text-center">
+                       {!iframeLoaded && !iframeError && (
+                         <div className="flex flex-col items-center justify-center py-8">
+                           <InvoiceDetailSkeleton />
+                         </div>
+                       )}
+                       {iframeError && (
+                         <div className="flex flex-col items-center justify-center">
+                           <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
+                           <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
+                           <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document.</p>
+                           <a
+                             href={documentPreviewUrl}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                           >
+                             Download PDF <ExternalLink className="h-3 w-3" />
+                           </a>
+                         </div>
+                       )}
+                       {!iframeError && (
+                         <div className="flex flex-col items-center justify-center">
+                           <FileText className="h-10 w-10 text-zinc-500 mb-4" />
+                           <p className="text-sm font-medium text-zinc-400 mb-2">PDF ready for download</p>
+                           <a
+                             href={documentPreviewUrl}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                           >
+                             Download PDF <ExternalLink className="h-3 w-3" />
+                           </a>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 ) : (
+                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
+                     <FileText className="h-8 w-8 text-zinc-600 mb-2" />
+                     <p className="text-sm font-medium text-zinc-400">No document preview available</p>
+                     <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF preview or document URL.</p>
+                   </div>
+                 )}
+               </CardContent>
+             </Card>
+           </motion.div>
+
+           {/* Metadata Viewer */}
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+              <InvoiceMetadataViewer invoice={invoice} isFunded={isFunded} />
+            </motion.div>
         </div>
 
         {/* ── Right: Fund Panel ─────────────────────────────────────────── */}
@@ -373,7 +443,9 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Maturity</p>
-                  <p className="text-xl font-bold text-zinc-200 mt-0.5">{daysToMaturity} days</p>
+                  <p className="text-xl font-bold text-zinc-200 mt-0.5"><CountdownTimer targetDate={terms.repaymentDate} compact={false} /></p>
+                  {/* Backwards-compat test hook: keep numeric days for integration tests */}
+                  <div data-testid="days-to-maturity" className="sr-only">{daysToMaturity} days</div>
                 </div>
               </div>
 
@@ -518,7 +590,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     </p>
                     <div className="pt-2">
                       <a
-                        href={fundTxHash.startsWith("mock_") ? "#" : `https://stellar.expert/explorer/testnet/tx/${fundTxHash}`}
+                        href={safeStellarTxUrl(fundTxHash)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs text-kora-400 hover:text-kora-300 font-semibold"
@@ -538,7 +610,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
               <Card className="p-4">
                 <p className="mb-2 text-xs text-zinc-500">On-Chain</p>
                 <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${invoice.txHash}`}
+                  href={safeStellarTxUrl(invoice.txHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-xs text-kora-400 hover:text-kora-300"
@@ -552,21 +624,6 @@ Stellar Testnet Transaction Hash: ${txHash}`);
         </div>
       </div>
     </div>
-  );
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <Skeleton className="mb-6 h-4 w-32" />
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-48 w-full" />
-          ))}
-        </div>
-        <Skeleton className="h-80 w-full" />
-      </div>
-    </div>
+    </ErrorBoundary>
   );
 }

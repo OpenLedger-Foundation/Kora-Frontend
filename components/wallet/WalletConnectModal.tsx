@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Wallet, ChevronRight, Loader2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import {
@@ -13,13 +14,14 @@ import {
 import { useUIStore } from "@/store";
 import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
+import { safeExternalUrl } from "@/lib/security";
 
 const WALLETS = [
   {
     id: "freighter",
     name: "Freighter",
     description: "Browser extension by Stellar Development Foundation",
-    icon: "🔑",
+    icon: "/wallets/freighter.svg",
     popular: true,
     installUrl: "https://www.freighter.app/",
     isAvailable: () => typeof window !== "undefined" && !!(window as Window & { freighter?: unknown }).freighter,
@@ -28,7 +30,7 @@ const WALLETS = [
     id: "xbull",
     name: "xBull Wallet",
     description: "Feature-rich Stellar wallet",
-    icon: "🐂",
+    icon: "/wallets/xbull.svg",
     popular: false,
     installUrl: "https://xbull.app/",
     isAvailable: () => typeof window !== "undefined" && !!(window as Window & { xBullSDK?: unknown }).xBullSDK,
@@ -37,7 +39,7 @@ const WALLETS = [
     id: "lobstr",
     name: "LOBSTR",
     description: "Simple and secure Stellar wallet",
-    icon: "🦞",
+    icon: "/wallets/lobstr.svg",
     popular: false,
     installUrl: "https://lobstr.co/",
     isAvailable: () => typeof window !== "undefined" && !!(window as Window & { lobstr?: unknown }).lobstr,
@@ -46,10 +48,10 @@ const WALLETS = [
     id: "albedo",
     name: "Albedo",
     description: "Web-based Stellar signer — no extension needed",
-    icon: "✨",
+    icon: "/wallets/albedo.svg",
     popular: false,
     installUrl: "https://albedo.link/",
-    isAvailable: () => true, // web-based, always available
+    isAvailable: () => true,
   },
 ];
 
@@ -133,7 +135,13 @@ export function WalletConnectModal() {
                   isError && "border-destructive/40 bg-destructive/5",
                 )}
               >
-                <span className="text-2xl">{wallet.icon}</span>
+                <Image
+                  src={wallet.icon}
+                  alt={wallet.name}
+                  width={32}
+                  height={32}
+                  className="shrink-0 rounded-lg"
+                />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground">{wallet.name}</span>
@@ -197,7 +205,7 @@ export function WalletConnectModal() {
                       </button>
                     ) : (
                       <a
-                        href={wallet.installUrl}
+                        href={safeExternalUrl(wallet.installUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`Install ${wallet.name} extension`}

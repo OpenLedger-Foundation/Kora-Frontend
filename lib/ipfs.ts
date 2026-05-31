@@ -4,8 +4,9 @@
  */
 import type { InvoiceMetadata } from "@/types";
 import { withRetry } from "@/lib/utils";
+import { env } from "@/lib/env";
 
-const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
+const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
 // CID v0 (Qm...) or CID v1 (bafy...)
 const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
@@ -112,6 +113,41 @@ export async function uploadInvoiceToIPFS(
 /** Build a public IPFS gateway URL from a CID. */
 export function ipfsUrl(cid: string): string {
   return `${IPFS_GATEWAY}/${cid}`;
+}
+
+/**
+ * Unpin a file from Pinata (best-effort).
+ * This is called during invoice cancellation to clean up IPFS-pinned files.
+ * @param cid - Content ID to unpin
+ * @returns true if successful, false if error (best-effort, no throw)
+ */
+export async function unpinFromPinata(cid: string): Promise<boolean> {
+  try {
+    validateCid(cid);
+    const response = await fetch(`/api/upload`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cid }),
+    });
+    return response.ok;
+  } catch (err) {
+    // Best-effort: log the error and continue
+    console.warn(`Failed to unpin CID ${cid}:`, err);
+    return false;
+  }
+}
+
+/**
+ * Unpin multiple files from Pinata (best-effort).
+ * @param cids - Array of CIDs to unpin
+ * @returns Promise that resolves when all unpin attempts are complete
+ */
+export async function unpinMultipleFromPinata(cids: string[]): Promise<void> {
+  const results = await Promise.allSettled(cids.map(unpinFromPinata));
+  const failed = results.filter((r) => r.status === "rejected").length;
+  if (failed > 0) {
+    console.warn(`Failed to unpin ${failed} out of ${cids.length} CIDs`);
+  }
 }
 
 // ─── Legacy helpers (kept for backward compatibility) ─────────────────────────

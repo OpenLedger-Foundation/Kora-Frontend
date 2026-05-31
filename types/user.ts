@@ -11,6 +11,16 @@ export type WalletProvider =
   | "hana";
 
 export type WalletNetwork = "testnet" | "mainnet" | "futurenet";
+export interface WalletState {
+  address: string | null;
+  publicKey: string | null;
+  isConnected: boolean;
+  provider: WalletProvider | null;
+  network: "testnet" | "mainnet" | "futurenet";
+  balance: WalletBalance | null;
+  isVerified: boolean;
+  verifiedAt: number | null;
+}
 
 export interface WalletBalance {
   xlm: string;

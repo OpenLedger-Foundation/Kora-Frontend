@@ -1,18 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, LogOut, ExternalLink } from "lucide-react";
+import { ChevronDown, LogOut, ExternalLink, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { StellarAddress } from "@/components/ui/stellar-address";
+import { NotificationSettings } from "@/components/settings/NotificationSettings";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
-import { shortenAddress } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { safeStellarAccountUrl } from "@/lib/security";
 
 export function WalletButton() {
   const { isConnected, address, balance, disconnectWallet } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (!isConnected) {
     return (
@@ -33,7 +43,7 @@ export function WalletButton() {
         )}
       >
         <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-        <span className="font-mono text-xs">{shortenAddress(address!)}</span>
+        <StellarAddress address={address!} chars={4} size="sm" showCopy={false} className="text-foreground" />
         <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
       </button>
 
@@ -59,13 +69,23 @@ export function WalletButton() {
               Copy address
             </div>
             <a
-              href={`https://stellar.expert/explorer/testnet/account/${address}`}
+              href={safeStellarAccountUrl(address)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <ExternalLink className="h-3.5 w-3.5" /> View on Explorer
             </a>
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsOpen(true);
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Bell className="h-3.5 w-3.5" /> Notification settings
+            </button>
             <button
               type="button"
               onClick={() => { disconnectWallet(); setOpen(false); }}
@@ -76,6 +96,18 @@ export function WalletButton() {
           </div>
         </div>
       )}
+
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Notification Settings</DialogTitle>
+            <DialogDescription>
+              Configure toast notifications for transaction and invoice events.
+            </DialogDescription>
+          </DialogHeader>
+          <NotificationSettings />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -11,6 +11,7 @@ export interface FilterState {
   riskTiers: string[];
   aprRange: [number, number];
   activeOnly: boolean;
+  showExpired: boolean;
 }
 
 export interface SortState {
@@ -35,6 +36,7 @@ export const DEFAULT_FILTERS: FilterState = {
   riskTiers: [],
   aprRange: [0, 50],
   activeOnly: false,
+  showExpired: false,
 };
 
 const DEFAULT_SORT: SortState = { sortBy: "apr", sortDir: "desc" };
@@ -63,6 +65,17 @@ export function getFilteredInvoices(
   if (filters.activeOnly) {
     result = result.filter((i) => i.status === "listed" || i.status === "partially_funded");
   }
+  
+  // Filter by expiry status
+  if (!filters.showExpired) {
+    const now = new Date();
+    result = result.filter((i) => {
+      if (i.status === "cancelled") return false;
+      if (!i.listingExpiry) return true;
+      return new Date(i.listingExpiry) > now;
+    });
+  }
+  
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
     result = result.filter(
@@ -103,6 +116,7 @@ export function toQueryParams(filters: FilterState, sort: SortState): URLSearchP
   if (filters.aprRange[0] !== 0) p.set("aprMin", String(filters.aprRange[0]));
   if (filters.aprRange[1] !== 50) p.set("aprMax", String(filters.aprRange[1]));
   if (filters.activeOnly) p.set("activeOnly", "1");
+  if (filters.showExpired) p.set("showExpired", "1");
   if (sort.sortBy !== "apr") p.set("sortBy", sort.sortBy);
   if (sort.sortDir !== "desc") p.set("sortDir", sort.sortDir);
   return p;
@@ -122,6 +136,7 @@ export function fromQueryParams(params: URLSearchParams): {
         Number(params.get("aprMax") ?? 50),
       ],
       activeOnly: params.get("activeOnly") === "1",
+      showExpired: params.get("showExpired") === "1",
     },
     sort: {
       sortBy: (params.get("sortBy") as SortState["sortBy"]) ?? "apr",

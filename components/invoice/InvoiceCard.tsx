@@ -4,6 +4,8 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, Calendar, Users, TrendingUp } from "lucide-react";
 import { Badge, RiskBadge } from "@/components/ui/badge";
+import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock } from "lucide-react";
+import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,9 +16,12 @@ import {
   formatCurrency,
   formatApr,
   daysUntil,
-  STATUS_COLORS,
   cn,
 } from "@/lib/utils";
+import useCountdown from "@/hooks/useCountdown";
+import CountdownTimer from "@/components/ui/CountdownTimer";
+import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
+import { DebtorDisplay } from "./DebtorDisplay";
 import type { Invoice } from "@/types";
 
 interface InvoiceCardProps {
@@ -62,11 +67,15 @@ function getFlagEmoji(countryCode: string) {
 }
 
 export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
-  const { metadata, terms, funding, riskTier, status } = invoice;
+  const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
   const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
   const queryClient = useQueryClient();
+  
+  // Check if invoice is expired
+  const countdown = useCountdown(listingExpiry);
+  const isExpired = countdown.isExpired || status === "cancelled";
 
   const handleMouseEnter = () => {
     queryClient.prefetchQuery({
@@ -79,27 +88,28 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   return (
     <Link
       href={`/marketplace/${invoice.id}`}
-      className="block group relative h-full"
+      className={cn("block group relative h-full", isExpired && "opacity-60")}
       onMouseEnter={handleMouseEnter}
       role="article"
       aria-label={`Invoice for ${metadata.debtorName}, Amount: ${formatCurrency(metadata.amount, metadata.currency, true)}, Risk Tier: ${riskTier}, APR: ${formatApr(terms.apr)}`}
     >
       <motion.div
         layoutId={`invoice-card-${invoice.id}`}
-        className="relative overflow-hidden rounded-xl border border-border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:border-border hover:bg-card hover:shadow-token-lg flex flex-col h-full justify-between"
+        className={cn(
+          "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg flex flex-col h-full justify-between",
+          isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
+        )}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -6 }}
+        whileHover={!isExpired ? { y: -6 } : {}}
         transition={{ duration: 0.3, delay: index * 0.05 }}
       >
         <div>
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                {metadata.debtorName}
-              </p>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <DebtorDisplay invoice={invoice} className="group-hover:text-primary transition-colors" />
+              <p className="mt-1 truncate text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                 {metadata.invoiceNumber}
               </p>
             </div>
@@ -109,15 +119,13 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
                 <Badge variant="kora" className="font-semibold px-1.5 py-0.5 text-[10px]">
                   {formatApr(terms.apr)}
                 </Badge>
-              </div>
-              <span
-                className={cn(
-                  "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
-                  STATUS_COLORS[status]
+                {isExpired && (
+                  <Badge variant="default" className="font-semibold px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
+                    Expired
+                  </Badge>
                 )}
-              >
-                {status.replace(/_/g, " ")}
-              </span>
+              </div>
+              <InvoiceStatusBadge status={status} />
             </div>
           </div>
 
@@ -176,13 +184,22 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               <span className="text-sm shrink-0" role="img" aria-label={countryName}>{flag}</span>
               <span className="truncate">{countryName} · {metadata.category}</span>
             </span>
-            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0 font-medium">
-              <Calendar className="h-3 w-3" />
-              {days > 0 ? `${days}d left` : "Due"}
+            <span className={cn("text-xs flex items-center gap-1 shrink-0 font-medium", isExpired ? "text-muted-foreground" : "text-muted-foreground")}>
+              {isExpired ? (
+                <>
+                  <Clock className="h-3 w-3" />
+                  Expired
+                </>
+              ) : (
+                <>
+                  <Calendar className="h-3 w-3" />
+                  <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
+                </>
+              )}
             </span>
           </div>
 
-          {status === "listed" || status === "partially_funded" ? (
+          {!isExpired && (status === "listed" || status === "partially_funded") ? (
             <Button size="sm" className="mt-4 w-full relative z-20" onClick={(e) => e.preventDefault()}>
               Fund Invoice
             </Button>

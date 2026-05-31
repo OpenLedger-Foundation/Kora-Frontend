@@ -5,14 +5,10 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 const Charts = dynamic(() => import("@/components/analytics/Charts"), {
   ssr: false,
-  loading: () => (
-    <div className="space-y-4">
-      <div className="h-56 rounded bg-zinc-900/40" />
-      <div className="h-56 rounded bg-zinc-900/40" />
-    </div>
-  ),
+  loading: () => <AnalyticsSkeleton />,
 });
 import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
+import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
@@ -20,6 +16,7 @@ import { useUIStore } from "@/store";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { exportCsv } from "@/lib/utils";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 // ── Mock analytics data ────────────────────────────────────────────────────────
 
@@ -126,11 +123,12 @@ export default function PortfolioAnalyticsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-100">Portfolio Analytics</h1>
-        <p className="mt-1 text-sm text-zinc-500">Performance overview of your invoice financing portfolio</p>
-      </div>
+    <ErrorBoundary>
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-zinc-100">Portfolio Analytics</h1>
+          <p className="mt-1 text-sm text-zinc-500">Performance overview of your invoice financing portfolio</p>
+        </div>
 
       <div className="mb-6 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
@@ -182,5 +180,6 @@ export default function PortfolioAnalyticsPage() {
 
       <Charts portfolio={PORTFOLIO_HISTORY} yieldData={YIELD_HISTORY} monthly={MONTHLY_RETURNS} risk={RISK_DISTRIBUTION} compact />
     </div>
+    </ErrorBoundary>
   );
 }

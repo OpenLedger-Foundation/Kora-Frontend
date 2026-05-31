@@ -131,3 +131,45 @@
     radial-gradient(at 80% 0%, hsl(189 100% 56% / 0.05) 0px, transparent 50%),
     radial-gradient(at 0% 50%, hsl(var(--color-primary) / 0.05) 0px, transparent 50%);
 }
+
+@layer utilities {
+  .hero-background {
+    background-image:
+      radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.26), transparent 20%),
+      radial-gradient(circle at 85% 10%, rgba(129, 140, 248, 0.18), transparent 18%),
+      radial-gradient(circle at 25% 78%, rgba(168, 85, 247, 0.18), transparent 19%),
+      radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.14), transparent 14%);
+    animation: hero-background-shift 18s ease-in-out infinite alternate;
+    opacity: 0.95;
+  }
+
+  .hero-grid-dots {
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 52px 52px;
+    opacity: 0.16;
+    animation: hero-dots-fade 12s ease-in-out infinite;
+  }
+
+  @keyframes hero-background-shift {
+    0% {
+      background-position: 0% 0%, 100% 0%, 0% 100%, 100% 100%;
+    }
+    50% {
+      background-position: 8% 12%, 92% 2%, 2% 86%, 96% 78%;
+    }
+    100% {
+      background-position: 0% 0%, 100% 8%, 12% 100%, 88% 94%;
+    }
+  }
+
+  @keyframes hero-dots-fade {
+    0%, 100% {
+      opacity: 0.14;
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      opacity: 0.18;
+      transform: translate(10px, -10px) scale(1.02);
+    }
+  }
+}

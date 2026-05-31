@@ -24,6 +24,7 @@ export const invoiceDetailsStepSchema = z.object({
     "finance",
     "other",
   ]),
+  debtorPrivacy: z.enum(["full", "partial", "anonymized"]),
 });
 
 export const invoiceDetailsSchema = invoiceDetailsStepSchema;
@@ -39,6 +40,7 @@ export const INVOICE_DETAILS_STEP_FIELDS = [
   "description",
   "jurisdiction",
   "category",
+  "debtorPrivacy",
 ] as const satisfies readonly (keyof InvoiceDetailsStepSchema)[];
 
 /** Step 2 — Financing Terms */
@@ -190,6 +192,7 @@ export const createInvoiceSchema = z
       "finance",
       "other",
     ]),
+    debtorPrivacy: z.enum(["full", "partial", "anonymized"]),
     discountRate: z.coerce
       .number()
       .min(0.5, "Min 0.5%")
