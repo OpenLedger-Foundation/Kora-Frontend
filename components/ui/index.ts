@@ -17,3 +17,4 @@ export * from "./CopyButton";
 export * from "./Highlight";
 export * from "./apr-display";
 export * from "./drawer";
+export * from "./range-slider";

@@ -31,7 +31,7 @@ import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { useDebounce } from "@/hooks/useDebounce";
+import { RangeSlider } from "@/components/ui/range-slider";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 

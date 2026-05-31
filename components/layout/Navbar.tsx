@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 const AddressBook = dynamic(() => import("@/components/wallet/AddressBook").then((m) => m.AddressBook), { ssr: false });
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { NetworkStatusIndicator } from "@/components/layout/NetworkStatusIndicator";
 import { useUIStore } from "@/store/uiStore";
 import { cn } from "@/lib/utils";
 
@@ -114,6 +115,7 @@ export function Navbar() {
 
         {/* Right side controls */}
         <div className="flex items-center gap-3">
+          <NetworkStatusIndicator />
           <button
             type="button"
             onClick={toggleTheme}
