@@ -15,6 +15,7 @@ export interface DataTableEmptyState {
   title?: string;
   message: string;
   illustration?: ReactNode;
+  action?: ReactNode;
 }
 
 export interface DataTableProps<T extends { id: string }> {

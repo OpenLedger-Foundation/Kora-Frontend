@@ -12,8 +12,11 @@ import {
 } from "@creit.tech/stellar-wallets-kit";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useWalletStore, useUIStore } from "@/store";
-import { useRouter } from "next/navigation";
-import { getAccountBalances } from "@/lib/stellar/client";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { getAccountBalances, fundTestnetAccount, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
+import { buildTestnetUsdcMintTx } from "@/lib/stellar/contracts";
+import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
 
@@ -57,6 +60,8 @@ export function useWallet() {
     isVerificationExpired,
   } = useWalletStore();
   const router = useRouter();
+  const pathname = usePathname();
+  const queryClient = useQueryClient();
 
   const connectWallet = useCallback(
     async (walletId: string = FREIGHTER_ID) => {
@@ -92,10 +97,36 @@ export function useWallet() {
     [connect, setBalance]
   );
 
-  const disconnectWallet = useCallback(() => {
+  const disconnectWallet = useCallback(async () => {
+    const walletAddress = address;
     kit = null;
+    queryClient.clear();
+    useInvoiceStore.setState({
+      invoices: [],
+      selectedInvoice: null,
+      searchQuery: "",
+      createDraft: { currency: "USDC" },
+    });
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("kora-wallet");
+    }
     disconnect();
-  }, [disconnect]);
+
+    if (
+      pathname?.startsWith("/dashboard") ||
+      pathname === "/invoice/create" ||
+      pathname?.startsWith("/invoice/create/")
+    ) {
+      router.push("/marketplace");
+    }
+
+    // Best-effort refresh after teardown for any address-bound views.
+    if (walletAddress) {
+      await queryClient.invalidateQueries({
+        predicate: (q) => JSON.stringify(q.queryKey).includes(walletAddress),
+      });
+    }
+  }, [address, disconnect, pathname, queryClient, router]);
 
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
@@ -128,6 +159,27 @@ export function useWallet() {
       // silently fail
     }
   }, [address, setBalance]);
+
+  const fundWalletOnTestnet = useCallback(async () => {
+    if (!address) throw new Error("Wallet not connected");
+    if (env.NEXT_PUBLIC_STELLAR_NETWORK !== "testnet") {
+      throw new Error("Testnet funding is only available on testnet");
+    }
+
+    await fundTestnetAccount(address);
+
+    const usdcMintXdr = await buildTestnetUsdcMintTx(address, address);
+    const signedUsdcMintXdr = await signTransaction(usdcMintXdr);
+    const submit = await submitTransaction(signedUsdcMintXdr);
+    if (submit.status === "ERROR") {
+      throw new Error("USDC faucet transaction submission failed");
+    }
+    if (submit.hash) {
+      await waitForTransaction(submit.hash);
+    }
+
+    await refreshBalance();
+  }, [address, refreshBalance, signTransaction]);
 
   const requestChallenge = useCallback(async (): Promise<string> => {
     try {
@@ -212,6 +264,7 @@ export function useWallet() {
     verifiedAt,
     connectWallet,
     disconnectWallet,
+    fundWalletOnTestnet,
     signTransaction,
     refreshBalance,
     requestChallenge,

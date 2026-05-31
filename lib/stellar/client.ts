@@ -160,6 +160,27 @@ export async function checkAccountExists(address: string): Promise<boolean> {
   }
 }
 
+/**
+ * Funds a testnet account with XLM via Friendbot.
+ */
+export async function fundTestnetAccount(address: string): Promise<void> {
+  const url = `https://friendbot.stellar.org?addr=${encodeURIComponent(address)}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    let message = `Friendbot request failed (${response.status})`;
+    try {
+      const data = await response.json();
+      if (typeof data?.detail === "string" && data.detail.length > 0) {
+        message = data.detail;
+      }
+    } catch {
+      // best-effort parse only
+    }
+    throw new Error(message);
+  }
+}
+
 // ─── Transaction history ──────────────────────────────────────────────────────
 
 /**

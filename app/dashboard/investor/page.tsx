@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Store, TrendingUp, DollarSign, BarChart3, Clock } from "lucide-react";
+import { Store, TrendingUp, DollarSign, BarChart3, Clock, Coins, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -13,6 +14,7 @@ const DataTable = dynamic<any>(() => import("@/components/ui/data-table").then((
   loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={9} />,
 });
 import { useWallet } from "@/hooks/useWallet";
+import { useToast } from "@/hooks/useToast";
 import { useUIStore } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
@@ -30,6 +32,7 @@ import {
 } from "@/lib/utils";
 import type { ColumnDef } from "@/types/table";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { env } from "@/lib/env";
 
 interface InvestorPosition {
   id: string;
@@ -173,9 +176,10 @@ const STATS = [
 ];
 
 export default function InvestorDashboardPage() {
-  const { isConnected } = useWallet();
+  const { isConnected, address, fundWalletOnTestnet, refreshBalance } = useWallet();
   const { setWalletModalOpen } = useUIStore();
-  const { address } = useWallet();
+  const toast = useToast();
+  const [isFunding, setIsFunding] = useState(false);
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const { execute } = useTransaction();
 
@@ -215,6 +219,22 @@ export default function InvestorDashboardPage() {
       successMessage: "Claim submitted",
       onSuccess: () => positionsQuery.refetch(),
     });
+  };
+
+  const handleFundTestnetAccount = async () => {
+    setIsFunding(true);
+    const toastId = "dashboard-testnet-funding";
+    try {
+      toast.loading("Funding testnet account...", toastId);
+      await fundWalletOnTestnet();
+      await refreshBalance();
+      toast.success("Testnet account funded with 10,000 XLM", undefined, toastId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to fund testnet account";
+      toast.error("Funding failed", message, undefined, toastId);
+    } finally {
+      setIsFunding(false);
+    }
   };
 
   const POSITION_COLUMNS: ColumnDef<InvestorPosition>[] = [
@@ -339,6 +359,17 @@ export default function InvestorDashboardPage() {
               title: "No positions",
               message: "Fund invoices on the marketplace to build your portfolio.",
               illustration: <BarChart3 className="h-10 w-10 text-muted-foreground" />,
+              action:
+                env.NEXT_PUBLIC_STELLAR_NETWORK === "testnet" ? (
+                  <Button onClick={handleFundTestnetAccount} disabled={isFunding} variant="outline">
+                    {isFunding ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Coins className="h-4 w-4" />
+                    )}
+                    {isFunding ? "Funding..." : "Fund Testnet Account"}
+                  </Button>
+                ) : undefined,
             }}
           />
         </CardContent>
