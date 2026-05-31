@@ -159,15 +159,19 @@ export function xlmToStroops(xlm: number): bigint {
   return BigInt(Math.round(xlm * 10_000_000));
 }
 
-/** Risk tier colour mapping */
+/**
+ * Risk tier colour mapping — WCAG 2.1 AA compliant.
+ * Light mode: -700 text on /10 tinted bg (~4.5:1+).
+ * Dark mode: -400 text on /10 dark bg (~4.5:1+).
+ */
 export const RISK_TIER_COLORS: Record<string, string> = {
-  AAA: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
-  AA: "text-teal-400 bg-teal-400/10 border-teal-400/20",
-  A: "text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
-  BBB: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
-  BB: "text-orange-400 bg-orange-400/10 border-orange-400/20",
-  B: "text-red-400 bg-red-400/10 border-red-400/20",
-  CCC: "text-red-600 bg-red-600/10 border-red-600/20",
+  AAA: "text-emerald-700 dark:text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
+  AA:  "text-teal-700 dark:text-teal-400 bg-teal-400/10 border-teal-400/20",
+  A:   "text-cyan-700 dark:text-cyan-400 bg-cyan-400/10 border-cyan-400/20",
+  BBB: "text-yellow-700 dark:text-yellow-400 bg-yellow-400/10 border-yellow-400/20",
+  BB:  "text-orange-700 dark:text-orange-400 bg-orange-400/10 border-orange-400/20",
+  B:   "text-red-700 dark:text-red-400 bg-red-400/10 border-red-400/20",
+  CCC: "text-red-800 dark:text-red-500 bg-red-600/10 border-red-600/20",
 };
 
 /** Historical Average APR per Risk Tier */
@@ -245,7 +249,7 @@ export function calculateYieldProjection(
   };
 }
 
-/** Invoice status colour mapping */
+/** Invoice status colour mapping — WCAG 2.1 AA compliant via corrected CSS tokens */
 export const STATUS_COLORS: Record<string, string> = {
   draft: "text-muted-foreground bg-muted",
   pending_mint: "text-warning bg-warning/10",
@@ -331,14 +335,13 @@ export function calculateRiskAdjustedReturn(apr: number, riskTier: string): numb
 }
 
 /**
- * Get color coding for APR based on thresholds.
- * @param apr - APR as percentage
- * @returns Tailwind color class
+ * Get color coding for APR based on thresholds — WCAG 2.1 AA compliant.
+ * Uses -700/-800 in light mode, -400 in dark mode via Tailwind dark: variant.
  */
 export function getAPRColor(apr: number): string {
-  if (apr >= 15) return "text-emerald-400";  // Green: excellent
-  if (apr >= 8) return "text-amber-400";     // Amber: good
-  return "text-red-400";                      // Red: low
+  if (apr >= 15) return "text-emerald-700 dark:text-emerald-400";
+  if (apr >= 8)  return "text-amber-700 dark:text-amber-400";
+  return "text-red-700 dark:text-red-400";
 }
 
 /**
