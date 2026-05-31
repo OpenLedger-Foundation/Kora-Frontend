@@ -143,6 +143,7 @@ const STATS = [
   {
     label: "Portfolio Value",
     value: formatCurrency(totalInvested, "USDC", true),
+    valueRaw: totalInvested,
     change: "4 active positions",
     changePositive: true,
     icon: <DollarSign className="h-4 w-4" />,
@@ -150,6 +151,7 @@ const STATS = [
   {
     label: "Expected Yield",
     value: formatCurrency(totalYield, "USDC", true),
+    valueRaw: totalYield,
     change: `${((totalYield / totalInvested) * 100).toFixed(1)}% return`,
     changePositive: true,
     icon: <TrendingUp className="h-4 w-4" />,
@@ -157,11 +159,13 @@ const STATS = [
   {
     label: "Active Positions",
     value: POSITIONS.length.toString(),
+    valueRaw: POSITIONS.length,
     icon: <BarChart3 className="h-4 w-4" />,
   },
   {
     label: "Avg. APR",
     value: `${(POSITIONS.reduce((s, p) => s + p.invoice.terms.apr, 0) / POSITIONS.length).toFixed(1)}%`,
+    valueRaw: Number((POSITIONS.reduce((s, p) => s + p.invoice.terms.apr, 0) / POSITIONS.length).toFixed(1)),
     change: "Across all positions",
     changePositive: true,
     icon: <Clock className="h-4 w-4" />,
