@@ -22,6 +22,9 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   maturityReminderDays: 3,
 };
 
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+export const DEFAULT_SHORTCUTS_ENABLED = true;
+
 interface UIStore {
   walletModalOpen: boolean;
   setWalletModalOpen: (open: boolean) => void;
@@ -44,6 +47,10 @@ interface UIStore {
   notificationPreferences: NotificationPreferences;
   setNotificationPreferences: (prefs: Partial<NotificationPreferences>) => void;
   resetNotificationPreferences: () => void;
+
+  // Keyboard shortcuts
+  shortcutsEnabled: boolean;
+  setShortcutsEnabled: (enabled: boolean) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -81,12 +88,17 @@ export const useUIStore = create<UIStore>()(
         })),
       resetNotificationPreferences: () =>
         set({ notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES }),
+
+      // Keyboard shortcuts
+      shortcutsEnabled: DEFAULT_SHORTCUTS_ENABLED,
+      setShortcutsEnabled: (shortcutsEnabled) => set({ shortcutsEnabled }),
     }),
     {
       name: "kora-ui-store",
       partialize: (state) => ({
         theme: state.theme,
         notificationPreferences: state.notificationPreferences,
+        shortcutsEnabled: state.shortcutsEnabled,
       }),
     }
   )
