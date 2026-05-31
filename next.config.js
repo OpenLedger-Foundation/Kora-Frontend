@@ -171,6 +171,13 @@ const nextConfig = {
         source: "/(.*)",
         headers: SECURITY_HEADERS,
       },
+      // Static assets: long-lived cache (content-hashed by Next.js)
+      {
+        source: "/_next/static/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
       // Service worker must be served without caching headers so browsers
       // always check for updates.
       {
@@ -186,6 +193,19 @@ const nextConfig = {
           { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
         ],
       },
+      // OG image and public icons — moderate cache
+      {
+        source: "/og-image.png",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+        ],
+      },
+      {
+        source: "/icons/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" },
+        ],
+      },
     ];
   },
 
@@ -196,6 +216,9 @@ const nextConfig = {
     // Standard responsive breakpoints
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],
+
+    // Minimum cache TTL for optimised images (7 days)
+    minimumCacheTTL: 604800,
 
     remotePatterns: [
       // IPFS gateways (invoice document thumbnails / metadata images)

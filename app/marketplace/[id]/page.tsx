@@ -48,6 +48,12 @@ import { InvoiceMetadataViewer } from "@/components/invoice/InvoiceMetadataViewe
 import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { env } from "@/lib/env";
+import Script from "next/script";
+import {
+  invoiceFinancialProductSchema,
+  breadcrumbSchema,
+  serializeSchema,
+} from "@/lib/structuredData";
 
 export default function InvoiceDetailPage() {
   const params = useParams<{ id: string }>();
@@ -228,6 +234,42 @@ Stellar Testnet Transaction Hash: ${txHash}`);
 
   return (
     <ErrorBoundary>
+    {/* Structured data for SEO ≥ 95 */}
+    <Script
+      id="ld-invoice"
+      type="application/ld+json"
+      strategy="afterInteractive"
+      dangerouslySetInnerHTML={{
+        __html: serializeSchema(
+          invoiceFinancialProductSchema({
+            id,
+            invoiceNumber: metadata.invoiceNumber,
+            debtorName: metadata.debtorName,
+            amount: metadata.amount,
+            currency: metadata.currency,
+            apr: terms.apr,
+            dueDate: metadata.dueDate,
+            jurisdiction: metadata.jurisdiction,
+            category: metadata.category,
+            riskTier,
+          })
+        ),
+      }}
+    />
+    <Script
+      id="ld-breadcrumb-invoice"
+      type="application/ld+json"
+      strategy="afterInteractive"
+      dangerouslySetInnerHTML={{
+        __html: serializeSchema(
+          breadcrumbSchema([
+            { name: "Home", url: "/" },
+            { name: "Marketplace", url: "/marketplace" },
+            { name: metadata.invoiceNumber, url: `/marketplace/${id}` },
+          ])
+        ),
+      }}
+    />
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       {/* Back */}
       <Link
@@ -661,6 +703,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           )}
         </div>
       </div>
+    </div>
     </div>
     </ErrorBoundary>
   );

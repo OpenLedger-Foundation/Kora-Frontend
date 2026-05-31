@@ -96,14 +96,16 @@ export function RiskScoreGauge({ score, tier, factors, trend }: RiskScoreGaugePr
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        aria-controls="risk-score-breakdown"
         className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
       >
         <span>Score Breakdown</span>
-        <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} aria-hidden="true" />
       </button>
 
       {expanded && (
-        <div className="space-y-2 rounded-lg border border-border bg-card p-3">
+        <div id="risk-score-breakdown" className="space-y-2 rounded-lg border border-border bg-card p-3">
           {factors.map((factor) => (
             <div key={factor.key} className="space-y-1">
               <div className="flex items-center justify-between text-xs">

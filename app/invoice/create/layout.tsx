@@ -17,10 +17,20 @@ export const metadata: Metadata = {
     description:
       "Tokenize your invoice as an NFT and access instant USDC liquidity from global investors.",
     url: "/invoice/create",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Create Invoice on Kora Protocol",
+      },
+    ],
   },
   twitter: {
+    card: "summary_large_image",
     title: "Create Invoice | Kora Protocol",
     description: "Tokenize your invoice and access instant USDC liquidity on Kora Protocol.",
+    images: ["/og-image.png"],
   },
   alternates: { canonical: "/invoice/create" },
   robots: { index: false, follow: false },

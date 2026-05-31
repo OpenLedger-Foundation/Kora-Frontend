@@ -33,8 +33,16 @@ export function NetworkStatusIndicator() {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div className="flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/50">
-            <div className={cn("h-2 w-2 rounded-full", config.color)} />
+          <div
+            className="flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/50"
+            role="status"
+            aria-live="polite"
+            aria-label={`Network status: ${config.label} on ${networkLabel}`}
+          >
+            <div
+              className={cn("h-2 w-2 rounded-full", config.color)}
+              aria-hidden="true"
+            />
             <span className="font-medium text-muted-foreground">
               {networkLabel}
             </span>
