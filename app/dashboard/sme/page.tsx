@@ -29,6 +29,8 @@ const DataTable = dynamic<DataTableProps<Invoice>>(
 import { useWallet } from "@/hooks/useWallet";
 import { useSMEInvoices } from "@/hooks/useInvoices";
 import { useTransaction } from "@/hooks/useTransaction";
+import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { prepareRepayInvoice } from "@/services/invoiceService";
@@ -53,6 +55,7 @@ export default function SMEDashboardPage() {
   const { setWalletModalOpen } = useUIStore();
   const invoicesQuery = useSMEInvoices(address ?? undefined);
   const { execute, status: txStatus } = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
   const { data: usdcBalance = 0 } = useUsdcBalance(address ?? undefined);
 
   const [repayTarget, setRepayTarget] = useState<Invoice | null>(null);
@@ -129,6 +132,7 @@ export default function SMEDashboardPage() {
     await execute(() => prepareRepayInvoice(inv.tokenId, address), {
       successMessage: "Yield distributed to investors",
       successNotificationType: "yieldAvailable",
+      onSimulationPreview,
       onSuccess: () => {
         invoicesQuery.refetch();
         setRepayTarget(null);
@@ -431,6 +435,9 @@ export default function SMEDashboardPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Transaction simulation preview dialog */}
+      <TxSimulationPreview {...simulationDialogProps} />
     </div>
     </ErrorBoundary>
   );

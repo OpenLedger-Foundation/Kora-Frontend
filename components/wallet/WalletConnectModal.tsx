@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Wallet, ChevronRight, Loader2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
+import { useTranslations } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +25,9 @@ const WALLETS = [
     icon: "/wallets/freighter.svg",
     popular: true,
     installUrl: "https://www.freighter.app/",
-    isAvailable: () => typeof window !== "undefined" && !!(window as Window & { freighter?: unknown }).freighter,
+    isAvailable: () =>
+      typeof window !== "undefined" &&
+      !!(window as Window & { freighter?: unknown }).freighter,
   },
   {
     id: "xbull",
@@ -33,7 +36,9 @@ const WALLETS = [
     icon: "/wallets/xbull.svg",
     popular: false,
     installUrl: "https://xbull.app/",
-    isAvailable: () => typeof window !== "undefined" && !!(window as Window & { xBullSDK?: unknown }).xBullSDK,
+    isAvailable: () =>
+      typeof window !== "undefined" &&
+      !!(window as Window & { xBullSDK?: unknown }).xBullSDK,
   },
   {
     id: "lobstr",
@@ -42,7 +47,9 @@ const WALLETS = [
     icon: "/wallets/lobstr.svg",
     popular: false,
     installUrl: "https://lobstr.co/",
-    isAvailable: () => typeof window !== "undefined" && !!(window as Window & { lobstr?: unknown }).lobstr,
+    isAvailable: () =>
+      typeof window !== "undefined" &&
+      !!(window as Window & { lobstr?: unknown }).lobstr,
   },
   {
     id: "albedo",
@@ -58,6 +65,7 @@ const WALLETS = [
 type WalletState = "idle" | "connecting" | "success" | "error";
 
 export function WalletConnectModal() {
+  const t = useTranslations("wallet");
   const { walletModalOpen, setWalletModalOpen } = useUIStore();
   const { connectWallet, isConnected } = useWallet();
   const [walletState, setWalletState] = useState<WalletState>("idle");
@@ -65,7 +73,6 @@ export function WalletConnectModal() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
 
-  // Focus first wallet button when modal opens
   useEffect(() => {
     if (walletModalOpen) {
       setTimeout(() => firstFocusRef.current?.focus(), 50);
@@ -86,7 +93,9 @@ export function WalletConnectModal() {
       setTimeout(() => setWalletModalOpen(false), 1200);
     } catch (err) {
       setWalletState("error");
-      setErrorMsg(err instanceof Error ? err.message : "Connection failed. Please try again.");
+      setErrorMsg(
+        err instanceof Error ? err.message : "Connection failed. Please try again."
+      );
     }
   };
 
@@ -101,16 +110,16 @@ export function WalletConnectModal() {
       <DialogContent
         className="max-w-sm"
         aria-busy={walletState === "connecting"}
-        onKeyDown={(e) => { if (e.key === "Escape") setWalletModalOpen(false); }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setWalletModalOpen(false);
+        }}
       >
         <DialogHeader>
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-kora-muted text-primary">
             <Wallet className="h-5 w-5" />
           </div>
-          <DialogTitle>Connect Wallet</DialogTitle>
-          <DialogDescription>
-            Connect your Stellar wallet to access Kora Protocol.
-          </DialogDescription>
+          <DialogTitle>{t("connectTitle")}</DialogTitle>
+          <DialogDescription>{t("connectToAccess")}</DialogDescription>
         </DialogHeader>
 
         <div className="mt-2 space-y-2">
@@ -128,11 +137,10 @@ export function WalletConnectModal() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.06 }}
                 className={cn(
-                  "relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3.5",
-                  "transition-all",
+                  "relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-all",
                   isConnecting && "border-primary/30 bg-kora-muted",
                   isSuccess && "border-green-500/40 bg-green-500/5",
-                  isError && "border-destructive/40 bg-destructive/5",
+                  isError && "border-destructive/40 bg-destructive/5"
                 )}
               >
                 <Image
@@ -144,19 +152,23 @@ export function WalletConnectModal() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">{wallet.name}</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {wallet.name}
+                    </span>
                     {wallet.popular && (
                       <span className="rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                        Popular
+                        {t("popular")}
                       </span>
                     )}
                     {!installed && (
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        Not installed
+                        {t("notInstalled")}
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">{wallet.description}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {wallet.description}
+                  </p>
                   <AnimatePresence>
                     {isError && (
                       <motion.p
@@ -172,7 +184,9 @@ export function WalletConnectModal() {
                 </div>
 
                 <div className="shrink-0 flex items-center gap-1.5">
-                  {isConnecting && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                  {isConnecting && (
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  )}
                   {isSuccess && (
                     <motion.div
                       initial={{ scale: 0 }}
@@ -188,11 +202,11 @@ export function WalletConnectModal() {
                       onClick={handleRetry}
                       className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
                     >
-                      <AlertCircle className="h-3 w-3" /> Retry
+                      <AlertCircle className="h-3 w-3" /> {t("retry")}
                     </button>
                   )}
-                  {!isConnecting && !isSuccess && !isError && (
-                    installed ? (
+                  {!isConnecting && !isSuccess && !isError &&
+                    (installed ? (
                       <button
                         ref={i === 0 ? firstFocusRef : undefined}
                         type="button"
@@ -211,10 +225,9 @@ export function WalletConnectModal() {
                         aria-label={`Install ${wallet.name} extension`}
                         className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
                       >
-                        Install <ExternalLink className="h-3 w-3" />
+                        {t("install")} <ExternalLink className="h-3 w-3" />
                       </a>
-                    )
-                  )}
+                    ))}
                 </div>
               </motion.div>
             );
@@ -222,9 +235,9 @@ export function WalletConnectModal() {
         </div>
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          By connecting, you agree to our{" "}
+          {t("termsPrefix")}{" "}
           <a href="/terms" className="text-muted-foreground hover:text-foreground">
-            Terms of Service
+            {t("termsLink")}
           </a>
         </p>
       </DialogContent>

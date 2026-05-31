@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
 import { useState } from "react";
 import dynamic from "next/dynamic";
+
 const WalletConnectModal = dynamic(
   () => import("@/components/wallet/WalletConnectModal").then((m) => m.WalletConnectModal),
   { ssr: false, loading: () => null }
@@ -13,12 +14,26 @@ const InstallPrompt = dynamic(
   () => import("@/components/pwa/InstallPrompt").then((m) => m.InstallPrompt),
   { ssr: false, loading: () => null }
 );
+const OnboardingTour = dynamic(
+  () => import("@/components/onboarding/OnboardingTour").then((m) => m.default),
+  { ssr: false, loading: () => null }
+);
+
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
-import dynamic from "next/dynamic";
 
-const OnboardingTour = dynamic(() => import("@/components/onboarding/OnboardingTour").then((m) => m.default), { ssr: false, loading: () => null });
+// Pre-load both locale message files at the module level so they are
+// bundled and available synchronously on the client.
+import enMessages from "@/messages/en.json";
+import esMessages from "@/messages/es.json";
+import type { Locale } from "@/i18n/config";
+
+const ALL_MESSAGES: Record<Locale, Record<string, unknown>> = {
+  en: enMessages as Record<string, unknown>,
+  es: esMessages as Record<string, unknown>,
+};
 
 function ThemedToaster() {
   const theme = useUIStore((s) => s.theme);
@@ -50,16 +65,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        {children}
-        <OnboardingTour />
-        <WalletConnectModal />
-        <InstallPrompt />
-        <ThemedToaster />
-        {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
-          <ReactQueryDevtools initialIsOpen={false} />
-        )}
-      </ThemeProvider>
+      <LocaleProvider allMessages={ALL_MESSAGES}>
+        <ThemeProvider>
+          {children}
+          <OnboardingTour />
+          <WalletConnectModal />
+          <InstallPrompt />
+          <ThemedToaster />
+          {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
+            <ReactQueryDevtools initialIsOpen={false} />
+          )}
+        </ThemeProvider>
+      </LocaleProvider>
     </QueryClientProvider>
   );
 }

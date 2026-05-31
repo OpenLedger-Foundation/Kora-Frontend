@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -15,30 +15,39 @@ import {
   History,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
-const AddressBook = dynamic(() => import("@/components/wallet/AddressBook").then((m) => m.AddressBook), { ssr: false });
+
+const AddressBook = dynamic(
+  () => import("@/components/wallet/AddressBook").then((m) => m.AddressBook),
+  { ssr: false }
+);
+
 import { WalletButton } from "@/components/wallet/WalletButton";
 import { NetworkStatusIndicator } from "@/components/layout/NetworkStatusIndicator";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { useUIStore } from "@/store/uiStore";
 import { cn } from "@/lib/utils";
-
-const NAV_LINKS = [
-  { href: "/marketplace", label: "Marketplace", icon: Store },
-  { href: "/dashboard/investor", label: "Invest", icon: BarChart3 },
-  { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard },
-  { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle },
-  { href: "/transactions", label: "History", icon: History },
-];
 
 const MENU_ID = "mobile-nav-menu";
 
 export function Navbar() {
   const pathname = usePathname();
+  const t = useTranslations("nav");
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
   const navRef = useRef<HTMLElement>(null);
   const [addressBookOpen, setAddressBookOpen] = useState(false);
+
+  // Nav links defined inside component so labels are translated
+  const NAV_LINKS = [
+    { href: "/marketplace", label: t("marketplace"), icon: Store },
+    { href: "/dashboard/investor", label: t("invest"), icon: BarChart3 },
+    { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard },
+    { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle },
+    { href: "/transactions", label: t("history"), icon: History },
+  ];
 
   // Close on route change
   useEffect(() => {
@@ -80,7 +89,7 @@ export function Navbar() {
           </div>
           <span className="text-base font-semibold text-foreground">Kora</span>
           <span className="hidden rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary sm:block">
-            TESTNET
+            {t("testnet")}
           </span>
         </Link>
 
@@ -114,14 +123,19 @@ export function Navbar() {
         </nav>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <NetworkStatusIndicator />
+
+          {/* Language switcher */}
+          <LanguageSwitcher />
+
+          {/* Theme toggle */}
           <button
             type="button"
             onClick={toggleTheme}
             className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label={
-              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              theme === "dark" ? t("switchToLight") : t("switchToDark")
             }
           >
             {theme === "dark" ? (
@@ -131,7 +145,13 @@ export function Navbar() {
             )}
           </button>
 
-          <button onClick={() => setAddressBookOpen(true)} className="rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Address Book</button>
+          <button
+            onClick={() => setAddressBookOpen(true)}
+            className="hidden rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground md:block"
+          >
+            {t("addressBook")}
+          </button>
+
           <WalletButton />
 
           {/* Hamburger — mobile only */}
@@ -139,7 +159,7 @@ export function Navbar() {
             type="button"
             className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
             onClick={() => setMobileOpen((v) => !v)}
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-label={mobileOpen ? t("closeMenu") : t("openMenu")}
             aria-expanded={mobileOpen}
             aria-controls={MENU_ID}
           >
@@ -186,14 +206,17 @@ export function Navbar() {
                 );
               })}
 
-              <div className="pt-2 border-t border-border">
+              <div className="pt-2 border-t border-border space-y-2">
                 <WalletButton />
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-      {addressBookOpen && <AddressBook onClose={() => setAddressBookOpen(false)} />}
+
+      {addressBookOpen && (
+        <AddressBook onClose={() => setAddressBookOpen(false)} />
+      )}
     </header>
   );
 }

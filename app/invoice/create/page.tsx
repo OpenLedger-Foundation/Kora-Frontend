@@ -19,6 +19,8 @@ import { GlassCard } from "@/components/ui/card";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletStore } from "@/store";
 import { useTransaction } from "@/hooks/useTransaction";
+import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareCreateInvoice } from "@/services/invoiceService";
 import {
@@ -75,6 +77,7 @@ export default function CreateInvoicePage() {
   const { setWalletModalOpen } = useUIStore();
   const { createDraft, setCreateDraft, clearCreateDraft } = useInvoiceStore();
   const { execute, status: txStatus, error: txError, reset: resetTxState } = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
 
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -244,6 +247,7 @@ export default function CreateInvoicePage() {
       },
       {
         successMessage: "Invoice minted on Soroban!",
+        onSimulationPreview,
         onSuccess: (hash) => {
           const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
           setMintedInfo({
@@ -926,5 +930,8 @@ export default function CreateInvoicePage() {
       )}
     </div>
     </ErrorBoundary>
+
+    {/* Transaction simulation preview dialog — rendered outside the form */}
+    <TxSimulationPreview {...simulationDialogProps} />
   );
 }

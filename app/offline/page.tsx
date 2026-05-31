@@ -1,24 +1,12 @@
-/**
- * Offline fallback page.
- *
- * Shown by the service worker when a navigation request fails and there is
- * no cached version of the requested page. Keeps the user informed and
- * gives them a clear path back once connectivity is restored.
- *
- * This page is statically generated (no "use client") so the service worker
- * can pre-cache it at install time without any network round-trip.
- */
-import type { Metadata } from "next";
+"use client";
+
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ReloadButton } from "./ReloadButton";
 
-export const metadata: Metadata = {
-  title: "You're Offline",
-  description: "No internet connection. Please check your network and try again.",
-  robots: { index: false, follow: false },
-};
-
 export default function OfflinePage() {
+  const t = useTranslations("offline");
+
   return (
     <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
       {/* Icon */}
@@ -36,7 +24,6 @@ export default function OfflinePage() {
           className="text-zinc-500"
           aria-hidden="true"
         >
-          {/* wifi-off icon */}
           <line x1="1" y1="1" x2="23" y2="23" />
           <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
           <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
@@ -47,59 +34,52 @@ export default function OfflinePage() {
         </svg>
       </div>
 
-      {/* Heading */}
       <h1 className="text-3xl font-bold tracking-tight text-zinc-100 sm:text-4xl">
-        You&apos;re offline
+        {t("title")}
       </h1>
 
-      <p className="mt-4 max-w-md text-base text-zinc-400">
-        Kora Protocol requires an internet connection to interact with the Stellar
-        network. Check your connection and try again.
-      </p>
+      <p className="mt-4 max-w-md text-base text-zinc-400">{t("subtitle")}</p>
 
-      {/* What still works */}
       <div className="mt-8 w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 text-left">
         <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
-          Available offline
+          {t("availableOffline")}
         </p>
         <ul className="space-y-2 text-sm text-zinc-400">
           <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            Previously visited marketplace listings
+            {t("cachedListings")}
           </li>
           <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            Cached static pages and assets
+            {t("cachedAssets")}
           </li>
         </ul>
         <p className="mb-3 mt-4 text-xs font-semibold uppercase tracking-widest text-zinc-500">
-          Requires connection
+          {t("requiresConnection")}
         </p>
         <ul className="space-y-2 text-sm text-zinc-400">
           <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden="true" />
-            Wallet connection &amp; signing
+            {t("walletSigning")}
           </li>
           <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden="true" />
-            Invoice creation &amp; minting
+            {t("invoiceCreation")}
           </li>
           <li className="flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden="true" />
-            Live marketplace data
+            {t("liveData")}
           </li>
         </ul>
       </div>
 
-      {/* Actions */}
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <ReloadButton />
-
         <Link
           href="/marketplace"
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/60 px-5 py-2.5 text-sm font-semibold text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-500/50"
         >
-          Browse cached listings
+          {t("browseCached")}
         </Link>
       </div>
     </div>

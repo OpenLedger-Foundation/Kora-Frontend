@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { StellarAddress } from "@/components/ui/stellar-address";
@@ -22,7 +23,9 @@ import { safeStellarAccountUrl } from "@/lib/security";
 import { env } from "@/lib/env";
 
 export function WalletButton() {
-  const { isConnected, address, balance, disconnectWallet, fundWalletOnTestnet, refreshBalance } = useWallet();
+  const t = useTranslations("wallet");
+  const { isConnected, address, balance, disconnectWallet, fundWalletOnTestnet, refreshBalance } =
+    useWallet();
   const { setWalletModalOpen } = useUIStore();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -36,14 +39,14 @@ export function WalletButton() {
     setIsFunding(true);
     const toastId = "testnet-funding";
     try {
-      toast.loading("Funding testnet account...", toastId);
+      toast.loading(t("fundingTestnet"), toastId);
       await fundWalletOnTestnet();
       await refreshBalance();
-      toast.success("Testnet account funded with 10,000 XLM", undefined, toastId);
+      toast.success(t("fundSuccess"), undefined, toastId);
       setOpen(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to fund testnet account";
-      toast.error("Funding failed", message, undefined, toastId);
+      const message = error instanceof Error ? error.message : t("fundFailed");
+      toast.error(t("fundFailed"), message, undefined, toastId);
     } finally {
       setIsFunding(false);
     }
@@ -58,7 +61,7 @@ export function WalletButton() {
   if (!isConnected) {
     return (
       <Button onClick={() => setWalletModalOpen(true)} size="sm">
-        Connect Wallet
+        {t("connect")}
       </Button>
     );
   }
@@ -74,22 +77,34 @@ export function WalletButton() {
         )}
       >
         <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
-        <StellarAddress address={address!} chars={4} size="sm" showCopy={false} className="text-foreground" />
-        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+        <StellarAddress
+          address={address!}
+          chars={4}
+          size="sm"
+          showCopy={false}
+          className="text-foreground"
+        />
+        <ChevronDown
+          className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")}
+        />
       </button>
 
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-border bg-background p-3 shadow-token-lg">
           {balance && (
             <div className="mb-3 space-y-1 rounded-lg bg-card p-3">
-              <p className="text-xs text-muted-foreground">Balances</p>
+              <p className="text-xs text-muted-foreground">{t("balances")}</p>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">XLM</span>
-                <span className="font-medium text-foreground">{parseFloat(balance.xlm).toFixed(2)}</span>
+                <span className="font-medium text-foreground">
+                  {parseFloat(balance.xlm).toFixed(2)}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">USDC</span>
-                <span className="font-medium text-foreground">{parseFloat(balance.usdc).toFixed(2)}</span>
+                <span className="font-medium text-foreground">
+                  {parseFloat(balance.usdc).toFixed(2)}
+                </span>
               </div>
             </div>
           )}
@@ -97,7 +112,7 @@ export function WalletButton() {
           <div className="space-y-1">
             <div className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground">
               <CopyButton text={address!} />
-              Copy address
+              {t("copyAddress")}
             </div>
             <a
               href={safeStellarAccountUrl(address)}
@@ -105,7 +120,7 @@ export function WalletButton() {
               rel="noopener noreferrer"
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <ExternalLink className="h-3.5 w-3.5" /> View on Explorer
+              <ExternalLink className="h-3.5 w-3.5" /> {t("viewExplorer")}
             </a>
             <button
               type="button"
@@ -115,7 +130,7 @@ export function WalletButton() {
               }}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              <Bell className="h-3.5 w-3.5" /> Notification settings
+              <Bell className="h-3.5 w-3.5" /> {t("notificationSettings")}
             </button>
             {isTestnet && (
               <button
@@ -124,8 +139,12 @@ export function WalletButton() {
                 onClick={handleFundTestnetAccount}
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
               >
-                {isFunding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Coins className="h-3.5 w-3.5" />}
-                {isFunding ? "Funding..." : "Fund Testnet Account"}
+                {isFunding ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Coins className="h-3.5 w-3.5" />
+                )}
+                {isFunding ? t("funding") : t("fundTestnet")}
               </button>
             )}
             <button
@@ -133,16 +152,17 @@ export function WalletButton() {
               onClick={() => setConfirmDisconnectOpen(true)}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
             >
-              <LogOut className="h-3.5 w-3.5" /> Disconnect
+              <LogOut className="h-3.5 w-3.5" /> {t("disconnect")}
             </button>
           </div>
         </div>
       )}
 
+      {/* Notification settings dialog */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Notification Settings</DialogTitle>
+            <DialogTitle>{t("notificationSettings")}</DialogTitle>
             <DialogDescription>
               Configure toast notifications for transaction and invoice events.
             </DialogDescription>
@@ -151,20 +171,19 @@ export function WalletButton() {
         </DialogContent>
       </Dialog>
 
+      {/* Disconnect confirm dialog */}
       <Dialog open={confirmDisconnectOpen} onOpenChange={setConfirmDisconnectOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Disconnect wallet?</DialogTitle>
-            <DialogDescription>
-              Are you sure? This will clear your wallet session and redirect from protected pages.
-            </DialogDescription>
+            <DialogTitle>{t("disconnectTitle")}</DialogTitle>
+            <DialogDescription>{t("disconnectConfirm")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmDisconnectOpen(false)}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button variant="danger" onClick={handleDisconnect}>
-              Disconnect
+              {t("disconnect")}
             </Button>
           </DialogFooter>
         </DialogContent>
