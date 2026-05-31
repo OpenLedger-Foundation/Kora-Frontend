@@ -1,3 +1,10 @@
+/**
+ * Vitest setup file for integration tests
+ * Configures jsdom environment, mocks, and global test utilities
+ */
+
+import * as React from "react";
+import { expect, afterEach, vi } from "vitest";
 import "@testing-library/jest-dom";
 import path from "node:path";
 import Module from "node:module";
@@ -42,17 +49,23 @@ Object.defineProperty(window, "matchMedia", {
   })),
 });
 
+// Mock IntersectionObserver
+const IntersectionObserverMock = class IntersectionObserver {
 global.IntersectionObserver = class IntersectionObserver {
   constructor() {}
   disconnect() {}
   observe() {}
   takeRecords() {
-    return [];
+    return [] as IntersectionObserverEntry[];
   }
   unobserve() {}
-} as any;
+} as unknown as typeof globalThis.IntersectionObserver;
+
+globalThis.IntersectionObserver = IntersectionObserverMock;
 
 vi.mock("next/image", () => ({
+  default: (props: React.ComponentPropsWithoutRef<"img">) =>
+    React.createElement("img", props),
   default: ({ alt, ...props }: any) => {
     const React = require("react");
     return React.createElement("img", { alt: alt ?? "", ...props });

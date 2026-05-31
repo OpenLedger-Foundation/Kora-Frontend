@@ -7,6 +7,7 @@ import { useWallet } from "./useWallet";
 import { rpc, submitTransaction } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import type { ServiceError, TxState } from "@/types";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -17,12 +18,6 @@ export type TxLifecycleStatus =
   | "polling"
   | "confirmed"
   | "failed";
-
-interface TxState {
-  status: TxLifecycleStatus;
-  txHash?: string;
-  error?: string;
-}
 
 const TOAST_ID = "kora-tx";
 const MAX_POLL_ATTEMPTS = 30;
@@ -62,8 +57,9 @@ export function useTransaction() {
   const { signTransaction } = useWallet();
   const toast = useToast();
 
-  const setStage = (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
-    setState((s) => ({ ...s, status, ...extra }));
+  const setStage = (nextState: TxState) => {
+    setState(nextState);
+    const status = nextState.status;
     if (status !== "idle" && status !== "confirmed" && status !== "failed") {
       toast.loading(STAGE_MESSAGES[status], TOAST_ID, "txConfirmed");
     }
@@ -74,6 +70,8 @@ export function useTransaction() {
       buildFn: () => Promise<string>,
       options?: {
         onSuccess?: (hash: string) => void;
+        onError?: (error: unknown) => void;
+        successMessage?: string;
         successMessage?: string;
         successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
@@ -81,12 +79,12 @@ export function useTransaction() {
     ): Promise<string | null> => {
       try {
         // 1. Build
-        setStage("building");
+        setStage({ status: "building", startedAt: Date.now() });
         const unsignedXdr = await buildFn();
 
         // 2. Simulate (skip for mock XDRs)
         if (!unsignedXdr.startsWith("mock_")) {
-          setStage("simulating");
+          setStage({ status: "simulating", startedAt: Date.now() });
           const tx = StellarSdk.TransactionBuilder.fromXDR(
             unsignedXdr,
             env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE
@@ -98,11 +96,11 @@ export function useTransaction() {
         }
 
         // 3. Sign
-        setStage("signing");
+        setStage({ status: "signing", startedAt: Date.now() });
         const signedXdr = await signTransaction(unsignedXdr);
 
         // 4. Submit
-        setStage("submitting");
+        setStage({ status: "submitting" });
         let hash: string;
 
         if (signedXdr.startsWith("mock_")) {
@@ -117,7 +115,7 @@ export function useTransaction() {
         }
 
         // 5. Poll
-        setStage("polling", { txHash: hash });
+        setStage({ status: "polling", txHash: hash });
         if (!signedXdr.startsWith("mock_")) {
           await pollWithBackoff(hash);
         } else {
@@ -137,6 +135,17 @@ export function useTransaction() {
         return hash;
       } catch (err) {
         const message = err instanceof Error ? err.message : "Transaction failed";
+        const serviceError: ServiceError = {
+          code: "TRANSACTION_FAILED",
+          message,
+          cause: err,
+        };
+        setState({ status: "failed", error: serviceError });
+        toast.error("Transaction failed", {
+          id: TOAST_ID,
+          description: message,
+          action: { label: "Retry", onClick: () => setState({ status: "idle" }) },
+        });
         setState({ status: "failed", error: message });
         toast.error(
           "Transaction failed",
@@ -158,7 +167,7 @@ export function useTransaction() {
     execute,
     reset,
     status: state.status,
-    txHash: state.txHash,
-    error: state.error,
+    txHash: "txHash" in state ? state.txHash : undefined,
+    error: state.status === "failed" ? state.error.message : undefined,
   };
 }

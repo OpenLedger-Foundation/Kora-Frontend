@@ -1,11 +1,36 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { WalletBalance, WalletNetwork, WalletProvider, WalletState } from "@/types";
 import { env } from "@/lib/env";
 import type { WalletState, WalletProvider } from "@/types";
 
-interface WalletStore extends WalletState {
+const EMPTY_BALANCE: WalletBalance = {
+  xlm: "0",
+  usdc: "0",
+  eurc: "0",
+};
+
+function getConfiguredNetwork(): WalletNetwork {
+  const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK;
+  return network === "mainnet" || network === "futurenet" ? network : "testnet";
+}
+
+type WalletStoreState = WalletState & {
+  isConnected: boolean;
+};
+
+type WalletStoreActions = {
   connect: (provider: WalletProvider, address: string, publicKey: string) => void;
   disconnect: () => void;
+  setBalance: (balance: WalletBalance) => void;
+};
+
+type WalletStore = WalletStoreState & WalletStoreActions;
+
+export const useWalletStore = create<WalletStore>()(
+  persist(
+    (set) => ({
+      status: "disconnected",
   setBalance: (balance: WalletState["balance"]) => void;
   setVerified: (isVerified: boolean, verifiedAt?: number) => void;
   clearVerification: () => void;
@@ -24,16 +49,18 @@ export const useWalletStore = create<WalletStore>()(
       publicKey: null,
       isConnected: false,
       provider: null,
+      network: getConfiguredNetwork(),
       network: (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletState["network"]) || "testnet",
       balance: null,
       isVerified: false,
       verifiedAt: null,
 
       connect: (provider, address, publicKey) =>
-        set({ provider, address, publicKey, isConnected: true }),
+        set({ status: "connected", provider, address, publicKey, balance: EMPTY_BALANCE, isConnected: true }),
 
       disconnect: () =>
         set({
+          status: "disconnected",
           address: null,
           publicKey: null,
           isConnected: false,
@@ -43,6 +70,9 @@ export const useWalletStore = create<WalletStore>()(
           verifiedAt: null,
         }),
 
+      setBalance: (balance) => set((state) => (
+        state.status === "connected" ? { balance } : {}
+      )),
       setBalance: (balance) => set({ balance }),
 
       setVerified: (isVerified, verifiedAt) =>

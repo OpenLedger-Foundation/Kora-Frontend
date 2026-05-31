@@ -7,6 +7,10 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 const WalletConnectModal = dynamic(
   () => import("@/components/wallet/WalletConnectModal").then((m) => m.WalletConnectModal),
+  {
+    ssr: false,
+    loading: () => null,
+  }
   { ssr: false, loading: () => null }
 );
 const InstallPrompt = dynamic(

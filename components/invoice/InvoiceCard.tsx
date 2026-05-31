@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { ArrowRight, Calendar, Users, TrendingUp } from "lucide-react";
+import { Badge, RiskBadge } from "@/components/ui/badge";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";

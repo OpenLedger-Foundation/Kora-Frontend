@@ -40,6 +40,7 @@ import {
   daysUntil,
   cn,
 } from "@/lib/utils";
+import type { Invoice } from "@/types";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
@@ -135,9 +136,9 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           const newProgress = Math.min(1, newTotalRaised / terms.financingAmount);
           const newStatus = isFull ? "fully_funded" : "partially_funded";
 
-          const updatedInvoice = {
+          const updatedInvoice: Invoice = {
             ...invoice,
-            status: newStatus as any,
+            status: newStatus,
             funding: {
               ...fundingState,
               totalRaised: newTotalRaised,
