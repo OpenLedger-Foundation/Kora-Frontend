@@ -126,17 +126,19 @@ export default function PortfolioAnalyticsPage() {
     <ErrorBoundary>
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-zinc-100">Portfolio Analytics</h1>
+          <h1 className="text-2xl font-bold text-zinc-100" id="analytics-heading">Portfolio Analytics</h1>
           <p className="mt-1 text-sm text-zinc-500">Performance overview of your invoice financing portfolio</p>
         </div>
 
       <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-zinc-400">Range:</span>
+        <div className="flex items-center gap-2" role="group" aria-label="Date range selector">
+          <span className="text-sm text-zinc-400" aria-hidden="true">Range:</span>
           {(["7d", "30d", "90d", "all"] as const).map((r) => (
             <button
               key={r}
               onClick={() => setRange(r)}
+              aria-pressed={range === r}
+              aria-label={`Show ${r === "all" ? "all time" : r} data`}
               className={`rounded-md px-2 py-1 text-sm ${range === r ? "bg-zinc-700 text-white" : "text-zinc-400"}`}
             >
               {r}
@@ -147,12 +149,14 @@ export default function PortfolioAnalyticsPage() {
           <button
             className="rounded-md bg-zinc-800 px-3 py-1 text-sm text-zinc-200"
             onClick={() => exportCsv(portfolio as any, "portfolio.csv")}
+            aria-label="Export portfolio data as CSV"
           >
             Export Portfolio CSV
           </button>
           <button
             className="rounded-md bg-zinc-800 px-3 py-1 text-sm text-zinc-200"
             onClick={() => exportCsv(yieldData as any, "yield.csv")}
+            aria-label="Export yield data as CSV"
           >
             Export Yield CSV
           </button>

@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
+import { useDebounce } from "@/hooks/useDebounce";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -104,10 +105,10 @@ function CheckboxGroup({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
         {label}
-      </span>
+      </legend>
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => {
           const isChecked = selected.includes(opt.value);
@@ -127,6 +128,7 @@ function CheckboxGroup({
                 className="sr-only"
               />
               <div
+                aria-hidden="true"
                 className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
                   isChecked
                     ? "border-primary bg-primary text-primary-foreground"
@@ -140,7 +142,7 @@ function CheckboxGroup({
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -188,17 +190,21 @@ function DualSlider({
   return (
     <div className="relative flex w-full flex-col gap-2">
       <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
-        <span>APR Range</span>
-        <span className="text-primary font-mono lowercase">
+        <span id="apr-range-label">APR Range</span>
+        <span className="text-primary font-mono lowercase" aria-live="polite" aria-atomic="true">
           {minVal}% - {maxVal}%
         </span>
       </div>
-      <div className="relative h-6 flex items-center">
+      <div className="relative h-6 flex items-center" role="group" aria-labelledby="apr-range-label">
         <input
           type="range"
           min={min}
           max={max}
           value={minVal}
+          aria-label={`Minimum APR: ${minVal}%`}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={minVal}
           onChange={(event) => {
             const val = Math.min(Number(event.target.value), maxVal - 1);
             onChange([val, maxVal]);
@@ -212,6 +218,10 @@ function DualSlider({
           min={min}
           max={max}
           value={maxVal}
+          aria-label={`Maximum APR: ${maxVal}%`}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={maxVal}
           onChange={(event) => {
             const val = Math.max(Number(event.target.value), minVal + 1);
             onChange([minVal, val]);
@@ -244,22 +254,29 @@ function Switch({
   label: string;
   description?: string;
 }) {
+  const id = `switch-${label.toLowerCase().replace(/\s+/g, "-")}`;
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/20 p-3 transition-colors hover:border-zinc-700">
+    <div className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/20 p-3 transition-colors hover:border-zinc-700">
       <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-semibold text-zinc-200">{label}</span>
-        {description && <span className="text-xs text-zinc-500">{description}</span>}
+        <label htmlFor={id} className="text-sm font-semibold text-zinc-200 cursor-pointer">{label}</label>
+        {description && <span className="text-xs text-zinc-500" id={`${id}-desc`}>{description}</span>}
       </div>
       <input
+        id={id}
         type="checkbox"
+        role="switch"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
+        aria-checked={checked}
+        aria-describedby={description ? `${id}-desc` : undefined}
         className="sr-only"
       />
       <div
+        aria-hidden="true"
         className={`relative h-6 w-11 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${
           checked ? "bg-primary" : "bg-zinc-800"
         }`}
+        onClick={() => onChange(!checked)}
       >
         <div
           className={`h-5 w-5 rounded-full bg-zinc-100 shadow transition-transform duration-200 ease-in-out ${
@@ -267,7 +284,7 @@ function Switch({
           }`}
         />
       </div>
-    </label>
+    </div>
   );
 }
 
@@ -319,7 +336,6 @@ function MarketplaceContent() {
     }
   );
 
-  const invoices = infinite.data ? infinite.data.pages.flatMap((p) => p.data) : data?.data ?? [];
   const isFetchingNextPage = infinite.isFetchingNextPage;
   const hasNextPage = infinite.hasNextPage;
   const [showFilters, setShowFilters] = useState(false);
@@ -429,17 +445,20 @@ function MarketplaceContent() {
     router.replace(targetUrl, { scroll: false });
   }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, page, pageSize]);
 
-  const invoices = data?.data ?? [];
+  // Use infinite query data when available, fall back to paginated data
+  const allInvoices = infinite.data
+    ? infinite.data.pages.flatMap((p) => p.data)
+    : data?.data ?? [];
 
   // Client-side Search filter
   const filteredInvoices = debouncedSearchQuery
-    ? invoices.filter(
+    ? allInvoices.filter(
         (inv) =>
           inv.metadata.debtorName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
           inv.metadata.invoiceNumber.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
           inv.metadata.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       )
-    : invoices;
+    : allInvoices;
 
   // Slice the filtered list for display
   const paginatedInvoices = useMemo<Invoice[]>(() => {
@@ -567,6 +586,7 @@ function MarketplaceContent() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => { navigator.clipboard?.writeText(window.location.href); }}
+              aria-label="Copy marketplace filter link to clipboard"
               className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
             >
               Share Filters
@@ -658,8 +678,10 @@ function MarketplaceContent() {
 
             {/* Sort options select */}
             <div className="relative flex items-center">
-              <ArrowUpDown className="absolute left-3 h-4 w-4 text-zinc-400 pointer-events-none" />
+              <ArrowUpDown className="absolute left-3 h-4 w-4 text-zinc-400 pointer-events-none" aria-hidden="true" />
+              <label htmlFor="marketplace-sort" className="sr-only">Sort invoices</label>
               <select
+                id="marketplace-sort"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="h-10 w-48 rounded-lg border border-zinc-850 bg-zinc-950/40 pl-9 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 appearance-none cursor-pointer transition-all hover:bg-zinc-900/30"
@@ -728,6 +750,7 @@ function MarketplaceContent() {
                   )}
                   <button
                     onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                    aria-label="Scroll back to top"
                     className="fixed right-4 bottom-12 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
                   >
                     ↑ Top
@@ -754,9 +777,10 @@ function MarketplaceContent() {
               </h2>
               <button
                 onClick={() => setIsMobileDrawerOpen(false)}
+                aria-label="Close filters"
                 className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 transition-colors"
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
             <div className="flex h-[calc(90vh-5rem)] flex-col overflow-hidden">

@@ -268,22 +268,29 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
       <div className="rounded-xl border bg-muted/20">
         <button 
           onClick={() => setShowRaw(!showRaw)}
+          aria-expanded={showRaw}
+          aria-controls="raw-metadata-json"
           className="flex w-full items-center justify-between p-4 text-sm font-medium transition-colors hover:bg-muted/30"
         >
           <span className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
             View Raw Metadata JSON
           </span>
-          {showRaw ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {showRaw
+            ? <ChevronUp className="h-4 w-4" aria-hidden="true" />
+            : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
         </button>
         {showRaw && (
-          <div className="border-t p-4">
+          <div id="raw-metadata-json" className="border-t p-4">
             <div className="relative">
               <CopyButton 
                 text={JSON.stringify(invoice, null, 2)} 
                 className="absolute right-2 top-2 z-10 bg-background/80 backdrop-blur-sm" 
               />
-              <pre className="max-h-[400px] overflow-auto rounded-lg bg-zinc-950 p-4 text-[11px] leading-relaxed text-zinc-400 scrollbar-thin scrollbar-thumb-zinc-800">
+              <pre
+                className="max-h-[400px] overflow-auto rounded-lg bg-zinc-950 p-4 text-[11px] leading-relaxed text-zinc-400 scrollbar-thin scrollbar-thumb-zinc-800"
+                aria-label="Raw invoice metadata JSON"
+              >
                 {JSON.stringify(invoice, null, 2)}
               </pre>
             </div>

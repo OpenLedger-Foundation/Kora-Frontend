@@ -5,9 +5,22 @@ import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/Navbar";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { env } from "@/lib/env";
+import { websiteSchema, organizationSchema, serializeSchema } from "@/lib/structuredData";
 
-const geistSans = Inter({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = JetBrains_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// Optimised font loading: display=swap prevents render-blocking, subset limits
+// download size. Both fonts are preloaded by next/font automatically.
+const geistSans = Inter({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+  display: "swap",
+  preload: true,
+});
+const geistMono = JetBrains_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false, // mono font is not LCP-critical; defer to reduce initial load
+});
 
 // ─── Site-wide metadata ───────────────────────────────────────────────────────
 // Per-page metadata is exported from each page's layout or page file.
@@ -116,6 +129,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Apple PWA meta — Next.js metadata API doesn't cover all apple-* tags */}
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* DNS prefetch for external origins used at runtime */}
+        <link rel="dns-prefetch" href="https://soroban-testnet.stellar.org" />
+        <link rel="dns-prefetch" href="https://horizon-testnet.stellar.org" />
+        <link rel="dns-prefetch" href="https://gateway.pinata.cloud" />
+        {/* Preconnect to IPFS gateway — used for invoice images on marketplace */}
+        <link rel="preconnect" href="https://gateway.pinata.cloud" crossOrigin="anonymous" />
+        {/* Structured data: WebSite + Organization for SEO ≥ 95 */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeSchema(websiteSchema()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeSchema(organizationSchema()) }}
+        />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} bg-background antialiased`}>
         <a
@@ -126,7 +154,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>
           <Navbar />
-<main id="content" className="min-h-screen">
+          <main id="content" className="min-h-screen">
             <PageTransition>{children}</PageTransition>
           </main>
         </Providers>
