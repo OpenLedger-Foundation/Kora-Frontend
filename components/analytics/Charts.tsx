@@ -16,16 +16,18 @@ import {
   Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import ChartTooltip from "@/components/analytics/ChartTooltip";
 
-const TOOLTIP_STYLE = {
-  contentStyle: {
-    backgroundColor: "#18181b",
-    border: "1px solid #27272a",
-    borderRadius: "8px",
-    color: "#e4e4e7",
-    fontSize: "12px",
-  },
-};
+  const TOOLTIP_STYLE = {
+    contentStyle: {
+      backgroundColor: "#18181b",
+      border: "1px solid #27272a",
+      borderRadius: "8px",
+      color: "#e4e4e7",
+      fontSize: "12px",
+    },
+  };
+  import ChartTooltip from "@/components/analytics/ChartTooltip";
 
 export default function Charts({
   portfolio,
@@ -54,7 +56,7 @@ export default function Charts({
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="month" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toLocaleString()}`, "Portfolio"]} />
+                  <Tooltip {...TOOLTIP_STYLE} content={<ChartTooltip unit="USDC" />} formatter={(v: number) => [`$${v.toLocaleString()}`, "Portfolio"]} />
                   <Area type="monotone" dataKey="value" stroke="#14b8a6" strokeWidth={2} fill="url(#portfolioGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
@@ -73,7 +75,7 @@ export default function Charts({
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="month" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `$${v}`} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`$${v.toLocaleString()}`, "Yield"]} />
+                  <Tooltip {...TOOLTIP_STYLE} content={<ChartTooltip unit="USDC" />} formatter={(v: number) => [`$${v.toLocaleString()}`, "Yield"]} />
                   <Bar dataKey="yield" fill="#14b8a6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -96,7 +98,7 @@ export default function Charts({
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v}%`, "Allocation"]} />
+                  <Tooltip {...TOOLTIP_STYLE} content={<ChartTooltip unit="" />} formatter={(v: number) => [`${v}%`, "Allocation"]} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="mt-2 grid grid-cols-2 gap-2">
@@ -129,7 +131,7 @@ export default function Charts({
                   <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                   <XAxis dataKey="month" tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: "#71717a", fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}%`} />
-                  <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v}%`, "Return"]} />
+                  <Tooltip {...TOOLTIP_STYLE} content={<ChartTooltip unit="" />} formatter={(v: number) => [`${v}%`, "Return"]} />
                   <Area type="monotone" dataKey="return" stroke="#818cf8" strokeWidth={2} fill="url(#returnGrad)" />
                 </AreaChart>
               </ResponsiveContainer>

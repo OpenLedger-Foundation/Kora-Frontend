@@ -300,11 +300,13 @@ export default function TransactionHistoryPage() {
             {
               label: "Total Transactions",
               value: stats.total.toString(),
+              valueRaw: stats.total,
               icon: <History className="h-4 w-4" />,
             },
             {
               label: "Confirmed",
               value: stats.confirmed.toString(),
+              valueRaw: stats.confirmed,
               change: `${stats.failed} failed`,
               changePositive: stats.failed === 0,
               icon: <CheckCircle2 className="h-4 w-4" />,
@@ -312,11 +314,13 @@ export default function TransactionHistoryPage() {
             {
               label: "Total Volume",
               value: formatCurrency(stats.totalVolume, "USDC", true),
+              valueRaw: stats.totalVolume,
               icon: <ArrowUpRight className="h-4 w-4" />,
             },
             {
               label: "Invoices Funded",
               value: stats.funds.toString(),
+              valueRaw: stats.funds,
               change: `${stats.mints} minted`,
               changePositive: true,
               icon: <Coins className="h-4 w-4" />,

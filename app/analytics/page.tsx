@@ -58,6 +58,7 @@ const STATS = [
   {
     label: "Total Deployed",
     value: formatCurrency(170000, "USDC", true),
+    valueRaw: 170000,
     change: "↑ $55K this month",
     changePositive: true,
     icon: <DollarSign className="h-4 w-4" />,
@@ -65,6 +66,7 @@ const STATS = [
   {
     label: "Total Yield Earned",
     value: formatCurrency(4200, "USDC", true),
+    valueRaw: 4200,
     change: "2.47% avg monthly",
     changePositive: true,
     icon: <TrendingUp className="h-4 w-4" />,
@@ -79,6 +81,7 @@ const STATS = [
   {
     label: "Default Rate",
     value: "0.0%",
+    valueRaw: 0,
     change: "All-time",
     changePositive: true,
     icon: <Shield className="h-4 w-4" />,
