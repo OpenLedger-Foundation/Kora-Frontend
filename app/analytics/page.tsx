@@ -57,6 +57,9 @@ const MONTHLY_RETURNS = [
   { month: "Nov", return: 2.47 },
 ];
 
+const toCsvRows = <T extends object>(rows: T[]): Record<string, unknown>[] =>
+  rows.map((row) => Object.fromEntries(Object.entries(row)));
+
 const STATS = [
   {
     label: "Total Deployed",
@@ -145,13 +148,13 @@ export default function PortfolioAnalyticsPage() {
         <div className="flex items-center gap-2">
           <button
             className="rounded-md bg-zinc-800 px-3 py-1 text-sm text-zinc-200"
-            onClick={() => exportCsv(portfolio as any, "portfolio.csv")}
+            onClick={() => exportCsv(toCsvRows(portfolio), "portfolio.csv")}
           >
             Export Portfolio CSV
           </button>
           <button
             className="rounded-md bg-zinc-800 px-3 py-1 text-sm text-zinc-200"
-            onClick={() => exportCsv(yieldData as any, "yield.csv")}
+            onClick={() => exportCsv(toCsvRows(yieldData), "yield.csv")}
           >
             Export Yield CSV
           </button>

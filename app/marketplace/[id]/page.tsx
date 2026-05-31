@@ -39,6 +39,7 @@ import {
   STATUS_COLORS,
   cn,
 } from "@/lib/utils";
+import type { Invoice } from "@/types";
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -113,9 +114,9 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           const newProgress = Math.min(1, newTotalRaised / terms.financingAmount);
           const newStatus = isFull ? "fully_funded" : "partially_funded";
 
-          const updatedInvoice = {
+          const updatedInvoice: Invoice = {
             ...invoice,
-            status: newStatus as any,
+            status: newStatus,
             funding: {
               ...fundingState,
               totalRaised: newTotalRaised,

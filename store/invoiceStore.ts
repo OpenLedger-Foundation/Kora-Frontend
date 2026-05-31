@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Invoice } from "@/types";
+import type { Invoice, InvoiceFunding, InvoiceStatus } from "@/types";
 import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -149,6 +149,8 @@ function saveSearchHistory(history: string[]) {
   localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
 }
 
+type FundingBackup = InvoiceFunding & { status: InvoiceStatus };
+
 interface InvoiceStore {
   invoices: Invoice[];
   filters: FilterState;
@@ -172,7 +174,7 @@ interface InvoiceStore {
   updateInvoiceFunding: (id: string, newAmount: number) => void;
   rollbackInvoiceFunding: (id: string) => void;
   // internal backup map (not persisted)
-  _fundingBackup?: Record<string, any>;
+  _fundingBackup?: Record<string, FundingBackup>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
 
@@ -245,18 +247,18 @@ export const useInvoiceStore = create<InvoiceStore>()(
                 remainingCapacity: inv.funding.targetAmount - totalRaised,
                 investorCount: inv.funding.investorCount + 1,
               },
-            };
+            } as Invoice;
           });
           return {
             invoices: nextInvoices,
             _fundingBackup: backup ? { ...(s._fundingBackup || {}), [id]: backup } : s._fundingBackup,
-          } as any;
+          };
         }),
 
       rollbackInvoiceFunding: (id) =>
         set((s) => {
           const backup = s._fundingBackup?.[id];
-          if (!backup) return {} as any;
+          if (!backup) return {};
           const invoices = s.invoices.map((inv) => {
             if (inv.id !== id) return inv;
             return {
@@ -273,7 +275,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           });
           const nextBackup = { ...(s._fundingBackup || {}) };
           delete nextBackup[id];
-          return { invoices, _fundingBackup: nextBackup } as any;
+          return { invoices, _fundingBackup: nextBackup };
         }),
 
       setCreateDraft: (draft) =>

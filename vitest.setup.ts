@@ -3,6 +3,7 @@
  * Configures jsdom environment, mocks, and global test utilities
  */
 
+import * as React from "react";
 import { expect, afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
@@ -28,22 +29,22 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 // Mock IntersectionObserver
-global.IntersectionObserver = class IntersectionObserver {
+const IntersectionObserverMock = class IntersectionObserver {
   constructor() {}
   disconnect() {}
   observe() {}
   takeRecords() {
-    return [];
+    return [] as IntersectionObserverEntry[];
   }
   unobserve() {}
-} as any;
+} as unknown as typeof globalThis.IntersectionObserver;
+
+globalThis.IntersectionObserver = IntersectionObserverMock;
 
 // Mock next/image
 vi.mock("next/image", () => ({
-  default: (props: any) => {
-    // eslint-disable-next-line jsx-a11y/alt-text
-    return <img {...props} />;
-  },
+  default: (props: React.ComponentPropsWithoutRef<"img">) =>
+    React.createElement("img", props),
 }));
 
 // Mock sonner toast by default

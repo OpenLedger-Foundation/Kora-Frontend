@@ -152,6 +152,7 @@ export async function prepareCreateInvoice(
 
     // Backward compatibility flat properties
     invoiceNumber: formData.invoiceNumber,
+    issuerName: "Kora Protocol",
     issuerAddress: ownerAddress,
     debtorName: formData.debtorName,
     debtorAddress: formData.debtorAddress,
@@ -263,7 +264,7 @@ export async function prepareClaimPosition(
   if (USE_MOCK) {
     return `mock_unsigned_xdr_claim_position_${positionId}_${investorAddress}`;
   }
-  return (marketplaceContract as any).claimPosition(
+  return marketplaceContract.claimPosition(
     { positionId: BigInt(positionId) },
     investorAddress
   );

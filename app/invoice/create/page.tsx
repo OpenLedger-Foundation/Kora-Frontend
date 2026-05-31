@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useDropzone } from "react-dropzone";
+import { type FileRejection, useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -152,7 +152,7 @@ export default function CreateInvoicePage() {
     return (d / (1 - d)) * (365 / daysToMaturity) * 100;
   }, [discountRateVal, daysToMaturity]);
 
-  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
     setFileError(null);
     if (acceptedFiles[0]) {
       setFile(acceptedFiles[0]);
@@ -654,8 +654,8 @@ export default function CreateInvoicePage() {
                   ) : (
                     <FileInput
                       value={file}
-                      onChange={(e: any) => {
-                        setFile(e.target.value);
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        setFile(e.target.files?.[0] ?? null);
                         setFileError(null);
                       }}
                       error={fileError || undefined}

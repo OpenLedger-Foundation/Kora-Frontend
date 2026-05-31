@@ -528,11 +528,10 @@ function MarketplaceContent() {
 
   // Client-side Search filter
   const filteredInvoices = debouncedSearchQuery
-    ? invoices.filter(
-        (inv) =>
-          inv.metadata.debtorName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.invoiceNumber.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
+    ? invoices.filter((inv: Invoice) =>
+        inv.metadata.debtorName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        inv.metadata.invoiceNumber.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+        inv.metadata.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
       )
     : invoices;
 

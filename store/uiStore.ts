@@ -9,7 +9,7 @@ interface UIStore {
   setWalletModalOpen: (open: boolean) => void;
 
   txState: TxState;
-  setTxState: (state: Partial<TxState>) => void;
+  setTxState: (state: TxState) => void;
   resetTxState: () => void;
 
   sidebarOpen: boolean;
@@ -27,8 +27,7 @@ export const useUIStore = create<UIStore>()(
       setWalletModalOpen: (walletModalOpen) => set({ walletModalOpen }),
 
       txState: { status: "idle" },
-      setTxState: (state) =>
-        set((s) => ({ txState: { ...s.txState, ...state } })),
+      setTxState: (txState) => set({ txState }),
       resetTxState: () => set({ txState: { status: "idle" } }),
 
       sidebarOpen: false,

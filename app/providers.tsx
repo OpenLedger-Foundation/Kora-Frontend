@@ -5,10 +5,13 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
 import { useState } from "react";
 import dynamic from "next/dynamic";
-const WalletConnectModal = dynamic(() => import("@/components/wallet/WalletConnectModal"), {
-  ssr: false,
-  loading: () => null,
-});
+const WalletConnectModal = dynamic(
+  () => import("@/components/wallet/WalletConnectModal").then((m) => m.WalletConnectModal),
+  {
+    ssr: false,
+    loading: () => null,
+  }
+);
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
 
