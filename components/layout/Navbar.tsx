@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   History,
+  Search,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -37,6 +38,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
+  const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const navRef = useRef<HTMLElement>(null);
   const [addressBookOpen, setAddressBookOpen] = useState(false);
 
@@ -116,6 +118,28 @@ export function Navbar() {
         {/* Right side controls */}
         <div className="flex items-center gap-3">
           <NetworkStatusIndicator />
+
+          {/* Command palette trigger */}
+          <button
+            type="button"
+            onClick={() => setCommandPaletteOpen(true)}
+            className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Open command palette (Ctrl+K)"
+          >
+            <Search className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden md:inline">Search…</span>
+            <kbd className="hidden md:flex items-center gap-0.5 rounded border border-border bg-background px-1 py-0.5 text-[10px] font-medium">
+              ⌘K
+            </kbd>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCommandPaletteOpen(true)}
+            className="flex sm:hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Open command palette"
+          >
+            <Search className="h-5 w-5" aria-hidden="true" />
+          </button>
           <button
             type="button"
             onClick={toggleTheme}
