@@ -13,6 +13,7 @@ import {
   Sun,
   Moon,
   History,
+  Keyboard,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -20,14 +21,15 @@ const AddressBook = dynamic(() => import("@/components/wallet/AddressBook").then
 import { WalletButton } from "@/components/wallet/WalletButton";
 import { NetworkStatusIndicator } from "@/components/layout/NetworkStatusIndicator";
 import { useUIStore } from "@/store/uiStore";
+import { ShortcutBadge } from "@/components/ui/ShortcutBadge";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/marketplace", label: "Marketplace", icon: Store },
-  { href: "/dashboard/investor", label: "Invest", icon: BarChart3 },
-  { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard },
-  { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle },
-  { href: "/transactions", label: "History", icon: History },
+  { href: "/marketplace", label: "Marketplace", icon: Store, shortcut: "G M" },
+  { href: "/dashboard/investor", label: "Invest", icon: BarChart3, shortcut: "G D" },
+  { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard, shortcut: null },
+  { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle, shortcut: "G C" },
+  { href: "/transactions", label: "History", icon: History, shortcut: "G T" },
 ];
 
 const MENU_ID = "mobile-nav-menu";
@@ -37,6 +39,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
+  const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
   const navRef = useRef<HTMLElement>(null);
   const [addressBookOpen, setAddressBookOpen] = useState(false);
 
@@ -86,7 +89,7 @@ export function Navbar() {
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
-          {NAV_LINKS.map(({ href, label }) => {
+          {NAV_LINKS.map(({ href, label, shortcut }) => {
             const active = pathname.startsWith(href);
             return (
               <Link
@@ -94,7 +97,7 @@ export function Navbar() {
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "relative rounded-lg px-3 py-2 text-sm transition-colors",
+                  "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors",
                   active
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground/80"
@@ -108,6 +111,9 @@ export function Navbar() {
                   />
                 )}
                 <span className="relative">{label}</span>
+                {shortcut && shortcutsEnabled && (
+                  <ShortcutBadge keys={shortcut} className="relative" />
+                )}
               </Link>
             );
           })}
@@ -130,6 +136,19 @@ export function Navbar() {
               <Moon className="h-5 w-5" />
             )}
           </button>
+
+          {/* Keyboard shortcut hint — desktop only */}
+          {shortcutsEnabled && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("kora:open-shortcut-modal"))}
+              className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex"
+              aria-label="Open keyboard shortcuts reference"
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="h-4 w-4" />
+            </button>
+          )}
 
           <button onClick={() => setAddressBookOpen(true)} className="rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Address Book</button>
           <WalletButton />

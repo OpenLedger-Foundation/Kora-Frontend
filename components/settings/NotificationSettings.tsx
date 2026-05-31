@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw } from "lucide-react";
+import { Keyboard, RotateCcw } from "lucide-react";
 import { useUIStore } from "@/store/uiStore";
 import { Button } from "@/components/ui/button";
 import type { MaturityReminderDays, NotificationPreferences } from "@/store/uiStore";
@@ -67,6 +67,8 @@ export function NotificationSettings() {
   const preferences = useUIStore((s) => s.notificationPreferences);
   const setNotificationPreferences = useUIStore((s) => s.setNotificationPreferences);
   const resetNotificationPreferences = useUIStore((s) => s.resetNotificationPreferences);
+  const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
+  const setShortcutsEnabled = useUIStore((s) => s.setShortcutsEnabled);
 
   const updatePreference = (
     key: keyof Pick<NotificationPreferences, "txConfirmed" | "invoiceFunded" | "maturityReminder" | "yieldAvailable">,
@@ -129,6 +131,30 @@ export function NotificationSettings() {
       >
         Reset to defaults
       </Button>
+
+      {/* ── Keyboard shortcuts toggle ──────────────────────────────────────── */}
+      <div className="space-y-1 pt-2">
+        <h3 className="text-base font-semibold text-foreground">Keyboard Shortcuts</h3>
+        <p className="text-sm text-muted-foreground">
+          Enable global keyboard shortcuts for faster navigation.
+        </p>
+      </div>
+      <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-3">
+        <div className="flex items-center gap-2">
+          <Keyboard className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Enable shortcuts</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Press <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">?</kbd> to view all shortcuts.
+            </p>
+          </div>
+        </div>
+        <Toggle
+          checked={shortcutsEnabled}
+          onChange={setShortcutsEnabled}
+          ariaLabel="Toggle keyboard shortcuts"
+        />
+      </div>
     </div>
   );
 }
