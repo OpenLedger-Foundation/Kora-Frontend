@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Store, TrendingUp, DollarSign, BarChart3, Clock, Coins, Loader2 } from "lucide-react";
@@ -21,6 +21,7 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { MOCK_INVOICES } from "@/services/mockData";
+import { ExportDropdown } from "@/components/dashboard/ExportDropdown";
 import { RiskBadge } from "@/components/ui/badge";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
 import {
@@ -30,6 +31,7 @@ import {
   RISK_TIER_COLORS,
   cn,
 } from "@/lib/utils";
+import { todaySlug, type CsvColumn } from "@/lib/export";
 import type { ColumnDef } from "@/types/table";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { env } from "@/lib/env";
@@ -182,6 +184,7 @@ export default function InvestorDashboardPage() {
   const [isFunding, setIsFunding] = useState(false);
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const { execute } = useTransaction();
+  const pdfRef = useRef<HTMLDivElement>(null);
 
   const rawPositions = positionsQuery.data;
   const positionsData: InvestorPosition[] = rawPositions
@@ -193,6 +196,24 @@ export default function InvestorDashboardPage() {
         status: p.status as "active" | "repaid",
       }))
     : POSITIONS;
+
+  // CSV column definitions for investor positions export
+  const INVESTOR_CSV_COLUMNS: CsvColumn<InvestorPosition>[] = [
+    { header: "Invoice Number",   accessor: (r) => r.invoice.metadata.invoiceNumber },
+    { header: "Debtor",           accessor: (r) => r.invoice.metadata.debtorName },
+    { header: "Category",         accessor: (r) => r.invoice.metadata.category },
+    { header: "Jurisdiction",     accessor: (r) => r.invoice.metadata.jurisdiction },
+    { header: "Risk Tier",        accessor: (r) => r.invoice.riskTier },
+    { header: "APR %",            accessor: (r) => r.invoice.terms.apr.toFixed(2) },
+    { header: "Invested Amount",  accessor: (r) => r.investedAmount },
+    { header: "Expected Return",  accessor: (r) => r.expectedReturn.toFixed(2) },
+    { header: "Yield",            accessor: (r) => (r.expectedReturn - r.investedAmount).toFixed(2) },
+    { header: "Yield %",          accessor: (r) => (((r.expectedReturn - r.investedAmount) / r.investedAmount) * 100).toFixed(2) },
+    { header: "Status",           accessor: (r) => r.status },
+    { header: "Due Date",         accessor: (r) => formatDate(r.invoice.terms.repaymentDate) },
+    { header: "Discount Rate %",  accessor: (r) => (r.invoice.terms.discountRate * 100).toFixed(2) },
+    { header: "Tenor (days)",     accessor: (r) => r.invoice.terms.tenor },
+  ];
 
   useMaturityReminder(
     positionsData
@@ -320,17 +341,25 @@ export default function InvestorDashboardPage() {
 
   return (
     <ErrorBoundary>
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div ref={pdfRef} className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Investor Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">Track your invoice financing portfolio</p>
         </div>
-        <Link href="/marketplace">
-          <Button variant="outline">
-            <Store className="h-4 w-4" /> Browse Marketplace
-          </Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <ExportDropdown
+            csvData={positionsData}
+            csvColumns={INVESTOR_CSV_COLUMNS}
+            baseFilename={`kora-investor-report-${todaySlug()}`}
+            pdfRef={pdfRef}
+          />
+          <Link href="/marketplace">
+            <Button variant="outline">
+              <Store className="h-4 w-4" /> Browse Marketplace
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

@@ -31,10 +31,14 @@ interface StatusConfig {
   action: string;
 }
 
+// WCAG 2.1 AA: badge text must meet 4.5:1 on its background.
+// Light mode uses -700 shades on /10 tinted bg (~4.5:1+).
+// Dark mode uses -400 shades on /10 dark bg (~4.5:1+).
+// Tailwind's dark: variant handles the switch automatically.
 const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   draft: {
     label: "Pending",
-    colorClass: "text-zinc-500",
+    colorClass: "text-zinc-700 dark:text-zinc-400",
     bgClass: "bg-zinc-500/10 border-zinc-500/20",
     dotClass: "bg-zinc-500",
     icon: Clock,
@@ -43,7 +47,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   pending_mint: {
     label: "Pending",
-    colorClass: "text-zinc-500",
+    colorClass: "text-zinc-700 dark:text-zinc-400",
     bgClass: "bg-zinc-500/10 border-zinc-500/20",
     dotClass: "bg-zinc-500",
     icon: Loader2,
@@ -52,7 +56,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   listed: {
     label: "Active",
-    colorClass: "text-teal-500",
+    colorClass: "text-teal-700 dark:text-teal-400",
     bgClass: "bg-teal-500/10 border-teal-500/20",
     dotClass: "bg-teal-500",
     icon: Activity,
@@ -61,7 +65,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   partially_funded: {
     label: "Active",
-    colorClass: "text-teal-500",
+    colorClass: "text-teal-700 dark:text-teal-400",
     bgClass: "bg-teal-500/10 border-teal-500/20",
     dotClass: "bg-teal-500",
     icon: Activity,
@@ -70,7 +74,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   active: {
     label: "Active",
-    colorClass: "text-teal-500",
+    colorClass: "text-teal-700 dark:text-teal-400",
     bgClass: "bg-teal-500/10 border-teal-500/20",
     dotClass: "bg-teal-500",
     icon: Activity,
@@ -79,7 +83,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   fully_funded: {
     label: "Funded",
-    colorClass: "text-blue-500",
+    colorClass: "text-blue-700 dark:text-blue-400",
     bgClass: "bg-blue-500/10 border-blue-500/20",
     dotClass: "bg-blue-500",
     icon: Banknote,
@@ -88,7 +92,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   repaid: {
     label: "Repaid",
-    colorClass: "text-green-500",
+    colorClass: "text-green-700 dark:text-green-400",
     bgClass: "bg-green-500/10 border-green-500/20",
     dotClass: "bg-green-500",
     icon: CheckCircle2,
@@ -97,7 +101,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   defaulted: {
     label: "Defaulted",
-    colorClass: "text-red-500",
+    colorClass: "text-red-700 dark:text-red-400",
     bgClass: "bg-red-500/10 border-red-500/20",
     dotClass: "bg-red-500",
     icon: AlertOctagon,
@@ -106,7 +110,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   cancelled: {
     label: "Cancelled",
-    colorClass: "text-zinc-500",
+    colorClass: "text-zinc-700 dark:text-zinc-400",
     bgClass: "bg-zinc-500/10 border-zinc-500/20",
     dotClass: "bg-zinc-500",
     icon: XCircle,
@@ -115,7 +119,7 @@ const STATUS_MAP: Record<InvoiceStatus | "expired", StatusConfig> = {
   },
   expired: {
     label: "Expired",
-    colorClass: "text-amber-500",
+    colorClass: "text-amber-700 dark:text-amber-400",
     bgClass: "bg-amber-500/10 border-amber-500/20",
     dotClass: "bg-amber-500",
     icon: AlertTriangle,

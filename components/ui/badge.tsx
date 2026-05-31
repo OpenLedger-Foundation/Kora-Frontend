@@ -52,60 +52,61 @@ interface TierConfig {
 
 const TIER_CONFIG: Record<AnyRiskTier, TierConfig> = {
   // Simple 4-tier (issue spec)
+  // Light: -700 text on /10 bg (~4.5:1+). Dark: -400 text on /10 dark bg (~4.5:1+).
   A: {
     label: "A",
     description: "Low risk — strong repayment history and creditworthiness.",
     scoreRange: "75–100",
-    className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   },
   B: {
     label: "B",
     description: "Moderate risk — generally reliable with minor concerns.",
     scoreRange: "50–74",
-    className: "border-teal-500/30 bg-teal-500/10 text-teal-400",
+    className: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-400",
   },
   C: {
     label: "C",
     description: "Elevated risk — some repayment uncertainty.",
     scoreRange: "25–49",
-    className: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+    className: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
   },
   D: {
     label: "D",
     description: "High risk — significant default probability. Proceed with caution.",
     scoreRange: "0–24",
-    className: "border-red-500/30 bg-red-500/10 text-red-400",
+    className: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400",
   },
   // Extended tiers (existing codebase)
   AAA: {
     label: "AAA",
     description: "Exceptional quality — highest creditworthiness.",
     scoreRange: "95–100",
-    className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-400",
+    className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-700 dark:text-emerald-400",
   },
   AA: {
     label: "AA",
     description: "Very high quality — very low credit risk.",
     scoreRange: "85–94",
-    className: "border-teal-400/30 bg-teal-400/10 text-teal-400",
+    className: "border-teal-400/30 bg-teal-400/10 text-teal-700 dark:text-teal-400",
   },
   BBB: {
     label: "BBB",
     description: "Medium grade — adequate capacity to meet obligations.",
     scoreRange: "55–69",
-    className: "border-yellow-400/30 bg-yellow-400/10 text-yellow-400",
+    className: "border-yellow-400/30 bg-yellow-400/10 text-yellow-700 dark:text-yellow-400",
   },
   BB: {
     label: "BB",
     description: "Speculative — faces ongoing uncertainties.",
     scoreRange: "40–54",
-    className: "border-orange-400/30 bg-orange-400/10 text-orange-400",
+    className: "border-orange-400/30 bg-orange-400/10 text-orange-700 dark:text-orange-400",
   },
   CCC: {
     label: "CCC",
     description: "Very high risk — currently vulnerable to non-payment.",
     scoreRange: "0–24",
-    className: "border-red-600/30 bg-red-600/10 text-red-500",
+    className: "border-red-600/30 bg-red-600/10 text-red-700 dark:text-red-500",
   },
 };
 
