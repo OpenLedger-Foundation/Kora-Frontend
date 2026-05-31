@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { env } from "@/lib/env";
 
@@ -126,9 +127,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>
           <Navbar />
-<main id="content" className="min-h-screen">
+          <main id="content" className="min-h-screen">
             <PageTransition>{children}</PageTransition>
           </main>
+          <Footer />
         </Providers>
       </body>
     </html>

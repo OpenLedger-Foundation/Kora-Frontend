@@ -13,10 +13,17 @@ const InstallPrompt = dynamic(
   () => import("@/components/pwa/InstallPrompt").then((m) => m.InstallPrompt),
   { ssr: false, loading: () => null }
 );
+const CommandPalette = dynamic(
+  () => import("@/components/command/CommandPalette").then((m) => m.CommandPalette),
+  { ssr: false, loading: () => null }
+);
+const ChangelogModal = dynamic(
+  () => import("@/components/changelog/ChangelogModal").then((m) => m.ChangelogModal),
+  { ssr: false, loading: () => null }
+);
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
-import dynamic from "next/dynamic";
 
 const OnboardingTour = dynamic(() => import("@/components/onboarding/OnboardingTour").then((m) => m.default), { ssr: false, loading: () => null });
 
@@ -55,6 +62,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <OnboardingTour />
         <WalletConnectModal />
         <InstallPrompt />
+        <CommandPalette />
+        <ChangelogModal />
         <ThemedToaster />
         {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
           <ReactQueryDevtools initialIsOpen={false} />
