@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
+import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -767,6 +768,8 @@ function MarketplaceContent() {
           </div>
         </div>
       )}
+      {/* Fixed comparison bar — renders above the page when invoices are selected */}
+      <ComparisonBar />
     </Container>
   );
 }

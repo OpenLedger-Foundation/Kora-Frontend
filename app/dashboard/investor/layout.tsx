@@ -1,4 +1,13 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
+
+const ContractEventSubscriber = dynamic(
+  () =>
+    import("@/components/marketplace/ContractEventSubscriber").then(
+      (m) => m.ContractEventSubscriber
+    ),
+  { ssr: false, loading: () => null }
+);
 
 export const metadata: Metadata = {
   title: "Investor Dashboard",
@@ -29,5 +38,10 @@ export const metadata: Metadata = {
 import { ConnectWalletGuard } from "@/components/layout/ConnectWalletGuard";
 
 export default function InvestorDashboardLayout({ children }: { children: React.ReactNode }) {
-  return <ConnectWalletGuard>{children}</ConnectWalletGuard>;
+  return (
+    <ConnectWalletGuard>
+      <ContractEventSubscriber />
+      {children}
+    </ConnectWalletGuard>
+  );
 }

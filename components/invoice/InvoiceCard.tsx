@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock } from "lucide-react";
+import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import useCountdown from "@/hooks/useCountdown";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { DebtorDisplay } from "./DebtorDisplay";
+import { useInvoiceStore } from "@/store/invoiceStore";
 import type { Invoice } from "@/types";
 
 interface InvoiceCardProps {
@@ -70,6 +71,9 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   const flag = getFlagEmoji(metadata.jurisdiction);
   const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
   const queryClient = useQueryClient();
+  const { comparisonList, toggleComparison } = useInvoiceStore();
+  const isInComparison = comparisonList.includes(invoice.id);
+  const comparisonFull = comparisonList.length >= 3 && !isInComparison;
   
   // Check if invoice is expired
   const countdown = useCountdown(listingExpiry);
@@ -81,6 +85,12 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
       queryFn: () => fetchInvoiceById(invoice.id),
       staleTime: 30000,
     });
+  };
+
+  const handleCompareToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!comparisonFull) toggleComparison(invoice.id);
   };
 
   return (
@@ -202,7 +212,31 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               Fund Invoice
             </Button>
           ) : null}
-        </div>
+
+          {/* Compare toggle button */}
+          <button
+            onClick={handleCompareToggle}
+            disabled={comparisonFull}
+            className={cn(
+              "mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors relative z-20",
+              isInComparison
+                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                : comparisonFull
+                  ? "border-border/30 bg-transparent text-muted-foreground/40 cursor-not-allowed"
+                  : "border-border bg-transparent text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+            )}
+            aria-label={
+              isInComparison
+                ? `Remove ${metadata.debtorName} from comparison`
+                : comparisonFull
+                  ? "Comparison list is full (max 3)"
+                  : `Add ${metadata.debtorName} to comparison`
+            }
+            aria-pressed={isInComparison}
+          >
+            <GitCompareArrows className="h-3.5 w-3.5" />
+            {isInComparison ? "Remove from Compare" : "Add to Compare"}
+          </button>        </div>
 
         {/* Hover overlay CTA */}
         <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex items-center justify-center pointer-events-none">

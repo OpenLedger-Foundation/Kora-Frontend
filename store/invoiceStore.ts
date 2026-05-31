@@ -174,6 +174,9 @@ interface InvoiceStore {
   selectedInvoice: Invoice | null;
   createDraft: InvoiceCreateDraft;
 
+  /** IDs of invoices selected for side-by-side comparison (max 3) */
+  comparisonList: string[];
+
   // Actions
   setInvoices: (invoices: Invoice[]) => void;
   setFilters: (filters: Partial<FilterState>) => void;
@@ -191,6 +194,13 @@ interface InvoiceStore {
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
 
+  /** Toggle an invoice in/out of the comparison list (max 3) */
+  toggleComparison: (id: string) => void;
+  /** Remove a single invoice from the comparison list */
+  removeFromComparison: (id: string) => void;
+  /** Clear the entire comparison list */
+  clearComparison: () => void;
+
   // Derived
   getFiltered: () => Invoice[];
 }
@@ -206,6 +216,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
       searchHistory: loadSearchHistory(),
       selectedInvoice: null,
       createDraft: { currency: "USDC" },
+      comparisonList: [],
 
       setInvoices: (invoices) => set({ invoices }),
 
@@ -295,6 +306,21 @@ export const useInvoiceStore = create<InvoiceStore>()(
         set((s) => ({ createDraft: { ...s.createDraft, ...draft } })),
 
       clearCreateDraft: () => set({ createDraft: { currency: "USDC" } }),
+
+      toggleComparison: (id) =>
+        set((s) => {
+          const list = s.comparisonList;
+          if (list.includes(id)) {
+            return { comparisonList: list.filter((i) => i !== id) };
+          }
+          if (list.length >= 3) return {}; // max 3
+          return { comparisonList: [...list, id] };
+        }),
+
+      removeFromComparison: (id) =>
+        set((s) => ({ comparisonList: s.comparisonList.filter((i) => i !== id) })),
+
+      clearComparison: () => set({ comparisonList: [] }),
 
       getFiltered: () => {
         const { invoices, filters, sort, searchQuery } = get();
