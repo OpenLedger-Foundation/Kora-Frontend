@@ -10,6 +10,7 @@ interface WalletStore extends WalletState {
   setVerified: (isVerified: boolean, verifiedAt?: number) => void;
   clearVerification: () => void;
   isVerificationExpired: () => boolean;
+  isWrongNetwork: () => boolean;
   // Address book
   addressBook: { id: string; address: string; label: string }[];
   addAddressBookEntry: (address: string, label?: string) => void;
@@ -62,6 +63,11 @@ export const useWalletStore = create<WalletStore>()(
         if (!state.isVerified || !state.verifiedAt) return true;
         const EXPIRY_TIME = 60 * 60 * 1000; // 1 hour
         return Date.now() - state.verifiedAt > EXPIRY_TIME;
+      },
+      isWrongNetwork: () => {
+        const state = get();
+        const expectedNetwork = (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletState["network"]) || "testnet";
+        return state.isConnected && state.network !== expectedNetwork;
       },
       // Address book actions
       addressBook: [],

@@ -17,6 +17,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 const AddressBook = dynamic(() => import("@/components/wallet/AddressBook").then((m) => m.AddressBook), { ssr: false });
+const TransactionHistoryDrawer = dynamic(
+  () => import("@/components/transactions").then((m) => m.TransactionHistoryDrawer),
+  { ssr: false }
+);
 import { WalletButton } from "@/components/wallet/WalletButton";
 import { useUIStore } from "@/store/uiStore";
 import { cn } from "@/lib/utils";
@@ -34,6 +38,7 @@ const MENU_ID = "mobile-nav-menu";
 export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
   const navRef = useRef<HTMLElement>(null);
@@ -87,11 +92,31 @@ export function Navbar() {
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
           {NAV_LINKS.map(({ href, label }) => {
             const active = pathname.startsWith(href);
+            let tourAttr = "";
+            if (href === "/marketplace") tourAttr = "data-tour='marketplace-link'";
+            else if (href === "/dashboard/sme") tourAttr = "data-tour='dashboard-link'";
+            else if (href === "/dashboard/investor") tourAttr = "data-tour='investor-dashboard'";
+            else if (href === "/invoice/create") tourAttr = "data-tour='create-invoice-btn'";
+            else if (href === "/analytics") tourAttr = "data-tour='analytics-link'";
+
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
+                data-tour={
+                  href === "/marketplace"
+                    ? "marketplace-link"
+                    : href === "/dashboard/sme"
+                      ? "dashboard-link"
+                      : href === "/dashboard/investor"
+                        ? "investor-dashboard"
+                        : href === "/invoice/create"
+                          ? "create-invoice-btn"
+                          : href === "/analytics"
+                            ? "analytics-link"
+                            : undefined
+                }
                 className={cn(
                   "relative rounded-lg px-3 py-2 text-sm transition-colors",
                   active
@@ -129,8 +154,19 @@ export function Navbar() {
             )}
           </button>
 
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="View transaction history"
+          >
+            <History className="h-5 w-5" />
+          </button>
+
           <button onClick={() => setAddressBookOpen(true)} className="rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground">Address Book</button>
-          <WalletButton />
+          <div data-tour="wallet-button">
+            <WalletButton />
+          </div>
 
           {/* Hamburger — mobile only */}
           <button
@@ -171,6 +207,19 @@ export function Navbar() {
                     key={href}
                     href={href}
                     aria-current={active ? "page" : undefined}
+                    data-tour={
+                      href === "/marketplace"
+                        ? "marketplace-link"
+                        : href === "/dashboard/sme"
+                          ? "dashboard-link"
+                          : href === "/dashboard/investor"
+                            ? "investor-dashboard"
+                            : href === "/invoice/create"
+                              ? "create-invoice-btn"
+                              : href === "/analytics"
+                                ? "analytics-link"
+                                : undefined
+                    }
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors",
                       active
@@ -184,7 +233,7 @@ export function Navbar() {
                 );
               })}
 
-              <div className="pt-2 border-t border-border">
+              <div className="pt-2 border-t border-border" data-tour="wallet-button">
                 <WalletButton />
               </div>
             </div>
@@ -192,6 +241,7 @@ export function Navbar() {
         )}
       </AnimatePresence>
       {addressBookOpen && <AddressBook onClose={() => setAddressBookOpen(false)} />}
+      <TransactionHistoryDrawer open={historyOpen} onOpenChange={setHistoryOpen} />
     </header>
   );
 }
