@@ -7,6 +7,8 @@ import { useWallet } from "./useWallet";
 import { rpc, submitTransaction } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { useUIStore } from "@/store/uiStore";
+import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -61,9 +63,13 @@ export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const { signTransaction } = useWallet();
   const toast = useToast();
+  const setTxState = useUIStore((s) => s.setTxState);
+  const addTransaction = useTransactionHistoryStore((s) => s.addTransaction);
+  const updateTransactionStatus = useTransactionHistoryStore((s) => s.updateTransactionStatus);
 
   const setStage = (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
     setState((s) => ({ ...s, status, ...extra }));
+    setTxState({ status });
     if (status !== "idle" && status !== "confirmed" && status !== "failed") {
       toast.loading(STAGE_MESSAGES[status], TOAST_ID, "txConfirmed");
     }
@@ -77,6 +83,10 @@ export function useTransaction() {
         successMessage?: string;
         successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
+        txType?: string;
+        txDescription?: string;
+        txAmount?: string;
+        txAssetCode?: string;
       }
     ): Promise<string | null> => {
       try {
@@ -116,6 +126,16 @@ export function useTransaction() {
           hash = result.hash;
         }
 
+        // Add to history as pending
+        addTransaction({
+          hash,
+          type: (options?.txType as any) || "other",
+          status: "pending",
+          description: options?.txDescription,
+          amount: options?.txAmount,
+          assetCode: options?.txAssetCode,
+        });
+
         // 5. Poll
         setStage("polling", { txHash: hash });
         if (!signedXdr.startsWith("mock_")) {
@@ -126,6 +146,8 @@ export function useTransaction() {
 
         // 6. Confirmed
         setState({ status: "confirmed", txHash: hash });
+        setTxState({ status: "confirmed", txHash: hash });
+        updateTransactionStatus(hash, "confirmed");
         toast.success(
           options?.successMessage ?? "Transaction confirmed!",
           hash,
@@ -138,6 +160,13 @@ export function useTransaction() {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Transaction failed";
         setState({ status: "failed", error: message });
+        setTxState({ status: "failed", error: message });
+        
+        // Update history if we have a hash
+        if (state.txHash) {
+          updateTransactionStatus(state.txHash, "failed", message);
+        }
+        
         toast.error(
           "Transaction failed",
           message,
@@ -149,10 +178,13 @@ export function useTransaction() {
         return null;
       }
     },
-    [signTransaction]
+    [signTransaction, setTxState, addTransaction, updateTransactionStatus, state.txHash]
   );
 
-  const reset = useCallback(() => setState({ status: "idle" }), []);
+  const reset = useCallback(() => {
+    setState({ status: "idle" });
+    setTxState({ status: "idle" });
+  }, [setTxState]);
 
   return {
     execute,

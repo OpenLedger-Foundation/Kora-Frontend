@@ -13,10 +13,13 @@ const InstallPrompt = dynamic(
   () => import("@/components/pwa/InstallPrompt").then((m) => m.InstallPrompt),
   { ssr: false, loading: () => null }
 );
+const InProgressOverlay = dynamic(
+  () => import("@/components/transactions").then((m) => m.InProgressOverlay),
+  { ssr: false, loading: () => null }
+);
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
-import dynamic from "next/dynamic";
 
 const OnboardingTour = dynamic(() => import("@/components/onboarding/OnboardingTour").then((m) => m.default), { ssr: false, loading: () => null });
 
@@ -54,6 +57,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         {children}
         <OnboardingTour />
         <WalletConnectModal />
+        <InProgressOverlay />
         <InstallPrompt />
         <ThemedToaster />
         {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
