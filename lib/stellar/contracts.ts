@@ -252,6 +252,18 @@ class MarketplaceContractClient {
     );
   }
 
+  async claimPosition(
+    params: { positionId: bigint },
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "claim_position",
+      [scvU64(params.positionId)],
+      sourcePublicKey
+    );
+  }
+
   /**
    * Read all investor positions (simulation only).
    */

@@ -17,17 +17,46 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ChartTooltip from "@/components/analytics/ChartTooltip";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 
-  const TOOLTIP_STYLE = {
-    contentStyle: {
-      backgroundColor: "#18181b",
-      border: "1px solid #27272a",
-      borderRadius: "8px",
-      color: "#e4e4e7",
-      fontSize: "12px",
-    },
-  };
-  import ChartTooltip from "@/components/analytics/ChartTooltip";
+const TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: "#18181b",
+    border: "1px solid #27272a",
+    borderRadius: "8px",
+    color: "#e4e4e7",
+    fontSize: "12px",
+  },
+};
+
+type MonthValuePoint = {
+  month: string;
+  value: number;
+};
+
+type MonthYieldPoint = {
+  month: string;
+  yield: number;
+};
+
+type RiskPoint = {
+  name: string;
+  value: number;
+  color: string;
+};
+
+type MonthReturnPoint = {
+  month: string;
+  return: number;
+};
+
+interface ChartsProps {
+  portfolio: MonthValuePoint[];
+  yieldData: MonthYieldPoint[];
+  risk: RiskPoint[];
+  monthly: MonthReturnPoint[];
+  compact?: boolean;
+}
 
 export default function Charts({
   portfolio,
@@ -35,14 +64,14 @@ export default function Charts({
   risk,
   monthly,
   compact = false,
-}: any) {
+}: ChartsProps) {
   const { isMobile, isTablet } = useBreakpoint();
-  
+
   // Responsive configuration
   const chartHeight = compact ? 180 : isMobile ? 200 : isTablet ? 220 : 240;
   const fontSize = isMobile ? 10 : 11;
   const tickCount = isMobile ? 3 : isTablet ? 4 : 6;
-  
+
   return (
     <>
       <div className={`mb-6 grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
@@ -100,16 +129,16 @@ export default function Charts({
             <CardContent>
               <ResponsiveContainer width="100%" height={compact ? 140 : isMobile ? 160 : 180}>
                 <PieChart>
-                  <Pie 
-                    data={risk} 
-                    cx="50%" 
-                    cy="50%" 
-                    innerRadius={isMobile ? 40 : 50} 
-                    outerRadius={compact ? 60 : isMobile ? 65 : 75} 
-                    paddingAngle={3} 
+                  <Pie
+                    data={risk}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={isMobile ? 40 : 50}
+                    outerRadius={compact ? 60 : isMobile ? 65 : 75}
+                    paddingAngle={3}
                     dataKey="value"
                   >
-                    {risk.map((entry: any) => (
+                    {risk.map((entry) => (
                       <Cell key={entry.name} fill={entry.color} />
                     ))}
                   </Pie>
@@ -117,7 +146,7 @@ export default function Charts({
                 </PieChart>
               </ResponsiveContainer>
               <div className={`mt-2 grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                {risk.map((d: any) => (
+                {risk.map((d) => (
                   <div key={d.name} className="flex items-center gap-2 text-xs">
                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: d.color }} />
                     <span className="text-zinc-400">{d.name}</span>

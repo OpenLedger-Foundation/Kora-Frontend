@@ -86,7 +86,7 @@ export const FINANCING_TERMS_STEP_FIELDS = [
 /** Step 3 — File Upload */
 export const uploadSchema = z.object({
   file: z
-    .any()
+    .custom<File | null | undefined>()
     .refine((file) => file !== null && file !== undefined, "File is required")
     .refine(
       (file) => {

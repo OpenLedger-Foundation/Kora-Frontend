@@ -218,6 +218,7 @@ export function DataTable<T extends { id: string }>({
                 </div>
               );
             })}
+
         {!isLoading && data.length > 0 && (
           <div className="flex flex-col gap-3">
             <p className="text-xs text-muted-foreground">

@@ -31,7 +31,7 @@ interface UIStore {
   setIntendedDestination: (dest: string | null) => void;
 
   txState: TxState;
-  setTxState: (state: Partial<TxState>) => void;
+  setTxState: (state: TxState) => void;
   resetTxState: () => void;
 
   sidebarOpen: boolean;
@@ -56,8 +56,7 @@ export const useUIStore = create<UIStore>()(
       setIntendedDestination: (intendedDestination) => set({ intendedDestination }),
 
       txState: { status: "idle" },
-      setTxState: (state) =>
-        set((s) => ({ txState: { ...s.txState, ...state } })),
+      setTxState: (txState) => set({ txState }),
       resetTxState: () => set({ txState: { status: "idle" } }),
 
       sidebarOpen: false,
