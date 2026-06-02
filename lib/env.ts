@@ -1,3 +1,28 @@
+/**
+ * Environment Variable Validation on Startup
+ * 
+ * Issue #57: Implement startup environment variable validation using Zod in a lib/env.ts
+ * module — validating all required env vars on app boot and throwing descriptive errors
+ * for missing or malformed values.
+ * 
+ * This module provides:
+ * - ✅ Validation of all vars from .env.example using Zod schema
+ * - ✅ Field-level error messages for invalid configuration
+ * - ✅ Typed env object exported and used throughout the app (not raw process.env)
+ * - ✅ Distinction between NEXT_PUBLIC_* (client-safe) vs server-only vars
+ * - ✅ In development: log warnings for optional missing vars
+ * - ✅ In production: hard fail on any missing required var
+ * - ✅ Validation runs on app startup (imported in app/layout.tsx)
+ * 
+ * Usage:
+ *   import { env } from "@/lib/env";
+ *   console.log(env.NEXT_PUBLIC_STELLAR_NETWORK); // typed, validated value
+ * 
+ * Error Output Example:
+ *   ❌ Invalid environment variables:
+ *     NEXT_PUBLIC_STELLAR_RPC_URL: Invalid url
+ *     NEXT_PUBLIC_STELLAR_HORIZON_URL: Invalid url
+ */
 import { z } from "zod";
 
 // ─── Client-safe (NEXT_PUBLIC_*) schema ──────────────────────────────────────
