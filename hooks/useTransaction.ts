@@ -8,6 +8,8 @@ import { useWallet } from "./useWallet";
 import { rpc, submitTransaction } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { useUIStore } from "@/store/uiStore";
+import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -109,10 +111,14 @@ export function useTransaction() {
   const { signTransaction } = useWallet();
   const toast = useToast();
   const t = useTranslations("transaction");
+  const setTxState = useUIStore((s) => s.setTxState);
+  const addTransaction = useTransactionHistoryStore((s) => s.addTransaction);
+  const updateTransactionStatus = useTransactionHistoryStore((s) => s.updateTransactionStatus);
 
   const setStage = useCallback(
     (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
       setState((s) => ({ ...s, status, ...extra }));
+      setTxState({ status });
       // Show loading toast for in-progress stages
       const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
       if (inProgress.includes(status)) {
@@ -126,7 +132,7 @@ export function useTransaction() {
         toast.loading(labels[status] ?? status, TOAST_ID, "txConfirmed");
       }
     },
-    [t, toast]
+    [t, toast, setTxState]
   );
 
   const execute = useCallback(
@@ -139,6 +145,10 @@ export function useTransaction() {
         onError?: (err: unknown) => void;
         /** Called with the simulation preview; must resolve true to proceed */
         onSimulationPreview?: (preview: SimulationPreview) => Promise<boolean>;
+        txType?: string;
+        txDescription?: string;
+        txAmount?: string;
+        txAssetCode?: string;
       }
     ): Promise<string | null> => {
       try {
@@ -221,6 +231,16 @@ export function useTransaction() {
           hash = result.hash;
         }
 
+        // Add to history as pending
+        addTransaction({
+          hash,
+          type: (options?.txType as any) || "other",
+          status: "pending",
+          description: options?.txDescription,
+          amount: options?.txAmount,
+          assetCode: options?.txAssetCode,
+        });
+
         // 5. Poll
         setStage("polling", { txHash: hash });
         if (!signedXdr.startsWith("mock_")) {
@@ -231,6 +251,8 @@ export function useTransaction() {
 
         // 6. Confirmed
         setState({ status: "confirmed", txHash: hash });
+        setTxState({ status: "confirmed", txHash: hash });
+        updateTransactionStatus(hash, "confirmed");
         toast.success(
           options?.successMessage ?? t("confirmed"),
           hash,
@@ -243,6 +265,13 @@ export function useTransaction() {
       } catch (err) {
         const message = err instanceof Error ? err.message : t("failed");
         setState({ status: "failed", error: message });
+        setTxState({ status: "failed", error: message });
+        
+        // Update history if we have a hash
+        if (state.txHash) {
+          updateTransactionStatus(state.txHash, "failed", message);
+        }
+        
         toast.error(
           t("failed"),
           message,
@@ -254,13 +283,14 @@ export function useTransaction() {
         return null;
       }
     },
-    [signTransaction, setStage, t, toast]
+    [signTransaction, setStage, setTxState, addTransaction, updateTransactionStatus, t, toast, state.txHash]
   );
 
   const reset = useCallback(() => {
     setState({ status: "idle" });
     setSimulationPreview(null);
-  }, []);
+    setTxState({ status: "idle" });
+  }, [setTxState]);
 
   return {
     execute,

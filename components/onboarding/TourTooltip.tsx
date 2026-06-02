@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Props = {
   targetSelector?: string;
@@ -10,13 +11,24 @@ type Props = {
   placement?: "top" | "bottom" | "left" | "right";
 };
 
-export default function TourTooltip({ targetSelector, open, onClose, children, placement = "bottom" }: Props) {
+export default function TourTooltip({
+  targetSelector,
+  open,
+  onClose,
+  children,
+  placement = "bottom",
+}: Props) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [style, setStyle] = useState<Record<string, string>>({});
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-    const el = targetSelector ? document.querySelector(targetSelector) as HTMLElement | null : null;
+    const el = targetSelector ? (document.querySelector(targetSelector) as HTMLElement | null) : null;
     const tooltip = ref.current;
     if (!tooltip) return;
 
@@ -25,18 +37,23 @@ export default function TourTooltip({ targetSelector, open, onClose, children, p
       const viewportH = window.innerHeight;
       if (!el) {
         // center
-        setStyle({ left: `${(viewportW - tooltip.offsetWidth) / 2}px`, top: `${(viewportH - tooltip.offsetHeight) / 2}px` });
+        setStyle({
+          left: `${(viewportW - tooltip.offsetWidth) / 2}px`,
+          top: `${(viewportH - tooltip.offsetHeight) / 2}px`,
+        });
         return;
       }
       const rect = el.getBoundingClientRect();
-      const margin = 12;
+      const margin = 16;
       // simple placement logic with edge flipping
       if (placement === "bottom") {
         let top = rect.bottom + margin + window.scrollY;
         let left = rect.left + rect.width / 2 - tooltip.offsetWidth / 2 + window.scrollX;
-        if (top + tooltip.offsetHeight > window.scrollY + viewportH) top = rect.top - tooltip.offsetHeight - margin + window.scrollY;
+        if (top + tooltip.offsetHeight > window.scrollY + viewportH)
+          top = rect.top - tooltip.offsetHeight - margin + window.scrollY;
         if (left < 8) left = 8 + window.scrollX;
-        if (left + tooltip.offsetWidth > viewportW - 8) left = viewportW - tooltip.offsetWidth - 8 + window.scrollX;
+        if (left + tooltip.offsetWidth > viewportW - 8)
+          left = viewportW - tooltip.offsetWidth - 8 + window.scrollX;
         setStyle({ left: `${left}px`, top: `${top}px` });
       } else if (placement === "top") {
         let top = rect.top - tooltip.offsetHeight - margin + window.scrollY;
@@ -63,14 +80,21 @@ export default function TourTooltip({ targetSelector, open, onClose, children, p
     };
   }, [open, targetSelector, placement]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   return (
-    <div ref={ref} style={style} className="z-[99999] max-w-sm rounded-lg border border-zinc-800 bg-zinc-950 p-3 shadow-2xl">
-      <div className="text-sm text-zinc-200">{children}</div>
-      <div className="mt-2 flex justify-end">
-        <button className="text-xs text-zinc-400" onClick={() => onClose?.()}>Close</button>
-      </div>
-    </div>
+    <AnimatePresence>
+      <motion.div
+        ref={ref}
+        style={style}
+        initial={{ opacity: 0, scale: 0.9, y: -8 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: -8 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="fixed z-[99999] w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black p-4 shadow-2xl backdrop-blur-xl"
+      >
+        <div className="text-sm text-zinc-100">{children}</div>
+      </motion.div>
+    </AnimatePresence>
   );
 }

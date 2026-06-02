@@ -1,17 +1,18 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMemo, useCallback } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-const Charts = dynamic(() => import("@/components/analytics/Charts"), {
+const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCharts"), {
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
-import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart3, Shield, Download } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
+import { AnalyticsControls } from "@/components/analytics/AnalyticsControls";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
 import { formatCurrency } from "@/lib/utils";
 import { exportCsv, exportPdf } from "@/lib/export";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { cn } from "@/lib/utils";
 import {
   AnalyticsFilterBar,
   DEFAULT_FILTERS,
@@ -136,6 +138,8 @@ export default function PortfolioAnalyticsPage() {
   const { setWalletModalOpen } = useUIStore();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
+  const [isLoading, setIsLoading] = useState(false);
 
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
@@ -157,16 +161,66 @@ export default function PortfolioAnalyticsPage() {
   }, [filters.riskTier]);
   const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
 
+  const handleExport = useCallback((type: "portfolio" | "yield" | "risk" | "monthly") => {
+    let data, filename;
+    switch (type) {
+      case "portfolio":
+        data = portfolio;
+        filename = `kora-portfolio-${range}-${Date.now()}.csv`;
+        break;
+      case "yield":
+        data = yieldData;
+        filename = `kora-yield-${range}-${Date.now()}.csv`;
+        break;
+      case "risk":
+        data = risk;
+        filename = `kora-risk-${range}-${Date.now()}.csv`;
+        break;
+      case "monthly":
+        data = monthly;
+        filename = `kora-returns-${range}-${Date.now()}.csv`;
+        break;
+    }
+
+    // Convert to CSV
+    const headers = Object.keys(data[0] || {});
+    const csv = [
+      headers.join(","),
+      ...data.map((row: any) => headers.map((h) => row[h]).join(",")),
+    ].join("\n");
+
+    // Download
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [portfolio, yieldData, risk, monthly, range]);
+
+  const handleReset = useCallback(() => {
+    setRange("30d");
+  }, []);
+
   if (!isConnected) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800">
-          <BarChart3 className="h-6 w-6 text-zinc-500" />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center"
+      >
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <BarChart3 className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h2 className="text-xl font-semibold text-zinc-100">Connect your wallet</h2>
-        <p className="text-sm text-zinc-500">Connect to view your portfolio analytics</p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
-      </div>
+        <h2 className="text-2xl font-semibold text-foreground">Connect your wallet</h2>
+        <p className="max-w-sm text-sm text-muted-foreground">
+          View your portfolio analytics, performance metrics, and investment data
+        </p>
+        <Button onClick={() => setWalletModalOpen(true)} className="mt-4">
+          <span>Connect Wallet</span>
+        </Button>
+      </motion.div>
     );
   }
 
@@ -227,6 +281,7 @@ export default function PortfolioAnalyticsPage() {
           />
         </div>
       </PrintLayout>
+
     </ErrorBoundary>
   );
 }

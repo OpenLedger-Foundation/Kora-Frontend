@@ -30,6 +30,10 @@ const ChangelogModal = dynamic(
   () => import("@/components/changelog/ChangelogModal").then((m) => m.ChangelogModal),
   { ssr: false, loading: () => null }
 );
+const InProgressOverlay = dynamic(
+  () => import("@/components/transactions").then((m) => m.InProgressOverlay),
+  { ssr: false, loading: () => null }
+);
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
@@ -93,6 +97,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           {children}
           <OnboardingTour />
           <WalletConnectModal />
+          <InProgressOverlay />
           <InstallPrompt />
           <FeedbackWidget />
           <KeyboardShortcutsProvider />
