@@ -33,6 +33,7 @@
     "@tanstack/react-query-devtools": "^5.56.2",
     "@types/dompurify": "3.0.5",
     "axios": "^1.7.7",
+    "cmdk": "1.0.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",

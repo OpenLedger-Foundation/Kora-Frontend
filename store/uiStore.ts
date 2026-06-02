@@ -29,6 +29,12 @@ interface UIStore {
   walletModalOpen: boolean;
   setWalletModalOpen: (open: boolean) => void;
 
+  commandPaletteOpen: boolean;
+  setCommandPaletteOpen: (open: boolean) => void;
+
+  changelogOpen: boolean;
+  setChangelogOpen: (open: boolean) => void;
+
   // intended destination when wallet connect is required
   intendedDestination: string | null;
   setIntendedDestination: (dest: string | null) => void;
@@ -58,6 +64,12 @@ export const useUIStore = create<UIStore>()(
     (set, get) => ({
       walletModalOpen: false,
       setWalletModalOpen: (walletModalOpen) => set({ walletModalOpen }),
+
+      commandPaletteOpen: false,
+      setCommandPaletteOpen: (commandPaletteOpen) => set({ commandPaletteOpen }),
+
+      changelogOpen: false,
+      setChangelogOpen: (changelogOpen) => set({ changelogOpen }),
 
       intendedDestination: null,
       setIntendedDestination: (intendedDestination) => set({ intendedDestination }),

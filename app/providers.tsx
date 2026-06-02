@@ -22,6 +22,14 @@ const OnboardingTour = dynamic(
   () => import("@/components/onboarding/OnboardingTour").then((m) => m.default),
   { ssr: false, loading: () => null }
 );
+const CommandPalette = dynamic(
+  () => import("@/components/command/CommandPalette").then((m) => m.CommandPalette),
+  { ssr: false, loading: () => null }
+);
+const ChangelogModal = dynamic(
+  () => import("@/components/changelog/ChangelogModal").then((m) => m.ChangelogModal),
+  { ssr: false, loading: () => null }
+);
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
@@ -88,6 +96,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <InstallPrompt />
           <FeedbackWidget />
           <KeyboardShortcutsProvider />
+          <CommandPalette />
+          <ChangelogModal />
           <ThemedToaster />
           {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
             <ReactQueryDevtools initialIsOpen={false} />
