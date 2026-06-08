@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "luci
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useBreakpoint } from "@/components/layout/useBreakpoint";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 import type { ColumnDef, DataTableProps, TableSortDirection } from "@/types/table";
 import { Pagination } from "./pagination";
 
@@ -49,8 +49,7 @@ export function DataTable<T extends { id: string }>({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const breakpoint = useBreakpoint();
-  const isMobile = breakpoint === "sm";
+  const { isMobile } = useBreakpoint();
 
   const sortedData = useMemo(() => {
     if (!sortColumn || !sortDirection) return data;

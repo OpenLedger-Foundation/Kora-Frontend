@@ -421,7 +421,6 @@ export default function InvestorDashboardPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
     </ErrorBoundary>
   );
 }

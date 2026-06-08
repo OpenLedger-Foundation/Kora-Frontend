@@ -10,16 +10,11 @@ import { PageTransition } from "@/components/layout/PageTransition";
 import { env } from "@/lib/env";
 import { websiteSchema, organizationSchema, serializeSchema } from "@/lib/structuredData";
 import { handleWebVital } from "@/lib/webVitals";
-import dynamic from "next/dynamic";
+import { WebVitalsPanel as WebVitalsPanelClient } from "@/components/dev/WebVitalsPanel";
 
-// Dev-only vitals panel — zero bundle cost in production
 const WebVitalsPanel =
   process.env.NODE_ENV === "development"
-    ? dynamic(
-        () =>
-          import("@/components/dev/WebVitalsPanel").then((m) => m.WebVitalsPanel),
-        { ssr: false }
-      )
+    ? WebVitalsPanelClient
     : () => null;
 
 /**

@@ -1,13 +1,5 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
-
-const ContractEventSubscriber = dynamic(
-  () =>
-    import("@/components/marketplace/ContractEventSubscriber").then(
-      (m) => m.ContractEventSubscriber
-    ),
-  { ssr: false, loading: () => null }
-);
+import { ContractEventSubscriber } from "@/components/marketplace/ContractEventSubscriber";
 
 export const metadata: Metadata = {
   title: "Invoice Marketplace",

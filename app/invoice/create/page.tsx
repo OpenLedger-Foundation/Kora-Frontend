@@ -338,19 +338,20 @@ export default function CreateInvoicePage() {
   }
 
   return (
-    <ErrorBoundary>
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-100">Create Invoice</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Tokenize your invoice and access instant liquidity
-        </p>
-      </div>
+    <>
+      <ErrorBoundary>
+        <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-zinc-100">Create Invoice</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              Tokenize your invoice and access instant liquidity
+            </p>
+          </div>
 
-      {/* Step indicator */}
-      <div className="mb-8 flex items-center gap-2">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex items-center gap-2">
+          {/* Step indicator */}
+          <div className="mb-8 flex items-center gap-2">
+            {STEPS.map((label, i) => (
+              <div key={label} className="flex items-center gap-2">
             <div
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors",
@@ -929,9 +930,10 @@ export default function CreateInvoicePage() {
         </div>
       )}
     </div>
-    </ErrorBoundary>
+      </ErrorBoundary>
 
-    {/* Transaction simulation preview dialog — rendered outside the form */}
-    <TxSimulationPreview {...simulationDialogProps} />
+      {/* Transaction simulation preview dialog — rendered outside the form */}
+      <TxSimulationPreview {...simulationDialogProps} />
+    </>
   );
 }

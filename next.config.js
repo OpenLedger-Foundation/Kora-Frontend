@@ -164,9 +164,7 @@ const SECURITY_HEADERS = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ["@stellar/stellar-sdk"],
-  },
+  serverExternalPackages: ["@stellar/stellar-sdk"],
 
   async headers() {
     return [

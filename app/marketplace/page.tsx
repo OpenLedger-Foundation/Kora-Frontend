@@ -27,7 +27,6 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { fetchInvoices } from "@/services/invoiceService";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
-import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
