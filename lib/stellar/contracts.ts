@@ -10,6 +10,7 @@ import type {
   FundInvoiceParams,
   RepayInvoiceParams,
   OnChainInvoice,
+  OnChainStatusCode,
 } from "@/types/contract";
 
 // ─── Error code → human-readable message ─────────────────────────────────────
@@ -216,6 +217,7 @@ class InvoiceContractClient {
     );
   }
 }
+}
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
@@ -306,6 +308,22 @@ function parseOnChainInvoice(val: StellarSdk.xdr.ScVal): OnChainInvoice {
 
 export const invoiceContract = new InvoiceContractClient();
 export const marketplaceContract = new MarketplaceContractClient();
+
+/**
+ * Build an unsigned XDR transaction that calls `update_status` on the invoice
+ * contract. The caller is responsible for verifying ownership before calling.
+ *
+ * @param tokenId       On-chain token ID (string, BigInt-convertible).
+ * @param status        Target status as the on-chain enum index (OnChainStatusCode).
+ * @param walletAddress Wallet that will sign — must be the invoice owner on-chain.
+ */
+export async function updateInvoiceStatus(
+  tokenId: string,
+  status: OnChainStatusCode,
+  walletAddress: string
+): Promise<string> {
+  return invoiceContract.updateStatus(BigInt(tokenId), status, walletAddress);
+}
 
 // Re-export low-level helpers for advanced use
 export { buildCall, readCall, parseSorobanError, simulate };

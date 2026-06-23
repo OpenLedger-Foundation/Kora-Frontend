@@ -20,7 +20,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useSMEInvoices } from "@/hooks/useInvoices";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
-import { prepareRepayInvoice } from "@/services/invoiceService";
+import { prepareRepayInvoice, prepareUpdateInvoiceStatus } from "@/services/invoiceService";
 import { useUIStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
@@ -31,8 +31,10 @@ import {
   cn,
 } from "@/lib/utils";
 import type { Invoice } from "@/types";
+import type { InvoiceStatus } from "@/types/invoice";
 import type { ColumnDef } from "@/types/table";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { StatusTransitionButtons } from "@/components/invoice/StatusTransitionButtons";
 
 
 export default function SMEDashboardPage() {
@@ -104,6 +106,19 @@ export default function SMEDashboardPage() {
         setRepayTarget(null);
       },
     });
+  };
+
+  const handleStatusTransition = async (inv: Invoice, to: InvoiceStatus) => {
+    if (!address) return;
+    // Owner guard — belt-and-suspenders in addition to the UI-level check
+    if (address !== inv.ownerAddress) return;
+    await execute(
+      () => prepareUpdateInvoiceStatus(inv.tokenId, inv.status, to, address),
+      {
+        successMessage: `Invoice status updated to ${to.replace(/_/g, " ")}`,
+        onSuccess: () => invoicesQuery.refetch(),
+      }
+    );
   };
 
   return (
@@ -212,7 +227,6 @@ export default function SMEDashboardPage() {
                   cell: (row) => {
                     const isDue = new Date(row.terms.repaymentDate) <= new Date();
                     const canRepay = row.status === "fully_funded" && isDue;
-                    const canCancel = row.status === "listed" || row.status === "pending_mint";
 
                     return (
                       <div className="flex items-center gap-2">
@@ -221,11 +235,12 @@ export default function SMEDashboardPage() {
                             Repay
                           </Button>
                         )}
-                        {canCancel && (
-                          <Button size="sm" variant="ghost">
-                            Cancel
-                          </Button>
-                        )}
+                        <StatusTransitionButtons
+                          invoice={row}
+                          walletAddress={address ?? null}
+                          onTransition={handleStatusTransition}
+                          isLoading={txStatus !== "idle" && txStatus !== "confirmed" && txStatus !== "failed"}
+                        />
                         <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
                           View →
                         </Link>

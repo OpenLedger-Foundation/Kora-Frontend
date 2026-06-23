@@ -46,6 +46,28 @@ export interface RepayInvoiceParams {
   tokenId: bigint;
 }
 
+export interface UpdateInvoiceStatusParams {
+  tokenId: bigint;
+  status: OnChainStatusCode;
+}
+
+/**
+ * Numeric status codes as stored on-chain.
+ * Keep in sync with ON_CHAIN_STATUS_MAP in invoiceService.ts.
+ */
+export const OnChainStatus = {
+  PendingMint: 0,
+  Listed: 1,
+  PartiallyFunded: 2,
+  FullyFunded: 3,
+  Active: 4,
+  Repaid: 5,
+  Defaulted: 6,
+  Cancelled: 7,
+} as const;
+
+export type OnChainStatusCode = (typeof OnChainStatus)[keyof typeof OnChainStatus];
+
 // ─── API Response Wrappers ────────────────────────────────────────────────────
 
 export interface ApiResponse<T> {

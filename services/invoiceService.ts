@@ -451,6 +451,38 @@ export async function prepareRepayInvoice(
 }
 
 /**
+ * Update the on-chain status of an invoice.
+ * Validates the transition client-side before building the transaction.
+ *
+ * @param tokenId         On-chain token ID string.
+ * @param from            Current InvoiceStatus (for client-side validation).
+ * @param to              Target InvoiceStatus.
+ * @param ownerAddress    Must match invoice.ownerAddress — enforced here AND on-chain.
+ */
+export async function prepareUpdateInvoiceStatus(
+  tokenId: string,
+  from: import("@/types").InvoiceStatus,
+  to: import("@/types").InvoiceStatus,
+  ownerAddress: string
+): Promise<string> {
+  const { isValidTransition, STATUS_TO_CHAIN_INDEX } = await import("@/lib/invoiceStateMachine");
+
+  if (!isValidTransition(from, to)) {
+    throw new Error(`Invalid status transition: ${from} → ${to}`);
+  }
+
+  const chainIndex = STATUS_TO_CHAIN_INDEX[to];
+  if (chainIndex < 0) throw new Error(`Status "${to}" has no on-chain representation`);
+
+  if (USE_MOCK) {
+    return `mock_unsigned_xdr_update_status_${tokenId}_${to}_${ownerAddress}`;
+  }
+
+  const { updateInvoiceStatus } = await import("@/lib/stellar/contracts");
+  return updateInvoiceStatus(tokenId, chainIndex, ownerAddress);
+}
+
+/**
  * Claim yield from a repaid position — returns unsigned XDR for wallet signing.
  */
 export async function prepareClaimPosition(
