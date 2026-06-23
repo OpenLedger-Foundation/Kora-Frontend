@@ -26,8 +26,10 @@ import { Container } from "@/components/layout/Container";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore, useTransactionStore } from "@/store";
 import type { TxRecord, TxType } from "@/store/transactionStore";
-import { formatCurrency, formatDate, shortenAddress, cn, exportCsv } from "@/lib/utils";
+import { formatCurrency, formatDate, cn, exportCsv } from "@/lib/utils";
+import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { safeStellarTxUrl } from "@/lib/security";
+import EmptyState from "@/components/ui/EmptyState";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -103,19 +105,7 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function EmptyHistory() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 px-6 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-        <History className="h-7 w-7 text-muted-foreground" aria-hidden />
-      </div>
-      <p className="mt-4 text-base font-semibold text-foreground">No transactions yet</p>
-      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-        Your on-chain activity will appear here once you mint, fund, or repay invoices.
-      </p>
-    </div>
-  );
-}
+// Replaced by shared EmptyState component in components/ui/EmptyState.tsx
 
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 
@@ -149,7 +139,7 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-xs text-muted-foreground">
           <span>{formatDate(tx.timestamp)}</span>
-          <span className="font-mono">{shortenAddress(tx.hash, 6)}</span>
+          <StellarTxLink hash={tx.hash} chars={6} size="sm" />
           {tx.amount != null && (
             <span className="font-medium text-foreground">
               {formatCurrency(tx.amount, tx.currency ?? "USDC", true)}
@@ -310,11 +300,13 @@ export default function TransactionHistoryPage() {
             {
               label: "Total Transactions",
               value: stats.total.toString(),
+              valueRaw: stats.total,
               icon: <History className="h-4 w-4" />,
             },
             {
               label: "Confirmed",
               value: stats.confirmed.toString(),
+              valueRaw: stats.confirmed,
               change: `${stats.failed} failed`,
               changePositive: stats.failed === 0,
               icon: <CheckCircle2 className="h-4 w-4" />,
@@ -322,11 +314,13 @@ export default function TransactionHistoryPage() {
             {
               label: "Total Volume",
               value: formatCurrency(stats.totalVolume, "USDC", true),
+              valueRaw: stats.totalVolume,
               icon: <ArrowUpRight className="h-4 w-4" />,
             },
             {
               label: "Invoices Funded",
               value: stats.funds.toString(),
+              valueRaw: stats.funds,
               change: `${stats.mints} minted`,
               changePositive: true,
               icon: <Coins className="h-4 w-4" />,
@@ -426,7 +420,11 @@ export default function TransactionHistoryPage() {
         <CardContent className="space-y-3 p-4">
           {filtered.length === 0 ? (
             transactions.length === 0 ? (
-              <EmptyHistory />
+              <EmptyState
+                title="No transactions yet"
+                description="Your on-chain activity will appear here once you mint, fund, or repay invoices."
+                variant="transactions"
+              />
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Search className="h-8 w-8 text-muted-foreground" aria-hidden />

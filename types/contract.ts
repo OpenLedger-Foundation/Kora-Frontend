@@ -8,13 +8,58 @@ export interface ContractConfig {
   networkPassphrase: string;
 }
 
-export type TxStatus = "idle" | "building" | "signing" | "submitting" | "success" | "error";
+export type TxStatus =
+  | "idle"
+  | "building"
+  | "simulating"
+  | "signing"
+  | "submitting"
+  | "polling"
+  | "confirmed"
+  | "failed";
 
-export interface TxState {
-  status: TxStatus;
-  hash?: string;
-  error?: string;
+export type TxState =
+  | { status: "idle" }
+  | { status: "building"; startedAt?: number }
+  | { status: "simulating"; startedAt?: number }
+  | { status: "signing"; startedAt?: number }
+  | { status: "submitting"; txHash?: string }
+  | { status: "polling"; txHash: string }
+  | { status: "confirmed"; txHash: string }
+  | { status: "failed"; error: ServiceError; txHash?: string };
+
+export type ServiceErrorCode =
+  | "NETWORK_ERROR"
+  | "INVALID_INPUT"
+  | "NOT_AUTHENTICATED"
+  | "UNAUTHORIZED"
+  | "NOT_FOUND"
+  | "ALREADY_FUNDED"
+  | "INSUFFICIENT_BALANCE"
+  | "ALREADY_REPAID"
+  | "CAPACITY_EXCEEDED"
+  | "INVALID_INVOICE_STATE"
+  | "INCORRECT_REPAYMENT_AMOUNT"
+  | "WALLET_ERROR"
+  | "SIGNATURE_REJECTED"
+  | "TRANSACTION_FAILED"
+  | "SIMULATION_FAILED"
+  | "SUBMISSION_FAILED"
+  | "CONFIRMATION_TIMEOUT"
+  | "IPFS_UPLOAD_FAILED"
+  | "RATE_LIMITED"
+  | "UNSUPPORTED_MEDIA_TYPE"
+  | "VALIDATION_FAILED"
+  | "INVALID_RESPONSE"
+  | "UNKNOWN_ERROR";
+
+export interface ServiceError {
+  code: ServiceErrorCode;
+  message: string;
+  details?: unknown;
+  cause?: unknown;
 }
+
 
 // Mirrors the on-chain Invoice struct from the Soroban contract
 export interface OnChainInvoice {
@@ -46,27 +91,9 @@ export interface RepayInvoiceParams {
   tokenId: bigint;
 }
 
-export interface UpdateInvoiceStatusParams {
+export interface ClaimYieldParams {
   tokenId: bigint;
-  status: OnChainStatusCode;
 }
-
-/**
- * Numeric status codes as stored on-chain.
- * Keep in sync with ON_CHAIN_STATUS_MAP in invoiceService.ts.
- */
-export const OnChainStatus = {
-  PendingMint: 0,
-  Listed: 1,
-  PartiallyFunded: 2,
-  FullyFunded: 3,
-  Active: 4,
-  Repaid: 5,
-  Defaulted: 6,
-  Cancelled: 7,
-} as const;
-
-export type OnChainStatusCode = (typeof OnChainStatus)[keyof typeof OnChainStatus];
 
 // ─── API Response Wrappers ────────────────────────────────────────────────────
 

@@ -4,11 +4,13 @@
  * useTransaction hook.
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { rpc, networkConfig, sequenceManager } from "./client";
+import { rpc, networkConfig } from "./client";
+import { env } from "@/lib/env";
 import type {
   MintInvoiceParams,
   FundInvoiceParams,
   RepayInvoiceParams,
+  ClaimYieldParams,
   OnChainInvoice,
   OnChainStatusCode,
 } from "@/types/contract";
@@ -139,7 +141,7 @@ async function readCall<T>(
 
 // ─── Invoice Contract ─────────────────────────────────────────────────────────
 
-const INVOICE_CONTRACT_ID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "";
+const INVOICE_CONTRACT_ID = env.NEXT_PUBLIC_INVOICE_CONTRACT_ID;
 
 class InvoiceContractClient {
   readonly contractId = INVOICE_CONTRACT_ID;
@@ -216,13 +218,26 @@ class InvoiceContractClient {
       sourcePublicKey
     );
   }
+
+  /**
+   * Cancel an invoice (owner only). Only cancellable if pending or unfunded.
+   * Status code: 6 for cancelled
+   * Returns unsigned XDR string.
+   */
+  async cancelInvoice(
+    tokenId: bigint,
+    sourcePublicKey: string
+  ): Promise<string> {
+    // Status code 6 = cancelled
+    return this.updateStatus(tokenId, 6, sourcePublicKey);
+  }
 }
 }
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
-const MARKETPLACE_CONTRACT_ID =
-  process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID ?? "";
+const MARKETPLACE_CONTRACT_ID = env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID;
+const TOKEN_CONTRACT_ID = env.NEXT_PUBLIC_TOKEN_CONTRACT_ID;
 
 class MarketplaceContractClient {
   readonly contractId = MARKETPLACE_CONTRACT_ID;
@@ -259,6 +274,18 @@ class MarketplaceContractClient {
     );
   }
 
+  async claimPosition(
+    params: { positionId: bigint },
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "claim_position",
+      [scvU64(params.positionId)],
+      sourcePublicKey
+    );
+  }
+
   /**
    * Read all investor positions (simulation only).
    */
@@ -272,6 +299,22 @@ class MarketplaceContractClient {
       [scvAddress(investor)],
       sourcePublicKey,
       (val) => val
+    );
+  }
+
+  /**
+   * Investor claims yield from a repaid position.
+   * Returns unsigned XDR string.
+   */
+  async claimYield(
+    params: ClaimYieldParams,
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "claim_yield",
+      [scvU64(params.tokenId)],
+      sourcePublicKey
     );
   }
 }
@@ -310,19 +353,19 @@ export const invoiceContract = new InvoiceContractClient();
 export const marketplaceContract = new MarketplaceContractClient();
 
 /**
- * Build an unsigned XDR transaction that calls `update_status` on the invoice
- * contract. The caller is responsible for verifying ownership before calling.
- *
- * @param tokenId       On-chain token ID (string, BigInt-convertible).
- * @param status        Target status as the on-chain enum index (OnChainStatusCode).
- * @param walletAddress Wallet that will sign — must be the invoice owner on-chain.
+ * Build an unsigned transaction to mint testnet USDC to a wallet.
  */
-export async function updateInvoiceStatus(
-  tokenId: string,
-  status: OnChainStatusCode,
-  walletAddress: string
+export async function buildTestnetUsdcMintTx(
+  recipient: string,
+  sourcePublicKey: string,
+  amount: bigint = BigInt("10000000000")
 ): Promise<string> {
-  return invoiceContract.updateStatus(BigInt(tokenId), status, walletAddress);
+  return buildCall(
+    TOKEN_CONTRACT_ID,
+    "mint",
+    [scvAddress(recipient), scvI128(amount)],
+    sourcePublicKey
+  );
 }
 
 // Re-export low-level helpers for advanced use

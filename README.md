@@ -24,6 +24,7 @@
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
 - [Project Structure](#project-structure)
+- [Design System](./DESIGN_SYSTEM.md)
 - [Environment Variables](#environment-variables)
 - [Core User Flows](#core-user-flows)
 - [Smart Contract Integration](#smart-contract-integration)
@@ -114,6 +115,18 @@ To run locally, see [Getting Started](#getting-started).
 | Blockchain | Stellar Soroban (via `@stellar/stellar-sdk`) |
 | Wallet | Stellar Wallets Kit (`@creit.tech/stellar-wallets-kit`) |
 | Storage | IPFS via Pinata |
+
+---
+
+## Design System
+
+The Kora frontend uses a semantic Tailwind-based design system with CSS custom properties in `app/globals.css`.
+
+- Color tokens are defined in HSL and mapped through `tailwind.config.ts`.
+- The app is dark-mode-first and supports light mode through theme overrides.
+- Reusable primitives live under `components/ui`.
+
+Read the full design system documentation in [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
 
 ---
 

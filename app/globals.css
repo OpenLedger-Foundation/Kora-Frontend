@@ -201,3 +201,67 @@ html {
     }
   }
 }
+
+/* ─── Print Styles ────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide non-essential UI */
+  nav,
+  header,
+  footer,
+  .print\\:hidden,
+  [data-print="hidden"],
+  button:not([data-print="show"]),
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset backgrounds for readability */
+  body,
+  html {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 12pt;
+  }
+
+  /* Cards become plain boxes */
+  .card,
+  [class*="Card"] {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    break-inside: avoid;
+  }
+
+  /* Ensure charts and tables don't break across pages */
+  .recharts-wrapper,
+  table {
+    break-inside: avoid;
+  }
+
+  /* Invoice detail print layout */
+  .print-layout {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Page breaks */
+  .page-break-before {
+    break-before: page;
+  }
+  .page-break-after {
+    break-after: page;
+  }
+
+  /* Links */
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 10pt;
+    color: #555;
+  }
+  a[href^="#"]::after,
+  a[href^="javascript:"]::after {
+    content: "";
+  }
+}

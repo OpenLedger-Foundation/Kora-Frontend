@@ -35,11 +35,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
       );
     }
 
-    // Verify the signature using Stellar SDK
-    // The challenge should be the original message that was signed
+    // Verify the signature using Stellar SDK's Keypair
     try {
-      const valid = StellarSdk.VerifyUtils.verify(
-        publicKey,
+      const keypair = StellarSdk.Keypair.fromPublicKey(publicKey);
+      const valid = keypair.verify(
         Buffer.from(challenge, "utf-8"),
         Buffer.from(signature, "base64")
       );

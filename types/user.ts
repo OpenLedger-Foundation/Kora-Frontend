@@ -10,6 +10,7 @@ export type WalletProvider =
   | "lobstr"
   | "hana";
 
+export type WalletNetwork = "testnet" | "mainnet" | "futurenet";
 export interface WalletState {
   address: string | null;
   publicKey: string | null;
@@ -26,6 +27,38 @@ export interface WalletBalance {
   usdc: string;
   eurc: string;
 }
+
+export interface WalletStateDisconnected {
+  status: "disconnected";
+  address: null;
+  publicKey: null;
+  provider: null;
+  network: WalletNetwork;
+  balance: null;
+}
+
+export interface WalletStateConnecting {
+  status: "connecting";
+  address: null;
+  publicKey: null;
+  provider: WalletProvider;
+  network: WalletNetwork;
+  balance: null;
+}
+
+export interface WalletStateConnected {
+  status: "connected";
+  address: string;
+  publicKey: string;
+  provider: WalletProvider;
+  network: WalletNetwork;
+  balance: WalletBalance;
+}
+
+export type WalletState =
+  | WalletStateDisconnected
+  | WalletStateConnecting
+  | WalletStateConnected;
 
 export interface UserProfile {
   id: string;

@@ -11,4 +11,12 @@ export const queryKeys = {
     batch: (tokenIds: string[]) =>
       ["invoices", "batch", [...tokenIds].sort().join(",")] as const,
   },
+  account: {
+    all: (address: string) => ["account", address] as const,
+    balances: (address: string) => ["account", address, "balances"] as const,
+    transactions: (address: string, limit?: number, cursor?: string) =>
+      ["account", address, "transactions", limit, cursor] as const,
+    exists: (address: string) => ["account", address, "exists"] as const,
+    usdcBalance: (address: string) => ["account", address, "usdc"] as const,
+  },
 } as const;
