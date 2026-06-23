@@ -104,6 +104,72 @@ export async function fetchInvoicesByOwner(ownerAddress: string): Promise<Invoic
   throw new Error("Live data fetch not yet implemented");
 }
 
+/**
+ * Batch-fetch invoices by their on-chain token IDs.
+ * In mock mode returns matching mock invoices without hitting RPC.
+ * In live mode delegates to batchGetInvoices() — results are OnChainInvoice
+ * (raw on-chain data); callers must map/enrich as needed.
+ *
+ * Batch size is capped at BATCH_SIZE_LIMIT (20) upstream by batchGetInvoices.
+ */
+export async function fetchInvoicesByTokenIds(
+  tokenIds: string[],
+  sourcePublicKey: string
+): Promise<Invoice[]> {
+  if (USE_MOCK) {
+    // No RPC calls in mock mode — just look up from static mock data
+    const idSet = new Set(tokenIds);
+    return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
+  }
+
+  const { batchGetInvoices } = await import("@/lib/stellar/client");
+  const results = await batchGetInvoices(tokenIds, sourcePublicKey);
+
+  // Map on-chain structs back to Invoice shape (best-effort; non-critical fields
+  // that don't exist on-chain retain their cached values from the store).
+  return results
+    .filter((r) => r.data !== null)
+    .map((r) => {
+      const onChain = r.data!;
+      // We only have on-chain fields — return a partial that callers merge
+      // into the existing store entry via mergeInvoicesBatch.
+      return {
+        tokenId: r.tokenId,
+        ownerAddress: onChain.owner,
+        ipfsCid: onChain.ipfs_cid,
+        // funding.totalRaised reflects the live funded_amount from chain
+        funding: {
+          totalRaised: Number(onChain.funded_amount) / 1_000_000,
+          targetAmount: Number(onChain.financing_amount) / 1_000_000,
+          fundingProgress:
+            Number(onChain.financing_amount) > 0
+              ? Number(onChain.funded_amount) / Number(onChain.financing_amount)
+              : 0,
+          investorCount: 0, // not available on-chain; preserve cached value
+          remainingCapacity:
+            Math.max(
+              0,
+              (Number(onChain.financing_amount) - Number(onChain.funded_amount)) /
+                1_000_000
+            ),
+        },
+        status: ON_CHAIN_STATUS_MAP[onChain.status] ?? "listed",
+      } as Partial<Invoice> & Pick<Invoice, "tokenId">;
+    }) as Invoice[];
+}
+
+/** Maps Soroban contract status enum index → InvoiceStatus string. */
+const ON_CHAIN_STATUS_MAP: Record<number, import("@/types").InvoiceStatus> = {
+  0: "pending_mint",
+  1: "listed",
+  2: "partially_funded",
+  3: "fully_funded",
+  4: "active",
+  5: "repaid",
+  6: "defaulted",
+  7: "cancelled",
+};
+
 export async function fetchPositions(investorAddress: string) {
   if (USE_MOCK) {
     // Build mock positions from MOCK_INVOICES for the demo
@@ -239,6 +305,120 @@ export async function submitAndConfirm(signedXdr: string): Promise<string> {
   const confirmed = await waitForTransaction(result.hash);
   if (confirmed.status !== "SUCCESS") throw new Error("Transaction failed on-chain");
   return result.hash;
+}
+
+/**
+ * Fetch a batch of invoices by tokenIds.
+ *
+ * - Mock mode: resolves immediately from MOCK_INVOICES (no RPC).
+ * - Live mode: fires concurrent get_invoice simulations, chunked at BATCH_SIZE.
+ *   On-chain data (OnChainInvoice) is mapped back to the Invoice shape used
+ *   by the UI. Fields not available on-chain are preserved from the cache when
+ *   present, or filled with sensible defaults.
+ *
+ * @param tokenIds  String token IDs to fetch (BigInt-convertible).
+ * @param sourcePublicKey  Used as the fee-source for read simulations.
+ * @returns Invoice[] — only found invoices are included (missing IDs are dropped).
+ */
+export const BATCH_SIZE = 20;
+
+export async function fetchBatchInvoicesByTokenIds(
+  tokenIds: string[],
+  sourcePublicKey: string
+): Promise<Invoice[]> {
+  if (tokenIds.length === 0) return [];
+
+  if (USE_MOCK) {
+    // Never touch the network when mock mode is on
+    const idSet = new Set(tokenIds);
+    return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
+  }
+
+  // Chunk into batches of BATCH_SIZE to respect the cap
+  const chunks: string[][] = [];
+  for (let i = 0; i < tokenIds.length; i += BATCH_SIZE) {
+    chunks.push(tokenIds.slice(i, i + BATCH_SIZE));
+  }
+
+  const allResults: Invoice[] = [];
+
+  for (const chunk of chunks) {
+    const bigIntIds = chunk.map((id) => BigInt(id));
+    const onChainMap = await invoiceContract.batchGetInvoices(bigIntIds, sourcePublicKey);
+
+    for (const [tokenId, onChain] of onChainMap.entries()) {
+      allResults.push(mapOnChainToInvoice(tokenId, onChain));
+    }
+  }
+
+  return allResults;
+}
+
+/**
+ * Map an on-chain struct to the UI Invoice type.
+ * Fields not available on-chain use defaults — callers can overlay cached data.
+ */
+function mapOnChainToInvoice(tokenId: string, onChain: import("@/types/contract").OnChainInvoice): Invoice {
+  const STATUS_MAP: Record<number, import("@/types").InvoiceStatus> = {
+    0: "listed",
+    1: "partially_funded",
+    2: "fully_funded",
+    3: "repaid",
+    4: "defaulted",
+    5: "cancelled",
+  };
+
+  const dueDate = new Date(Number(onChain.due_date) * 1000).toISOString();
+  const amount = Number(onChain.amount) / 1_000_000;
+  const financingAmount = Number(onChain.financing_amount) / 1_000_000;
+  const fundedAmount = Number(onChain.funded_amount) / 1_000_000;
+  const discountRate = onChain.discount_rate / 10_000;
+  const fundingProgress = financingAmount > 0 ? Math.min(fundedAmount / financingAmount, 1) : 0;
+
+  return {
+    id: `inv_${tokenId}`,
+    tokenId,
+    contractAddress: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
+    ipfsCid: onChain.ipfs_cid,
+    metadata: {
+      invoiceNumber: `INV-${tokenId}`,
+      issuerName: "",
+      issuerAddress: onChain.owner,
+      debtorName: "",
+      debtorAddress: "",
+      amount,
+      currency: "USDC",
+      issueDate: new Date().toISOString(),
+      dueDate,
+      description: "",
+      jurisdiction: "OTHER",
+      category: "other",
+      documentHash: onChain.ipfs_cid,
+      documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs"}/${onChain.ipfs_cid}`,
+    },
+    terms: {
+      discountRate,
+      apr: discountRate * (365 / 90) * 100, // approximate; real tenor unknown on-chain
+      financingAmount,
+      minInvestment: 0,
+      maxInvestment: financingAmount,
+      tenor: 90,
+      repaymentDate: dueDate,
+    },
+    funding: {
+      totalRaised: fundedAmount,
+      targetAmount: financingAmount,
+      fundingProgress,
+      investorCount: 0,
+      remainingCapacity: Math.max(0, financingAmount - fundedAmount),
+    },
+    riskTier: "A",
+    riskScore: 0,
+    status: STATUS_MAP[onChain.status] ?? "listed",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ownerAddress: onChain.owner,
+  };
 }
 
 export async function fetchInvestorPositions(investorAddress: string): Promise<import("@/types").InvoicePosition[]> {

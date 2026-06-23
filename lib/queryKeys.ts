@@ -8,5 +8,7 @@ export const queryKeys = {
     detail: (id: string) => ["invoices", "detail", id] as const,
     byOwner: (address: string) => ["invoices", "owner", address] as const,
     positions: (address: string) => ["invoices", "positions", address] as const,
+    batch: (tokenIds: string[]) =>
+      ["invoices", "batch", [...tokenIds].sort().join(",")] as const,
   },
 } as const;

@@ -151,6 +151,8 @@ function saveSearchHistory(history: string[]) {
 
 interface InvoiceStore {
   invoices: Invoice[];
+  /** tokenId → Invoice map, maintained by batch polling */
+  invoicesByTokenId: Record<string, Invoice>;
   filters: FilterState;
   sort: SortState;
   sortBy: string;
@@ -161,6 +163,8 @@ interface InvoiceStore {
 
   // Actions
   setInvoices: (invoices: Invoice[]) => void;
+  /** Merge a batch of invoices into invoicesByTokenId (and sync invoices array). */
+  mergeInvoicesBatch: (batch: Invoice[]) => void;
   setFilters: (filters: Partial<FilterState>) => void;
   updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   resetFilters: () => void;
@@ -184,6 +188,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
   persist(
     (set, get) => ({
       invoices: [],
+      invoicesByTokenId: {},
       filters: DEFAULT_FILTERS,
       sort: DEFAULT_SORT,
       sortBy: "apr_desc",
@@ -193,6 +198,23 @@ export const useInvoiceStore = create<InvoiceStore>()(
       createDraft: { currency: "USDC" },
 
       setInvoices: (invoices) => set({ invoices }),
+
+      mergeInvoicesBatch: (batch) =>
+        set((s) => {
+          const byTokenId = { ...s.invoicesByTokenId };
+          for (const inv of batch) {
+            byTokenId[inv.tokenId] = inv;
+          }
+          // Merge into main invoices array: update existing entries, append new ones
+          const existingIds = new Set(s.invoices.map((i) => i.tokenId));
+          const merged = s.invoices.map((inv) =>
+            byTokenId[inv.tokenId] ? byTokenId[inv.tokenId] : inv
+          );
+          for (const inv of batch) {
+            if (!existingIds.has(inv.tokenId)) merged.push(inv);
+          }
+          return { invoicesByTokenId: byTokenId, invoices: merged };
+        }),
 
       setFilters: (filters) =>
         set((s) => ({ filters: { ...s.filters, ...filters } })),

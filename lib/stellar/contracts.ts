@@ -182,9 +182,27 @@ class InvoiceContractClient {
   }
 
   /**
-   * Update invoice status (owner only).
-   * Returns unsigned XDR string.
+   * Batch-fetch multiple invoices by tokenId using concurrent simulations.
+   * Returns a map of tokenId (string) → OnChainInvoice. Entries that fail
+   * are omitted from the result rather than throwing, so one bad ID doesn't
+   * abort the whole batch.
    */
+  async batchGetInvoices(
+    tokenIds: bigint[],
+    sourcePublicKey: string
+  ): Promise<Map<string, OnChainInvoice>> {
+    const results = await Promise.allSettled(
+      tokenIds.map((id) => this.getInvoice(id, sourcePublicKey))
+    );
+    const map = new Map<string, OnChainInvoice>();
+    for (let i = 0; i < tokenIds.length; i++) {
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        map.set(tokenIds[i].toString(), r.value);
+      }
+    }
+    return map;
+  }
   async updateStatus(
     tokenId: bigint,
     status: number,
