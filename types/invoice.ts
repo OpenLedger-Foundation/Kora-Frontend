@@ -11,7 +11,19 @@ export type InvoiceStatus =
   | "defaulted"
   | "cancelled";
 
+export type InvoiceDraft = InvoiceBase & { status: "draft"; txHash?: undefined };
+export type InvoicePendingMint = InvoiceBase & { status: "pending_mint"; txHash?: string };
+export type InvoiceListed = InvoiceBase & { status: "listed" };
+export type InvoicePartiallyFunded = InvoiceBase & { status: "partially_funded" };
+export type InvoiceFullyFunded = InvoiceBase & { status: "fully_funded" };
+export type InvoiceActive = InvoiceBase & { status: "active" };
+export type InvoiceRepaid = InvoiceBase & { status: "repaid" };
+export type InvoiceDefaulted = InvoiceBase & { status: "defaulted" };
+export type InvoiceCancelled = InvoiceBase & { status: "cancelled" };
+
 export type RiskTier = "AAA" | "AA" | "A" | "BBB" | "BB" | "B" | "CCC";
+
+export type DebtorPrivacyLevel = "full" | "partial" | "anonymized";
 
 export type InvoiceCurrency = "USDC" | "EURC" | "XLM";
 
@@ -64,7 +76,7 @@ export interface InvoiceFunding {
   remainingCapacity: number;
 }
 
-export interface Invoice {
+export interface InvoiceBase {
   id: string;
   tokenId: string; // on-chain NFT token ID
   contractAddress: string;
@@ -74,12 +86,25 @@ export interface Invoice {
   funding: InvoiceFunding;
   riskTier: RiskTier;
   riskScore: number; // 0–100
+  debtorPrivacy: DebtorPrivacyLevel;
   status: InvoiceStatus;
   createdAt: string;
   updatedAt: string;
   ownerAddress: string; // SME wallet
   txHash?: string; // mint transaction
+  listingExpiry?: string; // ISO 8601, when listing expires from marketplace
 }
+
+export type Invoice =
+  | InvoiceDraft
+  | InvoicePendingMint
+  | InvoiceListed
+  | InvoicePartiallyFunded
+  | InvoiceFullyFunded
+  | InvoiceActive
+  | InvoiceRepaid
+  | InvoiceDefaulted
+  | InvoiceCancelled;
 
 export interface InvoicePosition {
   invoiceId: string;
@@ -104,6 +129,7 @@ export interface CreateInvoiceFormData {
   description: string;
   jurisdiction: InvoiceJurisdiction;
   category: InvoiceCategory;
+  debtorPrivacy: DebtorPrivacyLevel;
   discountRate: number;
   minInvestment: number;
   listingExpiryDate: string;

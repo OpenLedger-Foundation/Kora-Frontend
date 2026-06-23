@@ -1,0 +1,542 @@
+{
+  "nav": {
+    "marketplace": "Marketplace",
+    "invest": "Invest",
+    "myInvoices": "My Invoices",
+    "createInvoice": "Create Invoice",
+    "history": "History",
+    "addressBook": "Address Book",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "testnet": "TESTNET"
+  },
+  "wallet": {
+    "connect": "Connect Wallet",
+    "connectToAccess": "Connect your Stellar wallet to access Kora Protocol.",
+    "connectTitle": "Connect Wallet",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect wallet?",
+    "disconnectConfirm": "Are you sure? This will clear your wallet session and redirect from protected pages.",
+    "balances": "Balances",
+    "copyAddress": "Copy address",
+    "viewExplorer": "View on Explorer",
+    "notificationSettings": "Notification settings",
+    "fundTestnet": "Fund Testnet Account",
+    "funding": "Funding...",
+    "fundingTestnet": "Funding testnet account...",
+    "fundSuccess": "Testnet account funded with 10,000 XLM",
+    "fundFailed": "Funding failed",
+    "cancel": "Cancel",
+    "popular": "Popular",
+    "notInstalled": "Not installed",
+    "install": "Install",
+    "retry": "Retry",
+    "termsPrefix": "By connecting, you agree to our",
+    "termsLink": "Terms of Service",
+    "connectGuardTitle": "Connect your wallet to continue",
+    "connectGuardDesc": "This page requires a connected wallet."
+  },
+  "landing": {
+    "headline": "Invoice Financing, On-Chain",
+    "badge": "Live on Stellar Testnet",
+    "subtitle": "Unlock working capital for emerging market SMEs with on-chain invoice financing, stablecoin liquidity and transparent investor access — all non-custodial.",
+    "financeInvoice": "Finance My Invoice",
+    "browseMarketplace": "Browse Marketplace",
+    "exploreMarketplace": "Explore Marketplace",
+    "createInvoice": "Create Invoice",
+    "ctaTitle": "Ready to unlock your capital?",
+    "ctaSubtitle": "Join hundreds of SMEs already financing invoices on Kora Protocol.",
+    "howItWorksTitle": "How It Works",
+    "howItWorksSubtitle": "Five steps from invoice to liquidity",
+    "featuresTitle": "Built for the Real Economy",
+    "featuresSubtitle": "Institutional-grade infrastructure for emerging market SMEs",
+    "architectureTitle": "Protocol Architecture",
+    "architectureSubtitle": "Fully on-chain, non-custodial, and auditable",
+    "stats": {
+      "totalInvoices": "Total Invoices",
+      "totalFinanced": "Total USDC Financed",
+      "averageApr": "Average APR",
+      "totalVolume": "Total Volume Financed",
+      "activeInvoices": "Active Invoices",
+      "liquidityProviders": "Liquidity Providers",
+      "avgApr": "Avg. APR"
+    },
+    "howItWorks": {
+      "step1Title": "Connect Wallet",
+      "step1Desc": "Connect your Stellar wallet (Freighter, xBull, LOBSTR) to access the protocol.",
+      "step2Title": "Upload Invoice",
+      "step2Desc": "Upload your unpaid invoice. Metadata is stored on IPFS; the NFT is minted on Soroban.",
+      "step3Title": "List on Marketplace",
+      "step3Desc": "Set your discount rate and minimum investment. Your invoice goes live instantly.",
+      "step4Title": "Receive Liquidity",
+      "step4Desc": "Investors fund your invoice. USDC is transferred to your wallet immediately.",
+      "step5Title": "Repay & Close",
+      "step5Desc": "On due date, repay the financed amount. Investors receive principal + yield."
+    },
+    "features": {
+      "instantTitle": "Instant Settlement",
+      "instantDesc": "Soroban smart contracts settle transactions in seconds, not days.",
+      "nonCustodialTitle": "Non-Custodial",
+      "nonCustodialDesc": "Your assets stay in your wallet. Smart contracts hold escrow, not us.",
+      "globalTitle": "Global Access",
+      "globalDesc": "SMEs across Africa, Asia, and LatAm access institutional-grade financing.",
+      "transparentTitle": "Transparent Risk",
+      "transparentDesc": "On-chain risk scores and repayment history visible to all participants."
+    },
+    "architecture": {
+      "appLayer": "Application Layer",
+      "protocolLayer": "Protocol Layer",
+      "storageLayer": "Storage Layer"
+    }
+  },
+  "marketplace": {
+    "title": "Invoice Marketplace",
+    "subtitle": "Discovering deals...",
+    "showing": "Showing {count} listed invoices",
+    "shareFilters": "Share Filters",
+    "searchPlaceholder": "Search by debtor, invoice number, or jurisdiction…",
+    "clearSearch": "Clear search",
+    "filters": "Filters",
+    "quickFilters": "Quick Filters",
+    "marketplaceFilters": "Marketplace Filters",
+    "filterInvoices": "Filter Invoices",
+    "active": "{count} active",
+    "resetFilters": "Reset All Filters",
+    "activeOnly": "Active Only",
+    "activeOnlyDesc": "Hide fully funded or defaulted invoices",
+    "aprRange": "APR Range",
+    "riskTier": "Risk Tier",
+    "categories": "Categories",
+    "jurisdictions": "Jurisdictions",
+    "allCategories": "All Categories",
+    "allJurisdictions": "All Jurisdictions",
+    "noResults": "No invoices match your filters",
+    "noResultsDesc": "We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities.",
+    "clearAllFilters": "Clear All Filters",
+    "loadingMore": "Loading more…",
+    "allLoaded": "All invoices loaded",
+    "backToTop": "↑ Top",
+    "recent": "Recent",
+    "clear": "Clear",
+    "sort": {
+      "aprDesc": "APR: High to Low",
+      "aprAsc": "APR: Low to High",
+      "amountDesc": "Amount: High to Low",
+      "amountAsc": "Amount: Low to High",
+      "dueSoonest": "Due Date: Soonest",
+      "dueLatest": "Due Date: Latest",
+      "newest": "Newest Listed"
+    }
+  },
+  "invoiceDetail": {
+    "backToMarketplace": "Back to Marketplace",
+    "financingTerms": "Financing Terms",
+    "fundingProgress": "Funding Progress",
+    "ipfsPreview": "IPFS Document Preview",
+    "fundThisInvoice": "Fund This Invoice",
+    "expectedApr": "Expected APR",
+    "maturity": "Maturity",
+    "connectToInvest": "Connect your Stellar wallet to view yields and start investing.",
+    "connectWalletToInvest": "Connect Wallet to Invest",
+    "selfFundBlocked": "Self-Funding Blocked",
+    "selfFundDesc": "You cannot fund your own invoice. Decoupled factoring escrow rules restrict invoice owners from bidding as liquidity providers.",
+    "cannotFundOwn": "You cannot fund your own invoice",
+    "fullyFundedTitle": "Invoice Fully Funded",
+    "fullyFundedDesc": "This invoice has completed its financing target and is now locked in smart contract escrow.",
+    "fullyFunded": "Fully Funded",
+    "investmentAmount": "Investment Amount (USDC)",
+    "fundInvoice": "Fund Invoice",
+    "escrowNote": "Liquidity deposits are held securely in Soroban escrow smart contracts until repayment is confirmed.",
+    "pendingConfirmation": "Pending confirmation",
+    "viewDocument": "View Invoice Document",
+    "documentUnavailable": "Document unavailable",
+    "documentUnavailableDesc": "Unable to load the PDF document.",
+    "downloadPdf": "Download PDF",
+    "noDocumentTitle": "No document preview available",
+    "noDocumentDesc": "This invoice does not have an attached PDF preview or document URL.",
+    "pdfReady": "PDF ready for download",
+    "raised": "{amount} raised",
+    "percentOf": "{percent}% of {total}",
+    "investors": "Investors",
+    "remaining": "Remaining",
+    "closes": "Closes",
+    "issued": "Issued {date}",
+    "due": "Due {date}",
+    "terms": {
+      "invoiceAmount": "Invoice Amount",
+      "financingAmount": "Financing Amount",
+      "discountRate": "Discount Rate",
+      "apr": "APR",
+      "tenor": "Tenor",
+      "repaymentDate": "Repayment Date",
+      "minInvestment": "Min Investment",
+      "maxInvestment": "Max Investment",
+      "daysRemaining": "Days Remaining",
+      "days": "{count} days"
+    },
+    "investment": {
+      "principal": "Investment Principal",
+      "holdingDuration": "Holding Duration",
+      "totalPayoff": "Total Expected Payoff",
+      "netYield": "Net Yield",
+      "days": "{count} days"
+    },
+    "errors": {
+      "minInvestment": "Minimum investment is {amount}",
+      "exceedsCapacity": "Amount exceeds remaining capacity of {amount}"
+    },
+    "hint": {
+      "minRemaining": "Min: ${min} · Remaining Capacity: ${remaining}"
+    }
+  },
+  "createInvoice": {
+    "title": "Create Invoice",
+    "subtitle": "Tokenize your invoice and access instant liquidity",
+    "steps": {
+      "details": "Invoice Details",
+      "terms": "Financing Terms",
+      "review": "Upload & Review"
+    },
+    "fields": {
+      "invoiceNumber": "Invoice Number",
+      "invoiceNumberPlaceholder": "INV-2024-0001",
+      "debtorName": "Debtor Company Name",
+      "debtorNamePlaceholder": "Acme Corporation Ltd",
+      "debtorAddress": "Debtor Address",
+      "debtorAddressPlaceholder": "123 Business St, City, Country",
+      "addToAddressBook": "+ Add to Address Book",
+      "invoiceAmount": "Invoice Amount (USDC)",
+      "invoiceAmountHint": "Minimum 100 USDC",
+      "dueDate": "Due Date",
+      "description": "Description / Memo",
+      "descriptionPlaceholder": "Optional details or terms of the invoice...",
+      "jurisdiction": "Jurisdiction",
+      "category": "Industry Category",
+      "debtorPrivacy": "Debtor Privacy Level",
+      "discountRate": "Discount Rate (%)",
+      "minInvestment": "Minimum Investment (USDC)",
+      "minInvestmentHint": "Smallest amount a single investor can contribute",
+      "listingExpiry": "Listing Expiry Date",
+      "listingExpiryHint": "When the listing period closes"
+    },
+    "preview": {
+      "title": "Live Invoice Preview",
+      "subtitle": "Review the key invoice details as you type.",
+      "step": "Step 1 of 3",
+      "invoice": "Invoice",
+      "debtor": "Debtor",
+      "amount": "Amount",
+      "dueDate": "Due Date",
+      "jurisdiction": "Jurisdiction",
+      "invoicePlaceholder": "INV-XXXX-XXXX",
+      "descriptionPlaceholder": "Add a memo or description to summarize the invoice.",
+      "debtorPlaceholder": "Debtor Company Name",
+      "debtorAddressPlaceholder": "Debtor address will display here.",
+      "selectDueDate": "Select due date",
+      "select": "Select"
+    },
+    "financingPreview": {
+      "title": "Live Financing Preview",
+      "daysToMaturity": "{count} days to maturity",
+      "youReceive": "Financing Amount (You Receive)",
+      "investorPayout": "Investor Payout at Maturity",
+      "capitalSeek": "Capital Seek ({percent}%)",
+      "yieldCost": "Yield Cost ({percent}%)"
+    },
+    "upload": {
+      "dragDrop": "Drag & drop your invoice PDF here",
+      "orClick": "or click to browse",
+      "maxSize": "PDF only · Max 10MB",
+      "uploading": "Uploading to IPFS...",
+      "uploaded": "Uploaded",
+      "remove": "Remove",
+      "errors": {
+        "tooLarge": "File is too large. Max size is exactly 10MB.",
+        "invalidType": "Invalid file type. Only PDF documents are allowed.",
+        "required": "Please upload the invoice PDF before minting."
+      }
+    },
+    "review": {
+      "title": "Review & Mint",
+      "subtitle": "Confirm your invoice details before minting on Soroban",
+      "mintButton": "Mint Invoice NFT",
+      "minting": "Minting...",
+      "connectToMint": "Connect wallet to mint"
+    },
+    "success": {
+      "title": "Invoice Minted!",
+      "subtitle": "Your invoice has been tokenized as an NFT on the Stellar Soroban network and is ready for funding.",
+      "tokenId": "NFT Token ID",
+      "txHash": "Transaction Hash",
+      "ipfsCid": "IPFS Metadata CID",
+      "verifyStellar": "Verify on Stellar Expert",
+      "viewMarketplace": "View on Marketplace"
+    },
+    "navigation": {
+      "next": "Next",
+      "back": "Back",
+      "nextStep": "Next: {step}"
+    },
+    "privacy": {
+      "full": "Full (Name + Address)",
+      "partial": "Partial (Name Only)",
+      "anonymized": "Anonymized (Industry + Country)"
+    },
+    "discountRateDesc": "The discount offered to investors. A higher rate attracts faster funding but increases financing cost."
+  },
+  "smeDashboard": {
+    "title": "SME Dashboard",
+    "subtitle": "Manage your invoice financing",
+    "newInvoice": "New Invoice",
+    "myInvoices": "My Invoices",
+    "connectTitle": "Connect your wallet",
+    "connectDesc": "Connect to view and manage your invoices",
+    "repaymentDue": "Repayment Due Soon",
+    "repaymentDueDesc": "You have invoices approaching their repayment date. Ensure sufficient USDC balance.",
+    "stats": {
+      "totalFinanced": "Total Financed",
+      "activeInvoices": "Active Invoices",
+      "pendingRepayment": "Pending Repayment",
+      "repaymentRate": "Repayment Rate",
+      "allTime": "All-time",
+      "thisMonth": "12.4% this month"
+    },
+    "table": {
+      "invoice": "Invoice",
+      "debtor": "Debtor",
+      "amount": "Amount",
+      "apr": "APR",
+      "progress": "Progress",
+      "status": "Status",
+      "dueDate": "Due Date",
+      "repay": "Repay",
+      "cancel": "Cancel",
+      "view": "View →"
+    },
+    "empty": {
+      "title": "No invoices yet",
+      "message": "Create your first invoice to start raising liquidity."
+    },
+    "batch": {
+      "title": "Batch Operation Summary",
+      "exportSelected": "Export selected",
+      "processingLabel": "Cancelling {count} invoices..."
+    }
+  },
+  "investorDashboard": {
+    "title": "Investor Dashboard",
+    "subtitle": "Track your invoice financing portfolio",
+    "browseMarketplace": "Browse Marketplace",
+    "connectTitle": "Connect your wallet",
+    "connectDesc": "Connect to view your investment portfolio",
+    "stats": {
+      "portfolioValue": "Portfolio Value",
+      "expectedYield": "Expected Yield",
+      "activePositions": "Active Positions",
+      "avgApr": "Avg. APR",
+      "activePositionsChange": "{count} active positions",
+      "returnChange": "{percent}% return",
+      "acrossPositions": "Across all positions"
+    },
+    "table": {
+      "invoice": "Invoice",
+      "debtor": "Debtor",
+      "invested": "Invested",
+      "expectedReturn": "Expected Return",
+      "yield": "Yield",
+      "apr": "APR",
+      "risk": "Risk",
+      "dueDate": "Due Date",
+      "claim": "Claim",
+      "view": "View →"
+    },
+    "activePositions": "Active Positions",
+    "allocationRisk": "Allocation by Risk Tier",
+    "allocationJurisdiction": "Allocation by Jurisdiction",
+    "empty": {
+      "title": "No positions",
+      "message": "Fund invoices on the marketplace to build your portfolio."
+    },
+    "fundTestnet": "Fund Testnet Account"
+  },
+  "transactions": {
+    "title": "Transaction History",
+    "subtitle": "Your complete on-chain activity on Kora Protocol",
+    "exportCsv": "Export CSV",
+    "clearAll": "Clear All",
+    "connectTitle": "Connect your wallet",
+    "connectDesc": "Connect to view your on-chain transaction history",
+    "searchPlaceholder": "Search by hash, invoice number, or description…",
+    "clearSearch": "Clear search",
+    "noResults": "No results",
+    "noResultsDesc": "Try adjusting your search or filters",
+    "filteredFrom": "Filtered from {total} total",
+    "types": {
+      "all": "All Types",
+      "mint": "Mints",
+      "fund": "Funding",
+      "repay": "Repayments",
+      "claim": "Claims",
+      "mintLabel": "Invoice Minted",
+      "fundLabel": "Invoice Funded",
+      "repayLabel": "Repayment",
+      "claimLabel": "Yield Claimed"
+    },
+    "status": {
+      "all": "all",
+      "confirmed": "confirmed",
+      "failed": "failed"
+    },
+    "stats": {
+      "total": "Total Transactions",
+      "confirmed": "Confirmed",
+      "totalVolume": "Total Volume",
+      "invoicesFunded": "Invoices Funded",
+      "failed": "{count} failed",
+      "minted": "{count} minted"
+    },
+    "empty": {
+      "title": "No transactions yet",
+      "description": "Your on-chain activity will appear here once you mint, fund, or repay invoices."
+    },
+    "txCount": "{count} transaction",
+    "txCountPlural": "{count} transactions",
+    "viewStellar": "View on Stellar Expert",
+    "remove": "Remove transaction"
+  },
+  "analytics": {
+    "title": "Portfolio Analytics",
+    "subtitle": "Performance overview of your invoice financing portfolio",
+    "connectTitle": "Connect your wallet",
+    "connectDesc": "Connect to view your portfolio analytics",
+    "range": "Range:",
+    "exportPortfolio": "Export Portfolio CSV",
+    "exportYield": "Export Yield CSV",
+    "stats": {
+      "totalDeployed": "Total Deployed",
+      "totalYield": "Total Yield Earned",
+      "annualisedReturn": "Annualised Return",
+      "defaultRate": "Default Rate"
+    }
+  },
+  "repaymentDialog": {
+    "title": "Confirm Repayment",
+    "principal": "Principal (raised)",
+    "interest": "Interest owed",
+    "total": "Total repayment",
+    "insufficientBalance": "Insufficient USDC balance. You need {amount}.",
+    "cancel": "Cancel",
+    "confirm": "Confirm Repayment",
+    "processing": "Processing…"
+  },
+  "cancelDialog": {
+    "title": "Cancel Invoice",
+    "description": "This action cannot be undone. The invoice will be permanently cancelled.",
+    "partiallyFunded": "Partially Funded",
+    "partiallyFundedDesc": "This invoice has {amount} in funding. Cancellation is not allowed for partially funded invoices.",
+    "effectsTitle": "Cancellation Effects",
+    "effects": {
+      "markedOnChain": "Invoice will be marked as cancelled on-chain",
+      "removedMarketplace": "It will be removed from the marketplace",
+      "investorsNotified": "Investors will be notified",
+      "ipfsCleanup": "IPFS-pinned files will be cleaned up"
+    },
+    "keepInvoice": "Keep Invoice",
+    "cancelInvoice": "Cancel Invoice",
+    "cancelling": "Cancelling...",
+    "fields": {
+      "debtor": "Debtor",
+      "invoiceAmount": "Invoice Amount",
+      "financingAmount": "Financing Amount",
+      "dueDate": "Due Date",
+      "fundedAmount": "Funded Amount"
+    }
+  },
+  "transaction": {
+    "building": "Building transaction…",
+    "simulating": "Simulating transaction…",
+    "signing": "Waiting for wallet signature…",
+    "submitting": "Submitting to Stellar network…",
+    "polling": "Waiting for confirmation…",
+    "confirmed": "Transaction confirmed!",
+    "failed": "Transaction failed",
+    "retry": "Retry",
+    "dismiss": "Dismiss"
+  },
+  "txSimulation": {
+    "title": "Transaction Preview",
+    "subtitle": "Review estimated fees and resource usage before signing",
+    "estimatedFee": "Estimated Fee",
+    "feeUsd": "≈ {usd} USD",
+    "resourceUsage": "Resource Usage",
+    "cpuInstructions": "CPU Instructions",
+    "memoryBytes": "Memory",
+    "readBytes": "Read Bytes",
+    "writeBytes": "Write Bytes",
+    "simulationError": "Simulation Error",
+    "simulationErrorDesc": "This transaction cannot be executed. Please review the error below.",
+    "timeout": "Simulation timed out after 10 seconds. Please try again.",
+    "simulating": "Simulating transaction…",
+    "proceed": "Proceed & Sign",
+    "cancel": "Cancel",
+    "stroops": "{amount} stroops",
+    "xlm": "{amount} XLM",
+    "instructions": "{count} instructions",
+    "bytes": "{count} bytes",
+    "kb": "{count} KB"
+  },
+  "network": {
+    "operational": "Operational",
+    "degraded": "Degraded",
+    "down": "Down",
+    "operationalDesc": "All services running normally",
+    "degradedDesc": "Some services experiencing delays",
+    "downDesc": "Services unavailable",
+    "sorobanRpc": "Soroban RPC",
+    "horizonApi": "Horizon API",
+    "lastChecked": "Last checked: {time}",
+    "testnet": "Testnet",
+    "mainnet": "Mainnet",
+    "error": "Error"
+  },
+  "offline": {
+    "title": "You're offline",
+    "subtitle": "Kora Protocol requires an internet connection to interact with the Stellar network. Check your connection and try again.",
+    "availableOffline": "Available offline",
+    "requiresConnection": "Requires connection",
+    "cachedListings": "Previously visited marketplace listings",
+    "cachedAssets": "Cached static pages and assets",
+    "walletSigning": "Wallet connection & signing",
+    "invoiceCreation": "Invoice creation & minting",
+    "liveData": "Live marketplace data",
+    "reload": "Try Again",
+    "browseCached": "Browse cached listings"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The page you're looking for doesn't exist or has been moved.",
+    "goHome": "Go Home",
+    "goBack": "Go Back"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "description": "An unexpected error occurred. You can try again or return to the home page.",
+    "tryAgain": "Try Again",
+    "goHome": "Go Home"
+  },
+  "common": {
+    "loading": "Loading…",
+    "connectWallet": "Connect Wallet",
+    "skipToContent": "Skip to content",
+    "close": "Close",
+    "back": "Back"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "es": "Español",
+    "switchTo": "Switch to {lang}"
+  }
+}

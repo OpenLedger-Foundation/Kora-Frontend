@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { toast } from "sonner";
+import { useTranslations } from "next-intl";
+import { useToast } from "./useToast";
+import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
-import {
-  rpc,
-  submitTransaction,
-  sequenceManager,
-  BadSequenceError,
-} from "@/lib/stellar/client";
+import { rpc, submitTransaction } from "@/lib/stellar/client";
+import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { useUIStore } from "@/store/uiStore";
+import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -28,21 +28,28 @@ interface TxState {
   error?: string;
 }
 
+/** Parsed simulation result exposed to the preview dialog. */
+export interface SimulationPreview {
+  /** Fee in stroops (1 XLM = 10_000_000 stroops) */
+  feeStroops: number;
+  /** Fee in XLM */
+  feeXlm: number;
+  /** CPU instructions consumed */
+  cpuInstructions: number;
+  /** Memory bytes consumed */
+  memoryBytes: number;
+  /** Read bytes */
+  readBytes: number;
+  /** Write bytes */
+  writeBytes: number;
+  /** Human-readable error if simulation failed */
+  error?: string;
+}
+
 const TOAST_ID = "kora-tx";
 const MAX_POLL_ATTEMPTS = 30;
-const POLL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-
-const STAGE_MESSAGES: Record<TxLifecycleStatus, string> = {
-  idle: "",
-  building: "Building transaction…",
-  simulating: "Simulating transaction…",
-  signing: "Waiting for wallet signature…",
-  submitting: "Submitting to Stellar network…",
-  retrying: "Syncing sequence number and retrying…",
-  polling: "Waiting for confirmation…",
-  confirmed: "Transaction confirmed!",
-  failed: "Transaction failed",
-};
+const POLL_TIMEOUT_MS = 5 * 60 * 1000;
+const SIMULATION_TIMEOUT_MS = 10_000;
 
 async function pollWithBackoff(hash: string): Promise<string> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
@@ -54,7 +61,6 @@ async function pollWithBackoff(hash: string): Promise<string> {
     if (result.status === "SUCCESS") return hash;
     if (result.status === "FAILED") throw new Error("Transaction failed on-chain");
 
-    // Exponential backoff: 1s, 2s, 4s, 8s … capped at 16s
     const delay = Math.min(1000 * 2 ** attempt, 16_000);
     await new Promise((r) => setTimeout(r, delay));
   }
@@ -63,44 +69,72 @@ async function pollWithBackoff(hash: string): Promise<string> {
 }
 
 /**
- * Build, simulate, sign and submit a Soroban transaction.
- * Returns the signed XDR string.
+ * Parse a successful simulation result into a SimulationPreview.
  */
-async function buildAndSign(
-  buildFn: () => Promise<string>,
-  signTransaction: (xdr: string) => Promise<string>,
-  setStage: (status: TxLifecycleStatus) => void
-): Promise<string> {
-  setStage("building");
-  const unsignedXdr = await buildFn();
+function parseSimulationPreview(
+  sim: StellarSdk.rpc.Api.SimulateTransactionSuccessResponse
+): SimulationPreview {
+  const feeStroops = parseInt(sim.minResourceFee ?? "0", 10);
+  const feeXlm = feeStroops / 10_000_000;
 
-  // Simulate only for real (non-mock) transactions
-  if (!unsignedXdr.startsWith("mock_")) {
-    setStage("simulating");
-    const tx = StellarSdk.TransactionBuilder.fromXDR(
-      unsignedXdr,
-      process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE || StellarSdk.Networks.TESTNET
-    );
-    const sim = await rpc.simulateTransaction(tx);
-    if (StellarSdk.rpc.Api.isSimulationError(sim)) {
-      throw new Error(`Simulation failed: ${sim.error}`);
+  const resources = (sim as any).transactionData?.resources?.() ?? null;
+
+  let cpuInstructions = 0;
+  let memoryBytes = 0;
+  let readBytes = 0;
+  let writeBytes = 0;
+
+  try {
+    if (resources) {
+      cpuInstructions = resources.instructions?.() ?? 0;
+      memoryBytes = resources.readBytes?.() ?? 0; // Soroban SDK naming varies
+      readBytes = resources.readBytes?.() ?? 0;
+      writeBytes = resources.writeBytes?.() ?? 0;
     }
+    // Fallback: try sorobanData path
+    const sorobanData = (sim as any).sorobanData;
+    if (sorobanData) {
+      const r = sorobanData.resources();
+      cpuInstructions = Number(r.instructions());
+      readBytes = Number(r.readBytes());
+      writeBytes = Number(r.writeBytes());
+    }
+  } catch {
+    // Resource parsing is best-effort; leave zeros if unavailable
   }
 
-  setStage("signing");
-  return signTransaction(unsignedXdr);
+  return { feeStroops, feeXlm, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
 
 export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
-  const { signTransaction, publicKey } = useWallet();
+  const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
+  const { signTransaction } = useWallet();
+  const toast = useToast();
+  const t = useTranslations("transaction");
+  const setTxState = useUIStore((s) => s.setTxState);
+  const addTransaction = useTransactionHistoryStore((s) => s.addTransaction);
+  const updateTransactionStatus = useTransactionHistoryStore((s) => s.updateTransactionStatus);
 
-  const setStage = useCallback((status: TxLifecycleStatus, extra?: Partial<TxState>) => {
-    setState((s) => ({ ...s, status, ...extra }));
-    if (status !== "idle" && status !== "confirmed" && status !== "failed") {
-      toast.loading(STAGE_MESSAGES[status], { id: TOAST_ID });
-    }
-  }, []);
+  const setStage = useCallback(
+    (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
+      setState((s) => ({ ...s, status, ...extra }));
+      setTxState({ status });
+      // Show loading toast for in-progress stages
+      const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
+      if (inProgress.includes(status)) {
+        const labels: Record<string, string> = {
+          building: t("building"),
+          simulating: t("simulating"),
+          signing: t("signing"),
+          submitting: t("submitting"),
+          polling: t("polling"),
+        };
+        toast.loading(labels[status] ?? status, TOAST_ID, "txConfirmed");
+      }
+    },
+    [t, toast, setTxState]
+  );
 
   const execute = useCallback(
     async (
@@ -108,12 +142,76 @@ export function useTransaction() {
       options?: {
         onSuccess?: (hash: string) => void;
         successMessage?: string;
+        successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
+        /** Called with the simulation preview; must resolve true to proceed */
+        onSimulationPreview?: (preview: SimulationPreview) => Promise<boolean>;
+        txType?: string;
+        txDescription?: string;
+        txAmount?: string;
+        txAssetCode?: string;
       }
     ): Promise<string | null> => {
       try {
-        // ── Phase 1: build + simulate + sign ──────────────────────────────
-        let signedXdr = await buildAndSign(buildFn, signTransaction, setStage);
+        // 1. Build
+        setStage("building");
+        const unsignedXdr = await buildFn();
+
+        // 2. Simulate (skip for mock XDRs)
+        if (!unsignedXdr.startsWith("mock_")) {
+          setStage("simulating");
+
+          const tx = StellarSdk.TransactionBuilder.fromXDR(
+            unsignedXdr,
+            env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE
+          );
+
+          // Race simulation against a 10-second timeout
+          const simPromise = rpc.simulateTransaction(tx);
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(
+              () => reject(new Error("Simulation timed out after 10 seconds. Please try again.")),
+              SIMULATION_TIMEOUT_MS
+            )
+          );
+
+          const sim = await Promise.race([simPromise, timeoutPromise]);
+
+          if (StellarSdk.rpc.Api.isSimulationError(sim)) {
+            const preview: SimulationPreview = {
+              feeStroops: 0,
+              feeXlm: 0,
+              cpuInstructions: 0,
+              memoryBytes: 0,
+              readBytes: 0,
+              writeBytes: 0,
+              error: sim.error,
+            };
+            setSimulationPreview(preview);
+
+            // If caller wants to show the preview dialog, let them handle the error
+            if (options?.onSimulationPreview) {
+              await options.onSimulationPreview(preview);
+            }
+            throw new Error(`Simulation failed: ${sim.error}`);
+          }
+
+          // Parse successful simulation
+          const preview = parseSimulationPreview(
+            sim as StellarSdk.rpc.Api.SimulateTransactionSuccessResponse
+          );
+          setSimulationPreview(preview);
+
+          // If caller provided a preview handler, wait for user confirmation
+          if (options?.onSimulationPreview) {
+            const proceed = await options.onSimulationPreview(preview);
+            if (!proceed) {
+              setState({ status: "idle" });
+              toast.dismiss(TOAST_ID);
+              return null;
+            }
+          }
+        }
 
         // ── Phase 2: submit (with one seq-reset retry) ─────────────────────
         setStage("submitting");
@@ -152,7 +250,17 @@ export function useTransaction() {
           }
         }
 
-        // ── Phase 4: poll for confirmation ─────────────────────────────────
+        // Add to history as pending
+        addTransaction({
+          hash,
+          type: (options?.txType as any) || "other",
+          status: "pending",
+          description: options?.txDescription,
+          amount: options?.txAmount,
+          assetCode: options?.txAssetCode,
+        });
+
+        // 5. Poll
         setStage("polling", { txHash: hash });
         if (!signedXdr.startsWith("mock_")) {
           await pollWithBackoff(hash);
@@ -162,29 +270,46 @@ export function useTransaction() {
 
         // ── Phase 5: done ──────────────────────────────────────────────────
         setState({ status: "confirmed", txHash: hash });
-        toast.success(options?.successMessage ?? "Transaction confirmed!", {
-          id: TOAST_ID,
-          description: `Hash: ${hash.slice(0, 16)}…`,
-        });
+        setTxState({ status: "confirmed", txHash: hash });
+        updateTransactionStatus(hash, "confirmed");
+        toast.success(
+          options?.successMessage ?? t("confirmed"),
+          hash,
+          TOAST_ID,
+          options?.successNotificationType ?? "txConfirmed"
+        );
 
         options?.onSuccess?.(hash);
         return hash;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Transaction failed";
+        const message = err instanceof Error ? err.message : t("failed");
         setState({ status: "failed", error: message });
-        toast.error("Transaction failed", {
-          id: TOAST_ID,
-          description: message,
-          action: { label: "Retry", onClick: () => setState({ status: "idle" }) },
-        });
+        setTxState({ status: "failed", error: message });
+        
+        // Update history if we have a hash
+        if (state.txHash) {
+          updateTransactionStatus(state.txHash, "failed", message);
+        }
+        
+        toast.error(
+          t("failed"),
+          message,
+          () => setState({ status: "idle" }),
+          TOAST_ID,
+          "txConfirmed"
+        );
         options?.onError?.(err);
         return null;
       }
     },
-    [signTransaction, publicKey, setStage]
+    [signTransaction, setStage, setTxState, addTransaction, updateTransactionStatus, t, toast, state.txHash]
   );
 
-  const reset = useCallback(() => setState({ status: "idle" }), []);
+  const reset = useCallback(() => {
+    setState({ status: "idle" });
+    setSimulationPreview(null);
+    setTxState({ status: "idle" });
+  }, [setTxState]);
 
   return {
     execute,
@@ -192,5 +317,6 @@ export function useTransaction() {
     status: state.status,
     txHash: state.txHash,
     error: state.error,
+    simulationPreview,
   };
 }

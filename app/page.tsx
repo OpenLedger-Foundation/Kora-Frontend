@@ -18,6 +18,8 @@ import { GlassCard } from "@/components/ui/card";
 import { MOCK_STATS } from "@/services/mockData";
 import { formatCurrency } from "@/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Script from "next/script";
+import { websiteSchema, organizationSchema, faqSchema, serializeSchema } from "@/lib/structuredData";
 
 const HERO_HEADLINE = "Invoice Financing, On-Chain";
 
@@ -140,8 +142,16 @@ export default function LandingPage() {
 
   return (
     <div className="bg-mesh">
+      {/* Structured data for SEO ≥ 95 — injected after hydration to avoid SSR mismatch */}
+      <Script
+        id="ld-faq"
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeSchema(faqSchema()) }}
+        strategy="afterInteractive"
+      />
+
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden px-4 pb-24 pt-24 sm:px-6 lg:px-8">
+      <section className="relative overflow-hidden px-4 pb-24 pt-24 sm:px-6 lg:px-8" aria-labelledby="hero-heading">
         <div className="absolute inset-0 hero-background" aria-hidden="true" />
         <div className="absolute inset-0 hero-grid-dots" aria-hidden="true" />
 
@@ -165,6 +175,7 @@ export default function LandingPage() {
             <motion.h1
               variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.1 } } }}
               className="mx-auto mt-6 max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-6xl lg:text-7xl"
+              id="hero-heading"
             >
               {words.map((word, index) => (
                 <motion.span
@@ -220,7 +231,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Stats ────────────────────────────────────────────────────────── */}
-      <section className="border-y border-zinc-800/60 bg-zinc-900/30 px-4 py-12 sm:px-6">
+      <section className="border-y border-zinc-800/60 bg-zinc-900/30 px-4 py-12 sm:px-6" aria-label="Protocol statistics">
         <div className="mx-auto max-w-5xl">
           <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
             {STATS.map((stat, i) => (
@@ -241,10 +252,10 @@ export default function LandingPage() {
       </section>
 
       {/* ── How It Works ─────────────────────────────────────────────────── */}
-      <section className="px-4 py-24 sm:px-6">
+      <section className="px-4 py-24 sm:px-6" aria-labelledby="how-it-works-heading">
         <div className="mx-auto max-w-5xl">
           <div className="mb-16 text-center">
-            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl">How It Works</h2>
+            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="how-it-works-heading">How It Works</h2>
             <p className="mt-3 text-zinc-500">Five steps from invoice to liquidity</p>
           </div>
 
@@ -280,10 +291,10 @@ export default function LandingPage() {
       </section>
 
       {/* ── Features ─────────────────────────────────────────────────────── */}
-      <section className="bg-zinc-900/30 px-4 py-24 sm:px-6">
+      <section className="bg-zinc-900/30 px-4 py-24 sm:px-6" aria-labelledby="features-heading">
         <div className="mx-auto max-w-5xl">
           <div className="mb-16 text-center">
-            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl">
+            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="features-heading">
               Built for the Real Economy
             </h2>
             <p className="mt-3 text-zinc-500">
@@ -314,10 +325,10 @@ export default function LandingPage() {
       </section>
 
       {/* ── Protocol Architecture ─────────────────────────────────────────── */}
-      <section className="px-4 py-24 sm:px-6">
+      <section className="px-4 py-24 sm:px-6" aria-labelledby="architecture-heading">
         <div className="mx-auto max-w-5xl">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl">Protocol Architecture</h2>
+            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="architecture-heading">Protocol Architecture</h2>
             <p className="mt-3 text-zinc-500">Fully on-chain, non-custodial, and auditable</p>
           </div>
 

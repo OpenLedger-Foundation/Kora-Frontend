@@ -61,6 +61,10 @@ const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
   <div className={cn("flex flex-col gap-1.5 pb-4", className)} {...props} />
 );
 
+const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("flex items-center justify-end gap-2 pt-4", className)} {...props} />
+);
+
 const DialogTitle = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
@@ -90,6 +94,7 @@ export {
   DialogTrigger,
   DialogContent,
   DialogHeader,
+  DialogFooter,
   DialogTitle,
   DialogDescription,
   DialogClose,

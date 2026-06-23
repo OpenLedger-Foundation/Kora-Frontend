@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +22,6 @@ interface RepaymentDialogProps {
   insufficientBalance: boolean;
 }
 
-/** Compute repayment breakdown: principal raised + interest owed */
 function getRepaymentBreakdown(inv: Invoice) {
   const principal = inv.funding.totalRaised;
   const interest = principal * inv.terms.discountRate;
@@ -36,6 +36,8 @@ export function RepaymentDialog({
   isLoading,
   insufficientBalance,
 }: RepaymentDialogProps) {
+  const t = useTranslations("repaymentDialog");
+
   if (!invoice) return null;
 
   const { principal, interest, total } = getRepaymentBreakdown(invoice);
@@ -44,18 +46,18 @@ export function RepaymentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Confirm Repayment</DialogTitle>
+          <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>
             Invoice {invoice.metadata.invoiceNumber} · {invoice.metadata.debtorName}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4 text-sm">
-          <Row label="Principal (raised)" value={formatCurrency(principal, "USDC", true)} />
-          <Row label="Interest owed" value={formatCurrency(interest, "USDC", true)} />
+          <Row label={t("principal")} value={formatCurrency(principal, "USDC", true)} />
+          <Row label={t("interest")} value={formatCurrency(interest, "USDC", true)} />
           <div className="border-t border-border pt-3">
             <Row
-              label="Total repayment"
+              label={t("total")}
               value={formatCurrency(total, "USDC", true)}
               bold
             />
@@ -65,7 +67,7 @@ export function RepaymentDialog({
         {insufficientBalance && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            Insufficient USDC balance. You need {formatCurrency(total, "USDC", true)}.
+            {t("insufficientBalance", { amount: formatCurrency(total, "USDC", true) })}
           </div>
         )}
 
@@ -76,14 +78,14 @@ export function RepaymentDialog({
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
-            Cancel
+            {t("cancel")}
           </Button>
           <Button
             className="flex-1"
             onClick={() => onConfirm(invoice)}
             disabled={isLoading || insufficientBalance}
           >
-            {isLoading ? "Processing…" : "Confirm Repayment"}
+            {isLoading ? t("processing") : t("confirm")}
           </Button>
         </div>
       </DialogContent>
