@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletStore } from "@/store";
@@ -10,19 +10,28 @@ import { cn } from "@/lib/utils";
 
 export function WrongNetworkBanner() {
   const { isConnected } = useWallet();
-  const { network } = useWalletStore();
+  const { isWrongNetwork, hasPassphraseMismatch } = useWalletStore();
   const [dismissed, setDismissed] = useState(false);
+  
+  // Reset dismissal when navigating or network state changes
+  useEffect(() => {
+    setDismissed(false);
+  }, [isConnected, isWrongNetwork(), hasPassphraseMismatch()]);
 
-  const expectedNetwork = (env.NEXT_PUBLIC_STELLAR_NETWORK as typeof network) || "testnet";
-  const isWrongNetwork = isConnected && network !== expectedNetwork && !dismissed;
+  const networkMismatch = isWrongNetwork();
+  const passphraseMismatch = hasPassphraseMismatch();
+  const isWrongNetworkState = (networkMismatch || passphraseMismatch) && !dismissed;
 
-  if (!isWrongNetwork) return null;
+  if (!isWrongNetworkState) return null;
 
   const networkLabel = {
     testnet: "Testnet",
     mainnet: "Mainnet",
     futurenet: "Futurenet",
   };
+
+  const { network } = useWalletStore();
+  const expectedNetwork = (env.NEXT_PUBLIC_STELLAR_NETWORK as typeof network) || "testnet";
 
   return (
     <AnimatePresence>
@@ -39,6 +48,8 @@ export function WrongNetworkBanner() {
             Wrong Network: Connected to{" "}
             <span className="capitalize">{networkLabel[network] || network}</span>, but this app requires{" "}
             <span className="capitalize">{networkLabel[expectedNetwork] || expectedNetwork}</span>
+            {passphraseMismatch && " (passphrase mismatch)"}.
+            Please switch your wallet network to continue.
           </span>
         </div>
         <button
