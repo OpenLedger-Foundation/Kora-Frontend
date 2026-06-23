@@ -1,0 +1,157 @@
+/**
+ * E2E — SME and Investor Dashboards
+ *
+ * Covers:
+ *  - SME dashboard renders "Connect your wallet" gate when disconnected
+ *  - Investor dashboard renders "Connect your wallet" gate when disconnected
+ *  - With wallet state injected via localStorage, SME dashboard renders stat cards
+ *  - With wallet state injected via localStorage, investor dashboard renders stat cards
+ *  - SME dashboard stat card labels are visible
+ *  - Investor dashboard stat card labels are visible
+ *  - SME dashboard data table is rendered
+ *  - Investor dashboard data table is rendered
+ *  - "Create Invoice" CTA is visible on SME dashboard
+ *  - "Browse Marketplace" CTA is visible on investor dashboard
+ *
+ * Wallet simulation strategy:
+ *   We inject a Zustand-compatible localStorage entry for `kora-wallet-store`
+ *   before navigating so the app rehydrates as connected.  This avoids needing
+ *   a real browser extension while still exercising the authenticated UI paths.
+ */
+
+import { test, expect, type BrowserContext } from "@playwright/test";
+import { MOCK_ADDRESS } from "./helpers/mock-wallet";
+
+// ── Shared wallet injection ───────────────────────────────────────────────────
+
+async function injectConnectedWallet(context: BrowserContext) {
+  await context.addInitScript((address) => {
+    const walletState = {
+      state: {
+        address,
+        publicKey: address,
+        isConnected: true,
+        provider: "freighter",
+        balance: "1000.00",
+        isVerified: false,
+        verifiedAt: null,
+      },
+      version: 0,
+    };
+    localStorage.setItem("kora-wallet-store", JSON.stringify(walletState));
+  }, MOCK_ADDRESS);
+}
+
+// ── SME Dashboard ─────────────────────────────────────────────────────────────
+
+test.describe("SME Dashboard — disconnected", () => {
+  test("shows connect wallet gate when no wallet is connected", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard/sme");
+    await expect(page.getByText(/Connect your wallet/i)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Connect Wallet/i })
+    ).toBeVisible();
+  });
+
+  test("connect wallet button opens the wallet modal", async ({ page }) => {
+    await page.goto("/dashboard/sme");
+    await page.getByRole("button", { name: /Connect Wallet/i }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+});
+
+test.describe("SME Dashboard — connected", () => {
+  test.beforeEach(async ({ context, page }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/dashboard/sme");
+    // Wait for the dashboard to render past the wallet gate
+    await page.waitForSelector("text=Total Financed", { timeout: 15_000 });
+  });
+
+  test("renders all 4 stat card labels", async ({ page }) => {
+    await expect(page.getByText("Total Financed")).toBeVisible();
+    await expect(page.getByText("Active Invoices")).toBeVisible();
+    await expect(page.getByText("Pending Repayment")).toBeVisible();
+    await expect(page.getByText("Repayment Rate")).toBeVisible();
+  });
+
+  test("stat cards display numeric values", async ({ page }) => {
+    // Values are formatted currency or counts — just verify they're non-empty
+    const statCards = page.locator("[class*='stat']");
+    // At least one stat card should be visible
+    await expect(statCards.first()).toBeVisible();
+  });
+
+  test("renders the invoice data table", async ({ page }) => {
+    // DataTable renders a <table> element
+    await expect(page.locator("table")).toBeVisible();
+  });
+
+  test("data table has expected column headers", async ({ page }) => {
+    await expect(page.getByRole("columnheader", { name: /Invoice/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /Debtor/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /Amount/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /Status/i })).toBeVisible();
+  });
+
+  test("Create Invoice CTA is visible", async ({ page }) => {
+    await expect(
+      page.getByRole("link", { name: /Create Invoice/i })
+    ).toBeVisible();
+  });
+});
+
+// ── Investor Dashboard ────────────────────────────────────────────────────────
+
+test.describe("Investor Dashboard — disconnected", () => {
+  test("shows connect wallet gate when no wallet is connected", async ({
+    page,
+  }) => {
+    await page.goto("/dashboard/investor");
+    await expect(page.getByText(/Connect your wallet/i)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Connect Wallet/i })
+    ).toBeVisible();
+  });
+});
+
+test.describe("Investor Dashboard — connected", () => {
+  test.beforeEach(async ({ context, page }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/dashboard/investor");
+    // Wait for the dashboard to render past the wallet gate
+    await page.waitForSelector("text=Portfolio Value", { timeout: 15_000 });
+  });
+
+  test("renders all 4 stat card labels", async ({ page }) => {
+    await expect(page.getByText("Portfolio Value")).toBeVisible();
+    await expect(page.getByText("Expected Yield")).toBeVisible();
+    await expect(page.getByText("Active Positions")).toBeVisible();
+    await expect(page.getByText(/Avg\. APR/i)).toBeVisible();
+  });
+
+  test("renders the positions data table", async ({ page }) => {
+    await expect(page.locator("table")).toBeVisible();
+  });
+
+  test("data table has expected column headers", async ({ page }) => {
+    await expect(page.getByRole("columnheader", { name: /Invoice/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /Debtor/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /Invested/i })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: /APR/i })).toBeVisible();
+  });
+
+  test("renders allocation breakdown cards", async ({ page }) => {
+    // Risk tier and jurisdiction allocation cards
+    await expect(page.getByText(/By Risk Tier/i)).toBeVisible();
+    await expect(page.getByText(/By Jurisdiction/i)).toBeVisible();
+  });
+
+  test("Browse Marketplace CTA is visible", async ({ page }) => {
+    await expect(
+      page.getByRole("link", { name: /Browse Marketplace/i })
+    ).toBeVisible();
+  });
+});

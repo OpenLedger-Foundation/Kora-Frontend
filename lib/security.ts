@@ -118,7 +118,8 @@ export function safeStellarTxUrl(hash: string | undefined | null): string {
   if (hash.startsWith("mock_")) return "#";
   // Stellar tx hashes are 64-char hex strings
   if (!/^[a-fA-F0-9]{64}$/.test(hash)) return "#";
-  return `https://stellar.expert/explorer/testnet/tx/${hash}`;
+  const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet" ? "public" : "testnet";
+  return `https://stellar.expert/explorer/${network}/tx/${hash}`;
 }
 
 /**
@@ -128,7 +129,8 @@ export function safeStellarAccountUrl(address: string | undefined | null): strin
   if (!address) return "#";
   // Stellar addresses: G + 55 base32 chars
   if (!/^G[A-Z2-7]{55}$/.test(address)) return "#";
-  return `https://stellar.expert/explorer/testnet/account/${address}`;
+  const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet" ? "public" : "testnet";
+  return `https://stellar.expert/explorer/${network}/account/${address}`;
 }
 
 /**

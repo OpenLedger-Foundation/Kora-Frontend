@@ -1,30 +1,65 @@
 import { NextResponse } from "next/server";
+import { Buffer } from "node:buffer";
 
 const PINATA_BASE = "https://api.pinata.cloud";
-const PINATA_JWT = process.env.PINATA_JWT || "";
-const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY || "";
+const PINATA_JWT = process.env.PINATA_JWT ?? "";
+const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY ?? "";
 
 // In-memory rate limit store: walletAddress -> timestamps (ms)
 const RATE_LIMIT_WINDOW = 1000 * 60 * 60; // 1 hour
 const RATE_LIMIT_MAX = 10;
 const rateLimitMap = new Map<string, number[]>();
 
-async function virusScan(buffer: Buffer, filename: string) {
+type VirusScanResult =
+  | { ok: true; note?: string }
+  | { ok: false; error?: string; stats?: Record<string, number> };
+
+type PinataResponse = {
+  IpfsHash?: string;
+  error?: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function getNumber(value: unknown): number {
+  return typeof value === "number" ? value : 0;
+}
+
+async function readJsonRecord(response: Response): Promise<Record<string, unknown>> {
+  const parsed: unknown = await response.json();
+  return isRecord(parsed) ? parsed : {};
+}
+
+function bufferToBlobPart(buffer: Buffer): ArrayBuffer {
+  const arrayBuffer = new ArrayBuffer(buffer.byteLength);
+  new Uint8Array(arrayBuffer).set(buffer);
+  return arrayBuffer;
+}
+
+async function virusScan(buffer: Buffer, filename: string): Promise<VirusScanResult> {
   if (!VIRUSTOTAL_API_KEY) return { ok: true };
 
   try {
     const form = new FormData();
-    form.append("file", new Blob([buffer]), filename);
+    form.append("file", new Blob([bufferToBlobPart(buffer)]), filename);
+    form.append("file", new Blob([buffer as unknown as ArrayBuffer]), filename);
 
     const uploadRes = await fetch("https://www.virustotal.com/api/v3/files", {
       method: "POST",
       headers: { Authorization: `Bearer ${VIRUSTOTAL_API_KEY}` },
-      body: form as any,
+      body: form,
     });
 
     if (!uploadRes.ok) return { ok: false, error: `VirusTotal upload failed: ${uploadRes.status}` };
-    const uploadJson = await uploadRes.json();
-    const analysisId = uploadJson.data?.id;
+    const uploadJson = await readJsonRecord(uploadRes);
+    const data = isRecord(uploadJson.data) ? uploadJson.data : {};
+    const analysisId = getString(data.id);
     if (!analysisId) return { ok: false, error: "VirusTotal returned no analysis id" };
 
     // Poll analysis result (short timeout)
@@ -34,12 +69,17 @@ async function virusScan(buffer: Buffer, filename: string) {
         headers: { Authorization: `Bearer ${VIRUSTOTAL_API_KEY}` },
       });
       if (!analysisRes.ok) break;
-      const analysisJson = await analysisRes.json();
-      const status = analysisJson.data?.attributes?.status;
+      const analysisJson = await readJsonRecord(analysisRes);
+      const analysisData = isRecord(analysisJson.data) ? analysisJson.data : {};
+      const attributes = isRecord(analysisData.attributes) ? analysisData.attributes : {};
+      const status = getString(attributes.status);
       if (status === "completed") {
-        const stats = analysisJson.data?.attributes?.stats || {};
-        const malicious = stats.malicious || 0;
-        const suspicious = stats.suspicious || 0;
+        const rawStats = isRecord(attributes.stats) ? attributes.stats : {};
+        const stats = Object.fromEntries(
+          Object.entries(rawStats).map(([key, value]) => [key, getNumber(value)])
+        );
+        const malicious = stats.malicious ?? 0;
+        const suspicious = stats.suspicious ?? 0;
         const totalThreats = malicious + suspicious;
         return { ok: totalThreats === 0, stats };
       }
@@ -95,21 +135,22 @@ export async function POST(req: Request) {
       if (magic !== "%PDF-") return NextResponse.json({ error: "Invalid PDF file" }, { status: 400 });
 
       // Virus scan (optional)
-      const scan = await virusScan(buffer, (file as any).name || "upload.pdf");
+      const filename = file.name || "upload.pdf";
+      const scan = await virusScan(buffer, filename);
       if (!scan.ok) return NextResponse.json({ error: `Virus scan failed: ${scan.error || JSON.stringify(scan.stats)}` }, { status: 400 });
 
       // Forward to Pinata
       const forwardForm = new FormData();
-      forwardForm.append("file", new Blob([buffer]), (file as any).name || "upload.pdf");
-      forwardForm.append("pinataMetadata", JSON.stringify({ name: (file as any).name || "upload.pdf" }));
+      forwardForm.append("file", new Blob([bufferToBlobPart(buffer)]), filename);
+      forwardForm.append("pinataMetadata", JSON.stringify({ name: filename }));
 
       const pinRes = await fetch(`${PINATA_BASE}/pinning/pinFileToIPFS`, {
         method: "POST",
         headers: { Authorization: `Bearer ${PINATA_JWT}` },
-        body: forwardForm as any,
+        body: forwardForm,
       });
 
-      const pinJson = await pinRes.json();
+      const pinJson = (await readJsonRecord(pinRes)) as PinataResponse;
       if (!pinRes.ok) {
         return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}` }, { status: 502 });
       }
@@ -120,10 +161,10 @@ export async function POST(req: Request) {
 
     // Handle JSON metadata upload
     if (contentType.includes("application/json")) {
-      const body = await req.json();
-      const wallet = body.walletAddress;
+      const body = await readJsonRecord(new Response(JSON.stringify(await req.json())));
+      const wallet = getString(body.walletAddress);
       const metadata = body.metadata;
-      const name = body.name || "metadata";
+      const name = getString(body.name) || "metadata";
 
       if (!wallet || !metadata) return NextResponse.json({ error: "walletAddress and metadata are required" }, { status: 400 });
 
@@ -142,7 +183,7 @@ export async function POST(req: Request) {
         body: JSON.stringify({ pinataMetadata: { name }, pinataContent: metadata }),
       });
 
-      const pinJson = await pinRes.json();
+      const pinJson = (await readJsonRecord(pinRes)) as PinataResponse;
       if (!pinRes.ok) return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}` }, { status: 502 });
 
       console.log("[pinata-proxy] json", { wallet, ts: new Date().toISOString(), cid: pinJson.IpfsHash });

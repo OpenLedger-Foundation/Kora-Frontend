@@ -1,46 +1,439 @@
+"use client";
+
 import * as React from "react";
+import * as Popover from "@radix-ui/react-popover";
+import { Check, ChevronDown, X, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label?: string;
-  error?: string;
-  options: { value: string; label: string }[];
-  placeholder?: string;
+export interface Option {
+  value: string;
+  label: string;
 }
 
+export interface OptionGroup {
+  label: string;
+  options: Option[];
+}
+
+export type SelectOption = Option | OptionGroup;
+
+export interface SelectProps {
+  label?: string;
+  error?: string;
+  options?: SelectOption[];
+  placeholder?: string;
+  value?: string | string[];
+  onChange?: (value: any) => void;
+  isMulti?: boolean;
+  isSearchable?: boolean;
+  loadOptions?: (query: string) => Promise<Option[]>;
+  className?: string;
+  disabled?: boolean;
+  name?: string;
+  onBlur?: React.FocusEventHandler<HTMLSelectElement>;
+  id?: string;
+}
+
+function HighlightText({ text, highlight }: { text: string; highlight: string }) {
+  if (!highlight.trim()) {
+    return <span>{text}</span>;
+  }
+  const regex = new RegExp(`(${highlight.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")})`, "gi");
+  const parts = text.split(regex);
+  return (
+    <span>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-kora-500/30 text-kora-300 font-semibold rounded-[2px] px-0.5">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </span>
+  );
+}
+
+const getFlattenedOptions = (opts: SelectOption[]): Option[] => {
+  const flat: Option[] = [];
+  opts.forEach((opt) => {
+    if ("options" in opt && Array.isArray(opt.options)) {
+      opt.options.forEach((subOpt) => {
+        flat.push(subOpt);
+      });
+    } else {
+      flat.push(opt as Option);
+    }
+  });
+  return flat;
+};
+
 const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, options, placeholder, id, ...props }, ref) => {
+  (
+    {
+      label,
+      error,
+      options = [],
+      placeholder = "Select option...",
+      value,
+      onChange,
+      onBlur,
+      name,
+      isMulti = false,
+      isSearchable = false,
+      loadOptions,
+      className,
+      disabled = false,
+      id,
+      ...props
+    },
+    forwardedRef
+  ) => {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const [searchQuery, setSearchQuery] = React.useState("");
+    const [asyncOptions, setAsyncOptions] = React.useState<Option[]>([]);
+    const [isLoadingAsync, setIsLoadingAsync] = React.useState(false);
+
     const selectId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    const hiddenSelectRef = React.useRef<HTMLSelectElement>(null);
+
+    // Combine external ref with internal ref
+    React.useImperativeHandle(forwardedRef, () => hiddenSelectRef.current!);
+
+    // Handle internal selected values
+    const [selectedValues, setSelectedValues] = React.useState<string | string[]>(
+      value !== undefined ? value : isMulti ? [] : ""
+    );
+
+    React.useEffect(() => {
+      if (value !== undefined) {
+        setSelectedValues(value);
+      }
+    }, [value]);
+
+    // Handle Async Search with Debounce
+    React.useEffect(() => {
+      if (!loadOptions) return;
+
+      setIsLoadingAsync(true);
+      const delayDebounce = setTimeout(async () => {
+        try {
+          const results = await loadOptions(searchQuery);
+          setAsyncOptions(results);
+        } catch (err) {
+          console.error("Error loading async options:", err);
+        } finally {
+          setIsLoadingAsync(false);
+        }
+      }, 300);
+
+      return () => clearTimeout(delayDebounce);
+    }, [searchQuery, loadOptions]);
+
+    const activeOptions = loadOptions ? asyncOptions : getFlattenedOptions(options);
+
+    // Filter standard options if searchable
+    const filteredOptions = React.useMemo(() => {
+      if (loadOptions || !isSearchable || !searchQuery) return options;
+
+      const query = searchQuery.toLowerCase();
+
+      return options
+        .map((opt) => {
+          if ("options" in opt && Array.isArray(opt.options)) {
+            const matchedSubs = opt.options.filter((sub) =>
+              sub.label.toLowerCase().includes(query)
+            );
+            return matchedSubs.length > 0 ? { ...opt, options: matchedSubs } : null;
+          } else {
+            return opt.label.toLowerCase().includes(query) ? opt : null;
+          }
+        })
+        .filter(Boolean) as SelectOption[];
+    }, [options, searchQuery, isSearchable, loadOptions]);
+
+    const handleSelectValue = (newValue: string) => {
+      let finalValue: string | string[];
+
+      if (isMulti) {
+        const currentValues = Array.isArray(selectedValues) ? selectedValues : [];
+        if (currentValues.includes(newValue)) {
+          finalValue = currentValues.filter((v) => v !== newValue);
+        } else {
+          finalValue = [...currentValues, newValue];
+        }
+      } else {
+        finalValue = newValue;
+        setIsOpen(false);
+      }
+
+      setSelectedValues(finalValue);
+
+      // Propagate value change to form element/handlers
+      if (hiddenSelectRef.current) {
+        if (isMulti) {
+          Array.from(hiddenSelectRef.current.options).forEach((opt) => {
+            opt.selected = (finalValue as string[]).includes(opt.value);
+          });
+        } else {
+          hiddenSelectRef.current.value = finalValue as string;
+        }
+        const event = new Event("change", { bubbles: true });
+        hiddenSelectRef.current.dispatchEvent(event);
+      }
+
+      if (onChange) {
+        if (name) {
+          // React-hook-form registered change event simulation
+          onChange({
+            target: {
+              name,
+              value: finalValue,
+            },
+          });
+        } else {
+          onChange(finalValue);
+        }
+      }
+    };
+
+    const removeValue = (valToRemove: string, e?: React.MouseEvent) => {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
+      const currentValues = Array.isArray(selectedValues) ? selectedValues : [];
+      const finalValue = currentValues.filter((v) => v !== valToRemove);
+
+      setSelectedValues(finalValue);
+
+      if (hiddenSelectRef.current) {
+        Array.from(hiddenSelectRef.current.options).forEach((opt) => {
+          opt.selected = finalValue.includes(opt.value);
+        });
+        const event = new Event("change", { bubbles: true });
+        hiddenSelectRef.current.dispatchEvent(event);
+      }
+
+      if (onChange) {
+        if (name) {
+          onChange({
+            target: {
+              name,
+              value: finalValue,
+            },
+          });
+        } else {
+          onChange(finalValue);
+        }
+      }
+    };
+
+    const isSelected = (val: string) => {
+      if (isMulti) {
+        return Array.isArray(selectedValues) && selectedValues.includes(val);
+      }
+      return selectedValues === val;
+    };
+
+    // Find display label for single select
+    const selectedLabel = React.useMemo(() => {
+      if (isMulti) return null;
+      const found = activeOptions.find((o) => o.value === selectedValues);
+      return found ? found.label : null;
+    }, [selectedValues, activeOptions, isMulti]);
+
+    const renderedChips = React.useMemo(() => {
+      if (!isMulti || !Array.isArray(selectedValues)) return null;
+
+      return selectedValues.map((val) => {
+        const found = activeOptions.find((o) => o.value === val);
+        const displayLabel = found ? found.label : val;
+        return (
+          <span
+            key={val}
+            className="inline-flex items-center gap-1 rounded bg-zinc-800 border border-zinc-700 px-2 py-0.5 text-xs font-medium text-zinc-200"
+          >
+            {displayLabel}
+            {!disabled && (
+              <button
+                type="button"
+                onClick={(e) => removeValue(val, e)}
+                className="rounded-full hover:bg-zinc-750 p-0.5 text-zinc-400 hover:text-zinc-200 transition-colors"
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </span>
+        );
+      });
+    }, [selectedValues, activeOptions, isMulti, disabled]);
+
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 w-full">
         {label && (
-          <label htmlFor={selectId} className="text-sm font-medium text-foreground">
+          <label htmlFor={selectId} className="text-sm font-medium text-zinc-300">
             {label}
           </label>
         )}
+
+        {/* Hidden native select for standard HTML forms & React Hook Form */}
         <select
+          ref={hiddenSelectRef}
+          name={name}
           id={selectId}
-          ref={ref}
-          className={cn(
-            "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground",
-            "focus:border-ring focus:outline-none focus:ring-1 focus:ring-ring/50",
-            "disabled:cursor-not-allowed disabled:opacity-50",
-            error && "border-destructive/50",
-            className
-          )}
+          multiple={isMulti}
+          value={selectedValues}
+          onBlur={onBlur}
+          className="hidden"
+          disabled={disabled}
           {...props}
         >
-          {placeholder && (
-            <option value="" disabled>
-              {placeholder}
-            </option>
-          )}
-          {options.map((opt) => (
+          {placeholder && <option value="">{placeholder}</option>}
+          {activeOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>
           ))}
         </select>
+
+        <Popover.Root open={isOpen} onOpenChange={setIsOpen}>
+          <Popover.Trigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              className={cn(
+                "flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-1.5 text-sm text-foreground transition-all hover:border-zinc-700 hover:bg-zinc-900/60 focus:border-kora-500 focus:outline-none focus:ring-1 focus:ring-kora-500/50 disabled:cursor-not-allowed disabled:opacity-50",
+                isOpen && "border-kora-500 ring-1 ring-kora-500/50",
+                error && "border-destructive/50",
+                className
+              )}
+            >
+              <div className="flex flex-wrap gap-1 items-center max-w-[90%] text-left">
+                {isMulti ? (
+                  renderedChips?.length ? (
+                    renderedChips
+                  ) : (
+                    <span className="text-zinc-500">{placeholder}</span>
+                  )
+                ) : selectedLabel ? (
+                  <span className="text-zinc-250 font-medium">{selectedLabel}</span>
+                ) : (
+                  <span className="text-zinc-500">{placeholder}</span>
+                )}
+              </div>
+              <ChevronDown className={cn("h-4 w-4 text-zinc-500 transition-transform duration-200", isOpen && "rotate-185")} />
+            </button>
+          </Popover.Trigger>
+
+          <Popover.Portal>
+            <Popover.Content
+              align="start"
+              sideOffset={4}
+              className={cn(
+                "z-50 max-h-68 w-[var(--radix-popover-trigger-width)] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 p-1 shadow-2xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-100",
+                "flex flex-col"
+              )}
+            >
+              {/* Search input field */}
+              {(isSearchable || loadOptions) && (
+                <div className="flex items-center gap-2 border-b border-zinc-900 px-2 py-1.5 shrink-0">
+                  <Search className="h-3.5 w-3.5 text-zinc-500" />
+                  <input
+                    type="text"
+                    placeholder="Search options..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-zinc-500 disabled:cursor-not-allowed"
+                    disabled={disabled}
+                    autoFocus
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="text-zinc-500 hover:text-zinc-300"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Scrollable list */}
+              <div className="overflow-y-auto max-h-52 flex-1 p-1 space-y-0.5">
+                {isLoadingAsync ? (
+                  <div className="flex items-center justify-center py-6 text-zinc-500 text-xs gap-1.5">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading options...
+                  </div>
+                ) : loadOptions && asyncOptions.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-zinc-500">No results found</div>
+                ) : !loadOptions && filteredOptions.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-zinc-500">No options match query</div>
+                ) : loadOptions ? (
+                  asyncOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleSelectValue(opt.value)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100 transition-colors text-left",
+                        isSelected(opt.value) && "bg-zinc-900/60 text-kora-400 hover:bg-zinc-900"
+                      )}
+                    >
+                      <HighlightText text={opt.label} highlight={searchQuery} />
+                      {isSelected(opt.value) && <Check className="h-4 w-4 text-kora-500 shrink-0" />}
+                    </button>
+                  ))
+                ) : (
+                  filteredOptions.map((opt, index) => {
+                    if ("options" in opt && Array.isArray(opt.options)) {
+                      return (
+                        <div key={`group-${index}`} className="space-y-0.5">
+                          <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-500 border-t border-zinc-900/40 first:border-t-0">
+                            {opt.label}
+                          </div>
+                          {opt.options.map((subOpt) => (
+                            <button
+                              key={subOpt.value}
+                              type="button"
+                              onClick={() => handleSelectValue(subOpt.value)}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-lg pl-5 pr-2.5 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100 transition-colors text-left",
+                                isSelected(subOpt.value) && "bg-zinc-900/60 text-kora-400 hover:bg-zinc-900"
+                              )}
+                            >
+                              <HighlightText text={subOpt.label} highlight={searchQuery} />
+                              {isSelected(subOpt.value) && <Check className="h-4 w-4 text-kora-500 shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        key={(opt as Option).value}
+                        type="button"
+                        onClick={() => handleSelectValue((opt as Option).value)}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100 transition-colors text-left",
+                          isSelected((opt as Option).value) && "bg-zinc-900/60 text-kora-400 hover:bg-zinc-900"
+                        )}
+                      >
+                        <HighlightText text={(opt as Option).label} highlight={searchQuery} />
+                        {isSelected((opt as Option).value) && <Check className="h-4 w-4 text-kora-500 shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </Popover.Content>
+          </Popover.Portal>
+        </Popover.Root>
+
         {error && <p className="text-xs text-destructive">{error}</p>}
       </div>
     );

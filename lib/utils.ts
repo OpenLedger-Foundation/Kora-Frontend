@@ -141,10 +141,12 @@ export function daysUntil(dateStr: string): number {
   return differenceInDays(new Date(dateStr), new Date());
 }
 
-/** Shorten a Stellar address for display */
-export function shortenAddress(address: string, chars = 4): string {
+/** Shorten a Stellar address/hash for display */
+export function truncateAddress(address: string | null | undefined, chars = 4): string {
   if (!address) return "";
-  return `${address.slice(0, chars + 1)}...${address.slice(-chars)}`;
+  const clean = address.trim();
+  if (clean.length <= chars * 2) return clean;
+  return `${clean.slice(0, chars)}...${clean.slice(-chars)}`;
 }
 
 /** Convert stroops to XLM */
@@ -167,6 +169,81 @@ export const RISK_TIER_COLORS: Record<string, string> = {
   B: "text-red-400 bg-red-400/10 border-red-400/20",
   CCC: "text-red-600 bg-red-600/10 border-red-600/20",
 };
+
+/** Historical Average APR per Risk Tier */
+export const RISK_TIER_APR: Record<string, number> = {
+  AAA: 8.5,
+  AA: 10.2,
+  A: 12.5,
+  BBB: 15.8,
+  BB: 19.5,
+  B: 24.0,
+  CCC: 32.0,
+};
+
+/** Yield Projection Benchmarks */
+export const YIELD_BENCHMARKS = {
+  SAVINGS_APY: 4.0,
+  T_BILLS_APY: 5.0,
+};
+
+export interface YieldProjectionPoint {
+  month: number;
+  monthName: string;
+  portfolio: number;
+  savings: number;
+  tbills: number;
+}
+
+export interface YieldProjectionResult {
+  data: YieldProjectionPoint[];
+  totalYield: number;
+  annualizedReturn: number;
+  invoicesNeeded: number;
+}
+
+/**
+ * Calculate yield projection over a given horizon
+ */
+export function calculateYieldProjection(
+  amount: number,
+  tier: string,
+  horizonMonths: number
+): YieldProjectionResult {
+  const apr = RISK_TIER_APR[tier] || 12;
+  const monthlyRate = apr / 100 / 12;
+  const savingsMonthlyRate = YIELD_BENCHMARKS.SAVINGS_APY / 100 / 12;
+  const tbillsMonthlyRate = YIELD_BENCHMARKS.T_BILLS_APY / 100 / 12;
+
+  const data: YieldProjectionPoint[] = [];
+  
+  for (let m = 0; m <= horizonMonths; m++) {
+    const date = new Date();
+    date.setMonth(date.getMonth() + m);
+    const monthName = format(date, "MMM yy");
+
+    data.push({
+      month: m,
+      monthName,
+      portfolio: amount * Math.pow(1 + monthlyRate, m),
+      savings: amount * Math.pow(1 + savingsMonthlyRate, m),
+      tbills: amount * Math.pow(1 + tbillsMonthlyRate, m),
+    });
+  }
+
+  const finalPortfolio = data[data.length - 1].portfolio;
+  const totalYield = finalPortfolio - amount;
+  
+  // Simple heuristic for invoices needed: average $5k per invoice
+  const invoicesNeeded = Math.ceil(amount / 5000);
+
+  return {
+    data,
+    totalYield,
+    annualizedReturn: apr,
+    invoicesNeeded,
+  };
+}
 
 /** Invoice status colour mapping */
 export const STATUS_COLORS: Record<string, string> = {
@@ -200,6 +277,68 @@ export async function withRetry<T>(
     }
   }
   throw lastError;
+}
+
+/** Risk tier APR multipliers for risk-adjusted returns */
+export const RISK_TIER_MULTIPLIERS: Record<string, number> = {
+  AAA: 1.0,  // No adjustment
+  AA: 1.05,  // 5% boost
+  A: 1.1,    // 10% boost
+  BBB: 1.15, // 15% boost
+  BB: 1.2,   // 20% boost
+  B: 1.25,   // 25% boost
+  CCC: 1.3,  // 30% boost
+};
+
+/**
+ * Calculate APR from discount rate and days to maturity.
+ * Formula: APR = (discount / (1 - discount)) * (365 / days) * 100
+ * 
+ * @param discountRate - Discount as decimal (e.g., 0.05 for 5%)
+ * @param daysToMaturity - Number of days until maturity
+ * @returns APR as percentage (e.g., 12.5 for 12.5% APR)
+ */
+export function calculateAPR(discountRate: number, daysToMaturity: number): number {
+  if (daysToMaturity <= 0 || discountRate <= 0 || discountRate >= 1) {
+    return 0;
+  }
+  return (discountRate / (1 - discountRate)) * (365 / daysToMaturity) * 100;
+}
+
+/**
+ * Calculate expected return for an investor at maturity.
+ * Formula: return = amount * discountRate
+ * 
+ * @param amount - Investment amount
+ * @param discountRate - Discount as decimal (e.g., 0.05 for 5%)
+ * @returns Expected return amount
+ */
+export function calculateExpectedReturn(amount: number, discountRate: number): number {
+  return amount * discountRate;
+}
+
+/**
+ * Calculate risk-adjusted return based on APR and risk tier.
+ * Formula: adjustedAPR = APR * riskMultiplier
+ * 
+ * @param apr - APR as percentage
+ * @param riskTier - Risk tier (e.g., "AAA", "BB")
+ * @returns Risk-adjusted APR as percentage
+ */
+export function calculateRiskAdjustedReturn(apr: number, riskTier: string): number {
+  const multiplier = RISK_TIER_MULTIPLIERS[riskTier] ?? 1.0;
+  return apr * multiplier;
+}
+
+/**
+ * Get color coding for APR based on thresholds.
+ * @param apr - APR as percentage
+ * @returns Tailwind color class
+ */
+export function getAPRColor(apr: number): string {
+  if (apr >= 15) return "text-emerald-400";  // Green: excellent
+  if (apr >= 8) return "text-amber-400";     // Amber: good
+  return "text-red-400";                      // Red: low
 }
 
 /**

@@ -4,12 +4,10 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useDropzone } from "react-dropzone";
+import { type FileRejection, useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Upload,
   FileText,
-  X,
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
@@ -19,12 +17,16 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, NumberInput, DatePicker, FileInput, Select } from "@/components/ui";
 import { GlassCard } from "@/components/ui/card";
 import { useWallet } from "@/hooks/useWallet";
+import { useWalletStore } from "@/store";
 import { useTransaction } from "@/hooks/useTransaction";
+import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareCreateInvoice } from "@/services/invoiceService";
 import {
   createInvoiceSchema,
   invoiceDetailsStepSchema,
+  financingTermsSchema,
   INVOICE_DETAILS_STEP_FIELDS,
   FINANCING_TERMS_STEP_FIELDS,
   type CreateInvoiceSchema,
@@ -61,14 +63,21 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const PRIVACY_OPTIONS = [
+  { value: "full", label: "Full (Name + Address)" },
+  { value: "partial", label: "Partial (Name Only)" },
+  { value: "anonymized", label: "Anonymized (Industry + Country)" },
+];
+
 export default function CreateInvoicePage() {
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const { isConnected, address } = useWallet();
-  const { setWalletModalOpen, txState } = useUIStore();
+  const { setWalletModalOpen } = useUIStore();
   const { createDraft, setCreateDraft, clearCreateDraft } = useInvoiceStore();
-  const { execute } = useTransaction();
+  const { execute, status: txStatus, error: txError, reset: resetTxState } = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
 
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -96,6 +105,7 @@ export default function CreateInvoicePage() {
       issueDate: TODAY,
       jurisdiction: "KE",
       category: "technology",
+      debtorPrivacy: "full",
       ...createDraft,
     },
   });
@@ -110,6 +120,10 @@ export default function CreateInvoicePage() {
   const formValues = watch();
   const step0Valid = useMemo(
     () => invoiceDetailsStepSchema.safeParse(formValues).success,
+    [formValues]
+  );
+  const step1Valid = useMemo(
+    () => financingTermsSchema.safeParse(formValues).success,
     [formValues]
   );
 
@@ -154,7 +168,7 @@ export default function CreateInvoicePage() {
     return (d / (1 - d)) * (365 / daysToMaturity) * 100;
   }, [discountRateVal, daysToMaturity]);
 
-  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
     setFileError(null);
     if (acceptedFiles[0]) {
       setFile(acceptedFiles[0]);
@@ -210,8 +224,12 @@ export default function CreateInvoicePage() {
       setWalletModalOpen(true);
       return;
     }
-    if (!file) return;
+    if (!file) {
+      setFileError("Please upload the invoice PDF before minting.");
+      return;
+    }
 
+    setFileError(null);
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -229,6 +247,7 @@ export default function CreateInvoicePage() {
       },
       {
         successMessage: "Invoice minted on Soroban!",
+        onSimulationPreview,
         onSuccess: (hash) => {
           const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
           setMintedInfo({
@@ -319,19 +338,20 @@ export default function CreateInvoicePage() {
   }
 
   return (
-    <ErrorBoundary>
-    <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-zinc-100">Create Invoice</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Tokenize your invoice and access instant liquidity
-        </p>
-      </div>
+    <>
+      <ErrorBoundary>
+        <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-zinc-100">Create Invoice</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              Tokenize your invoice and access instant liquidity
+            </p>
+          </div>
 
-      {/* Step indicator */}
-      <div className="mb-8 flex items-center gap-2">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex items-center gap-2">
+          {/* Step indicator */}
+          <div className="mb-8 flex items-center gap-2">
+            {STEPS.map((label, i) => (
+              <div key={label} className="flex items-center gap-2">
             <div
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors",
@@ -383,12 +403,35 @@ export default function CreateInvoicePage() {
                   error={errors.debtorName?.message}
                   {...register("debtorName")}
                 />
-                <Input
-                  label="Debtor Address"
-                  placeholder="123 Business St, City, Country"
-                  error={errors.debtorAddress?.message}
-                  {...register("debtorAddress")}
-                />
+                <div>
+                  <Input
+                    label="Debtor Address"
+                    placeholder="123 Business St, City, Country"
+                    error={errors.debtorAddress?.message}
+                    list="address-book-list"
+                    {...register("debtorAddress")}
+                  />
+                  <datalist id="address-book-list">
+                    {useWalletStore.getState().addressBook.map((e) => (
+                      <option key={e.id} value={e.address}>{e.label || e.address}</option>
+                    ))}
+                  </datalist>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const val = (document.querySelector('input[name="debtorAddress"]') as HTMLInputElement)?.value;
+                        if (!val) return alert("No address to save");
+                        if (!/^G[A-Z2-7]{55}$/i.test(val)) return alert("Invalid Stellar address");
+                        useWalletStore.getState().addAddressBookEntry(val, "");
+                        alert("Saved to address book");
+                      }}
+                      className="rounded-lg px-3 py-1 text-sm"
+                    >
+                      + Add to Address Book
+                    </button>
+                  </div>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <NumberInput
                     label="Invoice Amount (USDC)"
@@ -429,6 +472,69 @@ export default function CreateInvoicePage() {
                     {...register("category")}
                   />
                 </div>
+
+                <Select
+                  label="Debtor Privacy Level"
+                  options={PRIVACY_OPTIONS}
+                  error={errors.debtorPrivacy?.message}
+                  {...register("debtorPrivacy")}
+                />
+
+                <div className="rounded-2xl border border-zinc-800/70 bg-zinc-950/70 p-5 shadow-inner shadow-zinc-950/20">
+                  <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                        Live Invoice Preview
+                      </p>
+                      <p className="text-xs text-zinc-400">Review the key invoice details as you type.</p>
+                    </div>
+                    <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] uppercase tracking-[0.16em] text-zinc-400">
+                      Step 1 of 3
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 pt-4 sm:grid-cols-2">
+                    <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Invoice</p>
+                      <p className="mt-2 text-base font-semibold text-zinc-100">
+                        {watch("invoiceNumber") || "INV-XXXX-XXXX"}
+                      </p>
+                      <p className="text-sm text-zinc-400 mt-1">
+                        {watch("description") || "Add a memo or description to summarize the invoice."}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Debtor</p>
+                      <p className="mt-2 text-base font-semibold text-zinc-100">
+                        {watch("debtorName") || "Debtor Company Name"}
+                      </p>
+                      <p className="text-sm text-zinc-400 mt-1">
+                        {watch("debtorAddress") || "Debtor address will display here."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Amount</span>
+                      <p className="mt-2 text-lg font-semibold text-zinc-100">
+                        ${amountVal.toLocaleString()} {watch("currency")}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Due Date</span>
+                      <p className="mt-2 text-lg font-semibold text-zinc-100">
+                        {watch("dueDate") || "Select due date"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Jurisdiction</span>
+                      <p className="mt-2 text-lg font-semibold text-zinc-100">
+                        {JURISDICTION_OPTIONS.find((option) => option.value === watch("jurisdiction"))?.label || "Select"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </GlassCard>
             </motion.div>
           )}
@@ -446,9 +552,13 @@ export default function CreateInvoicePage() {
                 {/* Discount Rate Dual-Input Component */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-semibold text-zinc-200">Discount Rate (%)</label>
+                    <label className="text-sm font-semibold text-zinc-200" id="discount-rate-label">
+                      Discount Rate (%)
+                    </label>
                     <div className="w-24">
                       <Input
+                        id="discount-rate-input"
+                        aria-labelledby="discount-rate-label"
                         type="number"
                         step="0.1"
                         min="0.5"
@@ -657,8 +767,8 @@ export default function CreateInvoicePage() {
                   ) : (
                     <FileInput
                       value={file}
-                      onChange={(e: any) => {
-                        setFile(e.target.value);
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                        setFile(e.target.files?.[0] ?? null);
                         setFileError(null);
                       }}
                       error={fileError || undefined}
@@ -738,13 +848,20 @@ export default function CreateInvoicePage() {
           </Button>
 
           {step < STEPS.length - 1 ? (
-            <Button type="button" onClick={nextStep} disabled={step === 0 && !step0Valid}>
+            <Button
+              type="button"
+              onClick={nextStep}
+              disabled={
+                (step === 0 && !step0Valid) ||
+                (step === 1 && !step1Valid)
+              }
+            >
               Next <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (
             <Button
               type="submit"
-              disabled={!file || !isConnected}
+              disabled={!file || !isConnected || isUploading || txStatus === "signing" || txStatus === "submitting" || txStatus === "polling"}
               onClick={!isConnected ? () => setWalletModalOpen(true) : undefined}
             >
               {!isConnected ? "Connect Wallet" : "Mint Invoice NFT"}
@@ -754,7 +871,7 @@ export default function CreateInvoicePage() {
       </form>
 
       {/* Transaction Interaction Overlays */}
-      {txState.status === "signing" && (
+      {(txStatus === "signing" || txStatus === "submitting" || txStatus === "polling") && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-md">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -765,33 +882,58 @@ export default function CreateInvoicePage() {
               <span className="absolute inset-0 animate-ping rounded-full bg-kora-500/5" />
               <FileText className="h-10 w-10 animate-bounce" />
             </div>
-            <h3 className="text-xl font-bold text-zinc-100">Signature Required</h3>
+            <h3 className="text-xl font-bold text-zinc-100">
+              {txStatus === "signing" ? "Signature Required" : "Submitting Transaction"}
+            </h3>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Please open your Stellar browser wallet extension and sign the transaction to authorize minting the invoice NFT on-chain.
+              {txStatus === "signing"
+                ? "Please open your Stellar browser wallet extension and sign the transaction to authorize minting the invoice NFT on-chain."
+                : "Broadcasting your transaction to the Stellar network. Waiting for ledger consensus..."}
             </p>
           </motion.div>
         </div>
       )}
 
-      {txState.status === "submitting" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-md">
+      {txStatus === "failed" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-md px-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900/90 p-8 text-center shadow-2xl backdrop-blur-xl"
           >
-            <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/10">
-              <div className="absolute inset-0 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
-              <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+            <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+              <AlertCircle className="h-10 w-10" />
             </div>
-            <h3 className="text-xl font-bold text-zinc-100">Submitting Transaction</h3>
+            <h3 className="text-xl font-bold text-zinc-100">Minting Failed</h3>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Broadcasting your transaction to the Stellar network. Waiting for ledger consensus...
+              {txError || "Something went wrong while minting your invoice. Please try again."}
             </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  resetTxState();
+                }}
+              >
+                Dismiss
+              </Button>
+              <Button
+                onClick={() => {
+                  resetTxState();
+                  handleSubmit(onSubmit)();
+                }}
+              >
+                Retry Mint
+              </Button>
+            </div>
           </motion.div>
         </div>
       )}
     </div>
-    </ErrorBoundary>
+      </ErrorBoundary>
+
+      {/* Transaction simulation preview dialog — rendered outside the form */}
+      <TxSimulationPreview {...simulationDialogProps} />
+    </>
   );
 }
