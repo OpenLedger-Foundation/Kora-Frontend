@@ -218,23 +218,101 @@ class InvoiceContractClient {
 const MARKETPLACE_CONTRACT_ID = env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID;
 const TOKEN_CONTRACT_ID = env.NEXT_PUBLIC_TOKEN_CONTRACT_ID;
 
+/**
+ * Read the current USDC allowance granted by `owner` to `spender`.
+ * Returns the allowance in stroops (i128 lo part).
+ */
+async function getUsdcAllowance(
+  owner: string,
+  spender: string,
+  sourcePublicKey: string
+): Promise<bigint> {
+  try {
+    return await readCall(
+      TOKEN_CONTRACT_ID,
+      "allowance",
+      [scvAddress(owner), scvAddress(spender)],
+      sourcePublicKey,
+      (val) => {
+        if (val.switch().name === "scvI128") {
+          return BigInt(val.i128().lo().toString());
+        }
+        return BigInt(0);
+      }
+    );
+  } catch {
+    return BigInt(0);
+  }
+}
+
 class MarketplaceContractClient {
   readonly contractId = MARKETPLACE_CONTRACT_ID;
 
   /**
    * Investor funds an invoice.
-   * Returns unsigned XDR string.
+   *
+   * Builds a two-operation transaction:
+   *   1. USDC `approve` (spender = marketplace contract, amount = params.amount)
+   *      — skipped if existing allowance already covers the amount
+   *   2. Marketplace contract `fund_invoice`
+   *
+   * Returns unsigned XDR string ready for signing.
    */
   async fundInvoice(
     params: FundInvoiceParams,
     sourcePublicKey: string
   ): Promise<string> {
-    return buildCall(
+    // Check existing allowance — skip approve if already sufficient
+    const existingAllowance = await getUsdcAllowance(
+      sourcePublicKey,
       this.contractId,
-      "fund_invoice",
-      [scvU64(params.tokenId), scvI128(params.amount)],
       sourcePublicKey
     );
+
+    if (existingAllowance >= params.amount) {
+      // Allowance already covers the amount — only fund_invoice needed
+      return buildCall(
+        this.contractId,
+        "fund_invoice",
+        [scvU64(params.tokenId), scvI128(params.amount)],
+        sourcePublicKey
+      );
+    }
+
+    // Build a combined approve + fund_invoice transaction
+    const account = await rpc.getAccount(sourcePublicKey);
+    const tokenContract = new StellarSdk.Contract(TOKEN_CONTRACT_ID);
+    const marketplaceContract = new StellarSdk.Contract(this.contractId);
+
+    // Expiration ledger: current ledger + ~120 ledgers (~10 minutes at 5s/ledger)
+    const ledgerInfo = await rpc.getLatestLedger();
+    const expirationLedger = ledgerInfo.sequence + 120;
+
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: networkConfig.networkPassphrase,
+    })
+      .addOperation(
+        tokenContract.call(
+          "approve",
+          scvAddress(sourcePublicKey),   // from
+          scvAddress(this.contractId),   // spender
+          scvI128(params.amount),        // amount
+          scvU32(expirationLedger)       // expiration_ledger
+        )
+      )
+      .addOperation(
+        marketplaceContract.call(
+          "fund_invoice",
+          scvU64(params.tokenId),
+          scvI128(params.amount)
+        )
+      )
+      .setTimeout(30)
+      .build();
+
+    const assembled = await simulate(tx);
+    return assembled.toXDR();
   }
 
   /**
