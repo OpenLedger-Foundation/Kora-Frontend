@@ -65,17 +65,17 @@ export async function exportPdf(elementId: string, filename: string): Promise<vo
  */
 export function exportCsv<T extends Record<string, unknown>>(
   data: T[],
-  filename: string
+  filename: string,
+  headers?: string[]
 ): void {
-  if (!data.length) return;
+  const cols = headers ?? (data.length ? Object.keys(data[0]) : []);
+  if (!cols.length) return;
 
-  const headers = Object.keys(data[0]);
   const rows = data.map((row) =>
-    headers
+    cols
       .map((h) => {
         const val = row[h];
         const str = val == null ? "" : String(val);
-        // Escape double-quotes and wrap in quotes if needed
         return str.includes(",") || str.includes('"') || str.includes("\n")
           ? `"${str.replace(/"/g, '""')}"`
           : str;
@@ -83,7 +83,7 @@ export function exportCsv<T extends Record<string, unknown>>(
       .join(",")
   );
 
-  const csv = [headers.join(","), ...rows].join("\n");
+  const csv = [cols.join(","), ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
 

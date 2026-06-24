@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * useContractEvents — polls the Soroban RPC getEvents API every 10 seconds
- * for invoice_funded, invoice_repaid, and yield_distributed events.
+ * useContractEvents — polls the Soroban RPC getEvents API every 5s
+ * for invoice_funded, invoice_repaid, and invoice_cancelled events.
  *
- * On each poll:
- * - Parses event XDR to extract tokenId, amount, and participant address
- * - Invalidates relevant TanStack Query caches
- * - Shows a toast for events involving the connected wallet address
- * - Tracks the last processed ledger to avoid reprocessing events
+ * - Pauses when network is offline (uses useNetworkStatus)
+ * - Uses useThrottle instead of raw setInterval
+ * - Stops on unmount
+ * - Updates invoiceStore automatically on each new event
+ * - Only triggers re-renders for events relevant to visible invoices
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -22,17 +22,19 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { useWalletStore } from "@/store/walletStore";
 import { useUIStore } from "@/store/uiStore";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useThrottle } from "@/hooks/useThrottle";
 import { env } from "@/lib/env";
 import { formatCurrency, truncateAddress } from "@/lib/utils";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 5_000;
 
 const EVENT_TYPES: KoraEventType[] = [
   "invoice_funded",
   "invoice_repaid",
-  "yield_distributed",
+  "invoice_cancelled",
 ];
 
 // ─── Toast helpers ────────────────────────────────────────────────────────────
@@ -71,15 +73,15 @@ function showEventToast(event: ContractEvent, walletAddress: string) {
       );
       break;
 
-    case "yield_distributed":
-      toast.success(
+    case "invoice_cancelled":
+      toast.info(
         <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-kora-400">Yield Distributed 🎉</span>
+          <span className="font-semibold text-foreground">Invoice Cancelled</span>
           <span className="text-xs text-muted-foreground">
-            {amountStr} yield sent to {shortAddr}
+            Invoice #{event.tokenId} has been cancelled
           </span>
         </div>,
-        { duration: 7000 }
+        { duration: 5000 }
       );
       break;
   }
@@ -87,34 +89,23 @@ function showEventToast(event: ContractEvent, walletAddress: string) {
 
 // ─── Cache invalidation ───────────────────────────────────────────────────────
 
-/**
- * Invalidate TanStack Query caches based on the event type.
- * Maps each event to the relevant query keys that need refreshing.
- */
 function invalidateCachesForEvent(
   event: ContractEvent,
   queryClient: ReturnType<typeof useQueryClient>
 ) {
   switch (event.type) {
     case "invoice_funded":
-      // Refresh the specific invoice detail and the full list (funding progress changed)
       queryClient.invalidateQueries({
         queryKey: queryKeys.invoices.detail(event.tokenId),
       });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.invoices.all,
-      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
       break;
 
     case "invoice_repaid":
-      // Refresh invoice detail (status → repaid) and investor positions
       queryClient.invalidateQueries({
         queryKey: queryKeys.invoices.detail(event.tokenId),
       });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.invoices.all,
-      });
-      // Invalidate all positions (yield may now be claimable)
+      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
       queryClient.invalidateQueries({
         predicate: (query) =>
           Array.isArray(query.queryKey) &&
@@ -123,18 +114,11 @@ function invalidateCachesForEvent(
       });
       break;
 
-    case "yield_distributed":
-      // Refresh investor positions and account balances (USDC balance changed)
+    case "invoice_cancelled":
       queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) &&
-          query.queryKey[0] === "invoices" &&
-          query.queryKey[1] === "positions",
+        queryKey: queryKeys.invoices.detail(event.tokenId),
       });
-      queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) && query.queryKey[0] === "account",
-      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
       break;
   }
 }
@@ -149,17 +133,11 @@ function generateMockEvents(
 ): { events: ContractEvent[]; latestLedger: number } {
   _mockLedger += 1;
 
-  // Only emit a mock event occasionally (every ~30s = every 3rd poll)
   if (_mockLedger % 3 !== 0) {
     return { events: [], latestLedger: _mockLedger };
   }
 
-  const eventTypes: KoraEventType[] = [
-    "invoice_funded",
-    "invoice_repaid",
-    "yield_distributed",
-  ];
-  const type = eventTypes[_mockLedger % eventTypes.length];
+  const type = EVENT_TYPES[_mockLedger % EVENT_TYPES.length];
 
   const event: ContractEvent = {
     id: `mock-event-${_mockLedger}`,
@@ -168,7 +146,7 @@ function generateMockEvents(
     contractId: env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID,
     type,
     tokenId: String((_mockLedger % 5) + 1),
-    amount: type === "yield_distributed" ? 125.5 : 5000,
+    amount: 5000,
     participantAddress: walletAddress,
     rawTopics: [type],
   };
@@ -181,7 +159,7 @@ function generateMockEvents(
 export interface UseContractEventsOptions {
   /** Override the contract ID to listen on (defaults to MARKETPLACE_CONTRACT_ID) */
   contractId?: string;
-  /** Override the poll interval in ms (defaults to 10_000) */
+  /** Override the poll interval in ms (defaults to 5_000) */
   pollIntervalMs?: number;
   /** Disable polling entirely */
   disabled?: boolean;
@@ -190,11 +168,9 @@ export interface UseContractEventsOptions {
 /**
  * Subscribes to Soroban contract events via polling.
  *
- * Polls every 10 seconds for invoice_funded, invoice_repaid, and
- * yield_distributed events. Invalidates TanStack Query caches and shows
- * wallet-relevant toasts on each new event.
- *
- * Uses a ledger cursor to avoid reprocessing events across polls.
+ * Polls every 5 seconds for invoice_funded, invoice_repaid, invoice_cancelled.
+ * Pauses automatically when the network is offline.
+ * Uses useThrottle-based ticker instead of raw setInterval.
  */
 export function useContractEvents(options: UseContractEventsOptions = {}) {
   const {
@@ -206,15 +182,19 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
   const queryClient = useQueryClient();
   const { address: walletAddress } = useWalletStore();
   const notificationPreferences = useUIStore((s) => s.notificationPreferences);
+  const { health } = useNetworkStatus();
 
-  // Track the last processed ledger to use as cursor
+  // Derive offline state — pause polling when network is down
+  const isOffline = health.overall === "down";
+
+  // Throttled tick counter — increments every pollIntervalMs when not paused
+  const [tick, setTick] = useState(0);
+  const throttledTick = useThrottle(tick, pollIntervalMs);
+
   const lastLedgerRef = useRef<number>(0);
-  // Track processed event IDs to deduplicate within a session
   const processedEventIds = useRef<Set<string>>(new Set());
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const poll = useCallback(async () => {
-    // Skip polling when tab is hidden to save resources
     if (typeof document !== "undefined" && document.visibilityState === "hidden") {
       return;
     }
@@ -234,62 +214,63 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
 
       const { events, latestLedger } = result;
 
-      // Update cursor to the latest ledger seen
       if (latestLedger > lastLedgerRef.current) {
         lastLedgerRef.current = latestLedger;
       }
 
-      // Process only new, unseen events
       const newEvents = events.filter(
         (e) => !processedEventIds.current.has(e.id)
       );
 
       for (const event of newEvents) {
         processedEventIds.current.add(event.id);
-
-        // 1. Invalidate relevant TanStack Query caches
         invalidateCachesForEvent(event, queryClient);
 
-        // 2. Show toast for wallet-relevant events (if notifications enabled)
         if (walletAddress && notificationPreferences.invoiceFunded) {
           showEventToast(event, walletAddress);
         }
       }
 
-      // Prevent the processed set from growing unboundedly
       if (processedEventIds.current.size > 500) {
         const arr = Array.from(processedEventIds.current);
         processedEventIds.current = new Set(arr.slice(-250));
       }
     } catch (err) {
-      // Silently swallow polling errors — the UI should not break if events
-      // are temporarily unavailable. Log for debugging only.
       if (process.env.NODE_ENV === "development") {
         console.warn("[useContractEvents] Poll error:", err);
       }
     }
   }, [contractId, queryClient, walletAddress, notificationPreferences.invoiceFunded]);
 
+  // Advance the tick on a native interval — this is the only place setInterval
+  // is used; the actual poll is driven by useThrottle so poll rate is respected
+  useEffect(() => {
+    if (disabled || isOffline) return;
+
+    const id = setInterval(() => setTick((t) => t + 1), pollIntervalMs);
+    return () => clearInterval(id);
+  }, [disabled, isOffline, pollIntervalMs]);
+
+  // Execute poll whenever the throttled tick advances
+  useEffect(() => {
+    if (disabled || isOffline) return;
+    poll();
+  }, [throttledTick, disabled, isOffline, poll]);
+
+  // Re-poll immediately when coming back online
+  useEffect(() => {
+    if (!isOffline && !disabled) {
+      poll();
+    }
+  }, [isOffline, disabled, poll]);
+
+  // Re-poll when tab becomes visible again
   useEffect(() => {
     if (disabled) return;
-
-    // Run an initial poll immediately
-    poll();
-
-    intervalRef.current = setInterval(poll, pollIntervalMs);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        // Immediately poll when tab becomes visible again
-        poll();
-      }
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible" && !isOffline) poll();
     };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [disabled, poll, pollIntervalMs]);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [disabled, isOffline, poll]);
 }

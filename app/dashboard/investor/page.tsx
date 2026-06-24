@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Store, TrendingUp, DollarSign, BarChart3, Clock, Coins, Loader2 } from "lucide-react";
+import { Download, Store, TrendingUp, DollarSign, BarChart3, Clock, Coins, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -17,6 +17,7 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useMaturityReminder } from "@/hooks/useMaturityReminder";
+import { exportCsv } from "@/lib/export";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { MOCK_INVOICES } from "@/services/mockData";
 import { RiskBadge } from "@/components/ui/badge";
@@ -165,6 +166,31 @@ export default function InvestorDashboardPage() {
       .filter((p) => p.status === "active")
       .map((p) => p.invoice)
   );
+
+  const handleExportCsv = useCallback(() => {
+    const CSV_HEADERS = [
+      "Invoice ID",
+      "Debtor",
+      "Face Value",
+      "Funded Amount",
+      "APR",
+      "Maturity Date",
+      "Status",
+      "Expected Return",
+    ];
+    const rows = positionsData.map((p) => ({
+      "Invoice ID": p.invoice.metadata.invoiceNumber,
+      "Debtor": p.invoice.metadata.debtorName,
+      "Face Value": p.invoice.metadata.amount,
+      "Funded Amount": p.investedAmount,
+      "APR": p.invoice.terms.apr,
+      "Maturity Date": new Date(p.invoice.terms.repaymentDate).toISOString(),
+      "Status": p.status,
+      "Expected Return": p.expectedReturn,
+    }));
+    const date = new Date().toISOString().slice(0, 10);
+    exportCsv(rows, `kora-portfolio-${date}`, CSV_HEADERS);
+  }, [positionsData]);
 
   // ── Handlers ────────────────────────────────────────────────────────────────
 
@@ -336,11 +362,16 @@ export default function InvestorDashboardPage() {
               Track your invoice financing portfolio
             </p>
           </div>
-          <Link href="/marketplace">
-            <Button variant="outline">
-              <Store className="h-4 w-4" /> Browse Marketplace
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportCsv}>
+              <Download className="h-4 w-4" /> Export CSV
             </Button>
-          </Link>
+            <Link href="/marketplace">
+              <Button variant="outline">
+                <Store className="h-4 w-4" /> Browse Marketplace
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Stat cards */}

@@ -248,6 +248,7 @@ export async function getAccountTransactions(
 export type KoraEventType =
   | "invoice_funded"
   | "invoice_repaid"
+  | "invoice_cancelled"
   | "yield_distributed";
 
 /**
