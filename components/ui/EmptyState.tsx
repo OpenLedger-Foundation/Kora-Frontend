@@ -4,83 +4,112 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ReactNode } from "react";
 
+export type EmptyStateVariant =
+  | "no-invoices"
+  | "no-positions"
+  | "no-transactions"
+  | "no-results"
+  | "marketplace"
+  | "sme"
+  | "investor"
+  | "transactions"
+  | "analytics";
+
 type Props = {
   title: string;
   description?: string;
   cta?: { label: string; onClick: () => void } | null;
-  variant?: "marketplace" | "sme" | "investor" | "transactions" | "analytics";
+  variant?: EmptyStateVariant;
   className?: string;
 };
 
-function Illustration({ variant }: { variant: Props["variant"] }) {
-  const color = "#0ea5a4"; // teal brand
-  const dark = "#0f1720";
-  const size = 160;
-  if (variant === "marketplace") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-        <rect x="8" y="30" width="104" height="86" rx="10" fill="#071014" stroke="#083033" />
-        <rect x="22" y="44" width="36" height="18" rx="4" fill={color} />
-        <rect x="22" y="70" width="72" height="10" rx="3" fill="#0b2b2a" />
-        <circle cx="132" cy="46" r="18" fill="#072727" stroke={color} />
-      </svg>
-    );
-  }
-  if (variant === "sme") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-        <rect x="22" y="36" width="116" height="88" rx="8" fill="#071014" stroke="#083033" />
-        <path d="M36 56h88v8H36z" fill={color} />
-        <rect x="36" y="76" width="60" height="10" rx="3" fill="#092e2d" />
-        <rect x="36" y="92" width="40" height="10" rx="3" fill="#063534" />
-      </svg>
-    );
-  }
-  if (variant === "investor") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-        <rect x="18" y="28" width="124" height="100" rx="12" fill="#071014" stroke="#083033" />
-        <g fill={color}>
-          <rect x="34" y="46" width="28" height="28" rx="4" />
-          <rect x="70" y="46" width="28" height="18" rx="4" />
-          <rect x="106" y="46" width="10" height="10" rx="3" />
-        </g>
-      </svg>
-    );
-  }
-  if (variant === "transactions") {
-    return (
-      <svg width={size} height={size} viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-        <rect x="12" y="24" width="136" height="112" rx="14" fill="#071014" stroke="#083033" />
-        <path d="M34 56h92v8H34z" fill={color} />
-        <path d="M34 80h72v8H34z" fill="#072f2f" />
-        <path d="M34 104h48v8H34z" fill="#052b2b" />
-      </svg>
-    );
-  }
-  // analytics default
+const VARIANT_CONFIG: Record<
+  EmptyStateVariant,
+  { icon: string; heading: string; subtext: string }
+> = {
+  "no-invoices": {
+    icon: "📄",
+    heading: "No invoices yet",
+    subtext: "Create your first invoice to start raising liquidity on-chain.",
+  },
+  "no-positions": {
+    icon: "📊",
+    heading: "No positions yet",
+    subtext: "Fund invoices on the marketplace to build your investment portfolio.",
+  },
+  "no-transactions": {
+    icon: "🔄",
+    heading: "No transactions yet",
+    subtext: "Your on-chain transaction history will appear here.",
+  },
+  "no-results": {
+    icon: "🔍",
+    heading: "No results found",
+    subtext: "We couldn't find anything matching your current filters. Try resetting.",
+  },
+  // Legacy variants kept for backward compat
+  marketplace: {
+    icon: "🏪",
+    heading: "No invoices match your filters",
+    subtext: "Try adjusting your filters to explore more opportunities.",
+  },
+  sme: {
+    icon: "📄",
+    heading: "No invoices yet",
+    subtext: "Create your first invoice to start raising liquidity.",
+  },
+  investor: {
+    icon: "📊",
+    heading: "No positions yet",
+    subtext: "Fund invoices on the marketplace to build your portfolio.",
+  },
+  transactions: {
+    icon: "🔄",
+    heading: "No transactions yet",
+    subtext: "Your transaction history will appear here.",
+  },
+  analytics: {
+    icon: "📈",
+    heading: "No data yet",
+    subtext: "Analytics will populate once you have activity.",
+  },
+};
+
+function Illustration({ variant }: { variant: EmptyStateVariant }) {
+  const { icon } = VARIANT_CONFIG[variant];
   return (
-    <svg width={size} height={size} viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <rect x="20" y="40" width="120" height="80" rx="10" fill="#071014" stroke="#083033" />
-      <g fill={color}>
-        <rect x="36" y="70" width="12" height="20" rx="2" />
-        <rect x="56" y="60" width="12" height="30" rx="2" />
-        <rect x="76" y="50" width="12" height="40" rx="2" />
-      </g>
-    </svg>
+    <span className="text-6xl" role="img" aria-hidden="true">
+      {icon}
+    </span>
   );
 }
 
-export function EmptyState({ title, description, cta = null, variant = "marketplace", className = "" }: Props) {
+export function EmptyState({
+  title,
+  description,
+  cta = null,
+  variant = "marketplace",
+  className = "",
+}: Props) {
+  const config = VARIANT_CONFIG[variant];
+  const displayTitle = title || config.heading;
+  const displayDescription = description ?? config.subtext;
+
   return (
-    <div className={`flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-card/40 p-8 text-center ${className}`}>
-      <motion.div animate={{ y: [0, -6, 0] }} transition={{ duration: 3, repeat: Infinity }}>
-        <div className="mx-auto w-[180px] sm:w-[220px]">
-          <Illustration variant={variant} />
-        </div>
+    <div
+      role="status"
+      className={`flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-border bg-card/40 p-8 text-center ${className}`}
+    >
+      <motion.div
+        animate={{ y: [0, -6, 0] }}
+        transition={{ duration: 3, repeat: Infinity }}
+      >
+        <Illustration variant={variant} />
       </motion.div>
-      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-      {description && <p className="text-sm text-muted-foreground max-w-xl">{description}</p>}
+      <h3 className="text-lg font-semibold text-foreground">{displayTitle}</h3>
+      {displayDescription && (
+        <p className="text-sm text-muted-foreground max-w-xl">{displayDescription}</p>
+      )}
       {cta && (
         <div className="mt-2">
           <Button onClick={cta.onClick}>{cta.label}</Button>

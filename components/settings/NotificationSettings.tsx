@@ -2,33 +2,29 @@
 
 import { Keyboard, RotateCcw } from "lucide-react";
 import { useUIStore } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { Button } from "@/components/ui/button";
-import type { MaturityReminderDays, NotificationPreferences } from "@/store/uiStore";
+import type { MaturityReminderDays } from "@/store/settingsStore";
 
 const NOTIFICATION_ITEMS: Array<{
-  key: keyof Pick<NotificationPreferences, "txConfirmed" | "invoiceFunded" | "maturityReminder" | "yieldAvailable">;
+  key: "maturityReminder" | "fundingAlerts" | "repaymentAlerts";
   label: string;
   description: string;
 }> = [
   {
-    key: "txConfirmed",
-    label: "Transaction Confirmed",
-    description: "Show notifications when Stellar transactions are confirmed.",
-  },
-  {
-    key: "invoiceFunded",
-    label: "Invoice Funded",
-    description: "Notify when your invoice reaches funding milestones.",
-  },
-  {
     key: "maturityReminder",
-    label: "Maturity Reminder",
+    label: "Maturity Reminders",
     description: "Remind you before invoice maturity date.",
   },
   {
-    key: "yieldAvailable",
-    label: "Yield Available",
-    description: "Notify when yield can be claimed.",
+    key: "fundingAlerts",
+    label: "Funding Alerts",
+    description: "Notify when your invoice reaches funding milestones.",
+  },
+  {
+    key: "repaymentAlerts",
+    label: "Repayment Alerts",
+    description: "Notify when repayment is due or completed.",
   },
 ];
 
@@ -64,22 +60,9 @@ function Toggle({
 }
 
 export function NotificationSettings() {
-  const preferences = useUIStore((s) => s.notificationPreferences);
-  const setNotificationPreferences = useUIStore((s) => s.setNotificationPreferences);
-  const resetNotificationPreferences = useUIStore((s) => s.resetNotificationPreferences);
+  const { notifications, setNotifications, resetNotifications } = useSettingsStore();
   const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
   const setShortcutsEnabled = useUIStore((s) => s.setShortcutsEnabled);
-
-  const updatePreference = (
-    key: keyof Pick<NotificationPreferences, "txConfirmed" | "invoiceFunded" | "maturityReminder" | "yieldAvailable">,
-    value: boolean
-  ) => {
-    setNotificationPreferences({ [key]: value });
-  };
-
-  const updateMaturityDays = (value: MaturityReminderDays) => {
-    setNotificationPreferences({ maturityReminderDays: value });
-  };
 
   return (
     <div className="space-y-5">
@@ -96,8 +79,8 @@ export function NotificationSettings() {
               <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
             </div>
             <Toggle
-              checked={preferences[item.key]}
-              onChange={(next) => updatePreference(item.key, next)}
+              checked={notifications[item.key]}
+              onChange={(next) => setNotifications({ [item.key]: next })}
               ariaLabel={`Toggle ${item.label}`}
             />
           </div>
@@ -111,10 +94,10 @@ export function NotificationSettings() {
         <p className="mt-0.5 text-xs text-muted-foreground">Choose when to alert before maturity date.</p>
         <select
           id="maturity-reminder-days"
-          value={preferences.maturityReminderDays}
-          onChange={(e) => updateMaturityDays(Number(e.target.value) as MaturityReminderDays)}
+          value={notifications.maturityReminderDays}
+          onChange={(e) => setNotifications({ maturityReminderDays: Number(e.target.value) as MaturityReminderDays })}
           className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
-          disabled={!preferences.maturityReminder}
+          disabled={!notifications.maturityReminder}
         >
           <option value={1}>1 day before maturity</option>
           <option value={3}>3 days before maturity</option>
@@ -127,7 +110,7 @@ export function NotificationSettings() {
         size="sm"
         className="w-full"
         leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
-        onClick={resetNotificationPreferences}
+        onClick={resetNotifications}
       >
         Reset to defaults
       </Button>

@@ -315,7 +315,10 @@ export const useInvoiceStore = create<InvoiceStore>()(
           if (list.includes(id)) {
             return { comparisonList: list.filter((i) => i !== id) };
           }
-          if (list.length >= 3) return {}; // max 3
+          // When at max, replace oldest (first in list)
+          if (list.length >= 3) {
+            return { comparisonList: [...list.slice(1), id] };
+          }
           return { comparisonList: [...list, id] };
         }),
 

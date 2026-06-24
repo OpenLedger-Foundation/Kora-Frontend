@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useToast } from "@/hooks/useToast";
-import { useUIStore } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import type { Invoice } from "@/types";
 
 const REMINDER_STORAGE_KEY = "kora-maturity-reminders";
@@ -32,17 +32,17 @@ function daysUntilDate(date: string): number {
 }
 
 export function useMaturityReminder(invoices: Invoice[]) {
-  const prefs = useUIStore((s) => s.notificationPreferences);
+  const { notifications } = useSettingsStore();
   const toast = useToast();
 
   useEffect(() => {
-    if (!prefs.maturityReminder || invoices.length === 0) return;
+    if (!notifications.maturityReminder || invoices.length === 0) return;
 
     invoices.forEach((invoice) => {
       const daysLeft = daysUntilDate(invoice.terms.repaymentDate);
-      if (daysLeft !== prefs.maturityReminderDays) return;
+      if (daysLeft !== notifications.maturityReminderDays) return;
 
-      const reminderKey = `${invoice.id}:${prefs.maturityReminderDays}`;
+      const reminderKey = `${invoice.id}:${notifications.maturityReminderDays}`;
       if (getReminderKeys().includes(reminderKey)) return;
 
       toast.success(
@@ -53,5 +53,5 @@ export function useMaturityReminder(invoices: Invoice[]) {
       );
       markReminderShown(reminderKey);
     });
-  }, [invoices, prefs.maturityReminder, prefs.maturityReminderDays, toast]);
+  }, [invoices, notifications.maturityReminder, notifications.maturityReminderDays, toast]);
 }

@@ -1,5 +1,6 @@
 import React from "react";
 import { JURISDICTIONS } from "./filters";
+import { getJurisdictionFlag } from "@/lib/utils";
 
 export default function JurisdictionFilter({ selected = [], onToggle }: any) {
   return (
@@ -13,7 +14,9 @@ export default function JurisdictionFilter({ selected = [], onToggle }: any) {
             onClick={() => onToggle(j.code)}
             className={`flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors ${selected.includes(j.code) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
           >
-            <span className="text-lg">{j.flag}</span>
+            <span className="text-lg" role="img" aria-label={j.name}>
+              {getJurisdictionFlag(j.code)}
+            </span>
             <span>{j.name}</span>
           </button>
         ))}

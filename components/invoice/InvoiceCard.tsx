@@ -15,6 +15,8 @@ import {
   formatApr,
   daysUntil,
   cn,
+  getJurisdictionFlag,
+  getJurisdictionName,
 } from "@/lib/utils";
 import useCountdown from "@/hooks/useCountdown";
 import CountdownTimer from "@/components/ui/CountdownTimer";
@@ -29,47 +31,11 @@ interface InvoiceCardProps {
   updatedAt?: number;
 }
 
-const JURISDICTION_FLAGS: Record<string, string> = {
-  KE: "🇰🇪",
-  NG: "🇳🇬",
-  GH: "🇬🇭",
-  ZA: "🇿🇦",
-  US: "🇺🇸",
-  EU: "🇪🇺",
-  UK: "🇬🇧",
-  GB: "🇬🇧",
-};
-
-const JURISDICTION_NAMES: Record<string, string> = {
-  KE: "Kenya",
-  NG: "Nigeria",
-  GH: "Ghana",
-  ZA: "South Africa",
-  US: "United States",
-  EU: "European Union",
-  UK: "United Kingdom",
-};
-
-function getFlagEmoji(countryCode: string) {
-  if (JURISDICTION_FLAGS[countryCode]) {
-    return JURISDICTION_FLAGS[countryCode];
-  }
-  const codePoints = countryCode
-    .toUpperCase()
-    .split("")
-    .map((char) => 127397 + char.charCodeAt(0));
-  try {
-    return String.fromCodePoint(...codePoints);
-  } catch {
-    return "🌐";
-  }
-}
-
 export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
-  const flag = getFlagEmoji(metadata.jurisdiction);
-  const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
+  const flag = getJurisdictionFlag(metadata.jurisdiction);
+  const countryName = getJurisdictionName(metadata.jurisdiction);
   const queryClient = useQueryClient();
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);

@@ -46,6 +46,7 @@ import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import type { Invoice } from "@/types";
 import type { ColumnDef } from "@/types/table";
+import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 
@@ -79,13 +80,13 @@ export default function SMEDashboardPage() {
 
   if (!isConnected) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-          <FileText className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
-        <p className="text-sm text-muted-foreground">Connect to view and manage your invoices</p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
+        <EmptyState
+          variant="no-invoices"
+          title="Connect your wallet"
+          description="Connect to view and manage your invoices"
+          cta={{ label: "Connect Wallet", onClick: () => setWalletModalOpen(true) }}
+        />
       </div>
     );
   }

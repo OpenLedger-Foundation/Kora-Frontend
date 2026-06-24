@@ -159,6 +159,49 @@ export function xlmToStroops(xlm: number): bigint {
   return BigInt(Math.round(xlm * 10_000_000));
 }
 
+/**
+ * Jurisdiction flag emoji map.
+ * Covers all jurisdictions present in mockData.ts.
+ * Falls back to plain text name if code is not mapped.
+ */
+export const JURISDICTION_FLAGS: Record<string, string> = {
+  KE: "🇰🇪",
+  NG: "🇳🇬",
+  GH: "🇬🇭",
+  ZA: "🇿🇦",
+  US: "🇺🇸",
+  EU: "🇪🇺",
+  UK: "🇬🇧",
+  GB: "🇬🇧",
+  IN: "🇮🇳",
+  BR: "🇧🇷",
+  OTHER: "🌐",
+};
+
+export const JURISDICTION_NAMES: Record<string, string> = {
+  KE: "Kenya",
+  NG: "Nigeria",
+  GH: "Ghana",
+  ZA: "South Africa",
+  US: "United States",
+  EU: "European Union",
+  UK: "United Kingdom",
+  GB: "United Kingdom",
+  IN: "India",
+  BR: "Brazil",
+  OTHER: "Other",
+};
+
+/** Get flag emoji for a jurisdiction code. Falls back to the code itself. */
+export function getJurisdictionFlag(code: string): string {
+  return JURISDICTION_FLAGS[code] ?? code;
+}
+
+/** Get full name for a jurisdiction code. Falls back to the code itself. */
+export function getJurisdictionName(code: string): string {
+  return JURISDICTION_NAMES[code] ?? code;
+}
+
 /** Risk tier colour mapping */
 export const RISK_TIER_COLORS: Record<string, string> = {
   AAA: "text-emerald-400 bg-emerald-400/10 border-emerald-400/20",
