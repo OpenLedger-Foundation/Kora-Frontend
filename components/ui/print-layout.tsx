@@ -3,6 +3,25 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
+// Inject print styles once on mount — hides navbar, wallet button, and funding panel
+const PRINT_STYLES = `
+@media print {
+  nav, header, [data-print-hide] { display: none !important; }
+  .print-layout { display: block !important; }
+}
+`;
+
+function usePrintStyles() {
+  React.useEffect(() => {
+    if (document.getElementById("kora-print-styles")) return;
+    const el = document.createElement("style");
+    el.id = "kora-print-styles";
+    el.textContent = PRINT_STYLES;
+    document.head.appendChild(el);
+    return () => el.remove();
+  }, []);
+}
+
 interface PrintLayoutProps {
   children: React.ReactNode;
   title?: string;
@@ -16,6 +35,7 @@ interface PrintLayoutProps {
  * Use alongside window.print() or the PDF export utility.
  */
 export function PrintLayout({ children, title, subtitle, className }: PrintLayoutProps) {
+  usePrintStyles();
   return (
     <div className={cn("print-layout", className)}>
       {(title || subtitle) && (
