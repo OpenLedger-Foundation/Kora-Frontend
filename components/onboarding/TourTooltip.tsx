@@ -28,9 +28,15 @@ export default function TourTooltip({
 
   useEffect(() => {
     if (!open) return;
-    const el = targetSelector ? (document.querySelector(targetSelector) as HTMLElement | null) : null;
+    const el = targetSelector
+      ? (document.querySelector(targetSelector) as HTMLElement | null)
+      : null;
     const tooltip = ref.current;
     if (!tooltip) return;
+
+    tooltip.focus();
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    el?.setAttribute("data-tour-active", "true");
 
     const compute = () => {
       const viewportW = window.innerWidth;
@@ -48,7 +54,8 @@ export default function TourTooltip({
       // simple placement logic with edge flipping
       if (placement === "bottom") {
         let top = rect.bottom + margin + window.scrollY;
-        let left = rect.left + rect.width / 2 - tooltip.offsetWidth / 2 + window.scrollX;
+        let left =
+          rect.left + rect.width / 2 - tooltip.offsetWidth / 2 + window.scrollX;
         if (top + tooltip.offsetHeight > window.scrollY + viewportH)
           top = rect.top - tooltip.offsetHeight - margin + window.scrollY;
         if (left < 8) left = 8 + window.scrollX;
@@ -57,16 +64,25 @@ export default function TourTooltip({
         setStyle({ left: `${left}px`, top: `${top}px` });
       } else if (placement === "top") {
         let top = rect.top - tooltip.offsetHeight - margin + window.scrollY;
-        let left = rect.left + rect.width / 2 - tooltip.offsetWidth / 2 + window.scrollX;
+        let left =
+          rect.left + rect.width / 2 - tooltip.offsetWidth / 2 + window.scrollX;
         if (top < window.scrollY) top = rect.bottom + margin + window.scrollY;
         setStyle({ left: `${left}px`, top: `${top}px` });
       } else if (placement === "left") {
         const left = rect.left - tooltip.offsetWidth - margin + window.scrollX;
-        const top = rect.top + rect.height / 2 - tooltip.offsetHeight / 2 + window.scrollY;
+        const top =
+          rect.top +
+          rect.height / 2 -
+          tooltip.offsetHeight / 2 +
+          window.scrollY;
         setStyle({ left: `${left}px`, top: `${top}px` });
       } else {
         const left = rect.right + margin + window.scrollX;
-        const top = rect.top + rect.height / 2 - tooltip.offsetHeight / 2 + window.scrollY;
+        const top =
+          rect.top +
+          rect.height / 2 -
+          tooltip.offsetHeight / 2 +
+          window.scrollY;
         setStyle({ left: `${left}px`, top: `${top}px` });
       }
     };
@@ -77,8 +93,18 @@ export default function TourTooltip({
     return () => {
       window.removeEventListener("resize", compute);
       window.removeEventListener("scroll", compute, true);
+      el?.removeAttribute("data-tour-active");
     };
-  }, [open, targetSelector, placement]);
+  }, [open, targetSelector, placement, mounted]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose?.();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
 
   if (!open || !mounted) return null;
 
@@ -86,6 +112,10 @@ export default function TourTooltip({
     <AnimatePresence>
       <motion.div
         ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Marketplace onboarding tour"
+        tabIndex={-1}
         style={style}
         initial={{ opacity: 0, scale: 0.9, y: -8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}

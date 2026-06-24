@@ -598,7 +598,7 @@ function MarketplaceContent() {
 
         {/* Search + Sort + Toggle Bar */}
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex-1" ref={searchRef}>
+          <div className="flex-1" ref={searchRef} data-tour="marketplace-search">
             <div className="relative">
               <Input
                 placeholder="Search by debtor, invoice number, or jurisdiction…"
