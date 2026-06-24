@@ -144,6 +144,59 @@ export function ErrorTransactionToast({
 }
 
 /**
+ * TimeoutTransactionToast
+ * Shows warning icon, timeout message, and a retry button.
+ * Auto-dismisses: false
+ */
+export function TimeoutTransactionToast({
+  onRetry,
+  toastId,
+}: {
+  onRetry: () => void;
+  toastId: string | number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="flex flex-col gap-2 w-full"
+      role="alert"
+      aria-live="assertive"
+      aria-label="Signature timed out"
+    >
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
+        <div className="flex flex-col gap-0.5">
+          <span className="text-sm font-semibold text-foreground">Signature timed out</span>
+          <span className="text-xs text-muted-foreground">
+            The wallet popup was not signed in time. You can retry without rebuilding.
+          </span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          onClick={() => {
+            toast.dismiss(toastId);
+            onRetry();
+          }}
+          className="rounded bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+          aria-label="Retry signature"
+        >
+          Retry
+        </button>
+        <button
+          onClick={() => toast.dismiss(toastId)}
+          className="rounded border border-border bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          aria-label="Dismiss"
+        >
+          Dismiss
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+/**
  * WarningTransactionToast
  * Shows warning icon, message, and details
  * Auto-dismisses: 5000ms

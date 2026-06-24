@@ -16,7 +16,8 @@ export type TxStatus =
   | "submitting"
   | "polling"
   | "confirmed"
-  | "failed";
+  | "failed"
+  | "timeout";
 
 export type TxState =
   | { status: "idle" }
@@ -26,7 +27,8 @@ export type TxState =
   | { status: "submitting"; txHash?: string }
   | { status: "polling"; txHash: string }
   | { status: "confirmed"; txHash: string }
-  | { status: "failed"; error: ServiceError; txHash?: string };
+  | { status: "failed"; error: ServiceError; txHash?: string }
+  | { status: "timeout"; txHash?: string };
 
 export type ServiceErrorCode =
   | "NETWORK_ERROR"

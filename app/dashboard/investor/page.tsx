@@ -140,22 +140,63 @@ export default function InvestorDashboardPage() {
   const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
 
   // ── Resolve positions ───────────────────────────────────────────────────────
+  // Use live data when available; fall back to mock only when mock data is enabled and live hasn't loaded
   const rawPositions = positionsQuery.data;
-  const positionsData: InvestorPosition[] = rawPositions
-    ? rawPositions.map((p) => ({
-        id: p.invoiceId,
-        invoice: p.invoice,
-        investedAmount: p.investedAmount,
-        expectedReturn: p.expectedReturn,
-        status: p.status as "active" | "repaid",
-      }))
-    : POSITIONS;
+  const useMockFallback = env.NEXT_PUBLIC_ENABLE_MOCK_DATA && !positionsQuery.isFetched;
+  const positionsData: InvestorPosition[] = (rawPositions ?? (useMockFallback ? [] : []))
+    .map((p) => ({
+      id: p.invoiceId,
+      invoice: p.invoice,
+      investedAmount: p.investedAmount,
+      expectedReturn: p.expectedReturn,
+      status: p.status as "active" | "repaid",
+    }));
 
   // Positions after applying the donut filter (for the table)
   const filteredPositions = useMemo(
     () => applyDonutFilter(positionsData, donutFilter),
     [positionsData, donutFilter]
   );
+
+  // Compute stats from live data
+  const liveInvested = positionsData.reduce((s, p) => s + p.investedAmount, 0);
+  const liveExpected = positionsData.reduce((s, p) => s + p.expectedReturn, 0);
+  const liveYield = liveExpected - liveInvested;
+  const avgApr = positionsData.length > 0
+    ? positionsData.reduce((s, p) => s + (p.invoice.terms?.apr ?? 0), 0) / positionsData.length
+    : 0;
+  const liveStats = [
+    {
+      label: "Portfolio Value",
+      value: formatCurrency(liveInvested, "USDC", true),
+      valueRaw: liveInvested,
+      change: `${positionsData.length} active position${positionsData.length !== 1 ? "s" : ""}`,
+      changePositive: true,
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      label: "Expected Yield",
+      value: formatCurrency(liveYield, "USDC", true),
+      valueRaw: liveYield,
+      change: liveInvested > 0 ? `${((liveYield / liveInvested) * 100).toFixed(1)}% return` : "—",
+      changePositive: true,
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Active Positions",
+      value: positionsData.length.toString(),
+      valueRaw: positionsData.length,
+      icon: <BarChart3 className="h-4 w-4" />,
+    },
+    {
+      label: "Avg. APR",
+      value: positionsData.length > 0 ? `${avgApr.toFixed(1)}%` : "—",
+      valueRaw: avgApr,
+      change: "Across all positions",
+      changePositive: true,
+      icon: <Clock className="h-4 w-4" />,
+    },
+  ];
 
   // Cast to InvoicePosition[] for PortfolioDonut (it needs the full invoice shape)
   const invoicePositions = positionsData as unknown as InvoicePosition[];
@@ -345,7 +386,7 @@ export default function InvestorDashboardPage() {
 
         {/* Stat cards */}
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {STATS.map((stat, i) => (
+          {liveStats.map((stat, i) => (
             <motion.div
               key={stat.label}
               initial={{ opacity: 0, y: 12 }}

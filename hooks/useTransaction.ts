@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
@@ -19,7 +19,8 @@ export type TxLifecycleStatus =
   | "submitting"
   | "polling"
   | "confirmed"
-  | "failed";
+  | "failed"
+  | "timeout";
 
 interface TxState {
   status: TxLifecycleStatus;
@@ -105,9 +106,13 @@ function parseSimulationPreview(
   return { feeStroops, feeXlm, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
 
+const DEFAULT_SIGNATURE_TIMEOUT_MS = 120_000;
+
 export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
+  // Stores unsigned XDR for retry after timeout
+  const pendingXdrRef = useRef<string | null>(null);
   const { signTransaction } = useWallet();
   const toast = useToast();
   const t = useTranslations("transaction");
@@ -118,7 +123,7 @@ export function useTransaction() {
   const setStage = useCallback(
     (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
       setState((s) => ({ ...s, status, ...extra }));
-      setTxState({ status });
+      setTxState({ status } as any);
       // Show loading toast for in-progress stages
       const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
       if (inProgress.includes(status)) {
@@ -149,12 +154,16 @@ export function useTransaction() {
         txDescription?: string;
         txAmount?: string;
         txAssetCode?: string;
+        /** Milliseconds before wallet signature is considered timed out. Default 120 000ms (2 min). */
+        signatureTimeoutMs?: number;
       }
     ): Promise<string | null> => {
+      const signTimeout = options?.signatureTimeoutMs ?? DEFAULT_SIGNATURE_TIMEOUT_MS;
       try {
         // 1. Build
         setStage("building");
         const unsignedXdr = await buildFn();
+        pendingXdrRef.current = unsignedXdr;
 
         // 2. Simulate (skip for mock XDRs)
         if (!unsignedXdr.startsWith("mock_")) {
@@ -212,9 +221,23 @@ export function useTransaction() {
           }
         }
 
-        // 3. Sign
+        // 3. Sign (with configurable timeout)
         setStage("signing");
-        const signedXdr = await signTransaction(unsignedXdr);
+        let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+        let signedXdr: string;
+        try {
+          signedXdr = await Promise.race([
+            signTransaction(unsignedXdr),
+            new Promise<never>((_, reject) => {
+              timeoutHandle = setTimeout(
+                () => reject(new Error("__SIGNATURE_TIMEOUT__")),
+                signTimeout
+              );
+            }),
+          ]);
+        } finally {
+          if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+        }
 
         // 4. Submit
         setStage("submitting");
@@ -264,8 +287,26 @@ export function useTransaction() {
         return hash;
       } catch (err) {
         const message = err instanceof Error ? err.message : t("failed");
+
+        if (message === "__SIGNATURE_TIMEOUT__") {
+          setState({ status: "timeout" });
+          setTxState({ status: "timeout" });
+          const toastId = TOAST_ID + "-timeout";
+          const savedXdr = pendingXdrRef.current;
+          // Show a warning toast; TimeoutTransactionToast with retry is shown via useToast.error
+          toast.error(
+            "Signature timed out",
+            "The wallet popup was not signed in time.",
+            savedXdr
+              ? () => execute(() => Promise.resolve(savedXdr), options)
+              : undefined,
+            toastId
+          );
+          return null;
+        }
+
         setState({ status: "failed", error: message });
-        setTxState({ status: "failed", error: message });
+        setTxState({ status: "failed", error: { code: "TRANSACTION_FAILED", message } } as any);
         
         // Update history if we have a hash
         if (state.txHash) {

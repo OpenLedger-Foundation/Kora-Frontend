@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { rpc, horizon } from "@/lib/stellar/client";
+import { checkRpcHealth, horizon } from "@/lib/stellar/client";
 
 export type NetworkStatus = "operational" | "degraded" | "down";
 
@@ -40,32 +40,15 @@ export function useNetworkStatus() {
   });
 
   const checkSorobanHealth = async (): Promise<ServiceHealth> => {
-    const startTime = Date.now();
-    try {
-      // Simple health check - get network info
-      await Promise.race([
-        rpc.getHealth(),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Timeout")), TIMEOUT_MS)
-        ),
-      ]);
-      
-      const responseTime = Date.now() - startTime;
-      const status: NetworkStatus = responseTime > DEGRADED_THRESHOLD_MS ? "degraded" : "operational";
-      
-      return {
-        status,
-        responseTime,
-        lastChecked: new Date(),
-      };
-    } catch (error) {
-      return {
-        status: "down",
-        responseTime: Date.now() - startTime,
-        lastChecked: new Date(),
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+    const { ok, latencyMs } = await checkRpcHealth();
+    if (!ok) {
+      return { status: "down", responseTime: latencyMs, lastChecked: new Date(), error: "RPC unreachable" };
     }
+    return {
+      status: latencyMs > DEGRADED_THRESHOLD_MS ? "degraded" : "operational",
+      responseTime: latencyMs,
+      lastChecked: new Date(),
+    };
   };
 
   const checkHorizonHealth = async (): Promise<ServiceHealth> => {

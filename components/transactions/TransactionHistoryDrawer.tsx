@@ -12,9 +12,13 @@ import {
   Download,
   Trash2,
   X,
+  Copy,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
+import { Skeleton } from "@/components/ui/skeleton";
+import { fetchTransactionDetails } from "@/lib/stellar/client";
 import type { TransactionRecord } from "@/store/transactionHistoryStore";
 import { cn } from "@/lib/utils";
 
@@ -90,7 +94,7 @@ function TransactionRow({ tx, onSelect }: { tx: TransactionRecord; onSelect: (tx
 
             {/* Hash + Details */}
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <StellarTxLink hash={tx.hash} chars={8} size="xs" />
+              <StellarTxLink hash={tx.hash} chars={8} size="sm" />
               {tx.amount && (
                 <>
                   <span>•</span>
@@ -121,6 +125,16 @@ function TransactionRow({ tx, onSelect }: { tx: TransactionRecord; onSelect: (tx
 function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: () => void }) {
   const typeConfig = TX_TYPE_LABELS[tx.type] || TX_TYPE_LABELS.other;
   const dateObj = new Date(tx.timestamp);
+
+  // Only fetch details for confirmed transactions — cache forever (staleTime: Infinity)
+  const { data: details, isLoading: loadingDetails } = useQuery({
+    queryKey: ["tx-details", tx.hash],
+    queryFn: () => fetchTransactionDetails(tx.hash),
+    enabled: tx.status === "confirmed" && !tx.hash.startsWith("mock_"),
+    staleTime: Infinity,
+    gcTime: 24 * 60 * 60 * 1000, // keep in cache 24h
+    retry: 1,
+  });
 
   return (
     <motion.div
@@ -194,6 +208,31 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: ()
         <p className="text-sm text-foreground">{dateObj.toLocaleString()}</p>
       </div>
 
+      {/* ── Enriched Horizon details ─────────────────────────────────────────── */}
+      {tx.status === "confirmed" && (
+        <div className="space-y-3 border-t pt-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">On-chain Details</p>
+
+          {loadingDetails ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ) : details ? (
+            <div className="space-y-2 text-sm">
+              <DetailRow label="Ledger" value={String(details.ledger)} />
+              <DetailRow label="Fee Paid" value={`${details.feeXlm.toFixed(7)} XLM (${details.feePaid} stroops)`} />
+              <DetailRow label="Confirmed At" value={new Date(details.createdAt).toLocaleString()} />
+              <DetailRow label="Operations" value={String(details.operationCount)} />
+              {details.memo && <DetailRow label="Memo" value={details.memo} />}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Details unavailable</p>
+          )}
+        </div>
+      )}
+
       {/* Description */}
       {tx.description && (
         <div className="space-y-1">
@@ -225,6 +264,15 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: ()
         </a>
       </div>
     </motion.div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="text-foreground text-right break-all">{value}</span>
+    </div>
   );
 }
 

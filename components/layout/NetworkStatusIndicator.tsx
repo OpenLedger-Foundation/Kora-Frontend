@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useNetworkStatus, type NetworkStatus } from "@/hooks/useNetworkStatus";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipRoot, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 
@@ -31,22 +31,27 @@ export function NetworkStatusIndicator() {
     down: t("downDesc"),
   };
 
+  // Show "RPC Degraded" inline label when Soroban RPC is not operational
+  const rpcDegraded = health.soroban.status !== "operational";
+  const badgeLabel = rpcDegraded
+    ? health.soroban.status === "down"
+      ? "RPC Down"
+      : "RPC Degraded"
+    : networkLabel;
+
   return (
     <TooltipProvider>
-      <Tooltip>
+      <TooltipRoot>
         <TooltipTrigger asChild>
           <div
             className="flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/50"
             role="status"
             aria-live="polite"
-            aria-label={`Network status: ${config.label} on ${networkLabel}`}
+            aria-label={`Network status: ${statusLabel[health.overall]} on ${networkLabel}`}
           >
-            <div
-              className={cn("h-2 w-2 rounded-full", config.color)}
-              aria-hidden="true"
-            />
-            <span className="font-medium text-muted-foreground">
-              {networkLabel}
+            <div className={cn("h-2 w-2 rounded-full", color)} aria-hidden="true" />
+            <span className={cn("font-medium", rpcDegraded ? "text-amber-500" : "text-muted-foreground")}>
+              {badgeLabel}
             </span>
           </div>
         </TooltipTrigger>
@@ -78,7 +83,7 @@ export function NetworkStatusIndicator() {
             </div>
           </div>
         </TooltipContent>
-      </Tooltip>
+      </TooltipRoot>
     </TooltipProvider>
   );
 }
