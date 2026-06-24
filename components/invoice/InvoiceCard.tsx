@@ -96,6 +96,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   return (
     <Link
       href={`/marketplace/${invoice.id}`}
+      data-tour="invoice-card"
       className={cn("block group relative h-full", isExpired && "opacity-60")}
       onMouseEnter={handleMouseEnter}
       role="article"
@@ -208,7 +209,12 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
           </div>
 
           {!isExpired && (status === "listed" || status === "partially_funded") ? (
-            <Button size="sm" className="mt-4 w-full relative z-20" onClick={(e) => e.preventDefault()}>
+            <Button
+              size="sm"
+              className="mt-4 w-full relative z-20"
+              data-tour="fund-button"
+              onClick={(e) => e.preventDefault()}
+            >
               Fund Invoice
             </Button>
           ) : null}

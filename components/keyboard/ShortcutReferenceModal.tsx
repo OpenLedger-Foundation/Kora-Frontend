@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Keyboard, X } from "lucide-react";
 import { SHORTCUT_DEFINITIONS } from "@/hooks/useKeyboardShortcuts";
@@ -12,13 +12,20 @@ interface ShortcutReferenceModalProps {
 }
 
 // Group shortcuts by category
-const CATEGORIES = ["Navigation", "Actions", "Help"] as const;
+const CATEGORIES = ["Navigation", "Marketplace", "Dashboard"] as const;
 
 function groupShortcuts() {
-  const groups: Record<string, Array<{ key: string; label: string; description: string }>> = {};
+  const groups: Record<
+    string,
+    Array<{ key: string; label: string; description: string }>
+  > = {};
   for (const [key, def] of Object.entries(SHORTCUT_DEFINITIONS)) {
     if (!groups[def.category]) groups[def.category] = [];
-    groups[def.category].push({ key, label: def.label, description: def.description });
+    groups[def.category].push({
+      key,
+      label: def.label,
+      description: def.description,
+    });
   }
   return groups;
 }
@@ -34,15 +41,52 @@ function KbdBadge({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModalProps) {
-  // Close on Escape
+export function ShortcutReferenceModal({
+  open,
+  onClose,
+}: ShortcutReferenceModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    const panel = panelRef.current;
+    panel?.focus();
+
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !panel) return;
+
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("disabled"));
+      if (focusable.length === 0) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      previouslyFocused?.focus();
+    };
   }, [open, onClose]);
 
   return (
@@ -63,10 +107,12 @@ export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModal
 
           {/* Panel */}
           <motion.div
+            ref={panelRef}
             key="shortcut-panel"
             role="dialog"
             aria-modal="true"
-            aria-label="Keyboard shortcuts reference"
+            aria-labelledby="keyboard-shortcuts-title"
+            tabIndex={-1}
             initial={{ opacity: 0, scale: 0.96, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -8 }}
@@ -77,7 +123,12 @@ export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModal
             <div className="mb-5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Keyboard className="h-5 w-5 text-primary" aria-hidden="true" />
-                <h2 className="text-base font-semibold text-foreground">Keyboard Shortcuts</h2>
+                <h2
+                  id="keyboard-shortcuts-title"
+                  className="text-base font-semibold text-foreground"
+                >
+                  Keyboard Shortcuts
+                </h2>
               </div>
               <button
                 type="button"
@@ -95,7 +146,10 @@ export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModal
                 const items = GROUPED[category];
                 if (!items?.length) return null;
                 return (
-                  <section key={category} aria-labelledby={`shortcut-cat-${category}`}>
+                  <section
+                    key={category}
+                    aria-labelledby={`shortcut-cat-${category}`}
+                  >
                     <h3
                       id={`shortcut-cat-${category}`}
                       className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground"
@@ -108,10 +162,13 @@ export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModal
                           key={item.key}
                           className={cn(
                             "flex items-center justify-between px-4 py-2.5 text-sm",
-                            idx !== items.length - 1 && "border-b border-border"
+                            idx !== items.length - 1 &&
+                              "border-b border-border",
                           )}
                         >
-                          <span className="text-foreground">{item.description}</span>
+                          <span className="text-foreground">
+                            {item.description}
+                          </span>
                           <KbdBadge>{item.label}</KbdBadge>
                         </div>
                       ))}
@@ -123,7 +180,8 @@ export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModal
 
             {/* Footer hint */}
             <p className="mt-5 text-center text-xs text-muted-foreground">
-              Press <KbdBadge>?</KbdBadge> anytime to open this reference. Shortcuts can be disabled in{" "}
+              Press <KbdBadge>?</KbdBadge> anytime to open this reference.
+              Shortcuts can be disabled in{" "}
               <span className="text-foreground">Notification Settings</span>.
             </p>
           </motion.div>

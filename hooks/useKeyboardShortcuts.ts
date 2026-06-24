@@ -11,7 +11,7 @@ export interface ShortcutDefinition {
   /** Short description shown in the reference modal */
   description: string;
   /** Category for grouping in the modal */
-  category: "Navigation" | "Actions" | "Help";
+  category: "Navigation" | "Marketplace" | "Dashboard";
 }
 
 // ── Shortcut registry (exported for the modal) ────────────────────────────────
@@ -19,42 +19,42 @@ export const SHORTCUT_DEFINITIONS: Record<string, ShortcutDefinition> = {
   "cmd+k": {
     label: "⌘K / Ctrl+K",
     description: "Open search",
-    category: "Actions",
+    category: "Marketplace",
   },
   "cmd+w": {
     label: "⌘W / Ctrl+W",
     description: "Open wallet modal",
-    category: "Actions",
+    category: "Navigation",
   },
   "g m": {
     label: "G M",
     description: "Go to Marketplace",
-    category: "Navigation",
+    category: "Marketplace",
   },
   "g d": {
     label: "G D",
     description: "Go to Dashboard",
-    category: "Navigation",
+    category: "Dashboard",
   },
   "g c": {
     label: "G C",
     description: "Go to Create Invoice",
-    category: "Navigation",
+    category: "Marketplace",
   },
   "g t": {
     label: "G T",
     description: "Go to Transaction History",
-    category: "Navigation",
+    category: "Dashboard",
   },
   "g a": {
     label: "G A",
     description: "Go to Analytics",
-    category: "Navigation",
+    category: "Dashboard",
   },
   "?": {
     label: "?",
     description: "Open shortcut reference",
-    category: "Help",
+    category: "Navigation",
   },
 };
 
@@ -194,5 +194,12 @@ export function useKeyboardShortcuts({
       document.removeEventListener("keydown", handleKeyDown);
       clearSequence();
     };
-  }, [shortcutsEnabled, router, setWalletModalOpen, onOpenSearch, onOpenShortcutModal, clearSequence]);
+  }, [
+    shortcutsEnabled,
+    router,
+    setWalletModalOpen,
+    onOpenSearch,
+    onOpenShortcutModal,
+    clearSequence,
+  ]);
 }

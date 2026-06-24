@@ -14,6 +14,15 @@ export function Footer() {
         <div className="flex items-center gap-4">
           <button
             type="button"
+            onClick={() =>
+              window.dispatchEvent(new CustomEvent("kora:open-shortcut-modal"))
+            }
+            className="transition-colors underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Keyboard Shortcuts
+          </button>
+          <button
+            type="button"
             onClick={() => setChangelogOpen(true)}
             className="hover:text-foreground transition-colors underline-offset-2 hover:underline"
             aria-label="Open changelog"

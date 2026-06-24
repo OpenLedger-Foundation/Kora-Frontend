@@ -19,6 +19,9 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Marketplace", () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("kora-tour-done", "true");
+    });
     await page.goto("/marketplace");
     // Wait for the page to hydrate and show invoice cards
     await page.waitForSelector("a[href^='/marketplace/']", { timeout: 15_000 });
@@ -26,7 +29,7 @@ test.describe("Marketplace", () => {
 
   test("renders Invoice Marketplace heading", async ({ page }) => {
     await expect(
-      page.getByRole("heading", { name: /Invoice Marketplace/i })
+      page.getByRole("heading", { name: /Invoice Marketplace/i }),
     ).toBeVisible();
   });
 
@@ -61,7 +64,7 @@ test.describe("Marketplace", () => {
 
   test("search input is visible and accepts text", async ({ page }) => {
     const searchInput = page.getByPlaceholder(
-      /Search by debtor, invoice number, or jurisdiction/i
+      /Search by debtor, invoice number, or jurisdiction/i,
     );
     await expect(searchInput).toBeVisible();
     await searchInput.fill("Safaricom");
@@ -70,7 +73,7 @@ test.describe("Marketplace", () => {
 
   test("search filters the invoice list", async ({ page }) => {
     const searchInput = page.getByPlaceholder(
-      /Search by debtor, invoice number, or jurisdiction/i
+      /Search by debtor, invoice number, or jurisdiction/i,
     );
     // Count cards before search
     const allCards = page.locator("a[href^='/marketplace/']");
@@ -89,7 +92,7 @@ test.describe("Marketplace", () => {
 
   test("clear search button restores full list", async ({ page }) => {
     const searchInput = page.getByPlaceholder(
-      /Search by debtor, invoice number, or jurisdiction/i
+      /Search by debtor, invoice number, or jurisdiction/i,
     );
     await searchInput.fill("Safaricom");
     await page.waitForTimeout(500);
@@ -118,7 +121,7 @@ test.describe("Marketplace", () => {
 
   test("Quick Filters button is visible on desktop", async ({ page }) => {
     await expect(
-      page.getByRole("button", { name: /Quick Filters/i })
+      page.getByRole("button", { name: /Quick Filters/i }),
     ).toBeVisible();
   });
 
@@ -141,10 +144,7 @@ test.describe("Marketplace", () => {
 
   test("selecting a risk tier filter updates the URL", async ({ page }) => {
     // Click the "A" risk tier checkbox
-    const aTierLabel = page
-      .locator("label")
-      .filter({ hasText: /^A$/ })
-      .first();
+    const aTierLabel = page.locator("label").filter({ hasText: /^A$/ }).first();
     await aTierLabel.click();
     await page.waitForTimeout(500);
     await expect(page).toHaveURL(/riskTiers=A/);
@@ -161,6 +161,40 @@ test.describe("Marketplace", () => {
     const href = await firstCard.getAttribute("href");
     await firstCard.click();
     await expect(page).toHaveURL(new RegExp(href!.replace("/", "\\/")));
+  });
+});
+
+test.describe("Marketplace onboarding tour", () => {
+  test("auto-starts once, supports skipping, and does not run on deep links", async ({
+    page,
+  }) => {
+    await page.goto("/marketplace");
+
+    const tour = page.getByRole("dialog", {
+      name: "Marketplace onboarding tour",
+    });
+    await expect(tour).toBeVisible();
+    await expect(tour.getByText("Find the right opportunity")).toBeVisible();
+
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour.getByText("Review invoice details")).toBeVisible();
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour.getByText("Fund an invoice")).toBeVisible();
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour.getByText("Track your portfolio")).toBeVisible();
+
+    await tour.getByRole("button", { name: "Skip tour" }).click();
+    await expect(tour).toBeHidden();
+    await expect
+      .poll(() => page.evaluate(() => localStorage.getItem("kora-tour-done")))
+      .toBe("true");
+
+    await page.reload();
+    await expect(tour).toBeHidden();
+
+    await page.evaluate(() => localStorage.removeItem("kora-tour-done"));
+    await page.goto("/marketplace/inv_001");
+    await expect(tour).toBeHidden();
   });
 });
 
