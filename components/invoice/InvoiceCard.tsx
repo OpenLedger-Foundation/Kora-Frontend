@@ -79,6 +79,15 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   const countdown = useCountdown(listingExpiry);
   const isExpired = countdown.isExpired || status === "cancelled";
 
+  // Maturity countdown — only shown when ≤ 7 days to repayment
+  const showMaturityTimer = days >= 0 && days <= 7;
+  // midnight of repayment date
+  const maturityMidnight = terms.repaymentDate + "T23:59:59";
+  const maturityCountdown = useCountdown(maturityMidnight);
+  const prefersReducedMotion = typeof window !== "undefined"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    : false;
+
   const handleMouseEnter = () => {
     queryClient.prefetchQuery({
       queryKey: queryKeys.invoices.detail(invoice.id),
@@ -184,6 +193,25 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               </p>
             </div>
           </div>
+
+          {/* Maturity countdown — only when ≤7 days remain */}
+          {showMaturityTimer && (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0 text-destructive" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Matures in</span>
+              {prefersReducedMotion ? (
+                <span className={cn("text-xs font-semibold", maturityCountdown.isExpired ? "text-muted-foreground" : "text-destructive")}>
+                  {maturityCountdown.isExpired ? "Matured" : `${days} day${days !== 1 ? "s" : ""} remaining`}
+                </span>
+              ) : (
+                <CountdownTimer
+                  targetDate={maturityMidnight}
+                  compact
+                  className={cn("text-xs font-semibold", maturityCountdown.isExpired ? "text-muted-foreground" : "text-destructive")}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         <div>

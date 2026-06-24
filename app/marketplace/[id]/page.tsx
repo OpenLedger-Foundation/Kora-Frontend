@@ -50,6 +50,7 @@ import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from 
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { env } from "@/lib/env";
 import Script from "next/script";
+import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 import {
   invoiceFinancialProductSchema,
   breadcrumbSchema,
@@ -275,17 +276,22 @@ Stellar Testnet Transaction Hash: ${txHash}`);
       }}
     />
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      {/* Back */}
-      <Link
-        href="/marketplace"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300"
-      >
-        <ArrowLeft className="h-4 w-4" /> {t("backToMarketplace")}
-      </Link>
+      <div className="mb-6 flex items-center justify-between">
+        <Link
+          href="/marketplace"
+          className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300"
+        >
+          <ArrowLeft className="h-4 w-4" /> {t("backToMarketplace")}
+        </Link>
+        <PrintButton label="Print / Save PDF" />      </div>
 
       <div className="grid gap-8 lg:grid-cols-3">
         {/* ── Left: Invoice Details ─────────────────────────────────────── */}
-        <div className="space-y-6 lg:col-span-2">
+        <PrintLayout
+          title={metadata.invoiceNumber}
+          subtitle={`${metadata.debtorName} · ${metadata.issuerName}`}
+          className="space-y-6 lg:col-span-2"
+        >
           {/* Header card */}
           <motion.div layoutId={`invoice-card-${id}`} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
             <Card>
@@ -513,10 +519,10 @@ Stellar Testnet Transaction Hash: ${txHash}`);
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <InvoiceMetadataViewer invoice={invoice} isFunded={isFunded} />
             </motion.div>
-        </div>
+        </PrintLayout>
 
         {/* ── Right: Fund Panel ─────────────────────────────────────────── */}
-        <div className="space-y-4">
+        <div className="space-y-4" data-print-hide>
           <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
             <GlassCard className="p-6">
               <div className="mb-4 flex items-center gap-2">
