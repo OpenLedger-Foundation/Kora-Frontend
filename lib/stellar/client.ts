@@ -248,7 +248,6 @@ export async function getAccountTransactions(
 export type KoraEventType =
   | "invoice_funded"
   | "invoice_repaid"
-  | "invoice_cancelled"
   | "yield_distributed";
 
 /**
@@ -471,10 +470,20 @@ export async function getContractEvents(
 
 /**
  * Submit a signed XDR transaction to the Soroban RPC.
+ * Throws BadSequenceError when the network returns tx_bad_seq so the caller
+ * can reset the sequence counter and retry.
  */
-export async function submitTransaction(signedXdr: string) {
+export async function submitTransaction(
+  signedXdr: string
+): Promise<StellarSdk.rpc.Api.SendTransactionResponse> {
   const tx = StellarSdk.TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
-  return rpc.sendTransaction(tx);
+  const result = await rpc.sendTransaction(tx);
+
+  if (isBadSeqResult(result)) {
+    throw new BadSequenceError();
+  }
+
+  return result;
 }
 
 /**
@@ -493,59 +502,3 @@ export async function waitForTransaction(
   throw new Error(`Transaction ${hash} not confirmed after ${maxAttempts} attempts`);
 }
 
-// ─── Transaction Details ──────────────────────────────────────────────────────
-
-export interface TransactionDetails {
-  hash: string;
-  ledger: number;
-  createdAt: string;
-  feePaid: string; // in stroops
-  feeXlm: number;
-  successful: boolean;
-  sourceAccount: string;
-  operationCount: number;
-  memo: string | null;
-}
-
-/**
- * Fetch full transaction details from Horizon by hash.
- * Uses NEXT_PUBLIC_STELLAR_HORIZON_URL — no hardcoded URLs.
- */
-export async function fetchTransactionDetails(hash: string): Promise<TransactionDetails> {
-  const tx = await horizon.transactions().transaction(hash).call();
-  return {
-    hash: tx.hash,
-    ledger: tx.ledger_attr,
-    createdAt: tx.created_at,
-    feePaid: String(tx.fee_charged),
-    feeXlm: parseInt(String(tx.fee_charged), 10) / 10_000_000,
-    successful: tx.successful,
-    sourceAccount: tx.source_account,
-    operationCount: tx.operation_count,
-    memo: tx.memo ?? null,
-  };
-}
-
-// ─── RPC Health Check ─────────────────────────────────────────────────────────
-
-export interface RpcHealthResult {
-  ok: boolean;
-  latencyMs: number;
-}
-
-/**
- * Ping the Soroban RPC and return health status + latency.
- * Never throws — returns ok:false on error.
- */
-export async function checkRpcHealth(): Promise<RpcHealthResult> {
-  const start = Date.now();
-  try {
-    await Promise.race([
-      rpc.getHealth(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5_000)),
-    ]);
-    return { ok: true, latencyMs: Date.now() - start };
-  } catch {
-    return { ok: false, latencyMs: Date.now() - start };
-  }
-}

@@ -142,7 +142,9 @@ async function buildCall(
   args: StellarSdk.xdr.ScVal[],
   sourcePublicKey: string
 ): Promise<string> {
-  const account = await rpc.getAccount(sourcePublicKey);
+  // Use the sequence manager for optimistic local incrementing so back-to-back
+  // calls don't collide on the same committed sequence number from the network.
+  const account = await sequenceManager.nextAccount(sourcePublicKey);
   const contract = new StellarSdk.Contract(contractId);
 
   const tx = new StellarSdk.TransactionBuilder(account, {

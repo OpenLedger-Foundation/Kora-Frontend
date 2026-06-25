@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
@@ -17,10 +17,10 @@ export type TxLifecycleStatus =
   | "simulating"
   | "signing"
   | "submitting"
+  | "retrying"
   | "polling"
   | "confirmed"
-  | "failed"
-  | "timeout";
+  | "failed";
 
 interface TxState {
   status: TxLifecycleStatus;
@@ -34,8 +34,6 @@ export interface SimulationPreview {
   feeStroops: number;
   /** Fee in XLM */
   feeXlm: number;
-  /** Minimum resource fee in stroops */
-  resourceFee: number;
   /** CPU instructions consumed */
   cpuInstructions: number;
   /** Memory bytes consumed */
@@ -78,7 +76,6 @@ function parseSimulationPreview(
 ): SimulationPreview {
   const feeStroops = parseInt(sim.minResourceFee ?? "0", 10);
   const feeXlm = feeStroops / 10_000_000;
-  const resourceFee = feeStroops;
 
   const resources = (sim as any).transactionData?.resources?.() ?? null;
 
@@ -90,7 +87,7 @@ function parseSimulationPreview(
   try {
     if (resources) {
       cpuInstructions = resources.instructions?.() ?? 0;
-      memoryBytes = resources.memoryBytes?.() ?? resources.readBytes?.() ?? 0;
+      memoryBytes = resources.readBytes?.() ?? 0; // Soroban SDK naming varies
       readBytes = resources.readBytes?.() ?? 0;
       writeBytes = resources.writeBytes?.() ?? 0;
     }
@@ -106,16 +103,12 @@ function parseSimulationPreview(
     // Resource parsing is best-effort; leave zeros if unavailable
   }
 
-  return { feeStroops, feeXlm, resourceFee, cpuInstructions, memoryBytes, readBytes, writeBytes };
+  return { feeStroops, feeXlm, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
-
-const DEFAULT_SIGNATURE_TIMEOUT_MS = 120_000;
 
 export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
-  // Stores unsigned XDR for retry after timeout
-  const pendingXdrRef = useRef<string | null>(null);
   const { signTransaction } = useWallet();
   const toast = useToast();
   const t = useTranslations("transaction");
@@ -126,7 +119,7 @@ export function useTransaction() {
   const setStage = useCallback(
     (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
       setState((s) => ({ ...s, status, ...extra }));
-      setTxState({ status } as any);
+      setTxState({ status });
       // Show loading toast for in-progress stages
       const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
       if (inProgress.includes(status)) {
@@ -157,16 +150,12 @@ export function useTransaction() {
         txDescription?: string;
         txAmount?: string;
         txAssetCode?: string;
-        /** Milliseconds before wallet signature is considered timed out. Default 120 000ms (2 min). */
-        signatureTimeoutMs?: number;
       }
     ): Promise<string | null> => {
-      const signTimeout = options?.signatureTimeoutMs ?? DEFAULT_SIGNATURE_TIMEOUT_MS;
       try {
         // 1. Build
         setStage("building");
         const unsignedXdr = await buildFn();
-        pendingXdrRef.current = unsignedXdr;
 
         // 2. Simulate (skip for mock XDRs)
         if (!unsignedXdr.startsWith("mock_")) {
@@ -192,7 +181,6 @@ export function useTransaction() {
             const preview: SimulationPreview = {
               feeStroops: 0,
               feeXlm: 0,
-              resourceFee: 0,
               cpuInstructions: 0,
               memoryBytes: 0,
               readBytes: 0,
@@ -225,25 +213,7 @@ export function useTransaction() {
           }
         }
 
-        // 3. Sign (with configurable timeout)
-        setStage("signing");
-        let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-        let signedXdr: string;
-        try {
-          signedXdr = await Promise.race([
-            signTransaction(unsignedXdr),
-            new Promise<never>((_, reject) => {
-              timeoutHandle = setTimeout(
-                () => reject(new Error("__SIGNATURE_TIMEOUT__")),
-                signTimeout
-              );
-            }),
-          ]);
-        } finally {
-          if (timeoutHandle !== null) clearTimeout(timeoutHandle);
-        }
-
-        // 4. Submit
+        // ── Phase 2: submit (with one seq-reset retry) ─────────────────────
         setStage("submitting");
         let hash: string;
 
@@ -253,9 +223,31 @@ export function useTransaction() {
             Math.floor(Math.random() * 16).toString(16)
           ).join("");
         } else {
-          const result = await submitTransaction(signedXdr);
-          if (result.status === "ERROR") throw new Error("Transaction submission failed");
-          hash = result.hash;
+          try {
+            const result = await submitTransaction(signedXdr);
+            if (result.status === "ERROR") throw new Error("Transaction submission failed");
+            hash = result.hash;
+          } catch (err) {
+            if (err instanceof BadSequenceError && publicKey) {
+              // Reset the local sequence counter from the authoritative network
+              // value, rebuild the transaction with the corrected sequence, and
+              // retry exactly once. The user never sees this — it's transparent.
+              setStage("retrying");
+              await sequenceManager.reset(publicKey);
+
+              setStage("building");
+              signedXdr = await buildAndSign(buildFn, signTransaction, setStage);
+
+              setStage("submitting");
+              const retryResult = await submitTransaction(signedXdr);
+              if (retryResult.status === "ERROR") {
+                throw new Error("Transaction submission failed after sequence reset");
+              }
+              hash = retryResult.hash;
+            } else {
+              throw err;
+            }
+          }
         }
 
         // Add to history as pending
@@ -276,7 +268,7 @@ export function useTransaction() {
           await new Promise((r) => setTimeout(r, 1000));
         }
 
-        // 6. Confirmed
+        // ── Phase 5: done ──────────────────────────────────────────────────
         setState({ status: "confirmed", txHash: hash });
         setTxState({ status: "confirmed", txHash: hash });
         updateTransactionStatus(hash, "confirmed");
@@ -291,26 +283,8 @@ export function useTransaction() {
         return hash;
       } catch (err) {
         const message = err instanceof Error ? err.message : t("failed");
-
-        if (message === "__SIGNATURE_TIMEOUT__") {
-          setState({ status: "timeout" });
-          setTxState({ status: "timeout" });
-          const toastId = TOAST_ID + "-timeout";
-          const savedXdr = pendingXdrRef.current;
-          // Show a warning toast; TimeoutTransactionToast with retry is shown via useToast.error
-          toast.error(
-            "Signature timed out",
-            "The wallet popup was not signed in time.",
-            savedXdr
-              ? () => execute(() => Promise.resolve(savedXdr), options)
-              : undefined,
-            toastId
-          );
-          return null;
-        }
-
         setState({ status: "failed", error: message });
-        setTxState({ status: "failed", error: { code: "TRANSACTION_FAILED", message } } as any);
+        setTxState({ status: "failed", error: message });
         
         // Update history if we have a hash
         if (state.txHash) {
