@@ -16,8 +16,9 @@ import {
   fetchBatchInvoicesByTokenIds,
   prepareCreateInvoice,
   prepareFundInvoice,
+  prepareUpdateInvoiceStatus,
 } from "@/services/invoiceService";
-import type { CreateInvoiceFormData, MarketplaceSortKey } from "@/types";
+import type { CreateInvoiceFormData, InvoiceStatus, MarketplaceSortKey } from "@/types";
 
 const STALE_30S = 30_000;
 const GC_5MIN = 5 * 60 * 1000;
@@ -228,7 +229,32 @@ export function useInvoiceMutation() {
   });
 }
 
-// ─── Fund invoice mutation ────────────────────────────────────────────────────
+// ─── Update invoice status mutation ──────────────────────────────────────────
+
+export function useUpdateStatusMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      tokenId,
+      from,
+      to,
+      ownerAddress,
+    }: {
+      tokenId: string;
+      from: InvoiceStatus;
+      to: InvoiceStatus;
+      ownerAddress: string;
+    }) => prepareUpdateInvoiceStatus(tokenId, from, to, ownerAddress),
+
+    onSettled: (_data, _err, { tokenId, ownerAddress }) => {
+      // Invalidate both the owner query and the individual detail so the UI
+      // reflects the new status immediately after confirmation.
+      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.byOwner(ownerAddress) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.detail(tokenId) });
+    },
+  });
+}
 
 export function useFundInvoiceMutation() {
   const queryClient = useQueryClient();
