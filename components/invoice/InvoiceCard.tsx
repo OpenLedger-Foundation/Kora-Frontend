@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRef, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
@@ -15,13 +16,12 @@ import {
   formatApr,
   daysUntil,
   cn,
-  getJurisdictionFlag,
-  getJurisdictionName,
 } from "@/lib/utils";
 import useCountdown from "@/hooks/useCountdown";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { DebtorDisplay } from "./DebtorDisplay";
+import { InvoiceCardHoverPopover } from "./InvoiceCardHoverPopover";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import type { Invoice } from "@/types";
 
@@ -31,36 +31,101 @@ interface InvoiceCardProps {
   updatedAt?: number;
 }
 
+const JURISDICTION_FLAGS: Record<string, string> = {
+  KE: "🇰🇪",
+  NG: "🇳🇬",
+  GH: "🇬🇭",
+  ZA: "🇿🇦",
+  US: "🇺🇸",
+  EU: "🇪🇺",
+  UK: "🇬🇧",
+  GB: "🇬🇧",
+};
+
+const JURISDICTION_NAMES: Record<string, string> = {
+  KE: "Kenya",
+  NG: "Nigeria",
+  GH: "Ghana",
+  ZA: "South Africa",
+  US: "United States",
+  EU: "European Union",
+  UK: "United Kingdom",
+};
+
+function getFlagEmoji(countryCode: string) {
+  if (JURISDICTION_FLAGS[countryCode]) {
+    return JURISDICTION_FLAGS[countryCode];
+  }
+  const codePoints = countryCode
+    .toUpperCase()
+    .split("")
+    .map((char) => 127397 + char.charCodeAt(0));
+  try {
+    return String.fromCodePoint(...codePoints);
+  } catch {
+    return "🌐";
+  }
+}
+
 export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
-  const flag = getJurisdictionFlag(metadata.jurisdiction);
-  const countryName = getJurisdictionName(metadata.jurisdiction);
+  const flag = getFlagEmoji(metadata.jurisdiction);
+  const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
   const queryClient = useQueryClient();
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= 3 && !isInComparison;
   
+  // Hover popover state
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const cardRef = useRef<HTMLAnchorElement>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
   // Check if invoice is expired
   const countdown = useCountdown(listingExpiry);
   const isExpired = countdown.isExpired || status === "cancelled";
 
-  // Maturity countdown — only shown when ≤ 7 days to repayment
-  const showMaturityTimer = days >= 0 && days <= 7;
-  // midnight of repayment date
-  const maturityMidnight = terms.repaymentDate + "T23:59:59";
-  const maturityCountdown = useCountdown(maturityMidnight);
-  const prefersReducedMotion = typeof window !== "undefined"
-    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    : false;
-
-  const handleMouseEnter = () => {
+  const handleMouseEnter = useCallback(() => {
+    // Prefetch detail query
     queryClient.prefetchQuery({
       queryKey: queryKeys.invoices.detail(invoice.id),
       queryFn: () => fetchInvoiceById(invoice.id),
       staleTime: 30000,
     });
-  };
+
+    // Delay popover open to avoid flash on quick hovers
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (!isExpired) {
+        setPopoverOpen(true);
+      }
+    }, 300);
+  }, [queryClient, invoice.id, isExpired]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setPopoverOpen(false);
+  }, []);
+
+  const handleFocus = useCallback(() => {
+    if (!isExpired) {
+      setPopoverOpen(true);
+    }
+  }, [isExpired]);
+
+  const handleBlur = useCallback(() => {
+    setPopoverOpen(false);
+  }, []);
+
+  // Cleanup on unmount
+  const handleUnmount = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+  }, []);
 
   const handleCompareToggle = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -70,12 +135,16 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
 
   return (
     <Link
+      ref={cardRef}
       href={`/marketplace/${invoice.id}`}
-      data-tour="invoice-card"
       className={cn("block group relative h-full", isExpired && "opacity-60")}
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       role="article"
       aria-label={`Invoice for ${metadata.debtorName}, Amount: ${formatCurrency(metadata.amount, metadata.currency, true)}, Risk Tier: ${riskTier}, APR: ${formatApr(terms.apr)}`}
+      aria-describedby={popoverOpen ? `invoice-popover-${invoice.id}` : undefined}
     >
       <motion.div
         layoutId={`invoice-card-${invoice.id}`}
@@ -159,25 +228,6 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               </p>
             </div>
           </div>
-
-          {/* Maturity countdown — only when ≤7 days remain */}
-          {showMaturityTimer && (
-            <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5">
-              <Clock className="h-3.5 w-3.5 shrink-0 text-destructive" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Matures in</span>
-              {prefersReducedMotion ? (
-                <span className={cn("text-xs font-semibold", maturityCountdown.isExpired ? "text-muted-foreground" : "text-destructive")}>
-                  {maturityCountdown.isExpired ? "Matured" : `${days} day${days !== 1 ? "s" : ""} remaining`}
-                </span>
-              ) : (
-                <CountdownTimer
-                  targetDate={maturityMidnight}
-                  compact
-                  className={cn("text-xs font-semibold", maturityCountdown.isExpired ? "text-muted-foreground" : "text-destructive")}
-                />
-              )}
-            </div>
-          )}
         </div>
 
         <div>
@@ -203,12 +253,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
           </div>
 
           {!isExpired && (status === "listed" || status === "partially_funded") ? (
-            <Button
-              size="sm"
-              className="mt-4 w-full relative z-20"
-              data-tour="fund-button"
-              onClick={(e) => e.preventDefault()}
-            >
+            <Button size="sm" className="mt-4 w-full relative z-20" onClick={(e) => e.preventDefault()}>
               Fund Invoice
             </Button>
           ) : null}
@@ -245,6 +290,14 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
             <ArrowRight className="h-4 w-4" />
           </div>
         </div>
+
+        {/* Hover Popover */}
+        <InvoiceCardHoverPopover
+          invoice={invoice}
+          isOpen={popoverOpen}
+          onOpenChange={setPopoverOpen}
+          triggerRef={cardRef}
+        />
       </motion.div>
     </Link>
   );
