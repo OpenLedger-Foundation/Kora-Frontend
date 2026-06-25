@@ -191,8 +191,11 @@ interface InvoiceStore {
   setSelectedInvoice: (invoice: Invoice | null) => void;
   updateInvoiceFunding: (id: string, newAmount: number) => void;
   rollbackInvoiceFunding: (id: string) => void;
+  updateInvoiceStatus: (id: string, status: Invoice["status"]) => void;
+  rollbackInvoiceStatus: (id: string) => void;
   // internal backup map (not persisted)
   _fundingBackup?: Record<string, FundingBackup>;
+  _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
 
@@ -302,6 +305,31 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const nextBackup = { ...(s._fundingBackup || {}) };
           delete nextBackup[id];
           return { invoices, _fundingBackup: nextBackup };
+        }),
+
+      updateInvoiceStatus: (id, status) =>
+        set((s) => {
+          const prev = s.invoices.find((i) => i.id === id);
+          const backup = prev ? { status: prev.status } : undefined;
+          const invoices = s.invoices.map((inv) =>
+            inv.id === id ? { ...inv, status } : inv
+          );
+          return {
+            invoices,
+            _statusBackup: backup ? { ...(s._statusBackup || {}), [id]: backup } : s._statusBackup,
+          };
+        }),
+
+      rollbackInvoiceStatus: (id) =>
+        set((s) => {
+          const backup = s._statusBackup?.[id];
+          if (!backup) return {};
+          const invoices = s.invoices.map((inv) =>
+            inv.id === id ? { ...inv, status: backup.status } : inv
+          );
+          const nextBackup = { ...(s._statusBackup || {}) };
+          delete nextBackup[id];
+          return { invoices, _statusBackup: nextBackup };
         }),
 
       setCreateDraft: (draft) =>

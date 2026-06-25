@@ -34,6 +34,8 @@ export interface SimulationPreview {
   feeStroops: number;
   /** Fee in XLM */
   feeXlm: number;
+  /** Minimum resource fee in stroops */
+  resourceFee: number;
   /** CPU instructions consumed */
   cpuInstructions: number;
   /** Memory bytes consumed */
@@ -76,6 +78,7 @@ function parseSimulationPreview(
 ): SimulationPreview {
   const feeStroops = parseInt(sim.minResourceFee ?? "0", 10);
   const feeXlm = feeStroops / 10_000_000;
+  const resourceFee = feeStroops;
 
   const resources = (sim as any).transactionData?.resources?.() ?? null;
 
@@ -87,7 +90,7 @@ function parseSimulationPreview(
   try {
     if (resources) {
       cpuInstructions = resources.instructions?.() ?? 0;
-      memoryBytes = resources.readBytes?.() ?? 0; // Soroban SDK naming varies
+      memoryBytes = resources.memoryBytes?.() ?? resources.readBytes?.() ?? 0;
       readBytes = resources.readBytes?.() ?? 0;
       writeBytes = resources.writeBytes?.() ?? 0;
     }
@@ -103,7 +106,7 @@ function parseSimulationPreview(
     // Resource parsing is best-effort; leave zeros if unavailable
   }
 
-  return { feeStroops, feeXlm, cpuInstructions, memoryBytes, readBytes, writeBytes };
+  return { feeStroops, feeXlm, resourceFee, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
 
 const DEFAULT_SIGNATURE_TIMEOUT_MS = 120_000;
@@ -189,6 +192,7 @@ export function useTransaction() {
             const preview: SimulationPreview = {
               feeStroops: 0,
               feeXlm: 0,
+              resourceFee: 0,
               cpuInstructions: 0,
               memoryBytes: 0,
               readBytes: 0,

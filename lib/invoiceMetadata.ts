@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import { env } from "@/lib/env";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -213,6 +214,43 @@ export function validateInvoiceMetadata(
     (issue) => `${issue.path.join(".")}: ${issue.message}`
   );
   return { success: false, errors };
+}
+
+function canonicalizeMetadata(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalizeMetadata).join(",")}]`;
+  }
+  if (value && typeof value === "object" && !(value instanceof Date)) {
+    const sortedKeys = Object.keys(value as Record<string, unknown>).sort();
+    return `{${sortedKeys
+      .map((key) => `${JSON.stringify(key)}:${canonicalizeMetadata((value as Record<string, unknown>)[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export async function verifyMetadataIntegrity(
+  cid: string,
+  metadata: unknown
+): Promise<boolean> {
+  if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+    return true;
+  }
+  if (!cid || typeof cid !== "string") {
+    return false;
+  }
+  try {
+    const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.io";
+    const response = await fetch(`${gateway}/${cid}`, { cache: "no-store" });
+    if (!response.ok) {
+      return false;
+    }
+    const remote = await response.json();
+    return canonicalizeMetadata(remote) === canonicalizeMetadata(metadata);
+  } catch (error) {
+    console.warn("Invoice metadata integrity verification failed", error);
+    return false;
+  }
 }
 
 /**

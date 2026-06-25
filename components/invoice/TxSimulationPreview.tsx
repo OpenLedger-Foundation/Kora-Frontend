@@ -175,7 +175,7 @@ export function TxSimulationPreview({
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t("estimatedFee")}
                 </p>
-                <div className="flex items-end justify-between">
+                <div className="flex items-end justify-between gap-4">
                   <div>
                     <p className="text-2xl font-bold text-foreground">
                       {formatXlm(feeXlm)}
@@ -186,6 +186,7 @@ export function TxSimulationPreview({
                   </div>
                   <div className="text-right text-xs text-muted-foreground">
                     <p>{preview.feeStroops.toLocaleString()} stroops</p>
+                    <p>{preview.resourceFee.toLocaleString()} resource stroops</p>
                   </div>
                 </div>
               </div>
@@ -201,6 +202,11 @@ export function TxSimulationPreview({
                     label={t("cpuInstructions")}
                     value={formatInstructions(preview.cpuInstructions)}
                     className={preview.cpuInstructions > 50_000_000 ? "text-amber-400" : undefined}
+                  />
+                  <ResourceRow
+                    icon={HardDrive}
+                    label={t("memoryBytes")}
+                    value={formatBytes(preview.memoryBytes)}
                   />
                   <ResourceRow
                     icon={HardDrive}

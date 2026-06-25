@@ -231,8 +231,18 @@ class MockInvoiceService implements IInvoiceService {
     }
   }
 
-  async repayInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
+  async repayInvoice(
+    tokenId: string,
+    ownerAddress: string,
+    invoiceOwnerAddress?: string
+  ): Promise<Result<string>> {
     try {
+      if (
+        invoiceOwnerAddress &&
+        ownerAddress.toLowerCase() !== invoiceOwnerAddress.toLowerCase()
+      ) {
+        return failure("UNAUTHORIZED", "Caller is not the invoice owner");
+      }
       await this.delay();
       return success(`mock_unsigned_xdr_repay_${tokenId}_${ownerAddress}`);
     } catch (error) {
@@ -433,8 +443,19 @@ class LiveInvoiceService implements IInvoiceService {
     }
   }
 
-  async repayInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
+  async repayInvoice(
+    tokenId: string,
+    ownerAddress: string,
+    invoiceOwnerAddress?: string
+  ): Promise<Result<string>> {
     try {
+      if (
+        invoiceOwnerAddress &&
+        ownerAddress.toLowerCase() !== invoiceOwnerAddress.toLowerCase()
+      ) {
+        return failure("UNAUTHORIZED", "Caller is not the invoice owner");
+      }
+
       const xdr = await marketplaceContract.repayInvoice(
         { tokenId: BigInt(tokenId) },
         ownerAddress
@@ -557,9 +578,10 @@ export async function prepareFundInvoice(
 
 export async function prepareRepayInvoice(
   tokenId: string,
-  ownerAddress: string
+  ownerAddress: string,
+  invoiceOwnerAddress?: string
 ): Promise<string> {
-  const result = await service.repayInvoice(tokenId, ownerAddress);
+  const result = await service.repayInvoice(tokenId, ownerAddress, invoiceOwnerAddress);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }
