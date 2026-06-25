@@ -116,6 +116,15 @@ export interface InvoicePosition {
   status: "active" | "repaid" | "defaulted";
 }
 
+export interface InvestorPosition {
+  id: string;
+  invoiceId: string;
+  invoice?: Invoice;
+  investedAmount: number;
+  expectedReturn: number;
+  status: "active" | "repaid" | "defaulted";
+}
+
 // ─── Create Invoice Form ──────────────────────────────────────────────────────
 
 export interface CreateInvoiceFormData {
