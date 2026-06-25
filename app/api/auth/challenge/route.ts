@@ -12,6 +12,7 @@ interface ChallengeResponse {
  * The client will sign this challenge with their private key.
  */
 export async function POST(_request: NextRequest): Promise<NextResponse> {
+  const requestId = _request.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const nonce = randomBytes(32).toString("hex");
     const timestamp = Date.now();
@@ -19,7 +20,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json<ChallengeResponse>({ challenge, timestamp });
   } catch (error) {
-    console.error("Error generating challenge:", error);
-    return NextResponse.json({ error: "Failed to generate challenge" }, { status: 500 });
+    console.error("Error generating challenge:", requestId, error);
+    return NextResponse.json({ error: "Failed to generate challenge", requestId }, { status: 500 });
   }
 }
