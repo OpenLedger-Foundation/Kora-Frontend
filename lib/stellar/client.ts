@@ -486,6 +486,70 @@ export async function submitTransaction(
   return result;
 }
 
+// ─── Batch invoice fetcher ────────────────────────────────────────────────────
+
+/** Maximum invoices per batch request — hard cap to prevent RPC overload. */
+export const BATCH_SIZE_LIMIT = 20;
+
+export interface BatchInvoiceResult {
+  tokenId: string;
+  /** Resolved value on success, null on per-item failure. */
+  data: import("@/types/contract").OnChainInvoice | null;
+  error?: string;
+}
+
+/**
+ * Fetch multiple on-chain invoices in a single "batch" by fanning out
+ * parallel `get_invoice` simulations and settling all results.
+ *
+ * Soroban RPC does not have a true multi-call batch endpoint, so we fan out
+ * concurrent `simulateTransaction` calls and collect them with
+ * `Promise.allSettled` so one failure never aborts the rest.
+ *
+ * @param tokenIds  Array of on-chain token IDs (string representation of u64).
+ * @param sourcePublicKey  Any funded account — used as the transaction source
+ *                         for simulation (read-only, no signing required).
+ * @param fetchInvoice  Injectable fetch function (defaults to real RPC call).
+ *                      Accepts a tokenId string and returns OnChainInvoice.
+ */
+export async function batchGetInvoices(
+  tokenIds: string[],
+  sourcePublicKey: string,
+  fetchInvoice?: (
+    tokenId: string,
+    source: string
+  ) => Promise<import("@/types/contract").OnChainInvoice>
+): Promise<BatchInvoiceResult[]> {
+  // Enforce hard cap
+  const ids = tokenIds.slice(0, BATCH_SIZE_LIMIT);
+
+  const fetcher =
+    fetchInvoice ??
+    (async (tokenId: string, source: string) => {
+      // Lazy import to avoid circular dependency at module parse time
+      const { invoiceContract } = await import("./contracts");
+      return invoiceContract.getInvoice(BigInt(tokenId), source);
+    });
+
+  const settled = await Promise.allSettled(
+    ids.map((tokenId) => fetcher(tokenId, sourcePublicKey))
+  );
+
+  return settled.map((result, i) => {
+    if (result.status === "fulfilled") {
+      return { tokenId: ids[i], data: result.value };
+    }
+    return {
+      tokenId: ids[i],
+      data: null,
+      error:
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason),
+    };
+  });
+}
+
 /**
  * Poll for transaction confirmation.
  */
