@@ -12,6 +12,7 @@ import type {
   RepayInvoiceParams,
   ClaimYieldParams,
   OnChainInvoice,
+  OnChainStatusCode,
 } from "@/types/contract";
 
 // ─── Error code → human-readable message ─────────────────────────────────────
@@ -230,6 +231,7 @@ class InvoiceContractClient {
     // Status code 6 = cancelled
     return this.updateStatus(tokenId, 6, sourcePublicKey);
   }
+}
 }
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────

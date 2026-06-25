@@ -47,6 +47,7 @@ import {
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import type { Invoice } from "@/types";
+import type { InvoiceStatus } from "@/types/invoice";
 import type { ColumnDef } from "@/types/table";
 import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -402,7 +403,6 @@ export default function SMEDashboardPage() {
                   cell: (row) => {
                     const isDue = new Date(row.terms.repaymentDate) <= new Date();
                     const canRepay = row.status === "fully_funded" && isDue;
-                    const canCancel = row.status === "listed" || row.status === "pending_mint";
 
                     return (
                       <div className="flex items-center gap-2">
