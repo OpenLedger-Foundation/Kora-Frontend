@@ -81,12 +81,23 @@ export const useUIStore = create<UIStore>()(
       sidebarOpen: false,
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
 
-      // default to system for best UX
+      // "system" = respect prefers-color-scheme (first-visit default, never
+      // cycled back to once the user explicitly picks a preference).
       theme: "system",
       setTheme: (theme) => set({ theme }),
       toggleTheme: () => {
-        const next = get().theme === "system" ? "dark" : get().theme === "dark" ? "light" : "system";
-        set({ theme: next });
+        // Resolve "system" to the OS preference so we can flip it correctly,
+        // then toggle between "dark" and "light" only — system is the implicit
+        // default on first visit and we don't want to cycle through it again.
+        const current = get().theme;
+        const resolved =
+          current === "system"
+            ? typeof window !== "undefined" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light"
+            : current;
+        set({ theme: resolved === "dark" ? "light" : "dark" });
       },
 
       notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,

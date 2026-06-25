@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Smooth theme transition — CSS custom properties on :root cascade to all
+ * consumers. Adding transition to the html element ensures background and
+ * text colors animate smoothly on theme switch without interfering with
+ * component-level transitions (which override via specificity).
+ * The inline script in layout.tsx prevents the first-load FOUC.
+ */
+html {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
 @layer base {
   :root {
     /* Semantic color tokens (HSL components) */
@@ -109,6 +122,21 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /*
+   * Smooth theme transition — applied only after the ThemeProvider mounts
+   * (data-theme-ready is set by ThemeProvider on first effect run).
+   * This prevents the flash of transition on initial page load while still
+   * giving a polished 200ms crossfade on user-triggered theme changes.
+   */
+  html[data-theme-ready] *,
+  html[data-theme-ready] *::before,
+  html[data-theme-ready] *::after {
+    transition-property: color, background-color, border-color, fill, stroke,
+      box-shadow, outline-color;
+    transition-duration: 200ms;
+    transition-timing-function: ease;
   }
   ::-webkit-scrollbar {
     width: 6px;

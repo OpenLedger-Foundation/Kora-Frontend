@@ -201,10 +201,10 @@ export function Navbar() {
               theme === "dark" ? t("switchToLight") : t("switchToDark")
             }
           >
-            {theme === "dark" ? (
-              <Sun className="h-5 w-5" />
+            {resolvedTheme === "dark" ? (
+              <Sun className="h-5 w-5" aria-hidden="true" />
             ) : (
-              <Moon className="h-5 w-5" />
+              <Moon className="h-5 w-5" aria-hidden="true" />
             )}
           </button>
 
