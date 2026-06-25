@@ -5,13 +5,14 @@
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc, networkConfig } from "./client";
+import { env } from "@/lib/env";
 import type {
   MintInvoiceParams,
   FundInvoiceParams,
   RepayInvoiceParams,
+  ClaimYieldParams,
   OnChainInvoice,
 } from "@/types/contract";
-import type { InvestorPosition } from "@/types/invoice";
 
 // ─── Error code → human-readable message ─────────────────────────────────────
 
@@ -63,59 +64,6 @@ function scvU32(n: number): StellarSdk.xdr.ScVal {
 
 function scvAddress(address: string): StellarSdk.xdr.ScVal {
   return new StellarSdk.Address(address).toScVal();
-}
-
-function parseI128Value(value: StellarSdk.xdr.ScVal): bigint {
-  const parts = value.i128();
-  const hi = BigInt(parts.hi().toString());
-  const lo = BigInt(parts.lo().toString());
-  return (hi << BigInt(64)) + lo;
-}
-
-function mapPositionStatus(status: number): InvestorPosition["status"] {
-  switch (status) {
-    case 1:
-      return "repaid";
-    case 2:
-      return "defaulted";
-    default:
-      return "active";
-  }
-}
-
-export function parseInvestorPositions(val: StellarSdk.xdr.ScVal): InvestorPosition[] {
-  const values = val.vec();
-  if (!values) return [];
-
-  return values
-    .map((entry) => {
-      const map = entry.map();
-      if (!map) return null;
-
-      const getField = (key: string): StellarSdk.xdr.ScVal | undefined => {
-        const matchingEntry = map.find((candidate) => candidate.key().sym()?.toString() === key);
-        return matchingEntry?.val();
-      };
-
-      const invoiceIdValue = getField("invoice_id") ?? getField("token_id") ?? getField("position_id");
-      if (!invoiceIdValue) return null;
-
-      const invoiceId = invoiceIdValue.u64?.()?.toString() ?? invoiceIdValue.str?.()?.toString() ?? "";
-      if (!invoiceId) return null;
-
-      const investedAmountValue = getField("invested_amount") ?? getField("amount") ?? getField("principal");
-      const expectedReturnValue = getField("expected_return") ?? getField("expected_amount") ?? getField("return_amount");
-      const statusValue = getField("status")?.u32?.();
-
-      return {
-        id: invoiceId,
-        invoiceId,
-        investedAmount: Number((investedAmountValue ? parseI128Value(investedAmountValue) : BigInt(0)) / BigInt(1000000)),
-        expectedReturn: Number((expectedReturnValue ? parseI128Value(expectedReturnValue) : BigInt(0)) / BigInt(1000000)),
-        status: mapPositionStatus(statusValue ?? 0),
-      } satisfies InvestorPosition;
-    })
-    .filter((position): position is InvestorPosition => position !== null);
 }
 
 // ─── Simulation wrapper ───────────────────────────────────────────────────────
@@ -192,7 +140,7 @@ async function readCall<T>(
 
 // ─── Invoice Contract ─────────────────────────────────────────────────────────
 
-const INVOICE_CONTRACT_ID = process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "";
+const INVOICE_CONTRACT_ID = env.NEXT_PUBLIC_INVOICE_CONTRACT_ID;
 
 class InvoiceContractClient {
   readonly contractId = INVOICE_CONTRACT_ID;
@@ -236,9 +184,27 @@ class InvoiceContractClient {
   }
 
   /**
-   * Update invoice status (owner only).
-   * Returns unsigned XDR string.
+   * Batch-fetch multiple invoices by tokenId using concurrent simulations.
+   * Returns a map of tokenId (string) → OnChainInvoice. Entries that fail
+   * are omitted from the result rather than throwing, so one bad ID doesn't
+   * abort the whole batch.
    */
+  async batchGetInvoices(
+    tokenIds: bigint[],
+    sourcePublicKey: string
+  ): Promise<Map<string, OnChainInvoice>> {
+    const results = await Promise.allSettled(
+      tokenIds.map((id) => this.getInvoice(id, sourcePublicKey))
+    );
+    const map = new Map<string, OnChainInvoice>();
+    for (let i = 0; i < tokenIds.length; i++) {
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        map.set(tokenIds[i].toString(), r.value);
+      }
+    }
+    return map;
+  }
   async updateStatus(
     tokenId: bigint,
     status: number,
@@ -251,12 +217,25 @@ class InvoiceContractClient {
       sourcePublicKey
     );
   }
+
+  /**
+   * Cancel an invoice (owner only). Only cancellable if pending or unfunded.
+   * Status code: 6 for cancelled
+   * Returns unsigned XDR string.
+   */
+  async cancelInvoice(
+    tokenId: bigint,
+    sourcePublicKey: string
+  ): Promise<string> {
+    // Status code 6 = cancelled
+    return this.updateStatus(tokenId, 6, sourcePublicKey);
+  }
 }
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
-const MARKETPLACE_CONTRACT_ID =
-  process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID ?? "";
+const MARKETPLACE_CONTRACT_ID = env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID;
+const TOKEN_CONTRACT_ID = env.NEXT_PUBLIC_TOKEN_CONTRACT_ID;
 
 class MarketplaceContractClient {
   readonly contractId = MARKETPLACE_CONTRACT_ID;
@@ -293,6 +272,18 @@ class MarketplaceContractClient {
     );
   }
 
+  async claimPosition(
+    params: { positionId: bigint },
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "claim_position",
+      [scvU64(params.positionId)],
+      sourcePublicKey
+    );
+  }
+
   /**
    * Read all investor positions (simulation only).
    */
@@ -306,6 +297,22 @@ class MarketplaceContractClient {
       [scvAddress(investor)],
       sourcePublicKey,
       (val) => val
+    );
+  }
+
+  /**
+   * Investor claims yield from a repaid position.
+   * Returns unsigned XDR string.
+   */
+  async claimYield(
+    params: ClaimYieldParams,
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "claim_yield",
+      [scvU64(params.tokenId)],
+      sourcePublicKey
     );
   }
 }
@@ -343,16 +350,20 @@ function parseOnChainInvoice(val: StellarSdk.xdr.ScVal): OnChainInvoice {
 export const invoiceContract = new InvoiceContractClient();
 export const marketplaceContract = new MarketplaceContractClient();
 
-export async function getPositions(walletAddress: string): Promise<InvestorPosition[]> {
-  if (!walletAddress) return [];
-
-  try {
-    const raw = await marketplaceContract.getPositions(walletAddress, walletAddress);
-    return parseInvestorPositions(raw);
-  } catch (error) {
-    console.error("Failed to load investor positions", error);
-    return [];
-  }
+/**
+ * Build an unsigned transaction to mint testnet USDC to a wallet.
+ */
+export async function buildTestnetUsdcMintTx(
+  recipient: string,
+  sourcePublicKey: string,
+  amount: bigint = BigInt("10000000000")
+): Promise<string> {
+  return buildCall(
+    TOKEN_CONTRACT_ID,
+    "mint",
+    [scvAddress(recipient), scvI128(amount)],
+    sourcePublicKey
+  );
 }
 
 // Re-export low-level helpers for advanced use

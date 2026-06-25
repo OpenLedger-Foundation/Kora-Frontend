@@ -550,6 +550,72 @@ export async function fetchInvoicesByOwner(ownerAddress: string): Promise<Invoic
   return result.value;
 }
 
+/**
+ * Batch-fetch invoices by their on-chain token IDs.
+ * In mock mode returns matching mock invoices without hitting RPC.
+ * In live mode delegates to batchGetInvoices() — results are OnChainInvoice
+ * (raw on-chain data); callers must map/enrich as needed.
+ *
+ * Batch size is capped at BATCH_SIZE_LIMIT (20) upstream by batchGetInvoices.
+ */
+export async function fetchInvoicesByTokenIds(
+  tokenIds: string[],
+  sourcePublicKey: string
+): Promise<Invoice[]> {
+  if (USE_MOCK) {
+    // No RPC calls in mock mode — just look up from static mock data
+    const idSet = new Set(tokenIds);
+    return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
+  }
+
+  const { batchGetInvoices } = await import("@/lib/stellar/client");
+  const results = await batchGetInvoices(tokenIds, sourcePublicKey);
+
+  // Map on-chain structs back to Invoice shape (best-effort; non-critical fields
+  // that don't exist on-chain retain their cached values from the store).
+  return results
+    .filter((r) => r.data !== null)
+    .map((r) => {
+      const onChain = r.data!;
+      // We only have on-chain fields — return a partial that callers merge
+      // into the existing store entry via mergeInvoicesBatch.
+      return {
+        tokenId: r.tokenId,
+        ownerAddress: onChain.owner,
+        ipfsCid: onChain.ipfs_cid,
+        // funding.totalRaised reflects the live funded_amount from chain
+        funding: {
+          totalRaised: Number(onChain.funded_amount) / 1_000_000,
+          targetAmount: Number(onChain.financing_amount) / 1_000_000,
+          fundingProgress:
+            Number(onChain.financing_amount) > 0
+              ? Number(onChain.funded_amount) / Number(onChain.financing_amount)
+              : 0,
+          investorCount: 0, // not available on-chain; preserve cached value
+          remainingCapacity:
+            Math.max(
+              0,
+              (Number(onChain.financing_amount) - Number(onChain.funded_amount)) /
+                1_000_000
+            ),
+        },
+        status: ON_CHAIN_STATUS_MAP[onChain.status] ?? "listed",
+      } as Partial<Invoice> & Pick<Invoice, "tokenId">;
+    }) as Invoice[];
+}
+
+/** Maps Soroban contract status enum index → InvoiceStatus string. */
+const ON_CHAIN_STATUS_MAP: Record<number, import("@/types").InvoiceStatus> = {
+  0: "pending_mint",
+  1: "listed",
+  2: "partially_funded",
+  3: "fully_funded",
+  4: "active",
+  5: "repaid",
+  6: "defaulted",
+  7: "cancelled",
+};
+
 export async function fetchPositions(investorAddress: string) {
   const result = await service.getPositions(investorAddress);
   if (!result.ok) throw new Error(result.error.message);

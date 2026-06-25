@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   useQuery,
   useMutation,
@@ -12,6 +13,7 @@ import {
   fetchInvoiceById,
   fetchInvoicesByOwner,
   fetchInvestorPositions,
+  fetchBatchInvoicesByTokenIds,
   prepareCreateInvoice,
   prepareFundInvoice,
 } from "@/services/invoiceService";
@@ -19,6 +21,7 @@ import type { CreateInvoiceFormData, MarketplaceSortKey } from "@/types";
 
 const STALE_30S = 30_000;
 const GC_5MIN = 5 * 60 * 1000;
+const POLL_INTERVAL_MS = 30_000;
 
 const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
   apr: "apr",
@@ -90,9 +93,106 @@ export function useSMEInvoices(address: string | undefined) {
     queryFn: () => fetchInvoicesByOwner(address!),
     enabled: !!address,
     staleTime: STALE_30S,
-    refetchInterval: STALE_30S,
     gcTime: GC_5MIN,
+    // Visibility-based polling: refetch every 30s only when the tab is visible
+    refetchInterval: () =>
+      typeof document !== "undefined" && document.visibilityState === "hidden"
+        ? false
+        : POLL_INTERVAL_MS,
+    refetchIntervalInBackground: false,
   });
+}
+
+// ─── Batch polling ────────────────────────────────────────────────────────────
+
+/**
+ * Batch-fetch and poll a set of invoices by tokenId.
+ *
+ * - Batches calls in chunks of 20 (enforced in the service layer).
+ * - Polling runs every 30 s, paused when the page is hidden (Page Visibility API)
+ *   OR when the sentinel element is not in the viewport (Intersection Observer).
+ * - In mock mode the service returns from MOCK_INVOICES — no RPC calls are made.
+ * - Results are merged into invoiceStore.invoicesByTokenId keyed by tokenId.
+ *
+ * @param tokenIds        Array of on-chain tokenId strings to watch.
+ * @param walletAddress   Used as fee-source for read simulations (live mode only).
+ * @param sentinelRef     Optional ref to an element; polling pauses when it leaves
+ *                        the viewport (Intersection Observer). Falls back to page
+ *                        visibility alone when omitted.
+ */
+export function useBatchInvoicePolling(
+  tokenIds: string[],
+  walletAddress: string | undefined,
+  sentinelRef?: React.RefObject<Element | null>
+) {
+  const queryClient = useQueryClient();
+  const { mergeInvoicesBatch } = useInvoiceStore();
+
+  // Track intersection visibility via a ref so the refetchInterval closure
+  // always reads the latest value without causing re-renders.
+  const isVisibleRef = useRef(true);
+
+  useEffect(() => {
+    if (!sentinelRef?.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisibleRef.current = entry.isIntersecting;
+      },
+      { threshold: 0 }
+    );
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [sentinelRef]);
+
+  const enabled = tokenIds.length > 0 && !!walletAddress;
+
+  const query = useQuery({
+    queryKey: queryKeys.invoices.batch(tokenIds),
+    queryFn: async () => {
+      const invoices = await fetchBatchInvoicesByTokenIds(tokenIds, walletAddress!);
+      // Merge into Zustand store so the rest of the UI stays in sync
+      mergeInvoicesBatch(invoices);
+      return invoices;
+    },
+    enabled,
+    staleTime: STALE_30S,
+    gcTime: GC_5MIN,
+    refetchInterval: () => {
+      // Pause when the tab is hidden
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return false;
+      }
+      // Pause when the sentinel element has scrolled out of view
+      if (!isVisibleRef.current) {
+        return false;
+      }
+      return POLL_INTERVAL_MS;
+    },
+    refetchIntervalInBackground: false,
+  });
+
+  // Also listen to the Page Visibility API and manually trigger a refetch when
+  // the tab becomes visible again so the data is fresh immediately on return.
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.invoices.batch(tokenIds),
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    // tokenIds is an array — stringify to avoid stale closure on identity change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, queryClient, tokenIds.join(",")]);
+
+  return query;
 }
 
 // ─── Investor positions ───────────────────────────────────────────────────────
@@ -123,7 +223,6 @@ export function useInvoiceMutation() {
     }) => prepareCreateInvoice(formData, ownerAddress, onProgress),
 
     onSuccess: () => {
-      // Invalidate all invoice lists so they refetch
       queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
     },
   });
@@ -147,7 +246,6 @@ export function useFundInvoiceMutation() {
     }) => prepareFundInvoice(tokenId, amount, investorAddress),
 
     onMutate: async ({ tokenId, amount }) => {
-      // Optimistic update — immediately reflect new funding in the store
       const { invoices } = useInvoiceStore.getState();
       const invoice = invoices.find((i) => i.tokenId === tokenId);
       if (invoice) {
@@ -156,7 +254,6 @@ export function useFundInvoiceMutation() {
     },
 
     onSettled: (_data, _err, { tokenId }) => {
-      // Refetch the specific invoice to sync server state
       queryClient.invalidateQueries({
         queryKey: queryKeys.invoices.detail(tokenId),
       });
