@@ -189,6 +189,16 @@ export async function prepareCreateInvoice(
   return { unsignedXdr, metadataCid };
 }
 
+export async function prepareClaimPosition(
+  positionId: string,
+  investorAddress: string
+): Promise<string> {
+  if (USE_MOCK) {
+    return `mock_unsigned_xdr_claim_position_${positionId}_${investorAddress}`;
+  }
+  throw new Error("Live claim not yet implemented");
+}
+
 /**
  * Fund an invoice — returns unsigned XDR for wallet signing.
  */

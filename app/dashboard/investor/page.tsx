@@ -10,12 +10,16 @@ import { Progress } from "@/components/ui/progress";
 import { DataTable } from "@/components/ui/data-table";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
+import { usePositions } from "@/hooks/usePositions";
 import { MOCK_INVOICES } from "@/services/mockData";
 import { RiskBadge } from "@/components/ui/badge";
+import { prepareClaimPosition } from "@/services/invoiceService";
+import { useTransaction } from "@/hooks/useTransaction";
 import {
   formatCurrency,
   formatDate,
   formatApr,
+  RISK_TIER_COLORS,
   cn,
 } from "@/lib/utils";
 import type { ColumnDef } from "@/types/table";
