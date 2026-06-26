@@ -82,7 +82,16 @@ export function useWallet() {
         // Account may not be funded yet on testnet
       }
 
-      connect(walletId as WalletProvider, addr, addr);
+      // Get the wallet's network passphrase for validation
+      let walletPassphrase: string | undefined;
+      try {
+        const networkInfo = await (walletKit as any).getNetworkDetails?.();
+        walletPassphrase = networkInfo?.networkPassphrase;
+      } catch {
+        // Some wallet implementations may not support getNetworkDetails; fallback to null
+      }
+
+      connect(walletId as WalletProvider, addr, addr, walletPassphrase);
       if (bal) setBalance(bal);
       try {
         const intended = useUIStore.getState().intendedDestination;

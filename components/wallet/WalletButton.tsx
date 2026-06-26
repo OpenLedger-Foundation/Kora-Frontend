@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2 } from "lucide-react";
+import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useWallet } from "@/hooks/useWallet";
+import { useWalletStore } from "@/store";
 import { useToast } from "@/hooks/useToast";
 import { useUIStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function WalletButton() {
   const t = useTranslations("wallet");
   const { isConnected, address, balance, disconnectWallet, fundWalletOnTestnet, refreshBalance } =
     useWallet();
+  const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
   const { setWalletModalOpen } = useUIStore();
   const toast = useToast();
   const [open, setOpen] = useState(false);
@@ -34,6 +36,7 @@ export function WalletButton() {
   const [isFunding, setIsFunding] = useState(false);
 
   const isTestnet = env.NEXT_PUBLIC_STELLAR_NETWORK === "testnet";
+  const hasNetworkMismatch = isWrongNetwork() || hasPassphraseMismatch();
 
   const handleFundTestnetAccount = async () => {
     setIsFunding(true);
@@ -81,13 +84,13 @@ export function WalletButton() {
         className={cn(
           "flex items-center gap-2 rounded-lg border px-3 py-2",
           "text-sm transition-colors",
-          isWrongNetwork()
+          hasNetworkMismatch
             ? "border-destructive/30 bg-destructive/5 text-destructive hover:border-destructive/40 hover:bg-destructive/10"
             : "border-input bg-card text-foreground hover:border-border hover:bg-muted"
         )}
-        aria-label={`Wallet menu${isWrongNetwork() ? " - Wrong network" : ""}`}
+        aria-label={`Wallet menu${hasNetworkMismatch ? " - Wrong network" : ""}`}
       >
-        {isWrongNetwork() ? (
+        {hasNetworkMismatch ? (
           <AlertCircle className="h-4 w-4 shrink-0" />
         ) : (
           <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
@@ -101,12 +104,13 @@ export function WalletButton() {
 
       {open && (
         <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-border bg-background p-3 shadow-token-lg">
-          {isWrongNetwork() && (
+          {hasNetworkMismatch && (
             <div className="mb-3 flex items-start gap-2 rounded-lg bg-destructive/10 p-2.5 border border-destructive/20">
               <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
               <p className="text-xs text-destructive">
                 Connected to <span className="capitalize font-medium">{networkLabel[network]}</span> but app requires{" "}
                 <span className="capitalize font-medium">{networkLabel[expectedNetwork]}</span>
+                {hasPassphraseMismatch() && " (passphrase mismatch)"}. Switch your wallet network to continue.
               </p>
             </div>
           )}
@@ -155,7 +159,7 @@ export function WalletButton() {
             {isTestnet && (
               <button
                 type="button"
-                disabled={isFunding}
+                disabled={isFunding || hasNetworkMismatch}
                 onClick={handleFundTestnetAccount}
                 className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
               >

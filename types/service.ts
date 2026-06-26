@@ -51,7 +51,11 @@ export interface IInvoiceService {
     investorAddress: string
   ): Promise<Result<string>>;
 
-  repayInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>>;
+  repayInvoice(
+    tokenId: string,
+    ownerAddress: string,
+    invoiceOwnerAddress?: string
+  ): Promise<Result<string>>;
 
   claimPosition(positionId: string, investorAddress: string): Promise<Result<string>>;
 

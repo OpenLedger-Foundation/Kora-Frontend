@@ -22,20 +22,21 @@ export interface FeedbackPayload {
  * GITHUB_FEEDBACK_REPO format: "owner/repo"
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const body = (await req.json()) as FeedbackPayload;
 
     // ── Basic validation ──────────────────────────────────────────────────────
     if (!body.type || !body.title?.trim() || !body.description?.trim()) {
       return NextResponse.json(
-        { error: "type, title, and description are required" },
+        { error: "type, title, and description are required", requestId },
         { status: 400 }
       );
     }
 
     const allowed = ["bug", "feature", "other"];
     if (!allowed.includes(body.type)) {
-      return NextResponse.json({ error: "Invalid feedback type" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid feedback type", requestId }, { status: 400 });
     }
 
     // ── Console log (always) ──────────────────────────────────────────────────
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[feedback] error", (err as Error).message);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("[feedback] error", requestId, (err as Error).message);
+    return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
 }

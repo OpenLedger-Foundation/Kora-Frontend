@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
+import { verifyUploadToken } from "@/lib/security";
 
 const PINATA_BASE = "https://api.pinata.cloud";
 const PINATA_JWT = process.env.PINATA_JWT ?? "";
@@ -102,9 +103,21 @@ function checkRateLimit(wallet: string) {
 }
 
 export async function POST(req: Request) {
+  const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     if (!PINATA_JWT) {
-      return NextResponse.json({ error: "Pinata JWT not configured" }, { status: 500 });
+      return NextResponse.json({ error: "Pinata JWT not configured", requestId }, { status: 500 });
+    }
+
+    // ── Verify upload signing token (Issue #275) ──────────────────────────
+    const authHeader = req.headers.get("authorization") ?? "";
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!bearerToken) {
+      return NextResponse.json({ error: "Unauthorized: missing token", requestId }, { status: 401 });
+    }
+    const authResult = verifyUploadToken(bearerToken);
+    if (!authResult.ok) {
+      return NextResponse.json({ error: `Unauthorized: ${authResult.error}`, requestId }, { status: 401 });
     }
 
     const contentType = req.headers.get("content-type") || "";
@@ -115,12 +128,12 @@ export async function POST(req: Request) {
       const file = form.get("file") as File | null;
       const wallet = form.get("walletAddress")?.toString();
 
-      if (!file) return NextResponse.json({ error: "file is required" }, { status: 400 });
-      if (!wallet) return NextResponse.json({ error: "walletAddress is required" }, { status: 400 });
+      if (!file) return NextResponse.json({ error: "file is required", requestId }, { status: 400 });
+      if (!wallet) return NextResponse.json({ error: "walletAddress is required", requestId }, { status: 400 });
 
       // Rate limit per wallet
       if (!checkRateLimit(wallet)) {
-        return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+        return NextResponse.json({ error: "Rate limit exceeded", requestId }, { status: 429 });
       }
 
       const arrayBuffer = await file.arrayBuffer();
@@ -128,16 +141,16 @@ export async function POST(req: Request) {
 
       // Size check
       const MAX_BYTES = 10 * 1024 * 1024; // 10MB
-      if (buffer.length > MAX_BYTES) return NextResponse.json({ error: "File too large" }, { status: 400 });
+      if (buffer.length > MAX_BYTES) return NextResponse.json({ error: "File too large", requestId }, { status: 400 });
 
       // Magic byte validation for PDF: %PDF-
       const magic = buffer.slice(0, 5).toString("utf8");
-      if (magic !== "%PDF-") return NextResponse.json({ error: "Invalid PDF file" }, { status: 400 });
+      if (magic !== "%PDF-") return NextResponse.json({ error: "Invalid PDF file", requestId }, { status: 400 });
 
       // Virus scan (optional)
       const filename = file.name || "upload.pdf";
       const scan = await virusScan(buffer, filename);
-      if (!scan.ok) return NextResponse.json({ error: `Virus scan failed: ${scan.error || JSON.stringify(scan.stats)}` }, { status: 400 });
+      if (!scan.ok) return NextResponse.json({ error: `Virus scan failed: ${scan.error || JSON.stringify(scan.stats)}`, requestId }, { status: 400 });
 
       // Forward to Pinata
       const forwardForm = new FormData();
@@ -152,10 +165,10 @@ export async function POST(req: Request) {
 
       const pinJson = (await readJsonRecord(pinRes)) as PinataResponse;
       if (!pinRes.ok) {
-        return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}` }, { status: 502 });
+        return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}`, requestId }, { status: 502 });
       }
 
-      console.log("[pinata-proxy] upload", { wallet, ts: new Date().toISOString(), cid: pinJson.IpfsHash });
+      console.log("[pinata-proxy] upload", { requestId, wallet, ts: new Date().toISOString(), cid: pinJson.IpfsHash });
       return NextResponse.json({ cid: pinJson.IpfsHash });
     }
 
@@ -166,10 +179,10 @@ export async function POST(req: Request) {
       const metadata = body.metadata;
       const name = getString(body.name) || "metadata";
 
-      if (!wallet || !metadata) return NextResponse.json({ error: "walletAddress and metadata are required" }, { status: 400 });
+      if (!wallet || !metadata) return NextResponse.json({ error: "walletAddress and metadata are required", requestId }, { status: 400 });
 
       if (!checkRateLimit(wallet)) {
-        return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
+        return NextResponse.json({ error: "Rate limit exceeded", requestId }, { status: 429 });
       }
 
       // Optional: could run lightweight metadata checks here
@@ -184,15 +197,15 @@ export async function POST(req: Request) {
       });
 
       const pinJson = (await readJsonRecord(pinRes)) as PinataResponse;
-      if (!pinRes.ok) return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}` }, { status: 502 });
+      if (!pinRes.ok) return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}`, requestId }, { status: 502 });
 
-      console.log("[pinata-proxy] json", { wallet, ts: new Date().toISOString(), cid: pinJson.IpfsHash });
+      console.log("[pinata-proxy] json", { requestId, wallet, ts: new Date().toISOString(), cid: pinJson.IpfsHash });
       return NextResponse.json({ cid: pinJson.IpfsHash });
     }
 
-    return NextResponse.json({ error: "Unsupported content type" }, { status: 415 });
+    return NextResponse.json({ error: "Unsupported content type", requestId }, { status: 415 });
   } catch (err) {
-    console.error("[pinata-proxy] error", (err as Error).message);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    console.error("[pinata-proxy] error", requestId, (err as Error).message);
+    return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
 }

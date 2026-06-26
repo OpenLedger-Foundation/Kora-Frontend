@@ -19,6 +19,7 @@ interface VerifyResponse {
  * Uses Stellar SDK to verify the signature.
  */
 export async function POST(request: NextRequest): Promise<NextResponse<VerifyResponse>> {
+  const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const body = await request.json() as VerifyRequest;
     const { challenge, signature, publicKey } = body;
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
           verified: false,
           expiresAt: 0,
           message: "Missing required fields: challenge, signature, publicKey",
+          requestId,
         },
         { status: 400 }
       );
@@ -48,6 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
           verified: false,
           expiresAt: 0,
           message: "Signature verification failed",
+          requestId,
         });
       }
 
@@ -58,6 +61,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
           verified: false,
           expiresAt: 0,
           message: "Invalid challenge format",
+          requestId,
         });
       }
 
@@ -71,6 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
           verified: false,
           expiresAt: 0,
           message: "Challenge expired",
+          requestId,
         });
       }
 
@@ -78,22 +83,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
       const SESSION_DURATION = 60 * 60 * 1000; // 1 hour
       const expiresAt = now + SESSION_DURATION;
 
-      return NextResponse.json({
-        verified: true,
-        expiresAt,
-      });
+      return NextResponse.json({ verified: true, expiresAt });
     } catch (verifyError) {
-      console.error("Verification error:", verifyError);
+      console.error("Verification error:", requestId, verifyError);
       return NextResponse.json({
         verified: false,
         expiresAt: 0,
         message: "Failed to verify signature",
+        requestId,
       });
     }
   } catch (error) {
-    console.error("Error processing verify request:", error);
+    console.error("Error processing verify request:", requestId, error);
     return NextResponse.json(
-      { verified: false, expiresAt: 0, message: "Internal server error" },
+      { verified: false, expiresAt: 0, message: "Internal server error", requestId },
       { status: 500 }
     );
   }

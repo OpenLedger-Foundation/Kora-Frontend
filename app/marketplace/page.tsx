@@ -33,6 +33,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
 import { useDebounce } from "@/hooks/useDebounce";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -558,7 +559,7 @@ function MarketplaceContent() {
           <Skeleton className="h-8 w-1/4" />
           <Skeleton className="h-4 w-1/6" />
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 8 }).map((_, i) => (
             <InvoiceCardSkeleton key={i} />
           ))}
@@ -719,7 +720,7 @@ function MarketplaceContent() {
           {/* B. Grid listing and states */}
           <div className="flex-1 min-w-0 space-y-6">
             {isLoading ? (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
                 {[...Array(8)].map((_, i) => (
                   <InvoiceCardSkeleton key={i} />
                 ))}
@@ -733,7 +734,7 @@ function MarketplaceContent() {
               />
             ) : (
               <>
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
                   {paginatedInvoices.map((invoice: Invoice, i: number) => (
                     <InvoiceCard key={invoice.id} invoice={invoice} index={i} updatedAt={dataUpdatedAt} />
                   ))}
@@ -762,35 +763,20 @@ function MarketplaceContent() {
         </div>
       </div>
 
-      {/* C. Slide-out Filter Drawer (Mobile screens) */}
-      {isMobileDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-xs"
-            onClick={() => setIsMobileDrawerOpen(false)}
-          />
-          <div className="relative z-50 w-full max-w-3xl rounded-t-[32px] border border-zinc-900 bg-zinc-950 p-6 shadow-2xl shadow-black/40 max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between border-b border-zinc-900 pb-4 mb-6">
-              <h2 className="text-md font-bold text-zinc-150 flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-primary" />
-                Filter Invoices
-              </h2>
-              <button
-                onClick={() => setIsMobileDrawerOpen(false)}
-                aria-label="Close filters"
-                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 transition-colors"
-              >
-                <X className="h-5 w-5" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="flex h-[calc(90vh-5rem)] flex-col overflow-hidden">
-              <div className="overflow-y-auto pr-1 space-y-6">
-                {renderFiltersList()}
-              </div>
-            </div>
+      {/* Mobile Filter Bottom Sheet */}
+      <BottomSheet
+        open={isMobileDrawerOpen}
+        onOpenChange={setIsMobileDrawerOpen}
+        title={
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-primary" />
+            Filter Invoices
           </div>
-        </div>
-      )}
+        }
+      >
+        {renderFiltersList()}
+      </BottomSheet>
+
       {/* Fixed comparison bar — renders above the page when invoices are selected */}
       <ComparisonBar />
     </Container>
@@ -808,7 +794,7 @@ export default function MarketplacePage() {
               <Skeleton className="h-8 w-1/4" />
               <Skeleton className="h-4 w-1/6" />
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 8 }).map((_, i) => (
                 <InvoiceCardSkeleton key={i} />
               ))}

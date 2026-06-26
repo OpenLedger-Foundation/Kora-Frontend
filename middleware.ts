@@ -10,7 +10,6 @@ const PROTECTED = ["/invoice/create", "/dashboard/sme", "/dashboard/investor"];
  */
 function detectLocaleFromHeader(req: NextRequest): string {
   const acceptLanguage = req.headers.get("accept-language") ?? "";
-  // Parse "en-US,en;q=0.9,es;q=0.8" → ["en", "es", ...]
   const preferred = acceptLanguage
     .split(",")
     .map((part) => part.split(";")[0].trim().split("-")[0].toLowerCase());
@@ -24,8 +23,17 @@ function detectLocaleFromHeader(req: NextRequest): string {
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  // ── X-Request-ID (#277) ───────────────────────────────────────────────────
+  // Generate a unique request ID for every request. API routes read this from
+  // the incoming request header so they can include it in error response bodies.
+  const requestId = crypto.randomUUID();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-request-id", requestId);
+
   // ── Locale cookie: set on first visit if not already present ──────────────
-  const response = NextResponse.next();
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("x-request-id", requestId);
+
   if (!req.cookies.get("kora-locale")) {
     const detected = detectLocaleFromHeader(req);
     response.cookies.set("kora-locale", detected, {
@@ -41,7 +49,9 @@ export function middleware(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = "/";
       url.searchParams.set("redirectTo", pathname + (search || ""));
-      return NextResponse.rewrite(url);
+      const redirect = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+      redirect.headers.set("x-request-id", requestId);
+      return redirect;
     }
   }
 
@@ -50,10 +60,7 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/invoice/create",
-    "/dashboard/sme",
-    "/dashboard/investor",
-    // Also run on root to set locale cookie on first visit
-    "/",
+    // Apply to all routes so X-Request-ID is universal
+    "/((?!_next/static|_next/image|favicon.ico|icons|wallets|manifest.json).*)",
   ],
 };

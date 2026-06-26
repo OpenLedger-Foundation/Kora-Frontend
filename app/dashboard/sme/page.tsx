@@ -32,9 +32,11 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
 import { useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { prepareRepayInvoice } from "@/services/invoiceService";
-import { useUIStore } from "@/store";
+import { useUIStore, useInvoiceStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
   formatCurrency,
@@ -45,6 +47,7 @@ import {
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import type { Invoice } from "@/types";
+import type { InvoiceStatus } from "@/types/invoice";
 import type { ColumnDef } from "@/types/table";
 import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -54,6 +57,7 @@ import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 export default function SMEDashboardPage() {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const queryClient = useQueryClient();
   const invoicesQuery = useSMEInvoices(address ?? undefined);
   const { execute, status: txStatus } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
@@ -130,15 +134,81 @@ export default function SMEDashboardPage() {
 
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
-    await execute(() => prepareRepayInvoice(inv.tokenId, address), {
-      successMessage: "Yield distributed to investors",
-      successNotificationType: "yieldAvailable",
-      onSimulationPreview,
-      onSuccess: () => {
-        invoicesQuery.refetch();
-        setRepayTarget(null);
-      },
+
+    const rollback = () => {
+      useInvoiceStore.getState().rollbackInvoiceStatus(inv.id);
+      queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((invoice: Invoice) =>
+            invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
+          );
+        }
+        if (old?.data) {
+          return {
+            ...old,
+            data: old.data.map((invoice: Invoice) =>
+              invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
+            ),
+          };
+        }
+        return old;
+      });
+    };
+
+    useInvoiceStore.getState().updateInvoiceStatus(inv.id, "repaid");
+    queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
+      if (!old) return old;
+      if (Array.isArray(old)) {
+        return old.map((invoice: Invoice) =>
+          invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
+        );
+      }
+      if (old?.data) {
+        return {
+          ...old,
+          data: old.data.map((invoice: Invoice) =>
+            invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
+          ),
+        };
+      }
+      return old;
     });
+
+    const txHash = await execute(
+      () => prepareRepayInvoice(inv.tokenId, address, inv.ownerAddress),
+      {
+        successMessage: "Yield distributed to investors",
+        successNotificationType: "yieldAvailable",
+        onSimulationPreview,
+        onError: rollback,
+        onSuccess: () => {
+          invoicesQuery.refetch();
+          setRepayTarget(null);
+        },
+      }
+    );
+
+    if (!txHash) {
+      rollback();
+    }
+  };
+
+  const handleCancel = async (inv: Invoice) => {
+    if (!address) return;
+    await execute(
+      async () => {
+        const unsignedXdr = await prepareCancelInvoice(inv.tokenId, address);
+        return unsignedXdr;
+      },
+      {
+        successMessage: "Invoice cancellation submitted",
+        onSimulationPreview,
+        onSuccess: () => {
+          invoicesQuery.refetch();
+        },
+      }
+    );
   };
 
   const handleBatchCancel = async () => {
@@ -333,7 +403,6 @@ export default function SMEDashboardPage() {
                   cell: (row) => {
                     const isDue = new Date(row.terms.repaymentDate) <= new Date();
                     const canRepay = row.status === "fully_funded" && isDue;
-                    const canCancel = row.status === "listed" || row.status === "pending_mint";
 
                     return (
                       <div className="flex items-center gap-2">
@@ -343,7 +412,7 @@ export default function SMEDashboardPage() {
                           </Button>
                         )}
                         {canCancel && (
-                          <Button size="sm" variant="ghost">
+                          <Button size="sm" variant="ghost" onClick={() => handleCancel(row)}>
                             Cancel
                           </Button>
                         )}

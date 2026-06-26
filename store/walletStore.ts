@@ -18,16 +18,18 @@ type WalletStoreState = WalletState & {
   isVerified: boolean;
   verifiedAt: number | null;
   addressBook: { id: string; address: string; label: string }[];
+  walletPassphrase: string | null;
 };
 
 type WalletStoreActions = {
-  connect: (provider: WalletProvider, address: string, publicKey: string) => void;
+  connect: (provider: WalletProvider, address: string, publicKey: string, walletPassphrase?: string) => void;
   disconnect: () => void;
   setBalance: (balance: WalletBalance) => void;
   setVerified: (isVerified: boolean, verifiedAt?: number) => void;
   clearVerification: () => void;
   isVerificationExpired: () => boolean;
   isWrongNetwork: () => boolean;
+  hasPassphraseMismatch: () => boolean;
   addAddressBookEntry: (address: string, label?: string) => void;
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
   removeAddressBookEntry: (id: string) => void;
@@ -48,9 +50,10 @@ export const useWalletStore = create<WalletStore>()(
       isVerified: false,
       verifiedAt: null,
       addressBook: [],
+      walletPassphrase: null,
 
-      connect: (provider, address, publicKey) =>
-        set({ status: "connected", provider, address, publicKey, balance: EMPTY_BALANCE, isConnected: true }),
+      connect: (provider, address, publicKey, walletPassphrase) =>
+        set({ status: "connected", provider, address, publicKey, balance: EMPTY_BALANCE, isConnected: true, walletPassphrase: walletPassphrase || null }),
 
       disconnect: () =>
         set({
@@ -62,6 +65,7 @@ export const useWalletStore = create<WalletStore>()(
           balance: null,
           isVerified: false,
           verifiedAt: null,
+          walletPassphrase: null,
         }),
 
       setBalance: (balance) =>
@@ -84,6 +88,12 @@ export const useWalletStore = create<WalletStore>()(
         const state = get();
         const expectedNetwork = getConfiguredNetwork();
         return state.isConnected && state.network !== expectedNetwork;
+      },
+
+      hasPassphraseMismatch: () => {
+        const state = get();
+        if (!state.isConnected || !state.walletPassphrase) return false;
+        return state.walletPassphrase !== env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE;
       },
 
       addAddressBookEntry: (address, label = "") =>
@@ -112,6 +122,7 @@ export const useWalletStore = create<WalletStore>()(
         isVerified: s.isVerified,
         verifiedAt: s.verifiedAt,
         addressBook: s.addressBook,
+        walletPassphrase: s.walletPassphrase,
       }),
     }
   )

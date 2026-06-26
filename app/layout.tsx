@@ -171,9 +171,11 @@ export const metadata: Metadata = {
   },
 };
 
-// Security: this is a static compile-time string with zero user input — safe for dangerouslySetInnerHTML.
-// classList.add() only accepts a single token and throws on whitespace, preventing injection.
-const themeInitScript = `(function(){try{var s=JSON.parse(localStorage.getItem('kora-ui-store')||'{}');var t=s.state&&s.state.theme==='light'?'light':'dark';document.documentElement.classList.add(t);}catch(e){document.documentElement.classList.add('dark');}})();`;
+// Security: static compile-time string, zero user input — safe for dangerouslySetInnerHTML.
+// Runs synchronously before first paint to prevent flash of incorrect theme.
+// Reads the persisted zustand store from localStorage; falls back to
+// prefers-color-scheme when no explicit preference is stored ("system" or missing).
+const themeInitScript = `(function(){try{var s=JSON.parse(localStorage.getItem('kora-ui-store')||'{}');var t=(s.state&&s.state.theme)||'system';var r=t==='dark'?'dark':t==='light'?'light':window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.classList.add(r);}catch(e){document.documentElement.classList.add('dark');}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

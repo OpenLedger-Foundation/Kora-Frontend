@@ -26,11 +26,12 @@ interface VitalsBody {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const body: VitalsBody = await request.json();
 
     if (!body?.metrics || !Array.isArray(body.metrics)) {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid payload", requestId }, { status: 400 });
     }
 
     // Validate and sanitise each metric
@@ -70,8 +71,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return new NextResponse(null, { status: 204 });
   } catch (err) {
-    console.error("[vitals] parse error", err);
-    return NextResponse.json({ error: "Bad request" }, { status: 400 });
+    console.error("[vitals] parse error", requestId, err);
+    return NextResponse.json({ error: "Bad request", requestId }, { status: 400 });
   }
 }
 

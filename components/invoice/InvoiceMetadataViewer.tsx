@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { 
   FileText, 
   Hash, 
@@ -17,6 +17,7 @@ import {
   Globe,
   Lock
 } from "lucide-react";
+import { verifyMetadataIntegrity } from "@/lib/invoiceMetadata";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -32,6 +33,7 @@ interface InvoiceMetadataViewerProps {
 
 export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMetadataViewerProps) {
   const [showRaw, setShowRaw] = useState(false);
+  const [verificationState, setVerificationState] = useState<"pending" | "verified" | "failed">("pending");
   const { metadata, tokenId, contractAddress, txHash, createdAt, ipfsCid, debtorPrivacy } = invoice;
   
   // Post-fund reveal logic
@@ -39,10 +41,41 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
   const isAnonymized = effectivePrivacy === "anonymized";
   const isPartial = effectivePrivacy === "partial";
 
-  // Verification: IPFS CID matches on-chain stored CID
-  // In a real scenario, we'd compare the CID from the smart contract call with the one we fetched
-  // For this component, we assume ipfsCid is what's on-chain and metadata.documentHash is the CID in the metadata
-  const isVerified = ipfsCid === metadata.documentHash;
+  useEffect(() => {
+    let cancelled = false;
+    setVerificationState("pending");
+
+    async function verify() {
+      if (!ipfsCid || !metadata) {
+        if (!cancelled) setVerificationState("failed");
+        return;
+      }
+      const result = await verifyMetadataIntegrity(ipfsCid, metadata);
+      if (!cancelled) {
+        setVerificationState(result ? "verified" : "failed");
+      }
+    }
+
+    verify();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ipfsCid, metadata]);
+
+  const isVerified = verificationState === "verified";
+  const verificationLabel =
+    verificationState === "pending"
+      ? "Verifying metadata..."
+      : isVerified
+      ? "Metadata Verified"
+      : "Verification Warning";
+  const verificationCopy =
+    verificationState === "pending"
+      ? "Checking that on-chain CID and IPFS content are consistent."
+      : isVerified
+      ? "IPFS content matches the stored metadata record."
+      : "IPFS CID mismatch detected. The metadata may have been altered.";
 
   const formatDateWithTZ = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -110,29 +143,30 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
       {/* Verification Status Banner */}
       <div className={cn(
         "flex items-center justify-between rounded-xl border p-4",
-        isVerified 
-          ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400" 
+        verificationState === "verified"
+          ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
+          : verificationState === "pending"
+          ? "border-slate-400/20 bg-slate-400/5 text-slate-600"
           : "border-amber-500/20 bg-amber-500/5 text-amber-400"
       )}>
         <div className="flex items-center gap-3">
-          {isVerified ? (
+          {verificationState === "verified" ? (
             <ShieldCheck className="h-6 w-6" />
+          ) : verificationState === "pending" ? (
+            <Clock className="h-6 w-6" />
           ) : (
             <ShieldAlert className="h-6 w-6" />
           )}
           <div>
-            <p className="text-sm font-bold">
-              {isVerified ? "Metadata Verified" : "Verification Warning"}
-            </p>
-            <p className="text-xs opacity-80">
-              {isVerified 
-                ? "IPFS Content ID matches the cryptographically signed on-chain record." 
-                : "IPFS CID mismatch detected. The metadata content may have been altered."}
-            </p>
+            <p className="text-sm font-bold">{verificationLabel}</p>
+            <p className="text-xs opacity-80">{verificationCopy}</p>
           </div>
         </div>
-        <Badge variant={isVerified ? "success" : "warning"} className="h-fit">
-          {isVerified ? "Authentic" : "Unverified"}
+        <Badge
+          variant={verificationState === "verified" ? "success" : verificationState === "pending" ? "secondary" : "warning"}
+          className="h-fit"
+        >
+          {verificationState === "verified" ? "Authentic" : verificationState === "pending" ? "Verifying" : "Unverified"}
         </Badge>
       </div>
 

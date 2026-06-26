@@ -168,6 +168,8 @@ type FundingBackup = InvoiceFunding & { status: InvoiceStatus };
 
 interface InvoiceStore {
   invoices: Invoice[];
+  /** tokenId → Invoice map, maintained by batch polling */
+  invoicesByTokenId: Record<string, Invoice>;
   filters: FilterState;
   sort: SortState;
   sortBy: string;
@@ -181,6 +183,8 @@ interface InvoiceStore {
 
   // Actions
   setInvoices: (invoices: Invoice[]) => void;
+  /** Merge a batch of invoices into invoicesByTokenId (and sync invoices array). */
+  mergeInvoicesBatch: (batch: Invoice[]) => void;
   setFilters: (filters: Partial<FilterState>) => void;
   updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   resetFilters: () => void;
@@ -191,8 +195,11 @@ interface InvoiceStore {
   setSelectedInvoice: (invoice: Invoice | null) => void;
   updateInvoiceFunding: (id: string, newAmount: number) => void;
   rollbackInvoiceFunding: (id: string) => void;
+  updateInvoiceStatus: (id: string, status: Invoice["status"]) => void;
+  rollbackInvoiceStatus: (id: string) => void;
   // internal backup map (not persisted)
   _fundingBackup?: Record<string, FundingBackup>;
+  _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
 
@@ -211,6 +218,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
   persist(
     (set, get) => ({
       invoices: [],
+      invoicesByTokenId: {},
       filters: DEFAULT_FILTERS,
       sort: DEFAULT_SORT,
       sortBy: "apr_desc",
@@ -221,6 +229,23 @@ export const useInvoiceStore = create<InvoiceStore>()(
       comparisonList: [],
 
       setInvoices: (invoices) => set({ invoices }),
+
+      mergeInvoicesBatch: (batch) =>
+        set((s) => {
+          const byTokenId = { ...s.invoicesByTokenId };
+          for (const inv of batch) {
+            byTokenId[inv.tokenId] = inv;
+          }
+          // Merge into main invoices array: update existing entries, append new ones
+          const existingIds = new Set(s.invoices.map((i) => i.tokenId));
+          const merged = s.invoices.map((inv) =>
+            byTokenId[inv.tokenId] ? byTokenId[inv.tokenId] : inv
+          );
+          for (const inv of batch) {
+            if (!existingIds.has(inv.tokenId)) merged.push(inv);
+          }
+          return { invoicesByTokenId: byTokenId, invoices: merged };
+        }),
 
       setFilters: (filters) =>
         set((s) => ({ filters: { ...s.filters, ...filters } })),
@@ -302,6 +327,31 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const nextBackup = { ...(s._fundingBackup || {}) };
           delete nextBackup[id];
           return { invoices, _fundingBackup: nextBackup };
+        }),
+
+      updateInvoiceStatus: (id, status) =>
+        set((s) => {
+          const prev = s.invoices.find((i) => i.id === id);
+          const backup = prev ? { status: prev.status } : undefined;
+          const invoices = s.invoices.map((inv) =>
+            inv.id === id ? { ...inv, status } : inv
+          );
+          return {
+            invoices,
+            _statusBackup: backup ? { ...(s._statusBackup || {}), [id]: backup } : s._statusBackup,
+          };
+        }),
+
+      rollbackInvoiceStatus: (id) =>
+        set((s) => {
+          const backup = s._statusBackup?.[id];
+          if (!backup) return {};
+          const invoices = s.invoices.map((inv) =>
+            inv.id === id ? { ...inv, status: backup.status } : inv
+          );
+          const nextBackup = { ...(s._statusBackup || {}) };
+          delete nextBackup[id];
+          return { invoices, _statusBackup: nextBackup };
         }),
 
       setCreateDraft: (draft) =>

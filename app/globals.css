@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Smooth theme transition — CSS custom properties on :root cascade to all
+ * consumers. Adding transition to the html element ensures background and
+ * text colors animate smoothly on theme switch without interfering with
+ * component-level transitions (which override via specificity).
+ * The inline script in layout.tsx prevents the first-load FOUC.
+ */
+html {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
 @layer base {
   :root {
     /* Semantic color tokens (HSL components) */

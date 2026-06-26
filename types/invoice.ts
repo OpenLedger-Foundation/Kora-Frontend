@@ -116,6 +116,15 @@ export interface InvoicePosition {
   status: "active" | "repaid" | "defaulted";
 }
 
+export interface InvestorPosition {
+  id: string;
+  invoiceId: string;
+  invoice?: Invoice;
+  investedAmount: number;
+  expectedReturn: number;
+  status: "active" | "repaid" | "defaulted";
+}
+
 // ─── Create Invoice Form ──────────────────────────────────────────────────────
 
 export interface CreateInvoiceFormData {
@@ -134,4 +143,69 @@ export interface CreateInvoiceFormData {
   minInvestment: number;
   listingExpiryDate: string;
   document: File | null;
+}
+
+// ─── Invoice Status State Machine ────────────────────────────────────────────
+
+/**
+ * Allowed status transitions for the SME owner.
+ * State machine: Active → Funded → Repaid, Active → Cancelled
+ *
+ * Frontend status strings map to on-chain status codes via ON_CHAIN_STATUS_MAP
+ * in invoiceService.ts.  Only the transitions below are legal; all others are
+ * blocked client-side with a tooltip explaining why.
+ */
+export const INVOICE_STATUS_TRANSITIONS: Partial<Record<InvoiceStatus, InvoiceStatus[]>> = {
+  active: ["fully_funded", "cancelled"],
+  fully_funded: ["repaid"],
+};
+
+export interface StatusTransition {
+  from: InvoiceStatus;
+  to: InvoiceStatus;
+  label: string;
+  /** Tooltip shown on the button */
+  description: string;
+  /** Variant applied to the button */
+  variant: "default" | "destructive" | "outline";
+}
+
+/** All valid transitions with their UI metadata */
+export const STATUS_TRANSITION_DEFS: StatusTransition[] = [
+  {
+    from: "active",
+    to: "fully_funded",
+    label: "Mark Funded",
+    description: "Mark this invoice as fully funded by an investor.",
+    variant: "default",
+  },
+  {
+    from: "active",
+    to: "cancelled",
+    label: "Cancel",
+    description: "Cancel this invoice. This action cannot be undone.",
+    variant: "destructive",
+  },
+  {
+    from: "fully_funded",
+    to: "repaid",
+    label: "Mark Repaid",
+    description: "Confirm repayment and distribute yield to investors.",
+    variant: "default",
+  },
+];
+
+/**
+ * Returns the valid next statuses the owner can transition to from `current`.
+ * Returns an empty array when no transitions are available.
+ */
+export function getAllowedTransitions(current: InvoiceStatus): InvoiceStatus[] {
+  return INVOICE_STATUS_TRANSITIONS[current] ?? [];
+}
+
+/**
+ * Returns the transition definitions available for a given status.
+ */
+export function getTransitionDefs(current: InvoiceStatus): StatusTransition[] {
+  return STATUS_TRANSITION_DEFS.filter((t) => t.from === current);
 }
