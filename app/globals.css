@@ -110,6 +110,36 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /* Focus-visible styles for keyboard navigation (WCAG AA compliant) */
+  /* Only show focus ring when navigating with keyboard, not mouse */
+  *:focus-visible {
+    @apply outline-none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+  /* Ensure focus ring is visible on dark backgrounds */
+  .dark *:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+  /* Enhanced focus ring for interactive elements */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+    border-color: hsl(var(--ring));
+  }
+
+  /* Card-like elements with focus-visible */
+  .card:focus-visible,
+  [role="button"]:focus-visible,
+  [role="link"]:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring)), var(--shadow-lg);
+  }
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
