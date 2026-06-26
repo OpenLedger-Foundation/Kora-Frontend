@@ -5,17 +5,31 @@ import { cn } from "@/lib/utils";
 
 // ─── Base Card ────────────────────────────────────────────────────────────────
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        "rounded-xl border border-border bg-card/60 backdrop-blur-sm",
-        className
-      )}
-      {...props}
-    />
-  )
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  hoverable?: boolean;
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, hoverable, ...props }, ref) => {
+    if (hoverable) {
+      return (
+        <motion.div
+          ref={ref}
+          whileHover={{ y: -4, boxShadow: "0 16px 32px -8px rgba(0,0,0,0.3)" }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className={cn("rounded-xl border border-border bg-card/60 backdrop-blur-sm", className)}
+          {...(props as HTMLMotionProps<"div">)}
+        />
+      );
+    }
+    return (
+      <div
+        ref={ref}
+        className={cn("rounded-xl border border-border bg-card/60 backdrop-blur-sm", className)}
+        {...props}
+      />
+    );
+  }
 );
 Card.displayName = "Card";
 

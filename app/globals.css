@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Smooth theme transition — CSS custom properties on :root cascade to all
+ * consumers. Adding transition to the html element ensures background and
+ * text colors animate smoothly on theme switch without interfering with
+ * component-level transitions (which override via specificity).
+ * The inline script in layout.tsx prevents the first-load FOUC.
+ */
+html {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
 @layer base {
   :root {
     /* Semantic color tokens (HSL components) */
@@ -110,6 +123,21 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /*
+   * Smooth theme transition — applied only after the ThemeProvider mounts
+   * (data-theme-ready is set by ThemeProvider on first effect run).
+   * This prevents the flash of transition on initial page load while still
+   * giving a polished 200ms crossfade on user-triggered theme changes.
+   */
+  html[data-theme-ready] *,
+  html[data-theme-ready] *::before,
+  html[data-theme-ready] *::after {
+    transition-property: color, background-color, border-color, fill, stroke,
+      box-shadow, outline-color;
+    transition-duration: 200ms;
+    transition-timing-function: ease;
+  }
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -130,4 +158,110 @@
     radial-gradient(at 40% 20%, hsl(var(--color-primary) / 0.08) 0px, transparent 50%),
     radial-gradient(at 80% 0%, hsl(189 100% 56% / 0.05) 0px, transparent 50%),
     radial-gradient(at 0% 50%, hsl(var(--color-primary) / 0.05) 0px, transparent 50%);
+}
+
+@layer utilities {
+  .hero-background {
+    background-image:
+      radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.26), transparent 20%),
+      radial-gradient(circle at 85% 10%, rgba(129, 140, 248, 0.18), transparent 18%),
+      radial-gradient(circle at 25% 78%, rgba(168, 85, 247, 0.18), transparent 19%),
+      radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.14), transparent 14%);
+    animation: hero-background-shift 18s ease-in-out infinite alternate;
+    opacity: 0.95;
+  }
+
+  .hero-grid-dots {
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 52px 52px;
+    opacity: 0.16;
+    animation: hero-dots-fade 12s ease-in-out infinite;
+  }
+
+  @keyframes hero-background-shift {
+    0% {
+      background-position: 0% 0%, 100% 0%, 0% 100%, 100% 100%;
+    }
+    50% {
+      background-position: 8% 12%, 92% 2%, 2% 86%, 96% 78%;
+    }
+    100% {
+      background-position: 0% 0%, 100% 8%, 12% 100%, 88% 94%;
+    }
+  }
+
+  @keyframes hero-dots-fade {
+    0%, 100% {
+      opacity: 0.14;
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      opacity: 0.18;
+      transform: translate(10px, -10px) scale(1.02);
+    }
+  }
+}
+
+/* ─── Print Styles ────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide non-essential UI */
+  nav,
+  header,
+  footer,
+  .print\\:hidden,
+  [data-print="hidden"],
+  button:not([data-print="show"]),
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset backgrounds for readability */
+  body,
+  html {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 12pt;
+  }
+
+  /* Cards become plain boxes */
+  .card,
+  [class*="Card"] {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    break-inside: avoid;
+  }
+
+  /* Ensure charts and tables don't break across pages */
+  .recharts-wrapper,
+  table {
+    break-inside: avoid;
+  }
+
+  /* Invoice detail print layout */
+  .print-layout {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Page breaks */
+  .page-break-before {
+    break-before: page;
+  }
+  .page-break-after {
+    break-after: page;
+  }
+
+  /* Links */
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 10pt;
+    color: #555;
+  }
+  a[href^="#"]::after,
+  a[href^="javascript:"]::after {
+    content: "";
+  }
 }

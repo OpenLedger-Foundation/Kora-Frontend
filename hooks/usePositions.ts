@@ -1,12 +1,16 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchPositions } from "@/services/invoiceService";
+import { getPositions } from "@/lib/stellar/contracts";
+import type { InvestorPosition } from "@/types/invoice";
 
 export function usePositions(investorAddress?: string, opts?: { refetchInterval?: number }) {
-  return useQuery({
+  return useQuery<InvestorPosition[]>({
     queryKey: ["positions", investorAddress],
-    queryFn: () => fetchPositions(investorAddress || ""),
+    queryFn: async () => {
+      if (!investorAddress) return [];
+      return getPositions(investorAddress);
+    },
     enabled: !!investorAddress,
     staleTime: 30_000,
     refetchInterval: opts?.refetchInterval,
