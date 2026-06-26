@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@/hooks/useWallet";
-
 import { useUIStore } from "@/store";
 import { WalletButton } from "@/components/wallet/WalletButton";
 
@@ -19,27 +18,6 @@ export function ConnectWalletGuard({ children }: { children: React.ReactNode }) 
     const redirectTo = searchParams.get("redirectTo");
     if (redirectTo) setIntendedDestination(redirectTo);
   }, [searchParams, setIntendedDestination]);
-    useEffect(() => {
-    const redirectTo = searchParams.get("redirectTo");
-    if (redirectTo) setIntendedDestination(redirectTo);
-  }, [searchParams, setIntendedDestination]);
-
-    useEffect(() => {
-    const redirectTo = searchParams.get("redirectTo");
-    if (redirectTo) setIntendedDestination(redirectTo);
-  }, [searchParams, setIntendedDestination]);
-
-
-    useEffect(() => {
-    const redirectTo = searchParams.get("redirectTo");
-    if (redirectTo) setIntendedDestination(redirectTo);
-  }, [searchParams, setIntendedDestination]);
-
-    useEffect(() => {
-    const redirectTo = searchParams.get("redirectTo");
-    if (redirectTo) setIntendedDestination(redirectTo);
-  }, [searchParams, setIntendedDestination]);
-
 
   if (
     !isConnected &&
