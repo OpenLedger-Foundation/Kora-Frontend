@@ -57,9 +57,9 @@ function makeInvoice(overrides: Partial<Invoice> = {}): Invoice {
 }
 
 const invoices: Invoice[] = [
-  makeInvoice({ id: "1", metadata: { ...makeInvoice().metadata, category: "technology", jurisdiction: "US", apr: 20 } as any, terms: { ...makeInvoice().terms, apr: 20 }, riskTier: "A", status: "listed" }),
-  makeInvoice({ id: "2", metadata: { ...makeInvoice().metadata, category: "logistics", jurisdiction: "KE", apr: 35 } as any, terms: { ...makeInvoice().terms, apr: 35 }, riskTier: "BBB", status: "partially_funded" }),
-  makeInvoice({ id: "3", metadata: { ...makeInvoice().metadata, category: "healthcare", jurisdiction: "EU", apr: 10 } as any, terms: { ...makeInvoice().terms, apr: 10 }, riskTier: "AAA", status: "repaid" }),
+  makeInvoice({ id: "1", metadata: { ...makeInvoice().metadata, category: "technology", jurisdiction: "US" }, terms: { ...makeInvoice().terms, apr: 20 }, riskTier: "A", status: "listed" }),
+  makeInvoice({ id: "2", metadata: { ...makeInvoice().metadata, category: "logistics", jurisdiction: "KE" }, terms: { ...makeInvoice().terms, apr: 35 }, riskTier: "BBB", status: "partially_funded" }),
+  makeInvoice({ id: "3", metadata: { ...makeInvoice().metadata, category: "healthcare", jurisdiction: "EU" }, terms: { ...makeInvoice().terms, apr: 10 }, riskTier: "AAA", status: "repaid" }),
 ];
 
 describe("getFilteredInvoices", () => {

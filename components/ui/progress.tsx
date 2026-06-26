@@ -87,6 +87,11 @@ function InvoiceFundingProgress({
   const showInnerLabel = pct >= 30;
   const relativeTime = useRelativeTime(updatedAt);
 
+  // Respect prefers-reduced-motion
+  const prefersReduced = typeof window !== "undefined"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    : false;
+
   // Flash the bar when funded amount changes
   const prevFunded = React.useRef(funded);
   const [flash, setFlash] = React.useState(false);
@@ -113,9 +118,9 @@ function InvoiceFundingProgress({
           <motion.div
             className={cn("absolute inset-y-0 left-0 rounded-full", flash && "brightness-125")}
             style={{ backgroundColor: color }}
-            initial={{ width: 0 }}
+            initial={prefersReduced ? false : { width: 0 }}
             animate={{ width: `${pct}%` }}
-            transition={{ type: "spring", stiffness: 60, damping: 18 }}
+            transition={prefersReduced ? { duration: 0 } : { duration: 0.6, ease: "easeOut" }}
           >
             {showInnerLabel && (
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-white">

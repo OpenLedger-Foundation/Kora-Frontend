@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Calendar, Users, TrendingUp, MapPin } from "lucide-react";
-import { RiskBadge } from "@/components/ui/badge";
+import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
+import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,9 +14,15 @@ import {
   formatCurrency,
   formatApr,
   daysUntil,
-  STATUS_COLORS,
   cn,
+  getJurisdictionFlag,
+  getJurisdictionName,
 } from "@/lib/utils";
+import useCountdown from "@/hooks/useCountdown";
+import CountdownTimer from "@/components/ui/CountdownTimer";
+import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
+import { DebtorDisplay } from "./DebtorDisplay";
+import { useInvoiceStore } from "@/store/invoiceStore";
 import type { Invoice } from "@/types";
 
 interface InvoiceCardProps {
@@ -25,48 +31,28 @@ interface InvoiceCardProps {
   updatedAt?: number;
 }
 
-const JURISDICTION_FLAGS: Record<string, string> = {
-  KE: "🇰🇪",
-  NG: "🇳🇬",
-  GH: "🇬🇭",
-  ZA: "🇿🇦",
-  US: "🇺🇸",
-  EU: "🇪🇺",
-  UK: "🇬🇧",
-  GB: "🇬🇧",
-};
-
-const JURISDICTION_NAMES: Record<string, string> = {
-  KE: "Kenya",
-  NG: "Nigeria",
-  GH: "Ghana",
-  ZA: "South Africa",
-  US: "United States",
-  EU: "European Union",
-  UK: "United Kingdom",
-};
-
-function getFlagEmoji(countryCode: string) {
-  if (JURISDICTION_FLAGS[countryCode]) {
-    return JURISDICTION_FLAGS[countryCode];
-  }
-  const codePoints = countryCode
-    .toUpperCase()
-    .split("")
-    .map((char) => 127397 + char.charCodeAt(0));
-  try {
-    return String.fromCodePoint(...codePoints);
-  } catch {
-    return "🌐";
-  }
-}
-
 export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
-  const { metadata, terms, funding, riskTier, status } = invoice;
+  const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
-  const flag = getFlagEmoji(metadata.jurisdiction);
-  const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
+  const flag = getJurisdictionFlag(metadata.jurisdiction);
+  const countryName = getJurisdictionName(metadata.jurisdiction);
   const queryClient = useQueryClient();
+  const { comparisonList, toggleComparison } = useInvoiceStore();
+  const isInComparison = comparisonList.includes(invoice.id);
+  const comparisonFull = comparisonList.length >= 3 && !isInComparison;
+  
+  // Check if invoice is expired
+  const countdown = useCountdown(listingExpiry);
+  const isExpired = countdown.isExpired || status === "cancelled";
+
+  // Maturity countdown — only shown when ≤ 7 days to repayment
+  const showMaturityTimer = days >= 0 && days <= 7;
+  // midnight of repayment date
+  const maturityMidnight = terms.repaymentDate + "T23:59:59";
+  const maturityCountdown = useCountdown(maturityMidnight);
+  const prefersReducedMotion = typeof window !== "undefined"
+    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    : false;
 
   const handleMouseEnter = () => {
     queryClient.prefetchQuery({
@@ -76,30 +62,38 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
     });
   };
 
+  const handleCompareToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!comparisonFull) toggleComparison(invoice.id);
+  };
+
   return (
     <Link
       href={`/marketplace/${invoice.id}`}
-      className="block group relative h-full"
+      data-tour="invoice-card"
+      className={cn("block group relative h-full", isExpired && "opacity-60")}
       onMouseEnter={handleMouseEnter}
       role="article"
       aria-label={`Invoice for ${metadata.debtorName}, Amount: ${formatCurrency(metadata.amount, metadata.currency, true)}, Risk Tier: ${riskTier}, APR: ${formatApr(terms.apr)}`}
     >
       <motion.div
         layoutId={`invoice-card-${invoice.id}`}
-        className="relative overflow-hidden rounded-xl border border-border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:border-border hover:bg-card hover:shadow-token-lg flex flex-col h-full justify-between"
+        className={cn(
+          "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg flex flex-col h-full justify-between",
+          isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
+        )}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -6 }}
+        whileHover={!isExpired ? { y: -6 } : {}}
         transition={{ duration: 0.3, delay: index * 0.05 }}
       >
         <div>
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                {metadata.debtorName}
-              </p>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              <DebtorDisplay invoice={invoice} className="group-hover:text-primary transition-colors" />
+              <p className="mt-1 truncate text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
                 {metadata.invoiceNumber}
               </p>
             </div>
@@ -109,15 +103,13 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
                 <Badge variant="kora" className="font-semibold px-1.5 py-0.5 text-[10px]">
                   {formatApr(terms.apr)}
                 </Badge>
-              </div>
-              <span
-                className={cn(
-                  "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
-                  STATUS_COLORS[status]
+                {isExpired && (
+                  <Badge variant="default" className="font-semibold px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
+                    Expired
+                  </Badge>
                 )}
-              >
-                {status.replace(/_/g, " ")}
-              </span>
+              </div>
+              <InvoiceStatusBadge status={status} />
             </div>
           </div>
 
@@ -167,6 +159,25 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               </p>
             </div>
           </div>
+
+          {/* Maturity countdown — only when ≤7 days remain */}
+          {showMaturityTimer && (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0 text-destructive" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Matures in</span>
+              {prefersReducedMotion ? (
+                <span className={cn("text-xs font-semibold", maturityCountdown.isExpired ? "text-muted-foreground" : "text-destructive")}>
+                  {maturityCountdown.isExpired ? "Matured" : `${days} day${days !== 1 ? "s" : ""} remaining`}
+                </span>
+              ) : (
+                <CountdownTimer
+                  targetDate={maturityMidnight}
+                  compact
+                  className={cn("text-xs font-semibold", maturityCountdown.isExpired ? "text-muted-foreground" : "text-destructive")}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         <div>
@@ -176,18 +187,56 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               <span className="text-sm shrink-0" role="img" aria-label={countryName}>{flag}</span>
               <span className="truncate">{countryName} · {metadata.category}</span>
             </span>
-            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0 font-medium">
-              <Calendar className="h-3 w-3" />
-              {days > 0 ? `${days}d left` : "Due"}
+            <span className={cn("text-xs flex items-center gap-1 shrink-0 font-medium", isExpired ? "text-muted-foreground" : "text-muted-foreground")}>
+              {isExpired ? (
+                <>
+                  <Clock className="h-3 w-3" />
+                  Expired
+                </>
+              ) : (
+                <>
+                  <Calendar className="h-3 w-3" />
+                  <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
+                </>
+              )}
             </span>
           </div>
 
-          {status === "listed" || status === "partially_funded" ? (
-            <Button size="sm" className="mt-4 w-full relative z-20" onClick={(e) => e.preventDefault()}>
+          {!isExpired && (status === "listed" || status === "partially_funded") ? (
+            <Button
+              size="sm"
+              className="mt-4 w-full relative z-20"
+              data-tour="fund-button"
+              onClick={(e) => e.preventDefault()}
+            >
               Fund Invoice
             </Button>
           ) : null}
-        </div>
+
+          {/* Compare toggle button */}
+          <button
+            onClick={handleCompareToggle}
+            disabled={comparisonFull}
+            className={cn(
+              "mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors relative z-20",
+              isInComparison
+                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                : comparisonFull
+                  ? "border-border/30 bg-transparent text-muted-foreground/40 cursor-not-allowed"
+                  : "border-border bg-transparent text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+            )}
+            aria-label={
+              isInComparison
+                ? `Remove ${metadata.debtorName} from comparison`
+                : comparisonFull
+                  ? "Comparison list is full (max 3)"
+                  : `Add ${metadata.debtorName} to comparison`
+            }
+            aria-pressed={isInComparison}
+          >
+            <GitCompareArrows className="h-3.5 w-3.5" />
+            {isInComparison ? "Remove from Compare" : "Add to Compare"}
+          </button>        </div>
 
         {/* Hover overlay CTA */}
         <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex items-center justify-center pointer-events-none">
