@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useWallet } from "@/hooks/useWallet";
+
+
 import { useUIStore } from "@/store";
 import { WalletButton } from "@/components/wallet/WalletButton";
 
