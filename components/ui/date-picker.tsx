@@ -204,6 +204,7 @@ const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
               disabled={disabled}
               aria-describedby={ariaDescribedBy || undefined}
               aria-invalid={!!error}
+              aria-required={props.required || undefined}
               className={cn(
                 "h-10 w-full rounded-lg border bg-card px-3 text-sm text-foreground flex items-center justify-between transition-colors",
                 "border-input cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-ring/50 focus:border-ring",

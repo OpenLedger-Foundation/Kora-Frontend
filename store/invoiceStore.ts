@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Invoice } from "@/types";
 import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
+import { createFallbackStorage } from "./storage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,22 +133,7 @@ export function fromQueryParams(params: URLSearchParams): {
 
 // ─── Store ────────────────────────────────────────────────────────────────────
 
-const SEARCH_HISTORY_KEY = "kora-search-history";
 const MAX_HISTORY = 5;
-
-function loadSearchHistory(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveSearchHistory(history: string[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
-}
 
 interface InvoiceStore {
   invoices: Invoice[];
@@ -188,7 +174,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
       sort: DEFAULT_SORT,
       sortBy: "apr_desc",
       searchQuery: "",
-      searchHistory: loadSearchHistory(),
+      searchHistory: [],
       selectedInvoice: null,
       createDraft: { currency: "USDC" },
 
@@ -211,18 +197,13 @@ export const useInvoiceStore = create<InvoiceStore>()(
       setSearchQuery: (searchQuery) =>
         set((s) => {
           const trimmed = searchQuery.trim();
-          let history = s.searchHistory;
-          if (trimmed && !history.includes(trimmed)) {
-            history = [trimmed, ...history].slice(0, MAX_HISTORY);
-            saveSearchHistory(history);
-          }
+          const history = trimmed && !s.searchHistory.includes(trimmed)
+            ? [trimmed, ...s.searchHistory].slice(0, MAX_HISTORY)
+            : s.searchHistory;
           return { searchQuery, searchHistory: history };
         }),
 
-      clearSearchHistory: () => {
-        saveSearchHistory([]);
-        set({ searchHistory: [] });
-      },
+      clearSearchHistory: () => set({ searchHistory: [] }),
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
 
@@ -288,7 +269,17 @@ export const useInvoiceStore = create<InvoiceStore>()(
     }),
     {
       name: "kora-invoice-store",
-      partialize: (state) => ({ createDraft: state.createDraft }),
+      storage: createFallbackStorage(),
+      partialize: (state) => ({
+        invoices: state.invoices,
+        filters: state.filters,
+        sort: state.sort,
+        sortBy: state.sortBy,
+        searchQuery: state.searchQuery,
+        searchHistory: state.searchHistory,
+        selectedInvoice: state.selectedInvoice,
+        createDraft: state.createDraft,
+      }),
     }
   )
 );

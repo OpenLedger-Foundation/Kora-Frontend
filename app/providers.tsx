@@ -18,6 +18,7 @@ function ThemedToaster() {
     <Toaster
       theme={theme}
       position="bottom-right"
+      containerAriaLabel="Application notifications"
       toastOptions={{
         classNames: {
           toast: "bg-card border border-border text-foreground",

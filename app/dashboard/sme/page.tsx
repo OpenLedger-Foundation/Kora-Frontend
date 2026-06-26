@@ -96,6 +96,14 @@ export default function SMEDashboardPage() {
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
     await execute(() => prepareRepayInvoice(inv.tokenId, address), {
+      txType: "repay",
+      auditRecord: {
+        invoiceId: inv.id,
+        invoiceNumber: inv.metadata.invoiceNumber,
+        amount: inv.metadata.amount,
+        currency: inv.metadata.currency,
+        description: `Repayment for ${inv.metadata.invoiceNumber}`,
+      },
       successMessage: "Yield distributed to investors",
       onSuccess: () => {
         invoicesQuery.refetch();

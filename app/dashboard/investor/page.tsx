@@ -188,6 +188,14 @@ export default function InvestorDashboardPage() {
   const handleClaim = async (pos: InvestorPosition) => {
     if (!address) return;
     await execute(() => prepareClaimPosition(pos.id, address), {
+      txType: "claim",
+      auditRecord: {
+        invoiceId: pos.invoice.id,
+        invoiceNumber: pos.invoice.metadata.invoiceNumber,
+        amount: pos.expectedReturn - pos.investedAmount,
+        currency: "USDC",
+        description: `Claim submitted for ${pos.invoice.metadata.invoiceNumber}`,
+      },
       successMessage: "Claim submitted",
       onSuccess: () => positionsQuery.refetch(),
     });

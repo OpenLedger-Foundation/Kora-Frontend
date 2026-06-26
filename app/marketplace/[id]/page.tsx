@@ -94,6 +94,14 @@ export default function InvoiceDetailPage() {
     await execute(
       () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
       {
+        txType: "fund",
+        auditRecord: {
+          invoiceId: invoice.id,
+          invoiceNumber: metadata.invoiceNumber,
+          amount: amountNum,
+          currency: metadata.currency,
+          description: `Funded invoice ${metadata.invoiceNumber} with ${amountNum} ${metadata.currency}`,
+        },
         successMessage: "Invoice funded successfully!",
         onSuccess: (txHash) => {
           // DoD Requirement: Clear instructions and trace of exposes final txHash to developer console

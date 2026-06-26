@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useWallet } from "./useWallet";
+import { useTransactionStore, type TxRecord, type TxType } from "@/store";
 import { rpc, submitTransaction } from "@/lib/stellar/client";
 import * as StellarSdk from "@stellar/stellar-sdk";
 
@@ -69,7 +70,12 @@ export function useTransaction() {
   const execute = useCallback(
     async (
       buildFn: () => Promise<string>,
-      options?: { onSuccess?: (hash: string) => void; successMessage?: string }
+      options?: {
+        onSuccess?: (hash: string) => void;
+        successMessage?: string;
+        txType?: TxType;
+        auditRecord?: Omit<TxRecord, "hash" | "status" | "timestamp" | "type">;
+      }
     ): Promise<string | null> => {
       try {
         // 1. Build
@@ -121,6 +127,15 @@ export function useTransaction() {
         toast.success(options?.successMessage ?? "Transaction confirmed!", {
           id: TOAST_ID,
           description: `Hash: ${hash.slice(0, 16)}…`,
+        });
+
+        useTransactionStore.getState().addTransaction({
+          hash,
+          type: options?.txType ?? "fund",
+          status: "confirmed",
+          timestamp: new Date().toISOString(),
+          ...options?.auditRecord,
+          description: options?.auditRecord?.description ?? options?.successMessage,
         });
 
         options?.onSuccess?.(hash);
