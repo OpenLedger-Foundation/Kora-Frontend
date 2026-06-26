@@ -31,7 +31,7 @@ import {
   FINANCING_TERMS_STEP_FIELDS,
   type CreateInvoiceSchema,
 } from "@/lib/validations/invoice";
-import { cn } from "@/lib/utils";
+import { cn, isValidStellarAddress } from "@/lib/utils";
 import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 
@@ -422,7 +422,7 @@ export default function CreateInvoicePage() {
                       onClick={() => {
                         const val = (document.querySelector('input[name="debtorAddress"]') as HTMLInputElement)?.value;
                         if (!val) return alert("No address to save");
-                        if (!/^G[A-Z2-7]{55}$/i.test(val)) return alert("Invalid Stellar address");
+                        if (!isValidStellarAddress(val)) return alert("Invalid Stellar address format");
                         useWalletStore.getState().addAddressBookEntry(val, "");
                         alert("Saved to address book");
                       }}

@@ -273,7 +273,7 @@ export default function PortfolioAnalyticsPage() {
           </div>
 
           {/* Charts */}
-          <Charts
+          <AnalyticsCharts
             portfolio={portfolio}
             yieldData={yieldData}
             monthly={monthly}

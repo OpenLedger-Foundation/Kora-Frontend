@@ -6,6 +6,8 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc, networkConfig } from "./client";
 import { env } from "@/lib/env";
+import { isValidStellarAddress } from "@/lib/utils";
+
 import type {
   MintInvoiceParams,
   FundInvoiceParams,
@@ -14,6 +16,7 @@ import type {
   OnChainInvoice,
   OnChainStatusCode,
 } from "@/types/contract";
+import type { InvoicePosition } from "@/types/invoice";
 
 // ─── Error code → human-readable message ─────────────────────────────────────
 
@@ -64,6 +67,9 @@ function scvU32(n: number): StellarSdk.xdr.ScVal {
 }
 
 function scvAddress(address: string): StellarSdk.xdr.ScVal {
+  if (!isValidStellarAddress(address)) {
+    throw new Error("Invalid Stellar address format");
+  }
   return new StellarSdk.Address(address).toScVal();
 }
 
@@ -91,6 +97,9 @@ async function buildCall(
   args: StellarSdk.xdr.ScVal[],
   sourcePublicKey: string
 ): Promise<string> {
+  if (!isValidStellarAddress(sourcePublicKey)) {
+    throw new Error("Invalid Stellar address format");
+  }
   // Use the sequence manager for optimistic local incrementing so back-to-back
   // calls don't collide on the same committed sequence number from the network.
   const account = await sequenceManager.nextAccount(sourcePublicKey);
@@ -118,6 +127,9 @@ async function readCall<T>(
   sourcePublicKey: string,
   parser: (val: StellarSdk.xdr.ScVal) => T
 ): Promise<T> {
+  if (!isValidStellarAddress(sourcePublicKey)) {
+    throw new Error("Invalid Stellar address format");
+  }
   const account = await rpc.getAccount(sourcePublicKey);
   const contract = new StellarSdk.Contract(contractId);
 
@@ -232,7 +244,6 @@ class InvoiceContractClient {
     return this.updateStatus(tokenId, 6, sourcePublicKey);
   }
 }
-}
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
@@ -292,14 +303,23 @@ class MarketplaceContractClient {
   async getPositions(
     investor: string,
     sourcePublicKey: string
-  ): Promise<StellarSdk.xdr.ScVal> {
-    return readCall(
-      this.contractId,
-      "get_positions",
-      [scvAddress(investor)],
-      sourcePublicKey,
-      (val) => val
-    );
+  ): Promise<InvoicePosition[]> {
+    try {
+      return await readCall(
+        this.contractId,
+        "get_positions",
+        [scvAddress(investor)],
+        sourcePublicKey,
+        parseInvoicePositions
+      );
+    } catch (err) {
+      // Contract returns an error when investor has no positions — treat as empty
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("not found") || msg.includes("No return value") || msg.includes("#1")) {
+        return [];
+      }
+      throw err;
+    }
   }
 
   /**
@@ -347,6 +367,112 @@ function parseOnChainInvoice(val: StellarSdk.xdr.ScVal): OnChainInvoice {
   };
 }
 
+/**
+ * Parse a vec of position maps returned by `get_positions`.
+ * Each entry is expected to be a map with: token_id, investor, amount, expected_return, yield_earned, invested_at, status.
+ */
+function parseInvoicePositions(val: StellarSdk.xdr.ScVal): InvoicePosition[] {
+  // The contract may return a vec of position structs
+  if (val.switch().name !== "scvVec") return [];
+  const vec = val.vec();
+  if (!vec || vec.length === 0) return [];
+
+  return vec
+    .map((entry): InvoicePosition | null => {
+      try {
+        const map = entry.map();
+        if (!map) return null;
+
+        function getField(key: string): StellarSdk.xdr.ScVal | undefined {
+          return map!.find((e) => {
+            try { return e.key().sym()?.toString() === key; } catch { return false; }
+          })?.val();
+        }
+
+        const tokenIdVal = getField("token_id");
+        const amountVal = getField("amount") ?? getField("invested_amount");
+        const expectedVal = getField("expected_return");
+        const yieldVal = getField("yield_earned");
+        const investedAtVal = getField("invested_at");
+        const statusVal = getField("status");
+
+        if (!tokenIdVal || !amountVal) return null;
+
+        const tokenId = tokenIdVal.u64()?.toString() ?? "0";
+        const investedAmount = Number(amountVal.i128()?.lo()?.toString() ?? "0") / 1_000_000;
+        const expectedReturn = expectedVal
+          ? Number(expectedVal.i128()?.lo()?.toString() ?? "0") / 1_000_000
+          : investedAmount;
+        const yieldEarned = yieldVal
+          ? Number(yieldVal.i128()?.lo()?.toString() ?? "0") / 1_000_000
+          : 0;
+        const investedAt = investedAtVal
+          ? new Date(Number(investedAtVal.u64()?.toString() ?? "0") * 1000).toISOString()
+          : new Date().toISOString();
+        const rawStatus = statusVal?.u32() ?? 0;
+        const status = rawStatus === 2 ? "repaid" : rawStatus === 3 ? "defaulted" : "active";
+
+        // Minimal invoice stub — real data will be fetched via getInvoice if needed
+        return {
+          invoiceId: tokenId,
+          invoice: {
+            id: tokenId,
+            tokenId,
+            contractAddress: MARKETPLACE_CONTRACT_ID,
+            ipfsCid: "",
+            metadata: {
+              invoiceNumber: `INV-${tokenId}`,
+              issuerName: "",
+              issuerAddress: "",
+              debtorName: "",
+              debtorAddress: "",
+              amount: expectedReturn,
+              currency: "USDC",
+              issueDate: investedAt,
+              dueDate: investedAt,
+              description: "",
+              jurisdiction: "OTHER",
+              category: "other",
+              documentHash: "",
+              documentUrl: "",
+            },
+            terms: {
+              discountRate: investedAmount > 0 ? (expectedReturn - investedAmount) / investedAmount : 0,
+              apr: 0,
+              financingAmount: expectedReturn,
+              minInvestment: 0,
+              maxInvestment: expectedReturn,
+              tenor: 0,
+              repaymentDate: investedAt,
+            },
+            funding: {
+              totalRaised: investedAmount,
+              targetAmount: investedAmount,
+              fundingProgress: 1,
+              investorCount: 1,
+              remainingCapacity: 0,
+            },
+            riskTier: "A",
+            riskScore: 75,
+            debtorPrivacy: "partial",
+            status: status === "repaid" ? "repaid" : "active",
+            createdAt: investedAt,
+            updatedAt: investedAt,
+            ownerAddress: "",
+          } as any,
+          investedAmount,
+          expectedReturn,
+          yieldEarned,
+          investedAt,
+          status,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((p): p is InvoicePosition => p !== null);
+}
+
 // ─── Singleton exports ────────────────────────────────────────────────────────
 
 export const invoiceContract = new InvoiceContractClient();
@@ -368,5 +494,34 @@ export async function buildTestnetUsdcMintTx(
   );
 }
 
+/**
+ * Build an unsigned XDR transaction that calls `update_status` on the invoice
+ * contract. The caller is responsible for verifying ownership before calling.
+ *
+ * @param tokenId       On-chain token ID (string, BigInt-convertible).
+ * @param status        Target status as the on-chain enum index.
+ * @param walletAddress Wallet that will sign — must be the invoice owner on-chain.
+ */
+export async function updateInvoiceStatus(
+  tokenId: string,
+  status: number,
+  walletAddress: string
+): Promise<string> {
+  return invoiceContract.updateStatus(BigInt(tokenId), status, walletAddress);
+}
+
+/**
+ * Read all investor positions for the given investor address.
+ *
+ * @param investor       The investor address.
+ * @param sourcePublicKey Optional source public key (defaults to investor).
+ */
+export async function getPositions(
+  investor: string,
+  sourcePublicKey: string = investor
+): Promise<InvoicePosition[]> {
+  return marketplaceContract.getPositions(investor, sourcePublicKey);
+}
+
 // Re-export low-level helpers for advanced use
-export { buildCall, readCall, parseSorobanError, simulate };
+export { buildCall, readCall, parseSorobanError, simulate, scvAddress };

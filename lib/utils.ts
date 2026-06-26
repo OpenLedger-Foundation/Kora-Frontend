@@ -1,6 +1,12 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
+import { StrKey } from "@stellar/stellar-sdk";
+
+export function isValidStellarAddress(address: string | null | undefined): boolean {
+  if (!address) return false;
+  return StrKey.isValidEd25519PublicKey(address.trim());
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -147,6 +153,14 @@ export function truncateAddress(address: string | null | undefined, chars = 4): 
   const clean = address.trim();
   if (clean.length <= chars * 2) return clean;
   return `${clean.slice(0, chars)}...${clean.slice(-chars)}`;
+}
+
+/** Shorten a Stellar address/hash for display, keeping prefix plus chars */
+export function shortenAddress(address: string | null | undefined, chars = 4): string {
+  if (!address) return "";
+  const clean = address.trim();
+  if (clean.length <= chars * 2) return clean;
+  return `${clean.slice(0, chars + 1)}...${clean.slice(-chars)}`;
 }
 
 /** Convert stroops to XLM */

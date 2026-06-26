@@ -14,6 +14,7 @@ import {
   TrendingUp,
   CheckCircle2,
   AlertTriangle,
+  Shield,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";

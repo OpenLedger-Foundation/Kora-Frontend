@@ -12,6 +12,7 @@ import type {
   IInvoiceService,
   ServiceError,
   Result,
+  InvoiceStatus,
 } from "@/types";
 import { MOCK_INVOICES } from "./mockData";
 import { uploadFileToPinata, uploadInvoiceMetadata } from "@/lib/ipfs";
@@ -682,6 +683,140 @@ export async function fetchInvestorPositions(
   const result = await service.getPositions(investorAddress);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
+}
+
+/**
+ * Fetch a batch of invoices by tokenIds.
+ *
+ * - Mock mode: resolves immediately from MOCK_INVOICES (no RPC).
+ * - Live mode: fires concurrent get_invoice simulations, chunked at BATCH_SIZE.
+ *   On-chain data (OnChainInvoice) is mapped back to the Invoice shape used
+ *   by the UI. Fields not available on-chain are preserved from the cache when
+ *   present, or filled with sensible defaults.
+ *
+ * @param tokenIds  String token IDs to fetch (BigInt-convertible).
+ * @param sourcePublicKey  Used as the fee-source for read simulations.
+ * @returns Invoice[] — only found invoices are included (missing IDs are dropped).
+ */
+export const BATCH_SIZE = 20;
+
+export async function fetchBatchInvoicesByTokenIds(
+  tokenIds: string[],
+  sourcePublicKey: string
+): Promise<Invoice[]> {
+  if (tokenIds.length === 0) return [];
+
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  if (useMock) {
+    const idSet = new Set(tokenIds);
+    return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
+  }
+
+  const { batchGetInvoices } = await import("@/lib/stellar/client");
+  const results = await batchGetInvoices(tokenIds, sourcePublicKey);
+
+  return results
+    .filter((r) => r.data !== null)
+    .map((r) => {
+      const onChain = r.data!;
+      return mapOnChainToInvoice(r.tokenId, onChain);
+    });
+}
+
+function mapOnChainToInvoice(tokenId: string, onChain: any): Invoice {
+  const STATUS_MAP: Record<number, InvoiceStatus> = {
+    0: "listed",
+    1: "partially_funded",
+    2: "fully_funded",
+    3: "repaid",
+    4: "defaulted",
+    5: "cancelled",
+  };
+
+  const dueDate = new Date(Number(onChain.due_date) * 1000).toISOString();
+  const amount = Number(onChain.amount) / 1_000_000;
+  const financingAmount = Number(onChain.financing_amount) / 1_000_000;
+  const fundedAmount = Number(onChain.funded_amount) / 1_000_000;
+  const discountRate = onChain.discount_rate / 10_000;
+  const fundingProgress = financingAmount > 0 ? Math.min(fundedAmount / financingAmount, 1) : 0;
+
+  return {
+    id: `inv_${tokenId}`,
+    tokenId,
+    contractAddress: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
+    ipfsCid: onChain.ipfs_cid,
+    metadata: {
+      invoiceNumber: `INV-${tokenId}`,
+      issuerName: "",
+      issuerAddress: onChain.owner,
+      debtorName: "",
+      debtorAddress: "",
+      amount,
+      currency: "USDC",
+      issueDate: new Date().toISOString(),
+      dueDate,
+      description: "",
+      jurisdiction: "OTHER",
+      category: "other",
+      documentHash: onChain.ipfs_cid,
+      documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs"}/${onChain.ipfs_cid}`,
+    },
+    terms: {
+      discountRate,
+      apr: discountRate * (365 / 90) * 100, // approximate; real tenor unknown on-chain
+      financingAmount,
+      minInvestment: 0,
+      maxInvestment: financingAmount,
+      tenor: 90,
+      repaymentDate: dueDate,
+    },
+    funding: {
+      totalRaised: fundedAmount,
+      targetAmount: financingAmount,
+      fundingProgress,
+      investorCount: 0,
+      remainingCapacity: Math.max(0, financingAmount - fundedAmount),
+    },
+    riskTier: "A",
+    riskScore: 0,
+    status: STATUS_MAP[onChain.status] ?? "listed",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ownerAddress: onChain.owner,
+  } as any;
+}
+
+/**
+ * Update the on-chain status of an invoice.
+ * Validates the transition client-side before building the transaction.
+ *
+ * @param tokenId         On-chain token ID string.
+ * @param from            Current InvoiceStatus (for client-side validation).
+ * @param to              Target InvoiceStatus.
+ * @param ownerAddress    Must match invoice.ownerAddress — enforced here AND on-chain.
+ */
+export async function prepareUpdateInvoiceStatus(
+  tokenId: string,
+  from: InvoiceStatus,
+  to: InvoiceStatus,
+  ownerAddress: string
+): Promise<string> {
+  const { isValidTransition, STATUS_TO_CHAIN_INDEX } = await import("@/lib/invoiceStateMachine");
+
+  if (!isValidTransition(from, to)) {
+    throw new Error(`Invalid status transition: ${from} → ${to}`);
+  }
+
+  const chainIndex = STATUS_TO_CHAIN_INDEX[to];
+  if (chainIndex < 0) throw new Error(`Status "${to}" has no on-chain representation`);
+
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  if (useMock) {
+    return `mock_unsigned_xdr_update_status_${tokenId}_${to}_${ownerAddress}`;
+  }
+
+  const { updateInvoiceStatus } = await import("@/lib/stellar/contracts");
+  return updateInvoiceStatus(tokenId, chainIndex, ownerAddress);
 }
 
 

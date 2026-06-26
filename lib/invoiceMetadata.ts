@@ -190,7 +190,65 @@ export type InvoiceMetadataV1 = z.infer<typeof invoiceMetadataV1Schema>;
 /** Input type before version field is added (used by builders). */
 export type InvoiceMetadataV1Input = Omit<InvoiceMetadataV1, "metadata_version">;
 
-// ─── Validation Helpers ───────────────────────────────────────────────────────
+let purifyInstance: any = null;
+function getPurify() {
+  if (typeof window !== "undefined") {
+    // eslint-disable-next-line
+    return require("dompurify");
+  }
+  if (!purifyInstance) {
+    try {
+      // eslint-disable-next-line no-eval
+      const jsdom = eval("require")("jsdom");
+      // eslint-disable-next-line no-eval
+      const dompurify = eval("require")("dompurify");
+      const { window } = new jsdom.JSDOM("");
+      purifyInstance = dompurify(window);
+    } catch (e) {
+      return {
+        sanitize: (text: string) => text.replace(/<[^>]*>/g, ""),
+      };
+    }
+  }
+  return purifyInstance;
+}
+
+export function sanitizeText(text: string): string {
+  if (!text) return "";
+  const purify = getPurify();
+  return purify.sanitize(text, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+}
+
+export function sanitizeInvoiceMetadata(metadata: InvoiceMetadataV1): InvoiceMetadataV1 {
+  const sanitized = { ...metadata };
+  sanitized.name = sanitizeText(metadata.name);
+  sanitized.description = sanitizeText(metadata.description);
+
+  if (metadata.issuer) {
+    sanitized.issuer = {
+      ...metadata.issuer,
+      name: metadata.issuer.name ? sanitizeText(metadata.issuer.name) : undefined,
+    };
+  }
+
+  if (metadata.debtor) {
+    sanitized.debtor = {
+      ...metadata.debtor,
+      name: sanitizeText(metadata.debtor.name),
+      address: metadata.debtor.address ? sanitizeText(metadata.debtor.address) : undefined,
+    };
+  }
+
+  if (metadata.attributes) {
+    sanitized.attributes = metadata.attributes.map((attr) => ({
+      ...attr,
+      trait_type: sanitizeText(attr.trait_type),
+      value: typeof attr.value === "string" ? sanitizeText(attr.value) : attr.value,
+    }));
+  }
+
+  return sanitized;
+}
 
 /**
  * Validate raw metadata against the InvoiceMetadataV1 schema.
@@ -208,7 +266,7 @@ export function validateInvoiceMetadata(
 ): { success: true; data: InvoiceMetadataV1 } | { success: false; errors: string[] } {
   const result = invoiceMetadataV1Schema.safeParse(raw);
   if (result.success) {
-    return { success: true, data: result.data };
+    return { success: true, data: sanitizeInvoiceMetadata(result.data) };
   }
   const errors = result.error.issues.map(
     (issue) => `${issue.path.join(".")}: ${issue.message}`
