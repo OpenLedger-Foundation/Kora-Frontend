@@ -30,7 +30,7 @@ vi.mock("@/hooks/useInvoices", () => ({
     error: null,
     isFetching: false,
   })),
-  usePrefetchInvoice: vi.fn(() => vi.fn()),
+  usePrefetchInvoice: vi.fn(() => ({ prefetch: vi.fn(), cancelPrefetch: vi.fn() })),
 }));
 
 // Mock the invoice store
