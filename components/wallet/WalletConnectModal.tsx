@@ -122,7 +122,7 @@ export function WalletConnectModal() {
       >
         <DialogHeader>
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-kora-muted text-primary">
-            <Wallet className="h-5 w-5" />
+            <Wallet className="h-5 w-5" aria-hidden="true" />
           </div>
           <DialogTitle>{t("connectTitle")}</DialogTitle>
           <DialogDescription>{t("connectToAccess")}</DialogDescription>
@@ -324,12 +324,12 @@ export function WalletConnectModal() {
                         <span className="text-sm font-medium text-foreground">{wallet.name}</span>
                         {wallet.popular && (
                           <span className="rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                            Popular
+                            {t("popular")}
                           </span>
                         )}
                         {!installed && (
                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                            Not installed
+                            {t("notInstalled")}
                           </span>
                         )}
                       </div>
@@ -354,7 +354,7 @@ export function WalletConnectModal() {
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                         >
-                          <Loader2 className="h-4 w-4 text-primary" />
+                          <Loader2 className="h-4 w-4 text-primary" aria-hidden="true" />
                         </motion.div>
                       )}
                       {isError && (
@@ -363,7 +363,7 @@ export function WalletConnectModal() {
                           onClick={handleRetry}
                           className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20 transition-colors"
                         >
-                          <AlertCircle className="h-3 w-3" /> Retry
+                          <AlertCircle className="h-3 w-3" aria-hidden="true" /> {t("retry")}
                         </button>
                       )}
                       {!isConnecting && !isError && (
@@ -376,7 +376,7 @@ export function WalletConnectModal() {
                             aria-label={`Connect ${wallet.name}`}
                             className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                           >
-                            Connect <ChevronRight className="h-3 w-3" />
+                            Connect <ChevronRight className="h-3 w-3" aria-hidden="true" />
                           </button>
                         ) : (
                           <a
@@ -386,7 +386,7 @@ export function WalletConnectModal() {
                             aria-label={`Install ${wallet.name} extension`}
                             className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                           >
-                            Install <ExternalLink className="h-3 w-3" />
+                            {t("install")} <ExternalLink className="h-3 w-3" aria-hidden="true" />
                           </a>
                         )
                       )}

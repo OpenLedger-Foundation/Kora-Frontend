@@ -150,7 +150,6 @@ export function InvoiceStatusBadge({ status, className }: InvoiceStatusBadgeProp
                 transition={{ duration: 0.2 }}
                 className="flex items-center gap-1.5"
               >
-                {/* Color dot — aria-hidden; status is conveyed by text label below (WCAG 1.4.1) */}
                 <span className="relative flex h-2 w-2" aria-hidden="true">
                   <span
                     className={cn(
@@ -165,9 +164,7 @@ export function InvoiceStatusBadge({ status, className }: InvoiceStatusBadgeProp
                     )}
                   />
                 </span>
-                {/* Icon — decorative; text label is the accessible name */}
                 <Icon className="h-3 w-3" aria-hidden="true" />
-                {/* Text label — the primary means of conveying the status */}
                 {config.label}
               </motion.span>
             </AnimatePresence>
