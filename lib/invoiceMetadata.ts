@@ -11,6 +11,7 @@
 
 import { z } from "zod";
 import { env } from "@/lib/env";
+import { isValidCID } from "./ipfs";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ export async function verifyMetadataIntegrity(
   if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
     return true;
   }
-  if (!cid || typeof cid !== "string") {
+  if (!cid || typeof cid !== "string" || !isValidCID(cid)) {
     return false;
   }
   try {
