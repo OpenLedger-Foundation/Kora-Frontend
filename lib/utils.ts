@@ -411,3 +411,14 @@ export function exportCsv(rows: Record<string, unknown>[], filename = "export.cs
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export function exportJson(object: unknown, filename = "data.json"): void {
+  const json = JSON.stringify(object, null, 2);
+  const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

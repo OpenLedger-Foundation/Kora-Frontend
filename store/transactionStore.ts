@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createFallbackStorage } from "./storage";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,16 +53,16 @@ export const useTransactionStore = create<TransactionStore>()(
     (set) => ({
       transactions: [],
 
-      addTransaction: (record) =>
+          addTransaction: (record) =>
         set((s) => {
           const entry: TxRecord = {
             ...record,
             timestamp: record.timestamp ?? new Date().toISOString(),
           };
-          // Deduplicate by hash — replace if already exists (e.g. status update)
-          const filtered = s.transactions.filter((t) => t.hash !== entry.hash);
+          const exists = s.transactions.some((t) => t.hash === entry.hash);
+          if (exists) return { transactions: s.transactions };
           return {
-            transactions: [entry, ...filtered].slice(0, MAX_HISTORY),
+            transactions: [entry, ...s.transactions].slice(0, MAX_HISTORY),
           };
         }),
 
@@ -74,7 +75,7 @@ export const useTransactionStore = create<TransactionStore>()(
     }),
     {
       name: "kora-tx-history",
-      // Persist the full transactions array
+      storage: createFallbackStorage(),
       partialize: (state) => ({ transactions: state.transactions }),
     }
   )

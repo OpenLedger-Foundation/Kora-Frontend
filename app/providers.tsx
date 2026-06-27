@@ -64,6 +64,7 @@ function ThemedToaster() {
     <Toaster
       theme={theme}
       position="bottom-right"
+      containerAriaLabel="Application notifications"
       style={{ zIndex: 99999 }}
       toastOptions={{
         duration: 4000,

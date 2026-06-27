@@ -18,6 +18,10 @@ const Progress = React.forwardRef<
 >(({ className, value = 0, indicatorClassName, ...props }, ref) => (
   <ProgressPrimitive.Root
     ref={ref}
+    role="progressbar"
+    aria-valuemin={0}
+    aria-valuemax={100}
+    aria-valuenow={value}
     className={cn("relative h-2 w-full overflow-hidden rounded-full bg-muted", className)}
     {...props}
   >
@@ -104,6 +108,11 @@ function InvoiceFundingProgress({
   return (
     <Tooltip.Provider delayDuration={200}>
       <div className={cn("space-y-1.5", className)}>
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
+          {isFullyFunded
+            ? `Invoice fully funded at ${currency} ${target.toLocaleString()}`
+            : `Funding progress ${Math.round(pct)}%. ${funded.toLocaleString()} of ${target.toLocaleString()} ${currency} funded.`}
+        </span>
         {/* Bar */}
         <div className="relative h-5 w-full overflow-visible rounded-full bg-muted">
           <motion.div

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
+import { useTransactionStore, type TxRecord, type TxType } from "@/store";
 import { rpc, submitTransaction } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
@@ -146,6 +147,8 @@ export function useTransaction() {
       options?: {
         onSuccess?: (hash: string) => void;
         successMessage?: string;
+        txType?: TxType;
+        auditRecord?: Omit<TxRecord, "hash" | "status" | "timestamp" | "type">;
         successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
         /** Called with the simulation preview; must resolve true to proceed */
@@ -282,6 +285,15 @@ export function useTransaction() {
           TOAST_ID,
           options?.successNotificationType ?? "txConfirmed"
         );
+
+        useTransactionStore.getState().addTransaction({
+          hash,
+          type: options?.txType ?? "fund",
+          status: "confirmed",
+          timestamp: new Date().toISOString(),
+          ...options?.auditRecord,
+          description: options?.auditRecord?.description ?? options?.successMessage,
+        });
 
         options?.onSuccess?.(hash);
         return hash;

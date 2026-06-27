@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { WalletState, WalletProvider } from "@/types";
+import { createFallbackStorage } from "./storage";
 import type { WalletBalance, WalletNetwork, WalletProvider, WalletState } from "@/types";
 import { env } from "@/lib/env";
 
@@ -104,6 +106,7 @@ export const useWalletStore = create<WalletStore>()(
     }),
     {
       name: "kora-wallet",
+      storage: createFallbackStorage(),
       partialize: (s) => ({
         address: s.address,
         publicKey: s.publicKey,

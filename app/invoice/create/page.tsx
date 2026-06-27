@@ -246,6 +246,13 @@ export default function CreateInvoicePage() {
         return result.unsignedXdr;
       },
       {
+        txType: "mint",
+        auditRecord: {
+          invoiceNumber: data.invoiceNumber,
+          amount: data.amount,
+          currency: data.currency,
+          description: `Minted invoice ${data.invoiceNumber}`,
+        },
         successMessage: "Invoice minted on Soroban!",
         onSimulationPreview,
         onSuccess: (hash) => {
@@ -395,13 +402,22 @@ export default function CreateInvoicePage() {
                   label="Invoice Number"
                   placeholder="INV-2024-0001"
                   error={errors.invoiceNumber?.message}
+                  required
                   {...register("invoiceNumber")}
                 />
                 <Input
                   label="Debtor Company Name"
                   placeholder="Acme Corporation Ltd"
                   error={errors.debtorName?.message}
+                  required
                   {...register("debtorName")}
+                />
+                <Input
+                  label="Debtor Address"
+                  placeholder="123 Business St, City, Country"
+                  error={errors.debtorAddress?.message}
+                  required
+                  {...register("debtorAddress")}
                 />
                 <div>
                   <Input
@@ -439,6 +455,7 @@ export default function CreateInvoicePage() {
                     hint="Minimum 100 USDC"
                     error={errors.amount?.message}
                     success={!!watch("amount") && !errors.amount}
+                    required
                     {...register("amount")}
                   />
                   <DatePicker
@@ -446,6 +463,7 @@ export default function CreateInvoicePage() {
                     error={errors.dueDate?.message}
                     success={!!watch("dueDate") && !errors.dueDate}
                     min={TODAY}
+                    required
                     {...register("dueDate")}
                   />
                 </div>
@@ -463,12 +481,14 @@ export default function CreateInvoicePage() {
                     label="Jurisdiction"
                     options={JURISDICTION_OPTIONS}
                     error={errors.jurisdiction?.message}
+                    required
                     {...register("jurisdiction")}
                   />
                   <Select
                     label="Industry Category"
                     options={CATEGORY_OPTIONS}
                     error={errors.category?.message}
+                    required
                     {...register("category")}
                   />
                 </div>
@@ -609,6 +629,7 @@ export default function CreateInvoicePage() {
                     hint="Smallest amount a single investor can contribute"
                     error={errors.minInvestment?.message}
                     success={!!watch("minInvestment") && !errors.minInvestment}
+                    required
                     {...register("minInvestment")}
                   />
 
@@ -620,6 +641,7 @@ export default function CreateInvoicePage() {
                     hint="When the listing period closes"
                     error={errors.listingExpiryDate?.message}
                     success={!!watch("listingExpiryDate") && !errors.listingExpiryDate}
+                    required
                     {...register("listingExpiryDate")}
                   />
                 </div>
@@ -773,6 +795,7 @@ export default function CreateInvoicePage() {
                       }}
                       error={fileError || undefined}
                       disabled={isUploading}
+                      required
                     />
                   )}
                 </div>

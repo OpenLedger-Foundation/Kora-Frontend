@@ -579,7 +579,11 @@ function MarketplaceContent() {
             <h1 className="text-3xl font-extrabold tracking-tight text-zinc-150 sm:text-4xl bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
               Invoice Marketplace
             </h1>
-            <p className="mt-2 text-sm text-zinc-400">
+            <p
+              aria-live="polite"
+              aria-atomic="true"
+              className="mt-2 text-sm text-zinc-400"
+            >
               {isLoading ? "Discovering deals..." : `Showing ${filteredInvoices.length} listed invoices`}
             </p>
           </div>

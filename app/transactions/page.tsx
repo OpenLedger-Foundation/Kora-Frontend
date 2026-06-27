@@ -26,6 +26,7 @@ import { Container } from "@/components/layout/Container";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore, useTransactionStore } from "@/store";
 import type { TxRecord, TxType } from "@/store/transactionStore";
+import { formatCurrency, formatDate, shortenAddress, cn, exportCsv, exportJson } from "@/lib/utils";
 import { formatCurrency, formatDate, cn, exportCsv } from "@/lib/utils";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { safeStellarTxUrl } from "@/lib/security";
@@ -242,6 +243,10 @@ export default function TransactionHistoryPage() {
     );
   };
 
+  const handleDownloadAuditLog = () => {
+    exportJson(filtered, "kora-transaction-audit-log.json");
+  };
+
   // ── Not connected ──────────────────────────────────────────────────────────
   if (!isConnected) {
     return (
@@ -269,6 +274,16 @@ export default function TransactionHistoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownloadAuditLog}
+            disabled={filtered.length === 0}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" aria-hidden />
+            Download Audit Log
+          </Button>
           <Button
             variant="outline"
             size="sm"

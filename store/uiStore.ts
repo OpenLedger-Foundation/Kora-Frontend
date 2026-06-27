@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { TxState } from "@/types";
+import { createFallbackStorage } from "./storage";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -106,6 +107,8 @@ export const useUIStore = create<UIStore>()(
     }),
     {
       name: "kora-ui-store",
+      storage: createFallbackStorage(),
+      partialize: (state) => ({ theme: state.theme }),
       partialize: (state) => ({
         theme: state.theme,
         notificationPreferences: state.notificationPreferences,
