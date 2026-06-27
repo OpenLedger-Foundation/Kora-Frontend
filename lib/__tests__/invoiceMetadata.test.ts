@@ -37,7 +37,7 @@ const VALID_METADATA: InvoiceMetadataV1 = {
   currency: "USDC",
   due_date: "2025-03-01",
   issuer: {
-    address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
+    address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQQQ",
     name: "TechBridge Solutions Ltd",
   },
   debtor: {
@@ -374,7 +374,7 @@ describe("invoiceMetadataV1Schema — field formats", () => {
     const result = invoiceMetadataV1Schema.safeParse({
       ...VALID_METADATA,
       issuer: {
-        address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
+        address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQQQ",
       },
     });
     expect(result.success).toBe(true);
@@ -519,7 +519,7 @@ describe("buildInvoiceMetadata", () => {
     currency: "USDC",
     due_date: "2025-03-01",
     issuer: {
-      address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
+      address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQQQ",
       name: "TechBridge Solutions Ltd",
     },
     debtor: {

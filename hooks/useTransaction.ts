@@ -5,11 +5,12 @@ import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
-import { rpc, submitTransaction } from "@/lib/stellar/client";
+import { rpc, submitTransaction, BadSequenceError, sequenceManager } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
+import type { ServiceError } from "@/types";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -21,6 +22,17 @@ export type TxLifecycleStatus =
   | "polling"
   | "confirmed"
   | "failed";
+
+async function buildAndSign(
+  buildFn: () => Promise<string>,
+  signTransaction: (xdr: string) => Promise<string>,
+  setStage: (stage: TxLifecycleStatus) => void
+): Promise<string> {
+  setStage("building");
+  const unsignedXdr = await buildFn();
+  setStage("signing");
+  return signTransaction(unsignedXdr);
+}
 
 interface TxState {
   status: TxLifecycleStatus;
@@ -34,6 +46,8 @@ export interface SimulationPreview {
   feeStroops: number;
   /** Fee in XLM */
   feeXlm: number;
+  /** Resource fee in stroops */
+  resourceFee: number;
   /** CPU instructions consumed */
   cpuInstructions: number;
   /** Memory bytes consumed */
@@ -103,13 +117,13 @@ function parseSimulationPreview(
     // Resource parsing is best-effort; leave zeros if unavailable
   }
 
-  return { feeStroops, feeXlm, cpuInstructions, memoryBytes, readBytes, writeBytes };
+  return { feeStroops, feeXlm, resourceFee: feeStroops, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
 
 export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
-  const { signTransaction } = useWallet();
+  const { signTransaction, publicKey } = useWallet();
   const toast = useToast();
   const t = useTranslations("transaction");
   const setTxState = useUIStore((s) => s.setTxState);
@@ -119,7 +133,11 @@ export function useTransaction() {
   const setStage = useCallback(
     (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
       setState((s) => ({ ...s, status, ...extra }));
-      setTxState({ status });
+      if (status === "retrying") {
+        setTxState({ status: "submitting" });
+      } else {
+        setTxState({ status: status as any });
+      }
       // Show loading toast for in-progress stages
       const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
       if (inProgress.includes(status)) {
@@ -181,6 +199,7 @@ export function useTransaction() {
             const preview: SimulationPreview = {
               feeStroops: 0,
               feeXlm: 0,
+              resourceFee: 0,
               cpuInstructions: 0,
               memoryBytes: 0,
               readBytes: 0,
@@ -213,7 +232,13 @@ export function useTransaction() {
           }
         }
 
-        // ── Phase 2: submit (with one seq-reset retry) ─────────────────────
+        // 3. Sign
+        setStage("signing");
+        let signedXdr = unsignedXdr.startsWith("mock_")
+          ? unsignedXdr
+          : await signTransaction(unsignedXdr);
+
+        // ── Phase 4: submit (with one seq-reset retry) ─────────────────────
         setStage("submitting");
         let hash: string;
 
@@ -284,7 +309,12 @@ export function useTransaction() {
       } catch (err) {
         const message = err instanceof Error ? err.message : t("failed");
         setState({ status: "failed", error: message });
-        setTxState({ status: "failed", error: message });
+        
+        const serviceError: ServiceError = {
+          code: "TRANSACTION_FAILED",
+          message,
+        };
+        setTxState({ status: "failed", error: serviceError });
         
         // Update history if we have a hash
         if (state.txHash) {

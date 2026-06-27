@@ -11,6 +11,41 @@ const RATE_LIMIT_WINDOW = 1000 * 60 * 60; // 1 hour
 const RATE_LIMIT_MAX = 10;
 const rateLimitMap = new Map<string, number[]>();
 
+// In-memory rate limit store: clientIP -> timestamps (ms)
+// Note: This in-memory storage is suitable only for a single-instance deployment.
+// In a multi-instance (autoscaled or serverless) environment, the rate limit state
+// will not be shared across instances. For multi-instance, use a centralized store like Redis.
+const IP_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const IP_RATE_LIMIT_MAX = 10;
+const ipRateLimitMap = new Map<string, number[]>();
+
+function resetIpRateLimit() {
+  ipRateLimitMap.clear();
+}
+
+if (typeof global !== "undefined") {
+  (global as any).__resetIpRateLimit = resetIpRateLimit;
+}
+
+function checkIpRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const timestamps = ipRateLimitMap.get(ip) || [];
+  
+  // Filter out expired timestamps
+  const recent = timestamps.filter((t) => t > now - IP_RATE_LIMIT_WINDOW);
+  
+  if (recent.length >= IP_RATE_LIMIT_MAX) {
+    const oldestTimestamp = recent[0];
+    const timeRemainingMs = oldestTimestamp + IP_RATE_LIMIT_WINDOW - now;
+    const retryAfter = Math.max(1, Math.ceil(timeRemainingMs / 1000));
+    return { allowed: false, retryAfter };
+  }
+  
+  recent.push(now);
+  ipRateLimitMap.set(ip, recent);
+  return { allowed: true };
+}
+
 type VirusScanResult =
   | { ok: true; note?: string }
   | { ok: false; error?: string; stats?: Record<string, number> };
@@ -104,6 +139,22 @@ function checkRateLimit(wallet: string) {
 
 export async function POST(req: Request) {
   const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
+
+  // 1. IP rate limiting (10 req/min)
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+  const limitResult = checkIpRateLimit(clientIp);
+  if (!limitResult.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later.", requestId },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(limitResult.retryAfter ?? 60),
+        },
+      }
+    );
+  }
   try {
     if (!PINATA_JWT) {
       return NextResponse.json({ error: "Pinata JWT not configured", requestId }, { status: 500 });

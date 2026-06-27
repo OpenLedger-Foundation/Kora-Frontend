@@ -334,7 +334,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const prev = s.invoices.find((i) => i.id === id);
           const backup = prev ? { status: prev.status } : undefined;
           const invoices = s.invoices.map((inv) =>
-            inv.id === id ? { ...inv, status } : inv
+            inv.id === id ? ({ ...inv, status } as Invoice) : inv
           );
           return {
             invoices,
@@ -347,7 +347,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const backup = s._statusBackup?.[id];
           if (!backup) return {};
           const invoices = s.invoices.map((inv) =>
-            inv.id === id ? { ...inv, status: backup.status } : inv
+            inv.id === id ? ({ ...inv, status: backup.status } as Invoice) : inv
           );
           const nextBackup = { ...(s._statusBackup || {}) };
           delete nextBackup[id];

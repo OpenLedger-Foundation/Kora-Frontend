@@ -220,7 +220,7 @@ export async function getAccountTransactions(
     hash: tx.hash,
     createdAt: tx.created_at,
     sourceAccount: tx.source_account,
-    fee: tx.fee_charged,
+    fee: String(tx.fee_charged),
     successful: tx.successful,
     memo: tx.memo ?? null,
     memoType: tx.memo_type ?? null,
@@ -248,6 +248,7 @@ export async function getAccountTransactions(
 export type KoraEventType =
   | "invoice_funded"
   | "invoice_repaid"
+  | "invoice_cancelled"
   | "yield_distributed";
 
 /**
@@ -429,9 +430,11 @@ export async function getContractEvents(
   const events: ContractEvent[] = response.events
     .map((raw): ContractEvent | null => {
       try {
-        // Decode topics from base64 XDR
+        // Decode topics
         const topics = raw.topic.map((t) => {
-          const val = StellarSdk.xdr.ScVal.fromXDR(t, "base64");
+          const val = typeof t === "string"
+            ? StellarSdk.xdr.ScVal.fromXDR(t as string, "base64")
+            : (t as StellarSdk.xdr.ScVal);
           return parseTopicToString(val);
         });
 
@@ -440,7 +443,9 @@ export async function getContractEvents(
         if (!eventTypes.includes(eventName)) return null;
 
         // Decode data payload
-        const dataVal = StellarSdk.xdr.ScVal.fromXDR(raw.value, "base64");
+        const dataVal = typeof raw.value === "string"
+          ? StellarSdk.xdr.ScVal.fromXDR(raw.value as string, "base64")
+          : (raw.value as StellarSdk.xdr.ScVal);
 
         const tokenId = parseTokenIdFromData(dataVal) || topics[1] || "";
         const amount = parseAmountFromData(dataVal);
@@ -450,7 +455,13 @@ export async function getContractEvents(
           id: raw.id,
           ledger: raw.ledger,
           ledgerClosedAt: raw.ledgerClosedAt,
-          contractId: raw.contractId,
+          contractId: raw.contractId
+            ? (typeof raw.contractId === "string"
+                ? raw.contractId
+                : (typeof (raw.contractId as any).contractId === "function"
+                    ? (raw.contractId as any).contractId()
+                    : String(raw.contractId)))
+            : "",
           type: eventName,
           tokenId,
           amount,
@@ -566,3 +577,113 @@ export async function waitForTransaction(
   throw new Error(`Transaction ${hash} not confirmed after ${maxAttempts} attempts`);
 }
 
+export class BadSequenceError extends Error {
+  constructor() {
+    super("tx_bad_seq");
+    this.name = "BadSequenceError";
+  }
+}
+
+export function isBadSeqResult(result: any): boolean {
+  if (!result || result.status !== "ERROR") return false;
+  const txCode = result.extras?.result_codes?.transaction ?? "";
+  const xdr = result.errorResultXdr ?? "";
+  return txCode === "tx_bad_seq" || xdr.includes("txBAD_SEQ");
+}
+
+export class SequenceManager {
+  private readonly counters = new Map<string, bigint>();
+  private readonly resetPromises = new Map<string, Promise<bigint>>();
+
+  constructor() {}
+
+  async nextAccount(address: string): Promise<any> {
+    if (!this.counters.has(address)) {
+      await this.fetchAndSeed(address);
+    }
+    const seq = this.counters.get(address)!;
+    this.counters.set(address, seq + 1n);
+    
+    const isValidStellarAddress = /^G[A-Z2-7]{55}$/.test(address);
+    if (isValidStellarAddress) {
+      return new StellarSdk.Account(address, seq.toString());
+    }
+    return {
+      sequenceNumber: () => seq.toString(),
+    };
+  }
+
+  async reset(address: string): Promise<void> {
+    await this.fetchAndSeed(address);
+  }
+
+  evict(address: string): void {
+    this.counters.delete(address);
+    this.resetPromises.delete(address);
+  }
+
+  getCounter(address: string): bigint | undefined {
+    return this.counters.get(address);
+  }
+
+  private async fetchAccount(address: string): Promise<{ sequenceNumber: () => string }> {
+    return rpc.getAccount(address);
+  }
+
+  private async fetchAndSeed(address: string): Promise<bigint> {
+    const existing = this.resetPromises.get(address);
+    if (existing) return existing;
+
+    const promise = this.fetchAccount(address)
+      .then((account) => {
+        const seq = BigInt(account.sequenceNumber());
+        this.counters.set(address, seq);
+        return seq;
+      })
+      .finally(() => {
+        this.resetPromises.delete(address);
+      });
+
+    this.resetPromises.set(address, promise);
+    return promise;
+  }
+}
+
+export const sequenceManager = new SequenceManager();
+
+export async function fetchTransactionDetails(hash: string) {
+  try {
+    const tx = await horizon.transactions().transaction(hash).call();
+    const feePaid = Number(tx.fee_charged) || 0;
+    return {
+      id: tx.id,
+      ledger: tx.ledger,
+      created_at: tx.created_at,
+      createdAt: tx.created_at,
+      source_account: tx.source_account,
+      fee_charged: tx.fee_charged,
+      feePaid,
+      feeXlm: feePaid / 10_000_000,
+      successful: tx.successful,
+      operationCount: tx.operation_count,
+      memo: tx.memo,
+    };
+  } catch (error) {
+    console.error("Error fetching transaction details:", error);
+    throw error;
+  }
+}
+
+export async function checkRpcHealth(): Promise<{ ok: boolean; latencyMs: number }> {
+  const start = Date.now();
+  try {
+    const healthResponse = await rpc.getHealth();
+    const latencyMs = Date.now() - start;
+    const ok = healthResponse.status === "healthy";
+    return { ok, latencyMs };
+  } catch (error) {
+    const latencyMs = Date.now() - start;
+    console.error("RPC Health Check Failed:", error);
+    return { ok: false, latencyMs };
+  }
+}

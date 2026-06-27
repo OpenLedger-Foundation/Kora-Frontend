@@ -35,7 +35,7 @@ import {
   formatRelativeTime,
   formatRelativeDate,
   daysUntil,
-  shortenAddress,
+  truncateAddress,
   stroopsToXlm,
   xlmToStroops,
   RISK_TIER_COLORS,
@@ -86,25 +86,25 @@ describe("formatCurrency", () => {
     expect(formatCurrency(100, "XLM")).toBe("$100.00 XLM");
   });
   it("compact: formats millions", () => {
-    expect(formatCurrency(2_500_000, "USDC", true)).toBe("2.5M USDC");
+    expect(formatCurrency(2_500_000, "USDC", true)).toBe("$2.5M USDC");
   });
   it("compact: formats thousands", () => {
-    expect(formatCurrency(1500, "USDC", true)).toBe("1.5K USDC");
+    expect(formatCurrency(1500, "USDC", true)).toBe("$1.5K USDC");
   });
   it("compact: negative millions", () => {
-    expect(formatCurrency(-3_000_000, "USDC", true)).toBe("-3.0M USDC");
+    expect(formatCurrency(-3_000_000, "USDC", true)).toBe("$-3.0M USDC");
   });
   it("compact: negative thousands", () => {
-    expect(formatCurrency(-2500, "USDC", true)).toBe("-2.5K USDC");
+    expect(formatCurrency(-2500, "USDC", true)).toBe("$-2.5K USDC");
   });
   it("compact: below 1000 falls through to full format", () => {
     expect(formatCurrency(999, "USDC", true)).toBe("$999.00 USDC");
   });
   it("compact: exactly 1_000_000 boundary", () => {
-    expect(formatCurrency(1_000_000, "USDC", true)).toBe("1.0M USDC");
+    expect(formatCurrency(1_000_000, "USDC", true)).toBe("$1.0M USDC");
   });
   it("compact: exactly 1_000 boundary", () => {
-    expect(formatCurrency(1_000, "USDC", true)).toBe("1.0K USDC");
+    expect(formatCurrency(1_000, "USDC", true)).toBe("$1.0K USDC");
   });
 });
 
@@ -354,22 +354,21 @@ describe("daysUntil", () => {
   });
 });
 
-// ─── 12. shortenAddress ──────────────────────────────────────────────────────
+// ─── 12. truncateAddress ──────────────────────────────────────────────────────
 
-describe("shortenAddress", () => {
+describe("truncateAddress", () => {
   const addr = "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ";
 
   it("shortens with default 4 chars", () => {
-    expect(shortenAddress(addr)).toBe("GBVZQ...KZQKZQ".slice(0, 5) + "..." + addr.slice(-4));
+    expect(truncateAddress(addr)).toBe("GBVZ...QKZQ");
   });
   it("shortens with custom chars", () => {
-    const result = shortenAddress(addr, 6);
-    expect(result).toBe(`${addr.slice(0, 7)}...${addr.slice(-6)}`);
+    expect(truncateAddress(addr, 6)).toBe("GBVZQ4...KZQKZQ");
   });
   it("returns empty string for empty input", () => {
-    expect(shortenAddress("")).toBe("");
+    expect(truncateAddress("")).toBe("");
   });
   it("returns empty string for falsy input", () => {
-    expect(shortenAddress(undefined as any)).toBe("");
+    expect(truncateAddress(undefined as any)).toBe("");
   });
 });

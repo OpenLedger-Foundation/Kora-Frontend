@@ -11,6 +11,7 @@ import type {
   InvoicePosition,
   IInvoiceService,
   ServiceError,
+  ServiceErrorCode,
   Result,
 } from "@/types";
 import { MOCK_INVOICES } from "./mockData";
@@ -26,7 +27,7 @@ function success<T>(value: T): Result<T> {
 }
 
 // ─── Helper: Create error result ──────────────────────────────────────────
-function failure(code: string, message: string, details?: Record<string, unknown>): Result<never> {
+function failure(code: ServiceErrorCode, message: string, details?: any): Result<never> {
   return { ok: false, error: { code, message, details } };
 }
 
@@ -167,7 +168,7 @@ class MockInvoiceService implements IInvoiceService {
           expectedReturn: invested * (1 + inv.terms.discountRate),
           yieldEarned,
           investedAt: new Date().toISOString(),
-          status: (isRepaid ? "repaid" : "active") as const,
+          status: (isRepaid ? "repaid" : "active") as "repaid" | "active",
         };
       });
       return success(positions);
@@ -482,8 +483,8 @@ class LiveInvoiceService implements IInvoiceService {
 
   async cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
     try {
-      const xdr = await marketplaceContract.cancelInvoice(
-        { tokenId: BigInt(tokenId) },
+      const xdr = await invoiceContract.cancelInvoice(
+        BigInt(tokenId),
         ownerAddress
       );
       return success(xdr);
@@ -562,7 +563,7 @@ export async function fetchInvoicesByTokenIds(
   tokenIds: string[],
   sourcePublicKey: string
 ): Promise<Invoice[]> {
-  if (USE_MOCK) {
+  if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
     // No RPC calls in mock mode — just look up from static mock data
     const idSet = new Set(tokenIds);
     return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
@@ -684,4 +685,19 @@ export async function fetchInvestorPositions(
   return result.value;
 }
 
+export async function prepareUpdateInvoiceStatus(
+  tokenId: string,
+  from: string,
+  to: string,
+  ownerAddress: string
+): Promise<string> {
+  if (to === "repaid") {
+    return prepareRepayInvoice(tokenId, ownerAddress);
+  }
+  if (to === "cancelled") {
+    return prepareCancelInvoice(tokenId, ownerAddress);
+  }
+  throw new Error(`Unsupported status transition from ${from} to ${to}`);
+}
 
+export { fetchInvoicesByTokenIds as fetchBatchInvoicesByTokenIds };

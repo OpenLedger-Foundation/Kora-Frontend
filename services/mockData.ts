@@ -73,6 +73,7 @@ export function generateMockInvoices(count = 50, seed = 42): Invoice[] {
       },
       riskTier: pick(rng, riskTiers) as any,
       riskScore: Math.round(30 + rng() * 70),
+      debtorPrivacy: "full",
       status: pick(rng, statuses) as any,
       createdAt: new Date(Date.now() - Math.round(rng() * 90) * 24 * 3600 * 1000).toISOString(),
       updatedAt: new Date().toISOString(),
@@ -413,3 +414,10 @@ export const MOCK_SMES = generateSMEProfiles(10, MOCK_INVOICES, 222);
 export const MOCK_INVESTORS = generateInvestorProfiles(10, MOCK_INVOICES, 333);
 export const MOCK_TRANSACTIONS = generateTransactions(100, MOCK_INVOICES, 444);
 export const MOCK_ANALYTICS = generateAnalyticsSeries(90, 555);
+
+export const MOCK_STATS = {
+  activeInvoices: 42,
+  totalVolumeFinanced: 1250000,
+  averageApr: 8.5,
+  totalInvestors: 184,
+};

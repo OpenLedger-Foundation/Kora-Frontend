@@ -4,7 +4,7 @@
  * useTransaction hook.
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { rpc, networkConfig } from "./client";
+import { rpc, networkConfig, sequenceManager } from "./client";
 import { env } from "@/lib/env";
 import type {
   MintInvoiceParams,
@@ -12,8 +12,8 @@ import type {
   RepayInvoiceParams,
   ClaimYieldParams,
   OnChainInvoice,
-  OnChainStatusCode,
 } from "@/types/contract";
+import type { InvestorPosition } from "@/types/invoice";
 
 // ─── Error code → human-readable message ─────────────────────────────────────
 
@@ -232,7 +232,6 @@ class InvoiceContractClient {
     return this.updateStatus(tokenId, 6, sourcePublicKey);
   }
 }
-}
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
@@ -345,6 +344,71 @@ function parseOnChainInvoice(val: StellarSdk.xdr.ScVal): OnChainInvoice {
     status: getField("status").u32(),
     funded_amount: BigInt(getField("funded_amount").i128().lo().toString()),
   };
+}
+
+function parseI128Value(value: StellarSdk.xdr.ScVal): bigint {
+  const parts = value.i128();
+  const hi = BigInt(parts.hi().toString());
+  const lo = BigInt(parts.lo().toString());
+  return (hi << BigInt(64)) + lo;
+}
+
+function mapPositionStatus(status: number): InvestorPosition["status"] {
+  switch (status) {
+    case 1:
+      return "repaid";
+    case 2:
+      return "defaulted";
+    default:
+      return "active";
+  }
+}
+
+export function parseInvestorPositions(val: StellarSdk.xdr.ScVal): InvestorPosition[] {
+  const values = val.vec();
+  if (!values) return [];
+
+  return values
+    .map((entry) => {
+      const map = entry.map();
+      if (!map) return null;
+
+      const getField = (key: string): StellarSdk.xdr.ScVal | undefined => {
+        const matchingEntry = map.find((candidate) => candidate.key().sym()?.toString() === key);
+        return matchingEntry?.val();
+      };
+
+      const invoiceIdValue = getField("invoice_id") ?? getField("token_id") ?? getField("position_id");
+      if (!invoiceIdValue) return null;
+
+      const invoiceId = invoiceIdValue.u64?.()?.toString() ?? invoiceIdValue.str?.()?.toString() ?? "";
+      if (!invoiceId) return null;
+
+      const investedAmountValue = getField("invested_amount") ?? getField("amount") ?? getField("principal");
+      const expectedReturnValue = getField("expected_return") ?? getField("expected_amount") ?? getField("return_amount");
+      const statusValue = getField("status")?.u32?.();
+
+      return {
+        id: invoiceId,
+        invoiceId,
+        investedAmount: Number((investedAmountValue ? parseI128Value(investedAmountValue) : BigInt(0)) / BigInt(1000000)),
+        expectedReturn: Number((expectedReturnValue ? parseI128Value(expectedReturnValue) : BigInt(0)) / BigInt(1000000)),
+        status: mapPositionStatus(statusValue ?? 0),
+      } satisfies InvestorPosition;
+    })
+    .filter((position): position is InvestorPosition => position !== null);
+}
+
+export async function getPositions(walletAddress: string): Promise<InvestorPosition[]> {
+  if (!walletAddress) return [];
+
+  try {
+    const raw = await marketplaceContract.getPositions(walletAddress, walletAddress);
+    return parseInvestorPositions(raw);
+  } catch (error) {
+    console.error("Failed to load investor positions", error);
+    return [];
+  }
 }
 
 // ─── Singleton exports ────────────────────────────────────────────────────────

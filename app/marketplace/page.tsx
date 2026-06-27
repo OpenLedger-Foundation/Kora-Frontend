@@ -314,10 +314,12 @@ function MarketplaceContent() {
 
   const { data, isLoading, dataUpdatedAt } = useInvoices();
 
+  const [isUrlHydrated, setIsUrlHydrated] = useState(false);
+
   // Infinite loader (loads more pages as user scrolls)
-  const infinite = useInfiniteQuery(
-    ["invoices", JSON.stringify(filters), sortBy],
-    ({ pageParam = 1 }) =>
+  const infinite = useInfiniteQuery({
+    queryKey: ["invoices", JSON.stringify(filters), sortBy],
+    queryFn: ({ pageParam = 1 }) =>
       fetchInvoices(
         {
           categories: filters.categories,
@@ -331,17 +333,15 @@ function MarketplaceContent() {
         pageParam,
         pageSize
       ),
-    {
-      getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
-      enabled: isUrlHydrated,
-    }
-  );
+    initialPageParam: 1,
+    getNextPageParam: (last: any) => (last.hasMore ? last.page + 1 : undefined),
+    enabled: isUrlHydrated,
+  });
 
   const isFetchingNextPage = infinite.isFetchingNextPage;
   const hasNextPage = infinite.hasNextPage;
   const [showFilters, setShowFilters] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -448,7 +448,7 @@ function MarketplaceContent() {
 
   // Use infinite query data when available, fall back to paginated data
   const allInvoices = infinite.data
-    ? infinite.data.pages.flatMap((p) => p.data)
+    ? infinite.data.pages.flatMap((p: any) => p.data)
     : data?.data ?? [];
 
   // Client-side Search filter
@@ -767,12 +767,7 @@ function MarketplaceContent() {
       <BottomSheet
         open={isMobileDrawerOpen}
         onOpenChange={setIsMobileDrawerOpen}
-        title={
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-primary" />
-            Filter Invoices
-          </div>
-        }
+        title="Filter Invoices"
       >
         {renderFiltersList()}
       </BottomSheet>

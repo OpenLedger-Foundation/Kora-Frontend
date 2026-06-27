@@ -44,6 +44,19 @@ function expectFailure(
   }
 }
 
+function expectRefinementPassed(
+  schema: { safeParse: (v: unknown) => { success: boolean; error?: any } },
+  value: unknown,
+  refinementMessage: string
+) {
+  const result = schema.safeParse(value);
+  expect(result.success).toBe(false);
+  if (result.error) {
+    const messages = result.error.issues.map((i: any) => i.message);
+    expect(messages).not.toContain(refinementMessage);
+  }
+}
+
 // ─── invoiceDetailsStepSchema / invoiceDetailsSchema ─────────────────────────
 
 describe("invoiceDetailsStepSchema", () => {
@@ -55,6 +68,7 @@ describe("invoiceDetailsStepSchema", () => {
     dueDate: "2026-12-01",
     jurisdiction: "US",
     category: "technology",
+    debtorPrivacy: "full",
   };
 
   it("accepts a fully valid object", () => {
@@ -179,7 +193,7 @@ describe("invoiceDetailsStepSchema", () => {
 // ─── INVOICE_DETAILS_STEP_FIELDS ──────────────────────────────────────────────
 
 describe("INVOICE_DETAILS_STEP_FIELDS", () => {
-  it("contains all 8 expected field names", () => {
+  it("contains all 9 expected field names", () => {
     expect(INVOICE_DETAILS_STEP_FIELDS).toEqual([
       "invoiceNumber",
       "debtorName",
@@ -189,6 +203,7 @@ describe("INVOICE_DETAILS_STEP_FIELDS", () => {
       "description",
       "jurisdiction",
       "category",
+      "debtorPrivacy",
     ]);
   });
 });
@@ -266,14 +281,18 @@ describe("financingTermsSchema", () => {
 
   it("passes cross-field check when listingExpiryDate or dueDate is empty", () => {
     // Both empty → refinement returns true (guard clause)
-    expectSuccess(financingTermsSchema, {
-      ...base,
-      listingExpiryDate: "",
-      dueDate: "",
-      discountRate: 5,
-      minInvestment: 100,
-      amount: 50000,
-    });
+    expectRefinementPassed(
+      financingTermsSchema,
+      {
+        ...base,
+        listingExpiryDate: "",
+        dueDate: "",
+        discountRate: 5,
+        minInvestment: 100,
+        amount: 50000,
+      },
+      "Listing expiry date must be strictly earlier than the due date"
+    );
   });
 });
 
@@ -525,6 +544,7 @@ describe("createInvoiceSchema", () => {
     dueDate: "2025-01-01",
     jurisdiction: "KE",
     category: "technology",
+    debtorPrivacy: "full",
     discountRate: 5,
     minInvestment: 1000,
     listingExpiryDate: "2024-12-01",
@@ -570,11 +590,15 @@ describe("createInvoiceSchema", () => {
   });
 
   it("passes dueDate/issueDate check when either is empty (guard clause)", () => {
-    expectSuccess(createInvoiceSchema, {
-      ...base,
-      issueDate: "",
-      dueDate: "",
-    });
+    expectRefinementPassed(
+      createInvoiceSchema,
+      {
+        ...base,
+        issueDate: "",
+        dueDate: "",
+      },
+      "Due date must be after issue date"
+    );
   });
 
   // cross-field: minInvestment <= amount
@@ -602,12 +626,16 @@ describe("createInvoiceSchema", () => {
   });
 
   it("passes listingExpiryDate check when either date is empty (guard clause)", () => {
-    expectSuccess(createInvoiceSchema, {
-      ...base,
-      listingExpiryDate: "",
-      dueDate: "",
-      issueDate: "",
-    });
+    expectRefinementPassed(
+      createInvoiceSchema,
+      {
+        ...base,
+        listingExpiryDate: "",
+        dueDate: "",
+        issueDate: "",
+      },
+      "Listing expiry date must be strictly earlier than the due date"
+    );
   });
 
   // discountRate boundaries

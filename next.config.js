@@ -162,6 +162,8 @@ const SECURITY_HEADERS = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ["@stellar/stellar-sdk"],
@@ -238,6 +240,10 @@ const nextConfig = {
   },
 
   webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@": path.resolve(__dirname, "./"),
+    };
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,

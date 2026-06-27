@@ -163,7 +163,7 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
           </div>
         </div>
         <Badge
-          variant={verificationState === "verified" ? "success" : verificationState === "pending" ? "secondary" : "warning"}
+          variant={verificationState === "verified" ? "success" : verificationState === "pending" ? "info" : "warning"}
           className="h-fit"
         >
           {verificationState === "verified" ? "Authentic" : verificationState === "pending" ? "Verifying" : "Unverified"}
