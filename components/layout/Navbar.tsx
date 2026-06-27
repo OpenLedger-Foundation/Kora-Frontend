@@ -30,9 +30,11 @@ const TransactionHistoryDrawer = dynamic(
 );
 
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { WalletBalance } from "@/components/wallet/WalletBalance";
 import { NetworkStatusIndicator } from "@/components/layout/NetworkStatusIndicator";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { useUIStore } from "@/store/uiStore";
+import { useWalletStore } from "@/store/walletStore";
 import { ShortcutBadge } from "@/components/ui/ShortcutBadge";
 import { cn } from "@/lib/utils";
 
@@ -51,6 +53,12 @@ export function Navbar() {
   const t = useTranslations("nav");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Granular selectors — Navbar only subscribes to the slices it renders.
+  // Balance display is delegated to <WalletBalance> which has its own selector,
+  // so balance polling never causes the navbar body to re-render.
+  const isConnected = useWalletStore((s) => s.isConnected);
+  const address = useWalletStore((s) => s.address);
+
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
   const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
@@ -236,6 +244,11 @@ export function Navbar() {
           >
             {t("addressBook")}
           </button>
+
+          {/* WalletBalance subscribes only to balance; isolated from navbar re-renders */}
+          {isConnected && address && (
+            <WalletBalance />
+          )}
 
           <div data-tour="wallet-button">
             <WalletButton />

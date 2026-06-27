@@ -1,11 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Store, TrendingUp, DollarSign, BarChart3, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import dynamic from "next/dynamic";
 import type { DataTableProps } from "@/types/table";
@@ -18,12 +20,11 @@ const DataTable = dynamic<DataTableProps<InvestorPosition>>(
 );
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
-import { usePositions } from "@/hooks/usePositions";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useTransaction } from "@/hooks/useTransaction";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { RiskBadge } from "@/components/ui/badge";
-import { prepareClaimPosition } from "@/services/invoiceService";
-import { useTransaction } from "@/hooks/useTransaction";
+import { getPositions } from "@/lib/stellar/contracts";
 import {
   formatCurrency,
   formatDate,
@@ -34,43 +35,51 @@ import {
 import type { InvestorPosition } from "@/types/invoice";
 import type { ColumnDef } from "@/types/table";
 
-export default function InvestorDashboardPage() {
-  const { isConnected } = useWallet();
-  const { setWalletModalOpen } = useUIStore();
-  const { address } = useWallet();
-  const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
+// ─── Skeleton for portfolio while data loads ──────────────────────────────────
+
+function PortfolioSkeleton() {
+  return (
+    <div className="space-y-8">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-64 rounded-xl" />
+    </div>
+  );
+}
+
+// ─── Portfolio content — suspends until positions are loaded ──────────────────
+
+function InvestorPortfolioSection({ address }: { address: string }) {
   const { execute } = useTransaction();
 
-  if (!isConnected) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-          <BarChart3 className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
-        <p className="text-sm text-muted-foreground">Connect to view your investment portfolio</p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
-      </div>
-    );
-  }
+  const { data: positionsData = [] } = useSuspenseQuery<InvestorPosition[]>({
+    queryKey: ["positions", address],
+    queryFn: async () => {
+      const positions = await getPositions(address);
+      return positions.map((p) => ({
+        id: p.invoiceId,
+        invoiceId: p.invoiceId,
+        invoice: p.invoice,
+        investedAmount: p.investedAmount,
+        expectedReturn: p.expectedReturn,
+        status: p.status,
+      }));
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
 
-  const handleClaim = async (pos: InvestorPosition) => {
-    if (!address) return;
-    await execute(() => prepareClaimPosition(pos.id, address), {
-      successMessage: "Claim submitted",
-      onSuccess: () => positionsQuery.refetch(),
-    });
-  };
-
-  const positionsData: InvestorPosition[] = positionsQuery.data ?? [];
-  const totalInvested = positionsData.reduce((sum, position) => sum + position.investedAmount, 0);
-  const totalExpected = positionsData.reduce((sum, position) => sum + position.expectedReturn, 0);
+  const totalInvested = positionsData.reduce((sum, p) => sum + p.investedAmount, 0);
+  const totalExpected = positionsData.reduce((sum, p) => sum + p.expectedReturn, 0);
   const totalYield = totalExpected - totalInvested;
   const averageApr = positionsData.length
-    ? positionsData.reduce((sum, position) => sum + (position.invoice?.terms.apr ?? 0), 0) / positionsData.length
+    ? positionsData.reduce((sum, p) => sum + (p.invoice?.terms.apr ?? 0), 0) / positionsData.length
     : 0;
 
-  const STATS = [
+  const stats = [
     {
       label: "Portfolio Value",
       value: formatCurrency(totalInvested, "USDC", true),
@@ -168,7 +177,7 @@ export default function InvestorDashboardPage() {
       cell: (row) => (
         <div className="flex items-center gap-2">
           {row.status === "repaid" ? (
-            <Button size="sm" onClick={() => handleClaim(row)}>
+            <Button size="sm" onClick={() => execute(() => prepareClaimPosition(row.id, address), { successMessage: "Claim submitted" })}>
               Claim
             </Button>
           ) : null}
@@ -181,21 +190,9 @@ export default function InvestorDashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Investor Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Track your invoice financing portfolio</p>
-        </div>
-        <Link href="/marketplace">
-          <Button variant="outline">
-            <Store className="h-4 w-4" /> Browse Marketplace
-          </Button>
-        </Link>
-      </div>
-
+    <>
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {STATS.map((stat, i) => (
+        {stats.map((stat, i) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 12 }}
@@ -215,7 +212,7 @@ export default function InvestorDashboardPage() {
           <DataTable
             data={positionsData}
             columns={POSITION_COLUMNS}
-            isLoading={positionsQuery.isLoading}
+            isLoading={false}
             pageSize={5}
             emptyState={{
               title: "No positions",
@@ -233,18 +230,16 @@ export default function InvestorDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {Object.entries(
-              positionsData.reduce<Record<string, number>>((acc, position) => {
-                const tier = position.invoice?.riskTier ?? "AAA";
-                acc[tier] = (acc[tier] || 0) + position.investedAmount;
+              positionsData.reduce<Record<string, number>>((acc, p) => {
+                const tier = p.invoice?.riskTier ?? "AAA";
+                acc[tier] = (acc[tier] || 0) + p.investedAmount;
                 return acc;
               }, {})
             ).map(([tier, amount]) => (
               <div key={tier} className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <RiskBadge tier={tier as import("@/components/ui/badge").AnyRiskTier} />
-                  <span className="text-muted-foreground">
-                    {formatCurrency(amount, "USDC", true)}
-                  </span>
+                  <span className="text-muted-foreground">{formatCurrency(amount, "USDC", true)}</span>
                 </div>
                 <Progress value={(amount / totalInvested) * 100} className="h-1.5" />
               </div>
@@ -258,29 +253,63 @@ export default function InvestorDashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {Object.entries(
-              positionsData.reduce<Record<string, number>>((acc, position) => {
-                const jurisdiction = position.invoice?.metadata.jurisdiction ?? "OTHER";
-                acc[jurisdiction] = (acc[jurisdiction] || 0) + position.investedAmount;
+              positionsData.reduce<Record<string, number>>((acc, p) => {
+                const jurisdiction = p.invoice?.metadata.jurisdiction ?? "OTHER";
+                acc[jurisdiction] = (acc[jurisdiction] || 0) + p.investedAmount;
                 return acc;
               }, {})
             ).map(([jurisdiction, amount]) => (
               <div key={jurisdiction} className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-foreground">{jurisdiction}</span>
-                  <span className="text-muted-foreground">
-                    {formatCurrency(amount, "USDC", true)}
-                  </span>
+                  <span className="text-muted-foreground">{formatCurrency(amount, "USDC", true)}</span>
                 </div>
-                <Progress
-                  value={(amount / totalInvested) * 100}
-                  className="h-1.5"
-                  indicatorClassName="bg-info"
-                />
+                <Progress value={(amount / totalInvested) * 100} className="h-1.5" indicatorClassName="bg-info" />
               </div>
             ))}
           </CardContent>
         </Card>
       </div>
+    </>
+  );
+}
+
+export default function InvestorDashboardPage() {
+  const { isConnected, address } = useWallet();
+  const { setWalletModalOpen } = useUIStore();
+
+  if (!isConnected) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <BarChart3 className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
+        <p className="text-sm text-muted-foreground">Connect to view your investment portfolio</p>
+        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Investor Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Track your invoice financing portfolio</p>
+        </div>
+        <Link href="/marketplace">
+          <Button variant="outline">
+            <Store className="h-4 w-4" /> Browse Marketplace
+          </Button>
+        </Link>
+      </div>
+
+      {address && (
+        <Suspense fallback={<PortfolioSkeleton />}>
+          <InvestorPortfolioSection address={address} />
+        </Suspense>
+      )}
     </div>
   );
 }

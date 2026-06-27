@@ -22,8 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useInvoices } from "@/hooks/useInvoices";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useSuspenseInfiniteQuery } from "@tanstack/react-query";
 import { fetchInvoices } from "@/services/invoiceService";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
@@ -292,6 +291,125 @@ function Switch({
 // 6. Premium Styled Empty State
 // Marketplace-specific empty state replaced by shared EmptyState component
 
+// ─── Invoice grid skeleton ────────────────────────────────────────────────────
+
+function InvoiceGridSkeleton() {
+  return (
+    <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <InvoiceCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Invoice grid — suspends until first page of data is ready ────────────────
+
+interface InvoiceGridProps {
+  filters: {
+    categories?: string[];
+    jurisdictions?: string[];
+    riskTiers?: string[];
+    aprRange?: [number, number];
+    activeOnly?: boolean;
+  };
+  sortBy: string;
+  searchQuery: string;
+  page: number;
+  pageSize: number;
+  resetFilters: () => void;
+}
+
+function InvoiceGrid({ filters, sortBy, searchQuery, page, pageSize, resetFilters }: InvoiceGridProps) {
+  const infinite = useSuspenseInfiniteQuery({
+    queryKey: ["invoices", JSON.stringify(filters), sortBy],
+    queryFn: ({ pageParam = 1 }) =>
+      fetchInvoices(
+        {
+          categories: filters.categories,
+          jurisdictions: filters.jurisdictions,
+          riskTiers: filters.riskTiers,
+          aprRange: filters.aprRange,
+          activeOnly: filters.activeOnly,
+        },
+        { key: sortBy?.split("_")[0] as any, direction: sortBy?.endsWith("asc") ? "asc" : "desc" },
+        pageParam as number,
+        pageSize
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (last: any) => (last.hasMore ? last.page + 1 : undefined),
+  });
+
+  const { isFetchingNextPage, hasNextPage, fetchNextPage, dataUpdatedAt } = infinite;
+
+  const allInvoices = infinite.data.pages.flatMap((p: any) => p.data);
+
+  const filteredInvoices = searchQuery
+    ? allInvoices.filter(
+        (inv: Invoice) =>
+          inv.metadata.debtorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          inv.metadata.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          inv.metadata.category.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : allInvoices;
+
+  const paginatedInvoices = useMemo<Invoice[]>(() => {
+    const startIndex = (page - 1) * pageSize;
+    return filteredInvoices.slice(startIndex, startIndex + pageSize);
+  }, [filteredInvoices, page, pageSize]);
+
+  useEffect(() => {
+    const el = document.getElementById("infinite-sentinel");
+    if (!el) return;
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  if (filteredInvoices.length === 0) {
+    return (
+      <EmptyState
+        title="No invoices match your filters"
+        description="We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities."
+        cta={{ label: "Clear All Filters", onClick: resetFilters }}
+        variant="marketplace"
+      />
+    );
+  }
+
+  return (
+    <>
+      <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
+        {paginatedInvoices.map((invoice: Invoice, i: number) => (
+          <InvoiceCard key={invoice.id} invoice={invoice} index={i} updatedAt={dataUpdatedAt} />
+        ))}
+      </div>
+      <div>
+        <div id="infinite-sentinel" />
+        {isFetchingNextPage && (
+          <div className="mt-4 text-center text-sm text-muted-foreground">Loading more…</div>
+        )}
+        {!hasNextPage && (
+          <div className="mt-4 text-center text-sm text-muted-foreground">All invoices loaded</div>
+        )}
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          aria-label="Scroll back to top"
+          className="fixed right-4 bottom-12 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
+        >
+          ↑ Top
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ─── Marketplace Content (State & Layout) ───────────────────────────────────
 
 function MarketplaceContent() {
@@ -312,8 +430,6 @@ function MarketplaceContent() {
     clearSearchHistory,
   } = useInvoiceStore();
 
-  const { data, isLoading, dataUpdatedAt } = useInvoices();
-
   const [showFilters, setShowFilters] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
@@ -321,30 +437,6 @@ function MarketplaceContent() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Infinite loader (loads more pages as user scrolls)
-  const infinite = useInfiniteQuery({
-    queryKey: ["invoices", JSON.stringify(filters), sortBy],
-    queryFn: ({ pageParam = 1 }) =>
-      fetchInvoices(
-        {
-          categories: filters.categories,
-          jurisdictions: filters.jurisdictions,
-          riskTiers: filters.riskTiers,
-          aprRange: filters.aprRange,
-          activeOnly: filters.activeOnly,
-        },
-        // translate sortBy into marketplace sort
-        { key: sortBy?.split("_")[0] as any, direction: sortBy?.endsWith("asc") ? "asc" : "desc" },
-        pageParam as number,
-        pageSize
-      ),
-    initialPageParam: 1,
-    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
-    enabled: isUrlHydrated,
-  });
-
-  const isFetchingNextPage = infinite.isFetchingNextPage;
-  const hasNextPage = infinite.hasNextPage;
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Close history dropdown on outside click
@@ -444,27 +536,6 @@ function MarketplaceContent() {
     router.replace(targetUrl, { scroll: false });
   }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, page, pageSize]);
 
-  // Use infinite query data when available, fall back to paginated data
-  const allInvoices = infinite.data
-    ? infinite.data.pages.flatMap((p) => p.data)
-    : data?.data ?? [];
-
-  // Client-side Search filter
-  const filteredInvoices = debouncedSearchQuery
-    ? allInvoices.filter(
-        (inv) =>
-          inv.metadata.debtorName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.invoiceNumber.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      )
-    : allInvoices;
-
-  // Slice the filtered list for display
-  const paginatedInvoices = useMemo<Invoice[]>(() => {
-    const startIndex = (page - 1) * pageSize;
-    return filteredInvoices.slice(startIndex, startIndex + pageSize);
-  }, [filteredInvoices, page, pageSize]);
-
   // Active filters count for clearing badge
   const activeFiltersCount =
     (filters.categories?.length || 0) +
@@ -534,21 +605,6 @@ function MarketplaceContent() {
     </div>
   );
 
-  // Intersection Observer to load next page
-  useEffect(() => {
-    const el = document.getElementById("infinite-sentinel");
-    if (!el) return;
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          infinite.fetchNextPage();
-        }
-      });
-    });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [hasNextPage, isFetchingNextPage, infinite]);
-
   // Return full skeleton block while initializing from URL to avoid flashing default states
   if (!isUrlHydrated) {
     return (
@@ -578,9 +634,7 @@ function MarketplaceContent() {
             <h1 className="text-3xl font-extrabold tracking-tight text-zinc-150 sm:text-4xl bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
               Invoice Marketplace
             </h1>
-            <p className="mt-2 text-sm text-zinc-400">
-              {isLoading ? "Discovering deals..." : `Showing ${filteredInvoices.length} listed invoices`}
-            </p>
+            <p className="mt-2 text-sm text-zinc-400">Browse active invoice listings</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -715,47 +769,21 @@ function MarketplaceContent() {
             </div>
           </div>
 
-          {/* B. Grid listing and states */}
+          {/* B. Invoice grid — Suspense boundary shows skeleton while first page loads */}
           <div className="flex-1 min-w-0 space-y-6">
-            {isLoading ? (
-              <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
-                {[...Array(8)].map((_, i) => (
-                  <InvoiceCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : filteredInvoices.length === 0 ? (
-              <EmptyState
-                title="No invoices match your filters"
-                description="We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities."
-                cta={{ label: "Clear All Filters", onClick: resetFilters }}
-                variant="marketplace"
-              />
+            {!isUrlHydrated ? (
+              <InvoiceGridSkeleton />
             ) : (
-              <>
-                <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
-                  {paginatedInvoices.map((invoice: Invoice, i: number) => (
-                    <InvoiceCard key={invoice.id} invoice={invoice} index={i} updatedAt={dataUpdatedAt} />
-                  ))}
-                </div>
-                <div>
-                  <div>
-                    <div id="infinite-sentinel" />
-                  </div>
-                  {isFetchingNextPage && (
-                    <div className="mt-4 text-center text-sm text-muted-foreground">Loading more…</div>
-                  )}
-                  {!hasNextPage && (
-                    <div className="mt-4 text-center text-sm text-muted-foreground">All invoices loaded</div>
-                  )}
-                  <button
-                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-                    aria-label="Scroll back to top"
-                    className="fixed right-4 bottom-12 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
-                  >
-                    ↑ Top
-                  </button>
-                </div>
-              </>
+              <Suspense fallback={<InvoiceGridSkeleton />}>
+                <InvoiceGrid
+                  filters={debouncedFilters}
+                  sortBy={sortBy}
+                  searchQuery={debouncedSearchQuery}
+                  page={page}
+                  pageSize={pageSize}
+                  resetFilters={resetFilters}
+                />
+              </Suspense>
             )}
           </div>
         </div>

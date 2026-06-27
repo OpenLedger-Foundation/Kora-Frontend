@@ -45,14 +45,22 @@ const RISK_COLORS: Record<string, string> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Escape XML special characters to prevent SVG injection. */
+const XML_ESC: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&apos;",
+};
+
+/**
+ * Escape XML special characters in a single regex pass.
+ * Five sequential .replace() calls (one per character class) were replaced with
+ * one pass using a character-class union and a lookup table, which measurably
+ * reduces allocations and scan cost on longer strings.
+ */
 function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  return str.replace(/[&<>"']/g, (c) => XML_ESC[c]);
 }
 
 /** Truncate a string to maxLen characters, appending "…" if truncated. */
@@ -282,24 +290,21 @@ function buildTagsSvg(
   const TAG_H = 24;
   const TAG_PAD_X = 10;
   const TAG_GAP = 8;
+  const CHAR_W = 7.5;
   const Y = 292;
 
   let x = 48;
-  const parts: string[] = [];
+  let out = "";
 
   for (const tag of tags) {
-    const charWidth = 7.5;
-    const tagW = tag.label.length * charWidth + TAG_PAD_X * 2;
-
-    parts.push(`
-    <rect x="${x}" y="${Y}" width="${tagW}" height="${TAG_H}" rx="6" fill="${tag.bg}" stroke="${tag.color}" stroke-width="0.5" stroke-opacity="0.4" />
-    <text x="${x + tagW / 2}" y="${Y + 15}" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="${tag.color}" text-anchor="middle" letter-spacing="0.3">${escapeXml(tag.label)}</text>`);
-
+    const tagW = tag.label.length * CHAR_W + TAG_PAD_X * 2;
+    out += `\n    <rect x="${x}" y="${Y}" width="${tagW}" height="${TAG_H}" rx="6" fill="${tag.bg}" stroke="${tag.color}" stroke-width="0.5" stroke-opacity="0.4" />` +
+      `\n    <text x="${x + tagW / 2}" y="${Y + 15}" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="${tag.color}" text-anchor="middle" letter-spacing="0.3">${escapeXml(tag.label)}</text>`;
     x += tagW + TAG_GAP;
-    if (x > W - 48) break; // prevent overflow
+    if (x > W - 48) break;
   }
 
-  return parts.join("\n");
+  return out;
 }
 
 // ─── Blob / File helpers ──────────────────────────────────────────────────────

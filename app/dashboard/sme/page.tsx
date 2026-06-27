@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PlusCircle, TrendingUp, FileText, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -9,15 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
 import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
-import { DashboardSkeleton } from "@/components/ui/skeleton";
+import { DashboardSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
-  BatchActionToolbar, 
-  BatchResultSummary 
+import {
+  BatchActionToolbar,
+  BatchResultSummary
 } from "@/components/dashboard/BatchActionToolbar";
-import { 
-  prepareCancelInvoice, 
-  submitAndConfirm 
+import {
+  prepareCancelInvoice,
+  submitAndConfirm,
+  fetchInvoicesByOwner,
 } from "@/services/invoiceService";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
@@ -32,7 +33,7 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { prepareRepayInvoice } from "@/services/invoiceService";
@@ -52,6 +53,78 @@ import type { ColumnDef } from "@/types/table";
 import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
+
+// ─── Skeleton for stats grid while data loads ─────────────────────────────────
+
+function StatsGridSkeleton() {
+  return (
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-28 rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+// ─── Stats grid — suspends until invoices are loaded ─────────────────────────
+
+function SMEStatsGrid({ address }: { address: string }) {
+  const { data: rawData } = useSuspenseQuery({
+    queryKey: queryKeys.invoices.byOwner(address),
+    queryFn: () => fetchInvoicesByOwner(address),
+    staleTime: 30_000,
+  });
+
+  const myInvoices: Invoice[] = (rawData ?? []).filter(
+    (inv: Invoice) => inv.ownerAddress === address
+  );
+
+  const stats = [
+    {
+      label: "Total Financed",
+      value: formatCurrency(myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0), "USDC", true),
+      change: "12.4% this month",
+      changePositive: true,
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Active Invoices",
+      value: myInvoices.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length.toString(),
+      icon: <FileText className="h-4 w-4" />,
+    },
+    {
+      label: "Pending Repayment",
+      value: formatCurrency(
+        myInvoices.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
+        "USDC",
+        true
+      ),
+      icon: <Clock className="h-4 w-4" />,
+    },
+    {
+      label: "Repayment Rate",
+      value: "100%",
+      change: "All-time",
+      changePositive: true,
+      icon: <CheckCircle2 className="h-4 w-4" />,
+    },
+  ];
+
+  return (
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {stats.map((stat, i) => (
+        <motion.div
+          key={stat.label}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.07 }}
+        >
+          <StatCard {...stat} />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
 
 
 export default function SMEDashboardPage() {
@@ -94,43 +167,6 @@ export default function SMEDashboardPage() {
       </div>
     );
   }
-  const STATS = [
-    {
-      label: "Total Financed",
-      value: formatCurrency(
-        myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0),
-        "USDC",
-        true
-      ),
-      valueRaw: myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0),
-      change: "12.4% this month",
-      changePositive: true,
-      icon: <TrendingUp className="h-4 w-4" />,
-    },
-    {
-      label: "Active Invoices",
-      value: myInvoices.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length.toString(),
-      valueRaw: myInvoices.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length,
-      icon: <FileText className="h-4 w-4" />,
-    },
-    {
-      label: "Pending Repayment",
-      value: formatCurrency(
-        myInvoices.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
-        "USDC",
-        true
-      ),
-      valueRaw: myInvoices.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
-      icon: <Clock className="h-4 w-4" />,
-    },
-    {
-      label: "Repayment Rate",
-      value: "100%",
-      change: "All-time",
-      changePositive: true,
-      icon: <CheckCircle2 className="h-4 w-4" />,
-    },
-  ];
 
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
@@ -310,18 +346,11 @@ export default function SMEDashboardPage() {
         </Link>
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {STATS.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07 }}
-          >
-            <StatCard {...stat} />
-          </motion.div>
-        ))}
-      </div>
+      {address && (
+        <Suspense fallback={<StatsGridSkeleton />}>
+          <SMEStatsGrid address={address} />
+        </Suspense>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">

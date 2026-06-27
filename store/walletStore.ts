@@ -127,3 +127,20 @@ export const useWalletStore = create<WalletStore>()(
     }
   )
 );
+
+// ── Granular selector hooks ───────────────────────────────────────────────────
+// Use these instead of subscribing to the full store. Each hook re-renders
+// its consumer only when its specific slice changes, preventing unrelated
+// store updates (e.g. balance polling) from cascading to the full Navbar.
+
+export const useWalletIsConnected = () =>
+  useWalletStore((s: WalletStore) => s.isConnected);
+
+export const useWalletAddress = () =>
+  useWalletStore((s: WalletStore) => s.address);
+
+export const useWalletBalance = () =>
+  useWalletStore((s: WalletStore) => s.balance);
+
+export const useWalletNetwork = () =>
+  useWalletStore((s: WalletStore) => s.network);
