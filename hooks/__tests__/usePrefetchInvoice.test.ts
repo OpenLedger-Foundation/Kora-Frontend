@@ -123,14 +123,14 @@ describe("usePrefetchInvoice", () => {
       return { id: "pending" };
     });
 
-    const { result } = renderHook(() => usePrefetchInvoice(), {
-      wrapper: createWrapper(),
-    });
+    const hooks = Array.from({ length: MAX_CONCURRENT_PREFETCHES + 2 }, () =>
+      renderHook(() => usePrefetchInvoice(), { wrapper: createWrapper() })
+    );
 
     act(() => {
-      for (let i = 1; i <= MAX_CONCURRENT_PREFETCHES + 2; i++) {
-        result.current.prefetch(`inv_${i}`);
-      }
+      hooks.forEach((hook, index) => {
+        hook.result.current.prefetch(`inv_${index + 1}`);
+      });
       vi.advanceTimersByTime(PREFETCH_DELAY_MS);
     });
 
