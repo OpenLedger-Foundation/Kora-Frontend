@@ -8,8 +8,13 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Format a number as a currency string.
- * Existing signature preserved: formatCurrency(amount, currency?, compact?)
- * Extended: formatCurrency(amount, currency?, compact?, locale?)
+ * Always uses USDC (or the provided currency label) as the symbol.
+ * The number is formatted according to the active locale.
+ *
+ * @param amount   - The numeric value to format (null/undefined → 0)
+ * @param currency - Currency label appended to the formatted number (default: "USDC")
+ * @param compact  - When true, abbreviates large numbers as K / M (default: false)
+ * @param locale   - BCP 47 locale string used for number formatting (default: "en-US")
  */
 export function formatCurrency(
   amount: number | null | undefined,
@@ -19,10 +24,18 @@ export function formatCurrency(
 ): string {
   const n = amount ?? 0;
   if (compact && Math.abs(n) >= 1_000_000) {
-    return `$${(n / 1_000_000).toFixed(1)}M ${currency}`;
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(n / 1_000_000);
+    return `${formatted}M ${currency}`;
   }
   if (compact && Math.abs(n) >= 1_000) {
-    return `$${(n / 1_000).toFixed(1)}K ${currency}`;
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(n / 1_000);
+    return `${formatted}K ${currency}`;
   }
   return (
     new Intl.NumberFormat(locale, {
