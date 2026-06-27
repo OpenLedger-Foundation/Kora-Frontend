@@ -450,14 +450,16 @@ function MarketplaceContent() {
     : data?.data ?? [];
 
   // Client-side Search filter
-  const filteredInvoices = debouncedSearchQuery
-    ? allInvoices.filter(
-        (inv) =>
-          inv.metadata.debtorName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.invoiceNumber.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      )
-    : allInvoices;
+  const filteredInvoices = useMemo(() => {
+    if (!debouncedSearchQuery) return allInvoices;
+    const query = debouncedSearchQuery.toLowerCase();
+    return allInvoices.filter(
+      (inv) =>
+        inv.metadata.debtorName.toLowerCase().includes(query) ||
+        inv.metadata.invoiceNumber.toLowerCase().includes(query) ||
+        inv.metadata.category.toLowerCase().includes(query)
+    );
+  }, [allInvoices, debouncedSearchQuery]);
 
   // Slice the filtered list for display
   const paginatedInvoices = useMemo<Invoice[]>(() => {

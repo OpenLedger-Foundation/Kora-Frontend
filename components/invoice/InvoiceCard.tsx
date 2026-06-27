@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, memo } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
@@ -67,7 +67,7 @@ function getFlagEmoji(countryCode: string) {
   }
 }
 
-export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
+export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
@@ -301,7 +301,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
       </motion.div>
     </Link>
   );
-}
+});
 
 export function InvoiceCardSkeleton() {
   return (
