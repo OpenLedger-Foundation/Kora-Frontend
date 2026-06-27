@@ -71,6 +71,7 @@ function localeToOgLocale(locale: Locale): string {
   const localeMap: Record<Locale, string> = {
     en: "en_US",
     es: "es_ES",
+    ar: "ar_SA",
   };
   return localeMap[locale] || "en_US";
 }

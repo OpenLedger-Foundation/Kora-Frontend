@@ -2,4 +2,7 @@ export * from "./walletStore";
 export * from "./invoiceStore";
 export * from "./uiStore";
 export * from "./transactionStore";
-export * from "./transactionHistoryStore";
+export { useTransactionHistoryStore } from "./transactionHistoryStore";
+export type {
+  TransactionRecord,
+} from "./transactionHistoryStore";
