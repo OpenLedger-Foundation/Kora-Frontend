@@ -69,7 +69,7 @@ export function LanguageSwitcher() {
           role="listbox"
           aria-label={t("label")}
           className={cn(
-            "absolute right-0 top-full z-50 mt-1.5 min-w-[130px]",
+            "absolute right-0 rtl:left-0 top-full z-50 mt-1.5 min-w-[130px]",
             "rounded-xl border border-border bg-background shadow-lg",
             "overflow-hidden py-1"
           )}
