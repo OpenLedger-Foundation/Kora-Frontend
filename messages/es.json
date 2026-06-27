@@ -538,5 +538,61 @@
     "en": "English",
     "es": "Español",
     "switchTo": "Cambiar a {lang}"
+  },
+  "validation": {
+    "invoiceNumber": {
+      "required": "El número de factura es requerido",
+      "invalid": "El número de factura debe contener solo caracteres alfanuméricos y guiones"
+    },
+    "debtorName": {
+      "required": "El nombre del deudor es requerido",
+      "minLength": "El nombre del deudor debe tener al menos 2 caracteres"
+    },
+    "debtorAddress": {
+      "required": "La dirección del deudor es requerida",
+      "minLength": "La dirección del deudor debe tener al menos 5 caracteres"
+    },
+    "amount": {
+      "positive": "El monto debe ser positivo",
+      "min": "Mínimo 100 USDC"
+    },
+    "dueDate": {
+      "required": "La fecha de vencimiento es requerida",
+      "afterIssueDate": "La fecha de vencimiento debe ser posterior a la fecha de emisión"
+    },
+    "description": {
+      "maxLength": "La descripción no puede exceder 200 caracteres"
+    },
+    "discountRate": {
+      "min": "Mín 0.5%",
+      "max": "Máx 20%"
+    },
+    "minInvestment": {
+      "positive": "La inversión mínima debe ser positiva",
+      "min": "Mín $100",
+      "exceedsAmount": "La inversión mínima no puede exceder el monto total de la factura"
+    },
+    "listingExpiryDate": {
+      "required": "La fecha de expiración del listado es requerida",
+      "beforeDueDate": "La fecha de expiración del listado debe ser estrictamente anterior a la fecha de vencimiento"
+    },
+    "file": {
+      "required": "El archivo es requerido",
+      "type": "Solo se permiten archivos PDF",
+      "size": "El tamaño del archivo no debe exceder 10MB"
+    },
+    "fundingAmount": {
+      "minInvestment": "El monto de financiamiento debe ser al menos el monto de inversión mínima",
+      "exceedsCapacity": "El monto de financiamiento no puede exceder la capacidad restante"
+    },
+    "repayment": {
+      "exactMatch": "El monto de pago debe coincidir exactamente con el saldo pendiente"
+    },
+    "userProfile": {
+      "nameMinLength": "El nombre debe tener al menos 2 caracteres",
+      "emailInvalid": "Dirección de correo electrónico inválida",
+      "companyNameMinLength": "El nombre de la empresa debe tener al menos 2 caracteres",
+      "walletAddressInvalid": "Formato de clave pública de Stellar inválido"
+    }
   }
 }

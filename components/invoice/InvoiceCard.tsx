@@ -149,7 +149,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
       <motion.div
         layoutId={`invoice-card-${invoice.id}`}
         className={cn(
-          "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg flex flex-col h-full justify-between",
+          "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background flex flex-col h-full justify-between",
           isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
         )}
         initial={{ opacity: 0, y: 16 }}
