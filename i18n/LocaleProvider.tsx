@@ -4,8 +4,8 @@
  * Client-side locale provider.
  *
  * Wraps next-intl's NextIntlClientProvider and handles:
- *  - Initial locale resolution (localStorage → browser → default)
- *  - Locale switching with localStorage persistence
+ *  - Initial locale resolution (cookie → browser → default)
+ *  - Locale switching with cookie persistence
  *  - Exposing `useLocale` and `useSetLocale` to the component tree
  */
 import React, {
@@ -18,7 +18,7 @@ import React, {
 } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { defaultLocale, locales, type Locale } from "./config";
-import { resolveLocale, setStoredLocale } from "./locale";
+import { resolveLocale, setCookieLocale } from "./locale";
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ export function LocaleProvider({ children, allMessages }: LocaleProviderProps) {
   const setLocale = useCallback((next: Locale) => {
     if (!locales.includes(next)) return;
     setLocaleState(next);
-    setStoredLocale(next);
+    setCookieLocale(next);
   }, []);
 
   const messages = allMessages[locale] ?? allMessages[defaultLocale];

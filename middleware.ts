@@ -1,46 +1,33 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { locales, defaultLocale } from "@/i18n/config";
+import {
+  LOCALE_COOKIE_NAME,
+  getLocaleCookieOptions,
+  resolveLocaleFromRequest,
+} from "@/i18n/locale";
 
 const PROTECTED = ["/invoice/create", "/dashboard/sme", "/dashboard/investor"];
-
-/**
- * Detect the best locale from the Accept-Language header.
- * Falls back to the default locale if no match is found.
- */
-function detectLocaleFromHeader(req: NextRequest): string {
-  const acceptLanguage = req.headers.get("accept-language") ?? "";
-  const preferred = acceptLanguage
-    .split(",")
-    .map((part) => part.split(";")[0].trim().split("-")[0].toLowerCase());
-
-  for (const lang of preferred) {
-    if (locales.includes(lang as (typeof locales)[number])) return lang;
-  }
-  return defaultLocale;
-}
+const isProduction = process.env.NODE_ENV === "production";
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
   // ── X-Request-ID (#277) ───────────────────────────────────────────────────
-  // Generate a unique request ID for every request. API routes read this from
-  // the incoming request header so they can include it in error response bodies.
   const requestId = crypto.randomUUID();
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-request-id", requestId);
 
-  // ── Locale cookie: set on first visit if not already present ──────────────
+  // ── Locale: read cookie for SSR, fall back to Accept-Language ─────────────
+  const acceptLanguage = req.headers.get("accept-language") ?? "";
+  const cookieValue = req.cookies.get(LOCALE_COOKIE_NAME)?.value;
+  const locale = resolveLocaleFromRequest(cookieValue, acceptLanguage);
+  requestHeaders.set("x-kora-locale", locale);
+
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("x-request-id", requestId);
 
-  if (!req.cookies.get("kora-locale")) {
-    const detected = detectLocaleFromHeader(req);
-    response.cookies.set("kora-locale", detected, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365, // 1 year
-      sameSite: "lax",
-    });
+  if (!cookieValue || cookieValue !== locale) {
+    response.cookies.set(LOCALE_COOKIE_NAME, locale, getLocaleCookieOptions(isProduction));
   }
 
   // ── Protected route guard ─────────────────────────────────────────────────
@@ -51,6 +38,13 @@ export function middleware(req: NextRequest) {
       url.searchParams.set("redirectTo", pathname + (search || ""));
       const redirect = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
       redirect.headers.set("x-request-id", requestId);
+      if (!cookieValue || cookieValue !== locale) {
+        redirect.cookies.set(
+          LOCALE_COOKIE_NAME,
+          locale,
+          getLocaleCookieOptions(isProduction)
+        );
+      }
       return redirect;
     }
   }
@@ -60,7 +54,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Apply to all routes so X-Request-ID is universal
     "/((?!_next/static|_next/image|favicon.ico|icons|wallets|manifest.json).*)",
   ],
 };
