@@ -18,6 +18,8 @@ import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { RiskBadge } from "@/components/ui/badge";
+import { prepareClaimPosition } from "@/services/invoiceService";
+import { useTransaction } from "@/hooks/useTransaction";
 import {
   formatCurrency,
   formatDate,
