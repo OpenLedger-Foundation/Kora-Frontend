@@ -16,6 +16,7 @@ import { useUIStore } from "@/store";
 import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/security";
+import { getWalletIconSvg, sanitizeSvg } from "@/lib/svgHelper";
 
 const WALLETS = [
   {
@@ -128,15 +129,23 @@ export function WalletConnectModal() {
         </DialogHeader>
 
         <AnimatePresence mode="wait">
-          {walletState === "success" ? (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="flex flex-col items-center justify-center py-8 gap-4"
-            >
-              {wallet && (
+          {walletState === "success" ? (() => {
+            const wallet = WALLETS.find((w) => w.id === activeWallet);
+            if (!wallet) return null;
+            const installed = wallet.isAvailable();
+            const i = WALLETS.indexOf(wallet);
+            const isConnecting = false;
+            const isSuccess = true;
+            const isError = false;
+
+            return (
+              <motion.div
+                key="success"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex flex-col items-center justify-center py-8 gap-4"
+              >
                 <motion.div
                   key={wallet.id}
                   initial={{ opacity: 0, x: -8 }}
@@ -149,13 +158,27 @@ export function WalletConnectModal() {
                     isError && "border-destructive/40 bg-destructive/5"
                   )}
                 >
-                  <Image
-                    src={wallet.icon}
-                    alt={wallet.name}
-                    width={32}
-                    height={32}
-                    className="shrink-0 rounded-lg"
-                  />
+                  {(() => {
+                    const svg = getWalletIconSvg(wallet.id);
+                    if (svg) {
+                      return (
+                        <div
+                          className="shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
+                          style={{ width: 32, height: 32 }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }}
+                        />
+                      );
+                    }
+                    return (
+                      <Image
+                        src={wallet.icon}
+                        alt={wallet.name}
+                        width={32}
+                        height={32}
+                        className="shrink-0 rounded-lg"
+                      />
+                    );
+                  })()}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-foreground">
@@ -217,7 +240,7 @@ export function WalletConnectModal() {
                           ref={i === 0 ? firstFocusRef : undefined}
                           type="button"
                           onClick={() => handleConnect(wallet.id)}
-                          disabled={walletState === "connecting"}
+                          disabled={isConnecting}
                           aria-label={`Connect ${wallet.name}`}
                           className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -237,18 +260,18 @@ export function WalletConnectModal() {
                   </div>
 
                 </motion.div>
-              )}
-              <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="text-center"
-              >
-                <p className="font-medium text-foreground">Wallet Connected!</p>
-                <p className="text-sm text-muted-foreground mt-1">Redirecting…</p>
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="text-center"
+                >
+                  <p className="font-medium text-foreground">Wallet Connected!</p>
+                  <p className="text-sm text-muted-foreground mt-1">Redirecting…</p>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          ) : (
+            );
+          })() : (
             <motion.div
               key="list"
               initial={{ opacity: 0 }}
@@ -275,13 +298,27 @@ export function WalletConnectModal() {
                       isError && "border-destructive/40 bg-destructive/5",
                     )}
                   >
-                    <Image
-                      src={wallet.icon}
-                      alt={wallet.name}
-                      width={32}
-                      height={32}
-                      className="shrink-0 rounded-lg"
-                    />
+                    {(() => {
+                      const svg = getWalletIconSvg(wallet.id);
+                      if (svg) {
+                        return (
+                          <div
+                            className="shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
+                            style={{ width: 32, height: 32 }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }}
+                          />
+                        );
+                      }
+                      return (
+                        <Image
+                          src={wallet.icon}
+                          alt={wallet.name}
+                          width={32}
+                          height={32}
+                          className="shrink-0 rounded-lg"
+                        />
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">{wallet.name}</span>

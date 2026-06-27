@@ -26,6 +26,77 @@ export const networkConfig = {
   horizonUrl: HORIZON_URL,
 };
 
+// ─── Sequence Manager ─────────────────────────────────────────────────────────
+
+export class SequenceManager {
+  // address → current local sequence number (as string to match StellarSdk)
+  private readonly counters = new Map<string, bigint>();
+  // address → in-progress reset promise (deduplicate concurrent resets)
+  private readonly resetPromises = new Map<string, Promise<bigint>>();
+
+  /**
+   * Returns a StellarSdk.Account whose sequence number is the next value to
+   * use. Increments the local counter optimistically so the next caller gets
+   * seq+1 without waiting for network confirmation.
+   */
+  async nextAccount(address: string): Promise<StellarSdk.Account> {
+    if (!this.counters.has(address)) {
+      // First use for this address — fetch from network and seed the counter.
+      await this.fetchAndSeed(address);
+    }
+
+    const seq = this.counters.get(address)!;
+    // Increment before returning so the *next* concurrent call gets seq+1.
+    this.counters.set(address, seq + 1n);
+
+    // StellarSdk.Account constructor takes the *current* (pre-increment) seq
+    // and internally adds 1 when building. So we pass seq (not seq+1).
+    return new StellarSdk.Account(address, seq.toString());
+  }
+
+  /**
+   * Reset the local counter from the network (authoritative value).
+   * Called after a tx_bad_seq error. Deduplicates concurrent calls so a
+   * flurry of failures only triggers one network request.
+   */
+  async reset(address: string): Promise<void> {
+    await this.fetchAndSeed(address);
+  }
+
+  /**
+   * Explicitly evict a counter (e.g. on wallet disconnect).
+   */
+  evict(address: string): void {
+    this.counters.delete(address);
+    this.resetPromises.delete(address);
+  }
+
+  // ── private ────────────────────────────────────────────────────────────────
+
+  private async fetchAndSeed(address: string): Promise<bigint> {
+    // Deduplicate: if a reset is already in-flight for this address, wait for
+    // it instead of launching a second network request.
+    const existing = this.resetPromises.get(address);
+    if (existing) return existing;
+
+    const promise = rpc
+      .getAccount(address)
+      .then((account) => {
+        const seq = BigInt(account.sequenceNumber());
+        this.counters.set(address, seq);
+        return seq;
+      })
+      .finally(() => {
+        this.resetPromises.delete(address);
+      });
+
+    this.resetPromises.set(address, promise);
+    return promise;
+  }
+}
+
+export const sequenceManager = new SequenceManager();
+
 // ─── USDC asset definition ────────────────────────────────────────────────────
 
 /**
@@ -468,6 +539,27 @@ export async function getContractEvents(
 }
 
 // ─── Transaction submission ───────────────────────────────────────────────────
+
+/** Error thrown when the network rejects a transaction due to a bad sequence number. */
+export class BadSequenceError extends Error {
+  constructor() {
+    super("tx_bad_seq");
+    this.name = "BadSequenceError";
+  }
+}
+
+/** Returns true if a Soroban RPC send result represents a tx_bad_seq failure. */
+export function isBadSeqResult(
+  result: StellarSdk.rpc.Api.SendTransactionResponse
+): boolean {
+  if (result.status !== "ERROR") return false;
+  // The error extras may contain result codes; check common shapes.
+  const extras = (result as unknown as { errorResultXdr?: string; extras?: { result_codes?: { transaction?: string } } }).extras;
+  const txCode = extras?.result_codes?.transaction ?? "";
+  // Also check errorResultXdr for tx_bad_seq if present
+  const xdr = (result as unknown as { errorResultXdr?: string }).errorResultXdr ?? "";
+  return txCode === "tx_bad_seq" || xdr.includes("txBAD_SEQ");
+}
 
 /**
  * Submit a signed XDR transaction to the Soroban RPC.
