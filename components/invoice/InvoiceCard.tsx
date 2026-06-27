@@ -83,7 +83,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Check if invoice is expired
-  const countdown = useCountdown(listingExpiry);
+  const countdown = useCountdown(listingExpiry ?? 0);
   const isExpired = countdown.isExpired || status === "cancelled";
 
   const handleMouseEnter = useCallback(() => {
@@ -246,7 +246,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               ) : (
                 <>
                   <Calendar className="h-3 w-3" />
-                  <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
+                  <CountdownTimer targetDate={listingExpiry ?? 0} compact className="ml-1" />
                 </>
               )}
             </span>

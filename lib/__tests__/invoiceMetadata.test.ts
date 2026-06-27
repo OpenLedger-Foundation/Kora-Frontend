@@ -37,7 +37,7 @@ const VALID_METADATA: InvoiceMetadataV1 = {
   currency: "USDC",
   due_date: "2025-03-01",
   issuer: {
-    address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
+    address: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
     name: "TechBridge Solutions Ltd",
   },
   debtor: {
@@ -374,7 +374,7 @@ describe("invoiceMetadataV1Schema — field formats", () => {
     const result = invoiceMetadataV1Schema.safeParse({
       ...VALID_METADATA,
       issuer: {
-        address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
+        address: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
       },
     });
     expect(result.success).toBe(true);
@@ -519,7 +519,7 @@ describe("buildInvoiceMetadata", () => {
     currency: "USDC",
     due_date: "2025-03-01",
     issuer: {
-      address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
+      address: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
       name: "TechBridge Solutions Ltd",
     },
     debtor: {
@@ -634,3 +634,49 @@ describe("METADATA_VERSION", () => {
     expect(typeof METADATA_VERSION).toBe("string");
   });
 });
+
+// ─── 8. XSS Sanitization ──────────────────────────────────────────────────────
+
+describe("XSS Payload Sanitization", () => {
+  const XSS_PAYLOADS = {
+    script: "<script>alert('xss')</script>",
+    img: "<img src=x onerror=alert(1)>",
+    onload: "<body onload=alert(1)>",
+    href: "<a href='javascript:alert(1)'>Click me</a>",
+  };
+
+  it("strips HTML and script tags from text fields", () => {
+    const dirtyMetadata: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      name: `Invoice ${XSS_PAYLOADS.script}`,
+      description: `Description ${XSS_PAYLOADS.img}`,
+      issuer: {
+        address: VALID_METADATA.issuer.address,
+        name: `Issuer ${XSS_PAYLOADS.onload}`,
+      },
+      debtor: {
+        name: `Debtor ${XSS_PAYLOADS.href}`,
+        address: `Address ${XSS_PAYLOADS.script}`,
+        privacy: "full",
+      },
+      attributes: [
+        { trait_type: `Trait ${XSS_PAYLOADS.script}`, value: `Value ${XSS_PAYLOADS.img}` },
+      ],
+    };
+
+    const result = validateInvoiceMetadata(dirtyMetadata);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const clean = result.data;
+      // All tags must be stripped
+      expect(clean.name).toBe("Invoice ");
+      expect(clean.description).toBe("Description ");
+      expect(clean.issuer.name).toBe("Issuer ");
+      expect(clean.debtor.name).toBe("Debtor Click me");
+      expect(clean.debtor.address).toBe("Address ");
+      expect(clean.attributes![0].trait_type).toBe("Trait ");
+      expect(clean.attributes![0].value).toBe("Value ");
+    }
+  });
+});
+

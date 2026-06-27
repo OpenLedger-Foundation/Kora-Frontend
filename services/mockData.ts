@@ -413,3 +413,12 @@ export const MOCK_SMES = generateSMEProfiles(10, MOCK_INVOICES, 222);
 export const MOCK_INVESTORS = generateInvestorProfiles(10, MOCK_INVOICES, 333);
 export const MOCK_TRANSACTIONS = generateTransactions(100, MOCK_INVOICES, 444);
 export const MOCK_ANALYTICS = generateAnalyticsSeries(90, 555);
+
+export const MOCK_STATS = {
+  totalVolumeFinanced: 48_200_000,
+  activeInvoices: 127,
+  totalInvestors: 843,
+  averageApr: 22.4,
+  defaultRate: 0.8,
+  totalSMEs: 312,
+};

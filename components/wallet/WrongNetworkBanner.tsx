@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 
 export function WrongNetworkBanner() {
   const { isConnected } = useWallet();
-  const { isWrongNetwork, hasPassphraseMismatch } = useWalletStore();
+  const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
   const [dismissed, setDismissed] = useState(false);
   
   // Reset dismissal when navigating or network state changes
@@ -30,7 +30,6 @@ export function WrongNetworkBanner() {
     futurenet: "Futurenet",
   };
 
-  const { network } = useWalletStore();
   const expectedNetwork = (env.NEXT_PUBLIC_STELLAR_NETWORK as typeof network) || "testnet";
 
   return (

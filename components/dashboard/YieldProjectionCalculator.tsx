@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { 
   calculateYieldProjection, 
@@ -114,34 +114,26 @@ export function YieldProjectionCalculator() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Risk Tier Preference</label>
-              <Select value={tier} onValueChange={setTier}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select tier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {RISK_TIERS.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      Tier {t} ({RISK_TIER_APR[t]}% APR)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Select
+                label="Risk Tier Preference"
+                value={tier}
+                onChange={setTier}
+                options={RISK_TIERS.map((t) => ({
+                  value: t,
+                  label: `Tier ${t} (${RISK_TIER_APR[t]}% APR)`,
+                }))}
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Horizon (Months)</label>
-              <Select value={horizon.toString()} onValueChange={(v) => setHorizon(Number(v))}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select horizon" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[3, 6, 12, 18, 24, 36].map((m) => (
-                    <SelectItem key={m} value={m.toString()}>
-                      {m} Months
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Select
+                label="Horizon (Months)"
+                value={horizon.toString()}
+                onChange={(v) => setHorizon(Number(v))}
+                options={[3, 6, 12, 18, 24, 36].map((m) => ({
+                  value: m.toString(),
+                  label: `${m} Months`,
+                }))}
+              />
             </div>
 
             <div className="rounded-lg bg-muted/50 p-4 space-y-3">

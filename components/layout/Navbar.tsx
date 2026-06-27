@@ -60,11 +60,11 @@ export function Navbar() {
 
   // Nav links defined inside component so labels are translated
   const NAV_LINKS = [
-    { href: "/marketplace", label: t("marketplace"), icon: Store },
-    { href: "/dashboard/investor", label: t("invest"), icon: BarChart3 },
-    { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard },
-    { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle },
-    { href: "/transactions", label: t("history"), icon: History },
+    { href: "/marketplace", label: t("marketplace"), icon: Store, shortcut: "G M" },
+    { href: "/dashboard/investor", label: t("invest"), icon: BarChart3, shortcut: "G D" },
+    { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard, shortcut: null },
+    { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle, shortcut: "G C" },
+    { href: "/transactions", label: t("history"), icon: History, shortcut: "G T" },
   ];
 
   // Close on route change
@@ -201,7 +201,7 @@ export function Navbar() {
               theme === "dark" ? t("switchToLight") : t("switchToDark")
             }
           >
-            {resolvedTheme === "dark" ? (
+            {theme === "dark" ? (
               <Sun className="h-5 w-5" aria-hidden="true" />
             ) : (
               <Moon className="h-5 w-5" aria-hidden="true" />
