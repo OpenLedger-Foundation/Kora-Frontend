@@ -23,9 +23,20 @@ const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 // CID v0 (Qm...) or CID v1 (bafy...)
 const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
 
+export function isValidCID(cid: string): boolean {
+  return CID_REGEX.test(cid);
+}
+
+export class InvalidCIDError extends Error {
+  constructor(cid: string) {
+    super(`Invalid IPFS CID: ${cid}`);
+    this.name = "InvalidCIDError";
+  }
+}
+
 export function validateCid(cid: string): void {
-  if (!CID_REGEX.test(cid)) {
-    throw new Error(`Invalid IPFS CID: ${cid}`);
+  if (!isValidCID(cid)) {
+    throw new InvalidCIDError(cid);
   }
 }
 
@@ -124,6 +135,7 @@ export async function uploadInvoiceToIPFS(
 
 /** Build a public IPFS gateway URL from a CID. */
 export function ipfsUrl(cid: string): string {
+  validateCid(cid);
   return `${IPFS_GATEWAY}/${cid}`;
 }
 

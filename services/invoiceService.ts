@@ -15,7 +15,7 @@ import type {
   InvoiceStatus,
 } from "@/types";
 import { MOCK_INVOICES } from "./mockData";
-import { uploadFileToPinata, uploadInvoiceMetadata } from "@/lib/ipfs";
+import { uploadFileToPinata, uploadInvoiceMetadata, isValidCID } from "@/lib/ipfs";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
@@ -180,7 +180,7 @@ class MockInvoiceService implements IInvoiceService {
   async getIpfsMetadata(cid: string): Promise<Result<Record<string, unknown>>> {
     try {
       const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY;
-      if (!/^[a-zA-Z0-9+/=_-]{10,100}$/.test(cid)) {
+      if (!isValidCID(cid)) {
         return failure("INVALID_CID", "Invalid IPFS CID format");
       }
       const res = await fetch(`${gateway}/${cid}`, { signal: AbortSignal.timeout(10_000) });
@@ -327,7 +327,7 @@ class LiveInvoiceService implements IInvoiceService {
   async getIpfsMetadata(cid: string): Promise<Result<Record<string, unknown>>> {
     try {
       const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY;
-      if (!/^[a-zA-Z0-9+/=_-]{10,100}$/.test(cid)) {
+      if (!isValidCID(cid)) {
         return failure("INVALID_CID", "Invalid IPFS CID format");
       }
       const res = await fetch(`${gateway}/${cid}`, { signal: AbortSignal.timeout(10_000) });

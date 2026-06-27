@@ -2,6 +2,7 @@
  * Security utilities: XSS prevention, URL validation, input sanitization,
  * and Stellar wallet-based upload request signing (Issue #275).
  */
+import { isValidCID } from "./ipfs";
 
 // ─── Upload Request Signing (#275) ────────────────────────────────────────────
 
@@ -162,12 +163,11 @@ export function safeExternalUrl(url: string | undefined | null): string {
 
 /**
  * Builds a safe IPFS gateway URL from a CID.
- * Validates the CID contains only alphanumeric chars and allowed IPFS chars.
+ * Validates the CID format (v0/v1) before constructing the URL.
  */
 export function safeIpfsUrl(cid: string | undefined | null, gateway?: string): string {
   if (!cid) return "#";
-  // IPFS CIDs: base58 (v0) or base32 (v1) — alphanumeric + limited punctuation
-  if (!/^[a-zA-Z0-9+/=_-]{10,100}$/.test(cid)) return "#";
+  if (!isValidCID(cid)) return "#";
   const gw = gateway || "https://gateway.pinata.cloud/ipfs";
   return `${gw}/${cid}`;
 }
