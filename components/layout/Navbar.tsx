@@ -60,11 +60,11 @@ export function Navbar() {
 
   // Nav links defined inside component so labels are translated
   const NAV_LINKS = [
-    { href: "/marketplace", label: t("marketplace"), icon: Store },
-    { href: "/dashboard/investor", label: t("invest"), icon: BarChart3 },
-    { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard },
-    { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle },
-    { href: "/transactions", label: t("history"), icon: History },
+    { href: "/marketplace", label: t("marketplace"), icon: Store, shortcut: "G M" },
+    { href: "/dashboard/investor", label: t("invest"), icon: BarChart3, shortcut: "G D" },
+    { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard, shortcut: null },
+    { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle, shortcut: "G C" },
+    { href: "/transactions", label: t("history"), icon: History, shortcut: "G T" },
   ];
 
   // Close on route change
@@ -140,12 +140,12 @@ export function Navbar() {
                             ? "analytics-link"
                             : undefined
                 }
-                className={cn(
-                  "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground/80"
-                )}
+            className={cn(
+              "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              active
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground/80"
+            )}
               >
                 {active && (
                   <motion.span
@@ -171,7 +171,7 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}
-            className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label="Open command palette (Ctrl+K)"
           >
             <Search className="h-3.5 w-3.5" aria-hidden="true" />
@@ -183,7 +183,7 @@ export function Navbar() {
           <button
             type="button"
             onClick={() => setCommandPaletteOpen(true)}
-            className="flex sm:hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex sm:hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label="Open command palette"
           >
             <Search className="h-5 w-5" aria-hidden="true" />
@@ -196,12 +196,12 @@ export function Navbar() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label={
               theme === "dark" ? t("switchToLight") : t("switchToDark")
             }
           >
-            {resolvedTheme === "dark" ? (
+            {theme === "dark" ? (
               <Sun className="h-5 w-5" aria-hidden="true" />
             ) : (
               <Moon className="h-5 w-5" aria-hidden="true" />
@@ -232,7 +232,7 @@ export function Navbar() {
 
           <button
             onClick={() => setAddressBookOpen(true)}
-            className="hidden rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground md:block"
+            className="hidden rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground md:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             {t("addressBook")}
           </button>
@@ -244,7 +244,7 @@ export function Navbar() {
           {/* Hamburger — mobile only */}
           <button
             type="button"
-            className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
             onClick={() => setMobileOpen((v) => !v)}
             aria-label={mobileOpen ? t("closeMenu") : t("openMenu")}
             aria-expanded={mobileOpen}
@@ -294,7 +294,7 @@ export function Navbar() {
                                 : undefined
                     }
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors",
+                      "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       active
                         ? "bg-muted text-foreground"
                         : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"

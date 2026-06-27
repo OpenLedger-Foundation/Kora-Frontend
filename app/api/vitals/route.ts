@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 /**
  * POST /api/vitals
@@ -59,11 +60,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Log to server console (visible in Vercel Function logs)
     for (const metric of sanitised) {
-      const ratingIcon =
-        metric.rating === "good" ? "✅" : metric.rating === "needs-improvement" ? "⚠️" : "❌";
-      console.log(
-        `[vitals] ${ratingIcon} ${metric.name.padEnd(4)} = ${String(metric.value).padStart(6)} | ${metric.rating.padEnd(18)} | ${metric.url}`
-      );
+      logger.info(`Web vital report: ${metric.name}`, {
+        requestId,
+        route: "/api/vitals",
+        metricName: metric.name,
+        metricValue: metric.value,
+        metricId: metric.id,
+        rating: metric.rating,
+        url: metric.url,
+      });
     }
 
     // TODO: forward to your analytics backend, e.g.:
@@ -71,7 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return new NextResponse(null, { status: 204 });
   } catch (err) {
-    console.error("[vitals] parse error", requestId, err);
+    logger.error("[vitals] parse error", { requestId, route: "/api/vitals", error: err });
     return NextResponse.json({ error: "Bad request", requestId }, { status: 400 });
   }
 }

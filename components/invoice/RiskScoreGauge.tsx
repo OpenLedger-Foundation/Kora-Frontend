@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { animate, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, Tooltip } from "recharts";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,7 @@ const RISK_BANDS = [
     range: "0–33",
     dot: "bg-green-700 dark:bg-green-500",
     text: "text-green-800 dark:text-green-300",
+    icon: ShieldCheck,
     description:
       "Strong repayment history, stable debtor finances, complete verification, and comfortable collateral coverage.",
   },
@@ -51,6 +52,7 @@ const RISK_BANDS = [
     range: "34–66",
     dot: "bg-yellow-600 dark:bg-yellow-400",
     text: "text-yellow-800 dark:text-yellow-200",
+    icon: ShieldAlert,
     description:
       "Mixed payment history, moderate concentration or tenor, and financial indicators that need closer review.",
   },
@@ -60,6 +62,7 @@ const RISK_BANDS = [
     range: "67–100",
     dot: "bg-red-700 dark:bg-red-500",
     text: "text-red-800 dark:text-red-300",
+    icon: ShieldX,
     description:
       "Weak or limited repayment history, elevated debtor exposure, verification gaps, or low collateral coverage.",
   },
@@ -174,6 +177,7 @@ export function RiskScoreGauge({
         <div className="grid gap-2 sm:grid-cols-3">
           {RISK_BANDS.map((band) => {
             const shown = (hoveredBand ?? selectedBand) === band.id;
+            const BandIcon = band.icon;
             return (
               <div key={band.id} className="relative">
                 <button
@@ -198,6 +202,8 @@ export function RiskScoreGauge({
                     className={cn("h-3 w-3 shrink-0 rounded-full", band.dot)}
                     aria-hidden="true"
                   />
+                  {/* Icon supplements color — satisfies WCAG 1.4.1 */}
+                  <BandIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>
                     <span className="block font-semibold">{band.label}</span>
                     <span className="text-muted-foreground">{band.range}</span>

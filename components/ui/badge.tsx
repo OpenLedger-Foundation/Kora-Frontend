@@ -2,6 +2,7 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cva, type VariantProps } from "class-variance-authority";
 import { motion } from "framer-motion";
+import { ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Badge ────────────────────────────────────────────────────────────────────
@@ -48,6 +49,8 @@ interface TierConfig {
   description: string;
   scoreRange: string;
   className: string;
+  /** Icon that accompanies the color, ensuring color is not the sole means of conveying the tier (WCAG 1.4.1) */
+  icon: React.ElementType;
 }
 
 const TIER_CONFIG: Record<AnyRiskTier, TierConfig> = {
@@ -57,24 +60,28 @@ const TIER_CONFIG: Record<AnyRiskTier, TierConfig> = {
     description: "Low risk — strong repayment history and creditworthiness.",
     scoreRange: "75–100",
     className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
+    icon: ShieldCheck,
   },
   B: {
     label: "B",
     description: "Moderate risk — generally reliable with minor concerns.",
     scoreRange: "50–74",
     className: "border-teal-500/30 bg-teal-500/10 text-teal-400",
+    icon: ShieldAlert,
   },
   C: {
     label: "C",
     description: "Elevated risk — some repayment uncertainty.",
     scoreRange: "25–49",
     className: "border-amber-500/30 bg-amber-500/10 text-amber-400",
+    icon: ShieldAlert,
   },
   D: {
     label: "D",
     description: "High risk — significant default probability. Proceed with caution.",
     scoreRange: "0–24",
     className: "border-red-500/30 bg-red-500/10 text-red-400",
+    icon: ShieldX,
   },
   // Extended tiers (existing codebase)
   AAA: {
@@ -82,30 +89,35 @@ const TIER_CONFIG: Record<AnyRiskTier, TierConfig> = {
     description: "Exceptional quality — highest creditworthiness.",
     scoreRange: "95–100",
     className: "border-emerald-400/30 bg-emerald-400/10 text-emerald-400",
+    icon: ShieldCheck,
   },
   AA: {
     label: "AA",
     description: "Very high quality — very low credit risk.",
     scoreRange: "85–94",
     className: "border-teal-400/30 bg-teal-400/10 text-teal-400",
+    icon: ShieldCheck,
   },
   BBB: {
     label: "BBB",
     description: "Medium grade — adequate capacity to meet obligations.",
     scoreRange: "55–69",
     className: "border-yellow-400/30 bg-yellow-400/10 text-yellow-400",
+    icon: ShieldAlert,
   },
   BB: {
     label: "BB",
     description: "Speculative — faces ongoing uncertainties.",
     scoreRange: "40–54",
     className: "border-orange-400/30 bg-orange-400/10 text-orange-400",
+    icon: ShieldAlert,
   },
   CCC: {
     label: "CCC",
     description: "Very high risk — currently vulnerable to non-payment.",
     scoreRange: "0–24",
     className: "border-red-600/30 bg-red-600/10 text-red-500",
+    icon: ShieldX,
   },
 };
 
@@ -126,6 +138,7 @@ function RiskBadgeInner(
 ) {
   const config = TIER_CONFIG[tier] ?? TIER_CONFIG["D"];
   const highRisk = isHighRisk(tier);
+  const TierIcon = config.icon;
 
   const badge = (
     <div
@@ -133,7 +146,7 @@ function RiskBadgeInner(
       role="status"
       aria-label={`Risk tier ${config.label}: ${config.description} Score range ${config.scoreRange}`}
       className={cn(
-        "relative inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold",
+        "relative inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-semibold",
         config.className,
         className
       )}
@@ -148,6 +161,8 @@ function RiskBadgeInner(
           transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
         />
       )}
+      {/* Icon ensures color is not sole means of conveying tier (WCAG 1.4.1) */}
+      <TierIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
       <span className="relative">{config.label}</span>
     </div>
   );

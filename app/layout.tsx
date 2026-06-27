@@ -11,6 +11,7 @@ import { env } from "@/lib/env";
 import { websiteSchema, organizationSchema, serializeSchema } from "@/lib/structuredData";
 import { handleWebVital } from "@/lib/webVitals";
 import { WebVitalsPanel as WebVitalsPanelClient } from "@/components/dev/WebVitalsPanel";
+import { defaultLocale, locales, type Locale } from "@/i18n/config";
 
 const WebVitalsPanel =
   process.env.NODE_ENV === "development"
@@ -49,6 +50,31 @@ const geistMono = JetBrains_Mono({
   preload: false, // mono font is not LCP-critical; defer to reduce initial load
 });
 
+/**
+ * Generate hreflang alternate URLs for all supported locales.
+ */
+function generateHreflangAlternates(pathname: string = "/") {
+  const alternates: Record<string, string> = {};
+  
+  for (const locale of locales) {
+    const localePath = locale === defaultLocale ? pathname : `/${locale}${pathname}`;
+    alternates[locale] = `${env.NEXT_PUBLIC_APP_URL}${localePath}`;
+  }
+  
+  return alternates;
+}
+
+/**
+ * Map locale code to OpenGraph locale format.
+ */
+function localeToOgLocale(locale: Locale): string {
+  const localeMap: Record<Locale, string> = {
+    en: "en_US",
+    es: "es_ES",
+  };
+  return localeMap[locale] || "en_US";
+}
+
 // ─── Site-wide metadata ───────────────────────────────────────────────────────
 // Per-page metadata is exported from each page's layout or page file.
 // The `template` ensures every page title follows "Page Name | Kora Protocol".
@@ -83,6 +109,7 @@ export const metadata: Metadata = {
   // Canonical URL — Next.js uses metadataBase + path automatically
   alternates: {
     canonical: "/",
+    languages: generateHreflangAlternates(),
   },
 
   // Robots: index all pages, follow links
@@ -101,7 +128,7 @@ export const metadata: Metadata = {
   // Open Graph
   openGraph: {
     type: "website",
-    locale: "en_US",
+    locale: localeToOgLocale(defaultLocale),
     url: "/",
     siteName: "Kora Protocol",
     title: "Kora Protocol — On-Chain Invoice Financing",
@@ -175,16 +202,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} bg-background antialiased`}>
+        {/* Skip link — must be first focusable element; meets WCAG 2.1 AA (2.4.1) */}
         <a
-          href="#content"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-foreground"
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[9999] focus:rounded-md focus:bg-zinc-900 focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-zinc-900"
         >
-          Skip to content
+          Skip to main content
         </a>
         <Providers>
           <Navbar />
           <WrongNetworkBanner />
-          <main id="content" className="min-h-screen">
+          <main id="main-content" className="min-h-screen">
             <PageTransition>{children}</PageTransition>
           </main>
           <WebVitalsPanel />

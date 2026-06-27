@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 export interface FeedbackPayload {
   type: "bug" | "feature" | "other";
@@ -40,13 +41,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     // ── Console log (always) ──────────────────────────────────────────────────
-    console.log("[feedback]", {
-      type: body.type,
+    logger.info("Feedback received", {
+      requestId,
+      route: "/api/feedback",
+      feedbackType: body.type,
       title: body.title,
       description: body.description,
       context: body.context,
       hasScreenshot: Boolean(body.screenshot),
-      ts: new Date().toISOString(),
     });
 
     // ── Optional: GitHub Issues API ───────────────────────────────────────────
@@ -93,17 +95,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (!ghRes.ok) {
         const err = await ghRes.text();
-        console.error("[feedback] GitHub Issues API error:", err);
+        logger.error("GitHub Issues API error", { requestId, route: "/api/feedback", error: err });
         // Don't fail the user request — log and continue
       } else {
         const issue = await ghRes.json();
-        console.log("[feedback] GitHub issue created:", issue.html_url);
+        logger.info("GitHub issue created", { requestId, route: "/api/feedback", issueUrl: issue.html_url });
       }
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[feedback] error", requestId, (err as Error).message);
+    logger.error("Feedback submission error", { requestId, route: "/api/feedback", error: err });
     return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
 }

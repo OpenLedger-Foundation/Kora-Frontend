@@ -16,7 +16,7 @@ export async function exportPdf(elementId: string, filename: string): Promise<vo
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line
     const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
       import("html2canvas" as any),
       import("jspdf" as any),

@@ -202,6 +202,10 @@ interface InvoiceStore {
   _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
+  // Marketplace page aliases
+  sortBy: string;
+  setSortBy: (sortBy: string) => void;
+  updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
 
   /** Toggle an invoice in/out of the comparison list (max 3) */
   toggleComparison: (id: string) => void;
@@ -257,7 +261,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
         set({ filters: DEFAULT_FILTERS, searchQuery: "", sortBy: "apr_desc" }),
 
       setSort: (sort) =>
-        set((s) => ({ sort: { ...s.sort, ...sort } })),
+        set((s) => ({ sort: { ...s.sort, ...sort }, sortBy: sort.sortBy ?? s.sort.sortBy })),
 
       setSortBy: (sortBy) => set({ sortBy }),
 
@@ -278,6 +282,11 @@ export const useInvoiceStore = create<InvoiceStore>()(
       },
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
+
+      // Marketplace page aliases
+      sortBy: DEFAULT_SORT.sortBy,
+      setSortBy: (sortBy) => set((s) => ({ sort: { ...s.sort, sortBy: sortBy as SortState["sortBy"] }, sortBy: sortBy as SortState["sortBy"] })),
+      updateSingleFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
 
       /** Optimistic update — instantly reflects new funding amount in UI */
       updateInvoiceFunding: (id, newAmount) =>

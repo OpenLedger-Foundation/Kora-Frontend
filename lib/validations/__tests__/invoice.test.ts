@@ -55,6 +55,7 @@ describe("invoiceDetailsStepSchema", () => {
     dueDate: "2026-12-01",
     jurisdiction: "US",
     category: "technology",
+    debtorPrivacy: "full" as const,
   };
 
   it("accepts a fully valid object", () => {
@@ -179,7 +180,7 @@ describe("invoiceDetailsStepSchema", () => {
 // ─── INVOICE_DETAILS_STEP_FIELDS ──────────────────────────────────────────────
 
 describe("INVOICE_DETAILS_STEP_FIELDS", () => {
-  it("contains all 8 expected field names", () => {
+  it("contains all 9 expected field names", () => {
     expect(INVOICE_DETAILS_STEP_FIELDS).toEqual([
       "invoiceNumber",
       "debtorName",
@@ -189,6 +190,7 @@ describe("INVOICE_DETAILS_STEP_FIELDS", () => {
       "description",
       "jurisdiction",
       "category",
+      "debtorPrivacy",
     ]);
   });
 });
@@ -265,15 +267,15 @@ describe("financingTermsSchema", () => {
   });
 
   it("passes cross-field check when listingExpiryDate or dueDate is empty", () => {
-    // Both empty → refinement returns true (guard clause)
-    expectSuccess(financingTermsSchema, {
+    // Both empty → refinement returns true, but base field validation fails on required fields
+    expectFailure(financingTermsSchema, {
       ...base,
       listingExpiryDate: "",
       dueDate: "",
       discountRate: 5,
       minInvestment: 100,
       amount: 50000,
-    });
+    }, "dueDate");
   });
 });
 
@@ -528,6 +530,7 @@ describe("createInvoiceSchema", () => {
     discountRate: 5,
     minInvestment: 1000,
     listingExpiryDate: "2024-12-01",
+    debtorPrivacy: "full" as const,
   };
 
   it("accepts a fully valid invoice", () => {
@@ -570,11 +573,11 @@ describe("createInvoiceSchema", () => {
   });
 
   it("passes dueDate/issueDate check when either is empty (guard clause)", () => {
-    expectSuccess(createInvoiceSchema, {
+    expectFailure(createInvoiceSchema, {
       ...base,
       issueDate: "",
       dueDate: "",
-    });
+    }, "issueDate");
   });
 
   // cross-field: minInvestment <= amount
@@ -602,12 +605,12 @@ describe("createInvoiceSchema", () => {
   });
 
   it("passes listingExpiryDate check when either date is empty (guard clause)", () => {
-    expectSuccess(createInvoiceSchema, {
+    expectFailure(createInvoiceSchema, {
       ...base,
       listingExpiryDate: "",
       dueDate: "",
       issueDate: "",
-    });
+    }, "listingExpiryDate");
   });
 
   // discountRate boundaries

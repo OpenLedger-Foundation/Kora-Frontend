@@ -186,7 +186,6 @@ export function TxSimulationPreview({
                   </div>
                   <div className="text-right text-xs text-muted-foreground">
                     <p>{preview.feeStroops.toLocaleString()} stroops</p>
-                    <p>{preview.resourceFee.toLocaleString()} resource stroops</p>
                   </div>
                 </div>
               </div>

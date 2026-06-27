@@ -4,23 +4,45 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWalletStore } from "@/store";
+import { isValidStellarAddress } from "@/lib/utils";
 
 export function AddressBook({ onClose }: { onClose?: () => void }) {
   const { addressBook, addAddressBookEntry, updateAddressBookEntry, removeAddressBookEntry } = useWalletStore();
   const [addr, setAddr] = useState("");
   const [label, setLabel] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleBlur = () => {
+    if (!addr) {
+      setError(null);
+      return;
+    }
+    if (!isValidStellarAddress(addr)) {
+      setError("Invalid Stellar address format");
+    } else {
+      setError(null);
+    }
+  };
+
+  const handleAddrChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAddr(e.target.value);
+    if (error) {
+      setError(null);
+    }
+  };
 
   const add = () => {
     if (!addr) return;
-    // basic stellar address validation: starts with G and length 56
-    if (!/^G[A-Z2-7]{55}$/i.test(addr)) {
-      alert("Invalid Stellar address");
+    if (!isValidStellarAddress(addr)) {
+      setError("Invalid Stellar address format");
       return;
     }
     addAddressBookEntry(addr, label);
     setAddr("");
     setLabel("");
+    setError(null);
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -52,7 +74,13 @@ export function AddressBook({ onClose }: { onClose?: () => void }) {
         </div>
 
         <div className="mt-4 grid gap-2">
-          <Input placeholder="Stellar address (G...)" value={addr} onChange={(e) => setAddr(e.target.value)} />
+          <Input 
+            placeholder="Stellar address (G...)" 
+            value={addr} 
+            onChange={handleAddrChange} 
+            onBlur={handleBlur}
+            error={error || undefined}
+          />
           <Input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
           <div className="flex justify-end">
             <Button onClick={add}>Add to Address Book</Button>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { fetchInvoiceById } from "@/services/invoiceService";
+import { isValidCID } from "@/lib/ipfs";
 import {
   invoiceFinancialProductSchema,
   breadcrumbSchema,
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
 
   const image =
     invoice.metadata.documentUrl ||
-    (invoice.metadata.documentHash
+    (invoice.metadata.documentHash && isValidCID(invoice.metadata.documentHash)
       ? `${process.env.NEXT_PUBLIC_IPFS_GATEWAY}/${invoice.metadata.documentHash}`
       : undefined);
 
