@@ -158,6 +158,18 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Docker (Alternative)
+
+If you prefer Docker, run:
+
+```bash
+cp .env.example .env.local
+# Edit .env.local with your values
+docker compose up
+```
+
+The app will be available at [http://localhost:3000](http://localhost:3000) with hot reload enabled.
+
 ### Quick Start with Mock Data
 
 The app ships with mock data enabled by default (`NEXT_PUBLIC_ENABLE_MOCK_DATA=true`). You can browse the marketplace, view invoice details, and explore dashboards without a live Soroban connection.

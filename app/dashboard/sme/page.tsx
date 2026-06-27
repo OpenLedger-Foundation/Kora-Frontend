@@ -11,10 +11,11 @@ import { Progress } from "@/components/ui/progress";
 import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
-  BatchActionToolbar, 
-  BatchResultSummary 
+import {
+  BatchActionToolbar,
+  BatchResultSummary
 } from "@/components/dashboard/BatchActionToolbar";
+import { isEnabled } from "@/lib/featureFlags";
 import { 
   prepareCancelInvoice, 
   submitAndConfirm 
@@ -480,14 +481,16 @@ export default function SMEDashboardPage() {
         }
       />
 
-      <BatchActionToolbar
-        selectedCount={selectedIds.length}
-        onCancel={handleBatchCancel}
-        onExport={handleBatchExport}
-        isProcessing={isBatchProcessing}
-        progress={batchProgress}
-        processingLabel={`Cancelling ${selectedIds.length} invoices...`}
-      />
+      {isEnabled("batch-actions") && (
+        <BatchActionToolbar
+          selectedCount={selectedIds.length}
+          onCancel={handleBatchCancel}
+          onExport={handleBatchExport}
+          isProcessing={isBatchProcessing}
+          progress={batchProgress}
+          processingLabel={`Cancelling ${selectedIds.length} invoices...`}
+        />
+      )}
 
       <Dialog open={!!batchResults} onOpenChange={(open) => !open && setBatchResults(null)}>
         <DialogContent>

@@ -32,6 +32,7 @@ import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
+import { isEnabled } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 
@@ -771,7 +772,7 @@ function MarketplaceContent() {
       </BottomSheet>
 
       {/* Fixed comparison bar — renders above the page when invoices are selected */}
-      <ComparisonBar />
+      {isEnabled("comparison") && <ComparisonBar />}
     </Container>
   );
 }

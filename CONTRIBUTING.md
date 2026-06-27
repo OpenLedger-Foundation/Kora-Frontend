@@ -68,7 +68,14 @@ cp .env.example .env.local
 
 # 6. Start the dev server
 npm run dev
+
+# — or use Docker —
+docker compose up
 ```
+
+### Bundle Size Tracking
+
+We use `bundlesize` to prevent bundle regressions. The CI workflow runs `npx bundlesize` on every PR. If you need to update the size limits (e.g. after adding a justified new dependency), edit the `"bundlesize"` section in `package.json`.
 
 ---
 
