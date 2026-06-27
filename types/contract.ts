@@ -53,6 +53,7 @@ export type ServiceErrorCode =
   | "UNSUPPORTED_MEDIA_TYPE"
   | "VALIDATION_FAILED"
   | "INVALID_RESPONSE"
+  | "CONTRACT_ERROR"
   | "UNKNOWN_ERROR";
 
 export interface ServiceError {

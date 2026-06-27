@@ -252,10 +252,6 @@ interface InvoiceStore {
   _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
-  // Marketplace page aliases
-  sortBy: string;
-  setSortBy: (sortBy: string) => void;
-  updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
 
   /** Toggle an invoice in/out of the comparison list (max 3) */
   toggleComparison: (id: string) => void;
@@ -313,7 +309,11 @@ export const useInvoiceStore = create<InvoiceStore>()(
       setSort: (sort) =>
         set((s) => ({ sort: { ...s.sort, ...sort }, sortBy: sort.sortBy ?? s.sort.sortBy })),
 
-      setSortBy: (sortBy) => set({ sortBy }),
+      setSortBy: (sortBy) =>
+        set((s) => ({
+          sort: { ...s.sort, sortBy: sortBy.split("_")[0] as SortState["sortBy"] },
+          sortBy,
+        })),
 
       setSearchQuery: (searchQuery) =>
         set((s) => {
@@ -332,11 +332,6 @@ export const useInvoiceStore = create<InvoiceStore>()(
       },
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
-
-      // Marketplace page aliases
-      sortBy: DEFAULT_SORT.sortBy,
-      setSortBy: (sortBy) => set((s) => ({ sort: { ...s.sort, sortBy: sortBy as SortState["sortBy"] }, sortBy: sortBy as SortState["sortBy"] })),
-      updateSingleFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
 
       /** Optimistic update — instantly reflects new funding amount in UI */
       updateInvoiceFunding: (id, newAmount) =>
@@ -393,7 +388,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const prev = s.invoices.find((i) => i.id === id);
           const backup = prev ? { status: prev.status } : undefined;
           const invoices = s.invoices.map((inv) =>
-            inv.id === id ? { ...inv, status } : inv
+            inv.id === id ? ({ ...inv, status } as Invoice) : inv
           );
           return {
             invoices,
@@ -406,7 +401,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const backup = s._statusBackup?.[id];
           if (!backup) return {};
           const invoices = s.invoices.map((inv) =>
-            inv.id === id ? { ...inv, status: backup.status } : inv
+            inv.id === id ? ({ ...inv, status: backup.status } as Invoice) : inv
           );
           const nextBackup = { ...(s._statusBackup || {}) };
           delete nextBackup[id];

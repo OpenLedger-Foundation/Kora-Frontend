@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { WalletBalance, WalletNetwork, WalletProvider, WalletState } from "@/types";
+import type { WalletBalance, WalletNetwork, WalletProvider } from "@/types";
 import { env } from "@/lib/env";
 
 const EMPTY_BALANCE: WalletBalance = {
@@ -13,8 +13,14 @@ function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
 
-type WalletStoreState = WalletState & {
+type WalletStoreState = {
+  status: "disconnected" | "connecting" | "connected";
+  address: string | null;
+  publicKey: string | null;
   isConnected: boolean;
+  provider: WalletProvider | null;
+  network: WalletNetwork;
+  balance: WalletBalance | null;
   isVerified: boolean;
   verifiedAt: number | null;
   addressBook: { id: string; address: string; label: string }[];

@@ -113,52 +113,52 @@ export function createLocalizedErrorMap(locale: Locale) {
   const messages = getValidationMessages(locale);
 
   return (
-    error: z.ZodError,
+    issue: z.ZodIssue,
     ctx: z.ErrorMapCtx
   ): { message: string } => {
-    const code = error.code;
+    const code = issue.code;
 
     // Handle custom error messages first
-    if (error.message) {
-      return { message: error.message };
+    if (issue.message) {
+      return { message: issue.message };
     }
 
     // Map Zod error codes to our localized messages
     switch (code) {
       case "too_small":
-        if (error.path.join(".") === "amount") {
+        if (issue.path.join(".") === "amount") {
           return { message: messages.amountMin };
         }
-        if (error.path.join(".") === "minInvestment") {
+        if (issue.path.join(".") === "minInvestment") {
           return { message: messages.minInvestmentMin };
         }
-        if (error.minimum === 1) {
+        if (issue.minimum === 1) {
           return { message: `${ctx.defaultError}` };
         }
-        if (error.minimum === 2) {
-          if (error.path.join(".") === "name") return { message: messages.nameMinLength };
-          if (error.path.join(".") === "companyName") return { message: messages.companyNameMinLength };
-          if (error.path.join(".") === "debtorName") return { message: messages.debtorNameMinLength };
+        if (issue.minimum === 2) {
+          if (issue.path.join(".") === "name") return { message: messages.nameMinLength };
+          if (issue.path.join(".") === "companyName") return { message: messages.companyNameMinLength };
+          if (issue.path.join(".") === "debtorName") return { message: messages.debtorNameMinLength };
         }
-        if (error.minimum === 5) {
+        if (issue.minimum === 5) {
           return { message: messages.debtorAddressMinLength };
         }
         return { message: ctx.defaultError };
 
       case "invalid_string":
-        if (error.validation === "email") {
+        if (issue.validation === "email") {
           return { message: messages.emailInvalid };
         }
         return { message: ctx.defaultError };
 
       case "invalid_type":
-        if (error.path.join(".") === "file") {
+        if (issue.path.join(".") === "file") {
           return { message: messages.fileRequired };
         }
         return { message: ctx.defaultError };
 
       case "custom":
-        return { message: error.message || ctx.defaultError };
+        return { message: issue.message || ctx.defaultError };
 
       default:
         return { message: ctx.defaultError };

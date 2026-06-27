@@ -243,12 +243,12 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
                   <Clock className="h-3 w-3" aria-hidden="true" />
                   Expired
                 </>
-              ) : (
+              ) : listingExpiry ? (
                 <>
                   <Calendar className="h-3 w-3" aria-hidden="true" />
                   <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
                 </>
-              )}
+              ) : null}
             </span>
           </div>
 
