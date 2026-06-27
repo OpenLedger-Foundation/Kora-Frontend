@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
 import { verifyUploadToken } from "@/lib/security";
+import { logger } from "@/lib/logger";
 
 const PINATA_BASE = "https://api.pinata.cloud";
 const PINATA_JWT = process.env.PINATA_JWT ?? "";
@@ -168,7 +169,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}`, requestId }, { status: 502 });
       }
 
-      console.log("[pinata-proxy] upload", { requestId, wallet, ts: new Date().toISOString(), cid: pinJson.IpfsHash });
+      logger.info("[pinata-proxy] upload", { requestId, route: "/api/upload", wallet, cid: pinJson.IpfsHash });
       return NextResponse.json({ cid: pinJson.IpfsHash });
     }
 
@@ -199,13 +200,13 @@ export async function POST(req: Request) {
       const pinJson = (await readJsonRecord(pinRes)) as PinataResponse;
       if (!pinRes.ok) return NextResponse.json({ error: `Pinata error: ${pinJson?.error || pinRes.status}`, requestId }, { status: 502 });
 
-      console.log("[pinata-proxy] json", { requestId, wallet, ts: new Date().toISOString(), cid: pinJson.IpfsHash });
+      logger.info("[pinata-proxy] json", { requestId, route: "/api/upload", wallet, cid: pinJson.IpfsHash });
       return NextResponse.json({ cid: pinJson.IpfsHash });
     }
 
     return NextResponse.json({ error: "Unsupported content type", requestId }, { status: 415 });
   } catch (err) {
-    console.error("[pinata-proxy] error", requestId, (err as Error).message);
+    logger.error("[pinata-proxy] error", { requestId, route: "/api/upload", error: err });
     return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
 }

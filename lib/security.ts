@@ -80,7 +80,7 @@ export function verifyUploadToken(
     const challenge = buildUploadChallenge(walletAddress, timestamp);
 
     // Verify ed25519 signature using @stellar/stellar-sdk
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // eslint-disable-next-line
     const { Keypair } = require("@stellar/stellar-sdk") as typeof import("@stellar/stellar-sdk");
     const keypair = Keypair.fromPublicKey(walletAddress);
     const msgBuffer = Buffer.from(challenge, "utf8");

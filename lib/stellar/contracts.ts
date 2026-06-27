@@ -232,7 +232,6 @@ class InvoiceContractClient {
     return this.updateStatus(tokenId, 6, sourcePublicKey);
   }
 }
-}
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
