@@ -150,7 +150,7 @@ export function InvoiceStatusBadge({ status, className }: InvoiceStatusBadgeProp
                 transition={{ duration: 0.2 }}
                 className="flex items-center gap-1.5"
               >
-                <span className="relative flex h-2 w-2">
+                <span className="relative flex h-2 w-2" aria-hidden="true">
                   <span
                     className={cn(
                       "absolute inline-flex h-full w-full animate-ping rounded-full opacity-75",
@@ -164,7 +164,7 @@ export function InvoiceStatusBadge({ status, className }: InvoiceStatusBadgeProp
                     )}
                   />
                 </span>
-                <Icon className="h-3 w-3" />
+                <Icon className="h-3 w-3" aria-hidden="true" />
                 {config.label}
               </motion.span>
             </AnimatePresence>
