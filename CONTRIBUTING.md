@@ -11,6 +11,7 @@ Thank you for your interest in contributing to Kora Protocol! This document expl
 - [Development Setup](#development-setup)
 - [Branch Strategy](#branch-strategy)
 - [Commit Convention](#commit-convention)
+- [Release Process](#release-process)
 - [Pull Request Process](#pull-request-process)
 - [Code Style](#code-style)
 - [Testing](#testing)
@@ -27,15 +28,15 @@ This project follows the [Contributor Covenant](https://www.contributor-covenant
 
 ## Ways to Contribute
 
-| Type | Description |
-|------|-------------|
-| 🐛 Bug reports | Open an issue with reproduction steps |
-| 💡 Feature requests | Open an issue with the `enhancement` label |
-| 📖 Documentation | Fix typos, improve clarity, add examples |
-| 🔧 Code | Fix bugs, implement features, improve performance |
-| 🎨 Design | Improve UI/UX, accessibility, responsiveness |
-| 🧪 Tests | Add unit, integration, or E2E tests |
-| 🌍 Translations | Help localise the interface |
+| Type                | Description                                       |
+| ------------------- | ------------------------------------------------- |
+| 🐛 Bug reports      | Open an issue with reproduction steps             |
+| 💡 Feature requests | Open an issue with the `enhancement` label        |
+| 📖 Documentation    | Fix typos, improve clarity, add examples          |
+| 🔧 Code             | Fix bugs, implement features, improve performance |
+| 🎨 Design           | Improve UI/UX, accessibility, responsiveness      |
+| 🧪 Tests            | Add unit, integration, or E2E tests               |
+| 🌍 Translations     | Help localise the interface                       |
 
 ---
 
@@ -76,14 +77,14 @@ npm run dev
 
 We use a simplified **GitHub Flow**:
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production-ready code. Protected. |
-| `develop` | Integration branch for features. |
-| `feat/<name>` | New features |
-| `fix/<name>` | Bug fixes |
-| `docs/<name>` | Documentation changes |
-| `chore/<name>` | Tooling, deps, config |
+| Branch         | Purpose                           |
+| -------------- | --------------------------------- |
+| `main`         | Production-ready code. Protected. |
+| `develop`      | Integration branch for features.  |
+| `feat/<name>`  | New features                      |
+| `fix/<name>`   | Bug fixes                         |
+| `docs/<name>`  | Documentation changes             |
+| `chore/<name>` | Tooling, deps, config             |
 
 **Always branch from `develop`**, not `main`.
 
@@ -109,17 +110,17 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ### Types
 
-| Type | When to use |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `docs` | Documentation only |
-| `style` | Formatting, no logic change |
+| Type       | When to use                      |
+| ---------- | -------------------------------- |
+| `feat`     | New feature                      |
+| `fix`      | Bug fix                          |
+| `docs`     | Documentation only               |
+| `style`    | Formatting, no logic change      |
 | `refactor` | Code restructure, no feature/fix |
-| `perf` | Performance improvement |
-| `test` | Adding or fixing tests |
-| `chore` | Build process, dependencies |
-| `ci` | CI/CD changes |
+| `perf`     | Performance improvement          |
+| `test`     | Adding or fixing tests           |
+| `chore`    | Build process, dependencies      |
+| `ci`       | CI/CD changes                    |
 
 ### Examples
 
@@ -129,6 +130,33 @@ fix(wallet): handle Freighter connection timeout
 docs(readme): update environment variable table
 chore(deps): upgrade stellar-sdk to 12.3.0
 ```
+
+---
+
+## Release Process
+
+Kora uses [standard-version](https://github.com/conventional-changelog/standard-version) to generate `CHANGELOG.md` entries from Conventional Commits.
+
+Use these prefixes so the changelog groups entries correctly:
+
+- `feat:` for user-facing features.
+- `fix:` for bug fixes.
+- `chore:` for maintenance, dependency, and tooling work.
+- `docs:` for documentation-only changes.
+
+Preview the next release notes before changing files:
+
+```bash
+npm run release:dry
+```
+
+Create a release commit and update `CHANGELOG.md`:
+
+```bash
+npm run release
+```
+
+Only maintainers should run the final release command on the release branch. Contributors should usually run `npm run release:dry` locally and mention the result in the PR when changing release configuration.
 
 ---
 
@@ -186,13 +214,13 @@ fix(invoice-detail): correct expected return calculation
 
 ### File Naming
 
-| Type | Convention | Example |
-|------|-----------|---------|
-| Pages | `page.tsx` | `app/marketplace/page.tsx` |
-| Components | PascalCase | `InvoiceCard.tsx` |
-| Hooks | camelCase with `use` prefix | `useWallet.ts` |
-| Utilities | camelCase | `utils.ts` |
-| Types | camelCase | `invoice.ts` |
+| Type       | Convention                  | Example                    |
+| ---------- | --------------------------- | -------------------------- |
+| Pages      | `page.tsx`                  | `app/marketplace/page.tsx` |
+| Components | PascalCase                  | `InvoiceCard.tsx`          |
+| Hooks      | camelCase with `use` prefix | `useWallet.ts`             |
+| Utilities  | camelCase                   | `utils.ts`                 |
+| Types      | camelCase                   | `invoice.ts`               |
 
 ---
 
@@ -209,6 +237,7 @@ npm run test:coverage # coverage report
 ```
 
 **What to test:**
+
 - Utility functions in `lib/utils.ts`
 - Zustand store actions
 - Service layer functions (with mocked fetch)
@@ -218,22 +247,22 @@ npm run test:coverage # coverage report
 
 ## Issue Labels
 
-| Label | Meaning |
-|-------|---------|
-| `bug` | Something is broken |
-| `enhancement` | New feature or improvement |
+| Label              | Meaning                              |
+| ------------------ | ------------------------------------ |
+| `bug`              | Something is broken                  |
+| `enhancement`      | New feature or improvement           |
 | `good first issue` | Suitable for first-time contributors |
-| `help wanted` | Maintainers want community input |
-| `documentation` | Docs-only change |
-| `wontfix` | Out of scope or intentional |
-| `duplicate` | Already reported |
-| `blocked` | Waiting on external dependency |
+| `help wanted`      | Maintainers want community input     |
+| `documentation`    | Docs-only change                     |
+| `wontfix`          | Out of scope or intentional          |
+| `duplicate`        | Already reported                     |
+| `blocked`          | Waiting on external dependency       |
 
 ---
 
 ## Getting Help
 
-- **Discord:** [discord.gg/kora-protocol](https://discord.gg/kora-protocol) *(coming soon)*
+- **Discord:** [discord.gg/kora-protocol](https://discord.gg/kora-protocol) _(coming soon)_
 - **GitHub Discussions:** Use the Discussions tab for questions
 - **Issues:** For bugs and feature requests only
 
