@@ -14,7 +14,12 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { useWalletStore, useUIStore } from "@/store";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { getAccountBalances, fundTestnetAccount, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
+import {
+  getAccountBalances,
+  fundTestnetAccount,
+  submitTransaction,
+  waitForTransaction,
+} from "@/lib/stellar/client";
 import { buildTestnetUsdcMintTx } from "@/lib/stellar/contracts";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
@@ -103,7 +108,7 @@ export function useWallet() {
         // best-effort redirect; ignore failures
       }
     },
-    [connect, setBalance]
+    [connect, setBalance],
   );
 
   const disconnectWallet = useCallback(async () => {
@@ -152,7 +157,7 @@ export function useWallet() {
       });
       return result;
     },
-    [isConnected, address]
+    [isConnected, address],
   );
 
   const refreshBalance = useCallback(async () => {
@@ -246,7 +251,14 @@ export function useWallet() {
       clearVerification();
       throw error;
     }
-  }, [isConnected, address, publicKey, requestChallenge, setVerified, clearVerification]);
+  }, [
+    isConnected,
+    address,
+    publicKey,
+    requestChallenge,
+    setVerified,
+    clearVerification,
+  ]);
 
   const checkVerification = useCallback((): boolean => {
     if (!isConnected) return false;
@@ -263,13 +275,16 @@ export function useWallet() {
     }
   }, [checkVerification]);
 
+  const verificationValid =
+    isConnected && isVerified && !isVerificationExpired();
+
   return {
     address,
     publicKey,
     isConnected,
     provider,
     balance,
-    isVerified: checkVerification(),
+    isVerified: verificationValid,
     verifiedAt,
     connectWallet,
     disconnectWallet,

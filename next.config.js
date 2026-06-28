@@ -83,7 +83,8 @@ const withPWA = require("next-pwa")({
     },
     // 8. IPFS gateway images — stale-while-revalidate
     {
-      urlPattern: /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io|cloudflare-ipfs\.com)\/.*/i,
+      urlPattern:
+        /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io|cloudflare-ipfs\.com)\/.*/i,
       handler: "StaleWhileRevalidate",
       options: {
         cacheName: "ipfs-assets",
@@ -106,9 +107,14 @@ const withPWA = require("next-pwa")({
 });
 
 // ─── Content Security Policy ──────────────────────────────────────────────────
+const scriptSrc = ["'self'", "'unsafe-inline'"];
+if (process.env.NODE_ENV === "development") {
+  scriptSrc.push("'unsafe-eval'");
+}
+
 const CSP_DIRECTIVES = {
   "default-src": ["'self'"],
-  "script-src": ["'self'", "'unsafe-inline'"],
+  "script-src": scriptSrc,
   "style-src": ["'self'", "'unsafe-inline'"],
   "img-src": [
     "'self'",
@@ -157,8 +163,14 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=31536000; includeSubDomains",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=()",
+  },
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
@@ -178,7 +190,10 @@ const nextConfig = {
       {
         source: "/_next/static/(.*)",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
         ],
       },
       // Service worker must be served without caching headers so browsers
@@ -186,27 +201,42 @@ const nextConfig = {
       {
         source: "/sw.js",
         headers: [
-          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
-          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+          {
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
+          },
         ],
       },
       {
         source: "/workbox-:hash.js",
         headers: [
-          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
         ],
       },
       // OG image and public icons — moderate cache
       {
         source: "/og-image.png",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
         ],
       },
       {
         source: "/icons/(.*)",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=2592000",
+          },
         ],
       },
     ];

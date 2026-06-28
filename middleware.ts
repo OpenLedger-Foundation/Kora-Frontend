@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { locales, defaultLocale } from "@/i18n/config";
 
-const PROTECTED = ["/invoice/create", "/dashboard/sme", "/dashboard/investor"];
+const PROTECTED = ["/invoice/create"];
 
 /**
  * Detect the best locale from the Accept-Language header.
@@ -49,7 +49,9 @@ export function middleware(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = "/";
       url.searchParams.set("redirectTo", pathname + (search || ""));
-      const redirect = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+      const redirect = NextResponse.rewrite(url, {
+        request: { headers: requestHeaders },
+      });
       redirect.headers.set("x-request-id", requestId);
       return redirect;
     }
