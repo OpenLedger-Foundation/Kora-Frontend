@@ -133,7 +133,7 @@ function sliceByRange<T>(data: T[], range: PresetRange | "custom"): T[] {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function PortfolioAnalyticsPage() {
+function PortfolioAnalyticsInner() {
   const { isConnected } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const router = useRouter();
@@ -283,5 +283,15 @@ export default function PortfolioAnalyticsPage() {
       </PrintLayout>
 
     </ErrorBoundary>
+  );
+}
+
+import { Suspense } from "react";
+
+export default function PortfolioAnalyticsPage() {
+  return (
+    <Suspense fallback={<AnalyticsSkeleton />}>
+      <PortfolioAnalyticsInner />
+    </Suspense>
   );
 }

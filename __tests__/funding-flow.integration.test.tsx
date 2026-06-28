@@ -15,8 +15,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMockInvoice, mockWalletConnected } from "./fixtures";
-import { createTestQueryClient } from "./setup";
+import { createTestQueryClient, mockParams } from "./setup";
 import React from "react";
+
+import { useParams } from "next/navigation";
+import { useInvoice } from "@/hooks/useInvoices";
+import { useWallet } from "@/hooks/useWallet";
+import { useTransaction } from "@/hooks/useTransaction";
+import { useUIStore, useInvoiceStore } from "@/store";
+import { prepareFundInvoice } from "@/services/invoiceService";
 
 const mockInvoice = createMockInvoice({
   id: "inv_funding_test",
@@ -140,11 +147,11 @@ vi.mock("@/lib/utils", () => ({
 
 // Funding flow component for testing
 const FundingFlowTest = () => {
-  const { id } = require("next/navigation").useParams();
-  const { data: invoice } = require("@/hooks/useInvoices").useInvoice(id);
-  const { isConnected, address } = require("@/hooks/useWallet")();
-  const { execute } = require("@/hooks/useTransaction")();
-  const { setWalletModalOpen } = require("@/store").useUIStore();
+  const { id } = useParams();
+  const { data: invoice } = useInvoice(id);
+  const { isConnected, address } = useWallet();
+  const { execute } = useTransaction();
+  const { setWalletModalOpen } = useUIStore();
   const [amount, setAmount] = React.useState("");
   const [funding, setFunding] = React.useState(false);
   const [fundTxHash, setFundTxHash] = React.useState<string | null>(null);
@@ -172,10 +179,9 @@ const FundingFlowTest = () => {
       // Optimistic update
       const newTotalRaised = fundingState.totalRaised + amountNum;
       setStageMessage("Optimistically updating UI...");
-      require("@/store").useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
+      useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
 
       // Execute transaction
-      const { prepareFundInvoice } = require("@/services/invoiceService");
       const txHash = await execute(
         () => prepareFundInvoice(invoice.tokenId, amountNum, address),
         {
@@ -239,14 +245,15 @@ describe("Invoice Funding Flow Integration Tests", () => {
   let queryClient: any;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     queryClient = createTestQueryClient();
     transactionState = { status: "idle" as const, txHash: null, error: null };
     walletState = mockWalletConnected;
-    vi.clearAllMocks();
+    mockParams.mockReturnValue({ id: "inv_funding_test" });
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   it("renders funding form", () => {
@@ -306,9 +313,9 @@ describe("Invoice Funding Flow Integration Tests", () => {
     const user = userEvent.setup();
     const updateInvoiceFunding = vi.fn();
 
-    vi.mocked(require("@/store").useInvoiceStore.getState) = vi.fn(() => ({
+    vi.mocked(useInvoiceStore.getState).mockReturnValue({
       updateInvoiceFunding,
-    }));
+    } as any);
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -385,12 +392,12 @@ describe("Invoice Funding Flow Integration Tests", () => {
     const user = userEvent.setup();
 
     // Mock execute to throw error
-    vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
+    vi.mocked(useTransaction).mockReturnValue({
       state: transactionState,
       execute: vi.fn(async () => {
         throw new Error("User rejected transaction");
       }),
-    }));
+    } as any);
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -411,7 +418,7 @@ describe("Invoice Funding Flow Integration Tests", () => {
     const user = userEvent.setup();
     let shouldFail = true;
 
-    vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
+    vi.mocked(useTransaction).mockReturnValue({
       state: transactionState,
       execute: vi.fn(async (buildFn: () => Promise<string>) => {
         if (shouldFail) {
@@ -421,7 +428,7 @@ describe("Invoice Funding Flow Integration Tests", () => {
         const xdr = await buildFn();
         return mockTxHash;
       }),
-    }));
+    } as any);
 
     const { rerender } = render(
       <QueryClientProvider client={queryClient}>

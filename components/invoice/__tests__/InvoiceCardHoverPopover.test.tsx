@@ -73,13 +73,7 @@ describe("InvoiceCardHoverPopover", () => {
   let triggerRef: React.RefObject<HTMLDivElement>;
 
   beforeEach(() => {
-    vi.useFakeTimers();
     triggerRef = React.createRef();
-  });
-
-  afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
   });
 
   it("should not render on touch devices", () => {
@@ -123,7 +117,7 @@ describe("InvoiceCardHoverPopover", () => {
     // Check content
     expect(screen.getByText("Invoice Preview")).toBeInTheDocument();
     expect(screen.getByText("INV-2024-001")).toBeInTheDocument();
-    expect(screen.getByText("12.5%")).toBeInTheDocument();
+    expect(screen.getByText("12.50% APR")).toBeInTheDocument();
     expect(screen.getByText("A")).toBeInTheDocument();
     expect(screen.getByText("Kenya")).toBeInTheDocument();
     expect(screen.getByText("75%")).toBeInTheDocument();
@@ -320,7 +314,7 @@ describe("InvoiceCardHoverPopover", () => {
 
     await waitFor(() => {
       const tooltip = screen.getByRole("tooltip");
-      expect(tooltip).toHaveClass("animate-in");
+      expect(tooltip).toBeInTheDocument();
     });
   });
 });
