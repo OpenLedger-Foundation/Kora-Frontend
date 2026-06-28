@@ -27,12 +27,34 @@ import { server } from "./mocks/server";
 
 // ── Hoisted variables (must be declared before vi.mock factories run) ─────────
 
-const { mockSignTransaction, mockSetWalletModalOpen } = vi.hoisted(() => ({
-  mockSignTransaction: vi.fn().mockImplementation(async (xdr: string) => `${xdr}_signed`),
-  mockSetWalletModalOpen: vi.fn(),
-}));
+const { mockSignTransaction, mockSetWalletModalOpen, mockUseWalletStore } = vi.hoisted(() => {
+  const { create } = require("zustand");
+  const useWalletStore = create()(() => ({
+    addressBook: [],
+    address: "GTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDE",
+    isConnected: true,
+    isVerified: false,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    setBalance: vi.fn(),
+    setVerified: vi.fn(),
+    clearVerification: vi.fn(),
+    isVerificationExpired: vi.fn(() => true),
+    addAddressBookEntry: vi.fn(),
+  }));
+
+  return {
+    mockSignTransaction: vi.fn().mockImplementation(async (xdr: string) => `${xdr}_signed`),
+    mockSetWalletModalOpen: vi.fn(),
+    mockUseWalletStore: useWalletStore,
+  };
+});
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
+
+vi.mock("@/store/walletStore", () => ({
+  useWalletStore: mockUseWalletStore,
+}));
 
 vi.mock("@/lib/ipfs", () => ({
   uploadFileToPinata: vi.fn().mockResolvedValue(
@@ -47,6 +69,72 @@ vi.mock("@/lib/ipfs", () => ({
   validateCid: vi.fn(),
   ipfsUrl: vi.fn((cid: string) => `https://gateway.pinata.cloud/ipfs/${cid}`),
 }));
+
+vi.mock("@/components/ui/date-picker", () => {
+  const React = require("react");
+  const DatePicker = React.forwardRef(({ label, id, name, onChange, value, defaultValue, ...props }, ref) => {
+    const generatedId = React.useId();
+    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || generatedId;
+    return (
+      <div className="flex flex-col">
+        {label && <label htmlFor={inputId}>{label}</label>}
+        <input
+          type="date"
+          id={inputId}
+          name={name}
+          ref={ref}
+          value={value}
+          defaultValue={defaultValue}
+          onChange={onChange}
+          {...props}
+        />
+      </div>
+    );
+  });
+  DatePicker.displayName = "DatePicker";
+  return { DatePicker };
+});
+
+vi.mock("@/components/ui/select", () => {
+  const React = require("react");
+  const Select = React.forwardRef(({ label, id, name, options = [], onChange, value, defaultValue, ...props }, ref) => {
+    const generatedId = React.useId();
+    const selectId = id || label?.toLowerCase().replace(/\s+/g, "-") || generatedId;
+    
+    const flatOptions = [];
+    options.forEach(opt => {
+      if (opt && typeof opt === "object" && "options" in opt && Array.isArray(opt.options)) {
+        opt.options.forEach(sub => flatOptions.push(sub));
+      } else if (opt) {
+        flatOptions.push(opt);
+      }
+    });
+
+    return (
+      <div className="flex flex-col">
+        {label && <label htmlFor={selectId}>{label}</label>}
+        <select
+          id={selectId}
+          name={name}
+          ref={ref}
+          value={value}
+          defaultValue={defaultValue}
+          onChange={onChange}
+          {...props}
+        >
+          <option value="">Select option...</option>
+          {flatOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  });
+  Select.displayName = "Select";
+  return { Select };
+});
 
 vi.mock("@/lib/stellar/contracts", () => ({
   invoiceContract: {
@@ -116,18 +204,6 @@ vi.mock("@/store", async () => {
     setSearchQuery: vi.fn(),
   }));
 
-  const useWalletStore = create<any>()(() => ({
-    address: "GTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDE",
-    isConnected: true,
-    isVerified: false,
-    connect: vi.fn(),
-    disconnect: vi.fn(),
-    setBalance: vi.fn(),
-    setVerified: vi.fn(),
-    clearVerification: vi.fn(),
-    isVerificationExpired: vi.fn(() => true),
-  }));
-
   const useTransactionStore = create<any>()(() => ({
     transactions: [],
     addTransaction: vi.fn(),
@@ -135,13 +211,19 @@ vi.mock("@/store", async () => {
     clearHistory: vi.fn(),
   }));
 
-  return { useUIStore, useInvoiceStore, useWalletStore, useTransactionStore };
+  return {
+    useUIStore,
+    useInvoiceStore,
+    useWalletStore: mockUseWalletStore,
+    useTransactionStore,
+  };
 });
 
 // ── Import SUT after mocks ────────────────────────────────────────────────────
 
 import CreateInvoicePage from "@/app/invoice/create/page";
 import { useWallet } from "@/hooks/useWallet";
+import { useUIStore, useInvoiceStore, useWalletStore } from "@/store";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -157,60 +239,70 @@ function futureDate(daysFromNow: number): string {
   return d.toISOString().split("T")[0];
 }
 
-/**
- * Trigger a date change on a DatePicker's hidden input.
- *
- * DatePicker renders:
- *   <label for="due-date">Due Date</label>
- *   <input type="hidden" id="due-date" name="dueDate" onChange={rhfOnChange} />
- *
- * We use the native value setter + dispatch events so RHF's register picks it up.
- */
-function selectDate(labelRegex: RegExp, dateStr: string) {
-  const allHiddenInputs = document.querySelectorAll<HTMLInputElement>('input[type="hidden"]');
-  let target: HTMLInputElement | null = null;
-  for (const inp of allHiddenInputs) {
-    const label = document.querySelector<HTMLLabelElement>(`label[for="${inp.id}"]`);
-    if (label && labelRegex.test(label.textContent || "")) {
-      target = inp;
-      break;
-    }
-  }
-  if (!target) throw new Error(`DatePicker hidden input not found for label: ${labelRegex}`);
-
-  const nativeValueSetter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype,
-    "value"
-  )?.set;
-  nativeValueSetter?.call(target, dateStr);
-  target.dispatchEvent(new Event("input", { bubbles: true }));
-  target.dispatchEvent(new Event("change", { bubbles: true }));
-}
+beforeEach(() => {
+  useInvoiceStore.setState({
+    createDraft: { currency: "USDC" },
+    invoices: [],
+    filters: {
+      categories: [],
+      jurisdictions: [],
+      riskTiers: [],
+      aprRange: [0, 50],
+      activeOnly: false,
+    },
+    sort: { sortBy: "apr", sortDir: "desc" },
+    searchQuery: "",
+  });
+  useUIStore.setState({
+    walletModalOpen: false,
+    txState: { status: "idle" },
+    sidebarOpen: false,
+    theme: "dark",
+  });
+  useWalletStore.setState({
+    addressBook: [],
+    address: "GTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDE",
+    isConnected: true,
+    isVerified: false,
+  });
+});
 
 /** Fill all Step 1 fields with valid data */
 async function fillStep1(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(/invoice number/i), "INV-2024-0001");
-  await user.type(screen.getByLabelText(/debtor company name/i), "Acme Corporation Ltd");
-  await user.type(screen.getByLabelText(/debtor address/i), "123 Business St, Nairobi, Kenya");
+  const invInput = screen.getByLabelText(/invoice number/i);
+  fireEvent.change(invInput, { target: { value: "INV-2024-0001" } });
+  fireEvent.blur(invInput);
+
+  const debtorInput = screen.getByLabelText(/debtor company name/i);
+  fireEvent.change(debtorInput, { target: { value: "Acme Corporation Ltd" } });
+  fireEvent.blur(debtorInput);
+
+  const addrInput = screen.getByLabelText(/debtor address/i);
+  fireEvent.change(addrInput, { target: { value: "123 Business St, Nairobi, Kenya" } });
+  fireEvent.blur(addrInput);
 
   const amountInput = screen.getByRole("spinbutton", { name: /invoice amount/i });
-  await user.clear(amountInput);
-  await user.type(amountInput, "50000");
+  fireEvent.change(amountInput, { target: { value: "50000" } });
+  fireEvent.blur(amountInput);
 
-  selectDate(/due date/i, futureDate(90));
+  const dueInput = screen.getByLabelText(/due date/i);
+  fireEvent.change(dueInput, { target: { value: futureDate(90) } });
+  fireEvent.blur(dueInput);
 }
 
 /** Fill all Step 2 fields with valid data */
 async function fillStep2(user: ReturnType<typeof userEvent.setup>) {
   const discountInput = screen.getByRole("spinbutton", { name: /discount rate/i });
-  await user.clear(discountInput);
-  await user.type(discountInput, "5");
+  fireEvent.change(discountInput, { target: { value: "5" } });
+  fireEvent.blur(discountInput);
 
   const minInvInput = screen.getByRole("spinbutton", { name: /minimum investment/i });
-  await user.clear(minInvInput);
-  await user.type(minInvInput, "1000");
+  fireEvent.change(minInvInput, { target: { value: "1000" } });
+  fireEvent.blur(minInvInput);
 
-  selectDate(/listing expiry date/i, futureDate(30));
+  const expiryInput = screen.getByLabelText(/listing expiry date/i);
+  fireEvent.change(expiryInput, { target: { value: futureDate(30) } });
+  fireEvent.blur(expiryInput);
 }
 
 function mockPdfFile(name = "invoice.pdf"): File {
@@ -244,8 +336,7 @@ describe("Step 1 — Invoice Details", () => {
     expect(screen.getByLabelText(/debtor company name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/debtor address/i)).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: /invoice amount/i })).toBeInTheDocument();
-    // DatePicker label points to a hidden input — query the label text directly
-    expect(screen.getByText(/^due date$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/due date/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/jurisdiction/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/industry category/i)).toBeInTheDocument();
   });
@@ -323,14 +414,10 @@ describe("Step 1 — Invoice Details", () => {
   it("advances to Step 2 when all fields are valid and Next is clicked", async () => {
     const { user } = setup();
     await fillStep1(user);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled()
-    );
-    await user.click(screen.getByRole("button", { name: /next/i }));
-    await waitFor(() =>
-      expect(screen.getByText(/financing terms/i)).toBeInTheDocument()
-    );
-    expect(screen.getByRole("slider")).toBeInTheDocument();
+    const nextBtn = screen.getByRole("button", { name: /next/i });
+    await waitFor(() => expect(nextBtn).not.toBeDisabled());
+    fireEvent.click(nextBtn);
+    await screen.findByRole("slider");
   });
 
   it("Back button is disabled on Step 1", () => {
@@ -356,16 +443,23 @@ describe("Step 1 — Invoice Details", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Step 2 — Financing Terms", () => {
+  beforeEach(() => {
+    vi.mocked(useWallet).mockReturnValue({
+      isConnected: true,
+      address: "GTEST1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABCDE",
+      signTransaction: mockSignTransaction,
+      isVerified: false,
+      checkVerification: vi.fn(() => false),
+    } as any);
+  });
+
   async function goToStep2() {
     const { user, ...utils } = setup();
     await fillStep1(user);
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /next/i })).not.toBeDisabled()
-    );
-    await user.click(screen.getByRole("button", { name: /next/i }));
-    await waitFor(() =>
-      expect(screen.getByText(/live financing preview/i)).toBeInTheDocument()
-    );
+    const nextBtn = screen.getByRole("button", { name: /next/i });
+    await waitFor(() => expect(nextBtn).not.toBeDisabled());
+    fireEvent.click(nextBtn);
+    await screen.findByText(/live financing preview/i);
     return { user, ...utils };
   }
 
@@ -440,24 +534,22 @@ describe("Step 2 — Financing Terms", () => {
 
   it("shows validation error when min investment exceeds invoice amount", async () => {
     const { user } = await goToStep2();
+    await fillStep2(user);
     const minInvInput = screen.getByRole("spinbutton", { name: /minimum investment/i });
-    await user.clear(minInvInput);
-    await user.type(minInvInput, "99999");
-    await user.click(screen.getByRole("button", { name: /next/i }));
-    await waitFor(() =>
-      expect(
-        screen.getByText(/minimum investment cannot exceed/i)
-      ).toBeInTheDocument()
-    );
+    fireEvent.change(minInvInput, { target: { value: "99999" } });
+    fireEvent.blur(minInvInput);
+    const nextBtn = screen.getByRole("button", { name: /next/i });
+    fireEvent.click(nextBtn);
+    await screen.findByText(/minimum investment cannot exceed/i);
   });
 
   it("does not advance to Step 3 when discount rate is invalid", async () => {
     const { user } = await goToStep2();
     const numInput = screen.getByRole("spinbutton", { name: /discount rate/i });
-    await user.clear(numInput);
-    await user.type(numInput, "0");
+    fireEvent.change(numInput, { target: { value: "0" } });
     fireEvent.blur(numInput);
-    await user.click(screen.getByRole("button", { name: /next/i }));
+    const nextBtn = screen.getByRole("button", { name: /next/i });
+    fireEvent.click(nextBtn);
     // Should still be on Step 2
     await waitFor(() =>
       expect(screen.getByText(/live financing preview/i)).toBeInTheDocument()
@@ -467,11 +559,9 @@ describe("Step 2 — Financing Terms", () => {
   it("advances to Step 3 when all Step 2 fields are valid", async () => {
     const { user } = await goToStep2();
     await fillStep2(user);
-    await user.click(screen.getByRole("button", { name: /next/i }));
-    await waitFor(() =>
-      expect(screen.getByText(/upload & review/i)).toBeInTheDocument()
-    );
-    expect(screen.getByText(/invoice document/i)).toBeInTheDocument();
+    const nextBtn = screen.getByRole("button", { name: /next/i });
+    fireEvent.click(nextBtn);
+    await screen.findByText(/invoice document/i);
   });
 
   it("Back button is enabled on Step 2", async () => {

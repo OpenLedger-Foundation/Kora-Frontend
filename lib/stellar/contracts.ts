@@ -4,7 +4,7 @@
  * useTransaction hook.
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { rpc, networkConfig } from "./client";
+import { rpc, networkConfig, sequenceManager } from "./client";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
 
@@ -14,7 +14,6 @@ import type {
   RepayInvoiceParams,
   ClaimYieldParams,
   OnChainInvoice,
-  OnChainStatusCode,
 } from "@/types/contract";
 import type { InvoicePosition } from "@/types/invoice";
 

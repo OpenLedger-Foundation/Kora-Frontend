@@ -3,11 +3,7 @@
 export type Result<T, E = ServiceError> = { ok: true; value: T } | { ok: false; error: E };
 
 // ─── Service Error ────────────────────────────────────────────────────────────
-export interface ServiceError {
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
+// Imported from ./contract
 
 // ─── Invoice Service Interface ────────────────────────────────────────────────
 import type {
@@ -19,6 +15,7 @@ import type {
   PaginatedResponse,
   MarketplaceFilters,
   MarketplaceSort,
+  ServiceError,
 } from "./contract";
 
 export interface IInvoiceService {

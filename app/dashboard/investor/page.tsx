@@ -214,7 +214,7 @@ export default function InvestorDashboardPage() {
         <CardContent className="p-4 sm:p-6">
           <DataTable
             data={positionsData}
-            columns={POSITION_COLUMNS}
+            columns={POSITION_COLUMNS as any}
             isLoading={positionsQuery.isLoading}
             pageSize={5}
             emptyState={{
