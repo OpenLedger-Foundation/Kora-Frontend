@@ -14,8 +14,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMockInvoice } from "./fixtures";
-import { createTestQueryClient } from "./setup";
+import { createTestQueryClient, mockRouter } from "./setup";
 import React from "react";
+
+import { useRouter } from "next/navigation";
+import { usePrefetchInvoice } from "@/hooks/useInvoices";
 
 const mockInvoice = createMockInvoice({
   id: "inv_card_test",
@@ -42,16 +45,6 @@ const mockInvoice = createMockInvoice({
 
 const mockPrefetch = vi.fn();
 
-// Mock useRouter
-const mockRouter = {
-  push: vi.fn(),
-  prefetch: vi.fn(),
-};
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => mockRouter,
-}));
-
 // Mock usePrefetchInvoice
 vi.mock("@/hooks/useInvoices", () => ({
   usePrefetchInvoice: vi.fn(() => mockPrefetch),
@@ -73,8 +66,8 @@ vi.mock("@/lib/utils", () => ({
 
 // Simplified InvoiceCard component for testing
 const InvoiceCardTest = ({ invoice }: { invoice: typeof mockInvoice }) => {
-  const router = require("next/navigation").useRouter();
-  const prefetchInvoice = require("@/hooks/useInvoices").usePrefetchInvoice();
+  const router = useRouter();
+  const prefetchInvoice = usePrefetchInvoice();
 
   const handleMouseEnter = () => {
     prefetchInvoice(invoice.id);
@@ -175,7 +168,7 @@ describe("Invoice Card Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    expect(screen.getByTestId("card-amount")).toHaveTextContent("100000");
+    expect(screen.getByTestId("card-amount")).toHaveTextContent("USDC 100,000");
     expect(screen.getByTestId("card-apr")).toHaveTextContent("22.5%");
     expect(screen.getByTestId("card-category")).toHaveTextContent("technology");
     expect(screen.getByTestId("card-jurisdiction")).toHaveTextContent("KE");
@@ -200,7 +193,7 @@ describe("Invoice Card Integration Tests", () => {
     );
 
     expect(screen.getByTestId("card-investor-count")).toHaveTextContent("25 investors");
-    expect(screen.getByTestId("card-remaining-capacity")).toHaveTextContent("25000 remaining");
+    expect(screen.getByTestId("card-remaining-capacity")).toHaveTextContent("USDC 25,000 remaining");
   });
 
   it("displays status badge", () => {

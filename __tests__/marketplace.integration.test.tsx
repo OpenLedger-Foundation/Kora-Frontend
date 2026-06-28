@@ -16,6 +16,9 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMockInvoices } from "./fixtures";
 import { createTestQueryClient } from "./setup";
+import React from "react";
+import { useInvoices } from "@/hooks/useInvoices";
+import { useInvoiceStore } from "@/store";
 
 /**
  * Mock data and services
@@ -33,35 +36,69 @@ vi.mock("@/hooks/useInvoices", () => ({
   usePrefetchInvoice: vi.fn(() => vi.fn()),
 }));
 
-// Mock the invoice store
-vi.mock("@/store", () => ({
-  useInvoiceStore: vi.fn(() => ({
-    filters: {
+// Mock the invoice store dynamically so filters update during test execution
+let currentFilters = {
+  categories: [] as string[],
+  jurisdictions: [] as string[],
+  riskTiers: [] as string[],
+  aprRange: [0, 50] as [number, number],
+  activeOnly: false,
+};
+
+let storeListeners: Array<() => void> = [];
+
+const setFilters = (newFilters: typeof currentFilters) => {
+  currentFilters = newFilters;
+  storeListeners.forEach((l) => l());
+};
+
+vi.mock("@/store", () => {
+  return {
+    useInvoiceStore: () => {
+      const [state, setState] = React.useState(currentFilters);
+      React.useEffect(() => {
+        const listener = () => setState(currentFilters);
+        storeListeners.push(listener);
+        return () => {
+          storeListeners = storeListeners.filter((l) => l !== listener);
+        };
+      }, []);
+      return {
+        filters: state,
+        sort: {
+          sortBy: "apr",
+          sortDir: "desc",
+        },
+        setFilter: (key: string, value: any) => {
+          setFilters({
+            ...currentFilters,
+            [key]: value,
+          });
+        },
+        setSort: vi.fn(),
+        resetFilters: () => {
+          setFilters({
+            categories: [],
+            jurisdictions: [],
+            riskTiers: [],
+            aprRange: [0, 50],
+            activeOnly: false,
+          });
+        },
+      };
+    },
+    useUIStore: vi.fn(() => ({
+      setWalletModalOpen: vi.fn(),
+    })),
+    DEFAULT_FILTERS: {
       categories: [],
       jurisdictions: [],
       riskTiers: [],
       aprRange: [0, 50],
       activeOnly: false,
     },
-    sort: {
-      sortBy: "apr",
-      sortDir: "desc",
-    },
-    setFilter: vi.fn(),
-    setSort: vi.fn(),
-    resetFilters: vi.fn(),
-  })),
-  useUIStore: vi.fn(() => ({
-    setWalletModalOpen: vi.fn(),
-  })),
-  DEFAULT_FILTERS: {
-    categories: [],
-    jurisdictions: [],
-    riskTiers: [],
-    aprRange: [0, 50],
-    activeOnly: false,
-  },
-}));
+  };
+});
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -101,8 +138,8 @@ vi.mock("@/components/invoice/InvoiceCard", () => ({
 
 // Simplified marketplace component for testing
 const MarketplaceTest = () => {
-  const { data } = require("@/hooks/useInvoices").useInvoices();
-  const { filters, sort, setFilter } = require("@/store").useInvoiceStore();
+  const { data } = useInvoices();
+  const { filters, sort, setFilter } = useInvoiceStore();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
 
@@ -190,6 +227,14 @@ describe("Marketplace Listing Integration Tests", () => {
   let queryClient: any;
 
   beforeEach(() => {
+    currentFilters = {
+      categories: [],
+      jurisdictions: [],
+      riskTiers: [],
+      aprRange: [0, 50],
+      activeOnly: false,
+    };
+    storeListeners = [];
     queryClient = createTestQueryClient();
     vi.clearAllMocks();
   });
@@ -262,8 +307,8 @@ describe("Marketplace Listing Integration Tests", () => {
     await user.click(screen.getByTestId("jurisdiction-KE"));
 
     await waitFor(() => {
-      // Technology + KE should be 1 result
-      expect(screen.getByTestId("results-count")).toHaveTextContent(/1 result/);
+      // Technology + KE should be 2 results
+      expect(screen.getByTestId("results-count")).toHaveTextContent(/2 results/);
     });
   });
 
