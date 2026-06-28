@@ -7,6 +7,7 @@
  *  - Initial locale resolution (localStorage → browser → default)
  *  - Locale switching with localStorage persistence
  *  - Exposing `useLocale` and `useSetLocale` to the component tree
+ *  - Setting dir and lang attributes on html element
  */
 import React, {
   createContext,
@@ -17,7 +18,7 @@ import React, {
   useState,
 } from "react";
 import { NextIntlClientProvider } from "next-intl";
-import { defaultLocale, locales, type Locale } from "./config";
+import { defaultLocale, locales, type Locale, isRTL } from "./config";
 import { resolveLocale, setStoredLocale } from "./locale";
 
 // ─── Context ──────────────────────────────────────────────────────────────────
@@ -44,6 +45,14 @@ export function LocaleProvider({ children, allMessages }: LocaleProviderProps) {
   // Start with the default to avoid hydration mismatch; resolve on mount.
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
   const [mounted, setMounted] = useState(false);
+
+  // Update document lang and dir attributes when locale changes
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = locale;
+      document.documentElement.dir = isRTL(locale) ? "rtl" : "ltr";
+    }
+  }, [locale]);
 
   useEffect(() => {
     const resolved = resolveLocale();

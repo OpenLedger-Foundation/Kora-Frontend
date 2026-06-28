@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as StellarSdk from "@stellar/stellar-sdk";
+import { logger } from "@/lib/logger";
 
 interface VerifyRequest {
   challenge: string;
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
 
       return NextResponse.json({ verified: true, expiresAt });
     } catch (verifyError) {
-      console.error("Verification error:", requestId, verifyError);
+      logger.error("Verification error", { requestId, route: "/api/auth/verify", error: verifyError });
       return NextResponse.json({
         verified: false,
         expiresAt: 0,
@@ -94,7 +95,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
       });
     }
   } catch (error) {
-    console.error("Error processing verify request:", requestId, error);
+    logger.error("Error processing verify request", { requestId, route: "/api/auth/verify", error });
     return NextResponse.json(
       { verified: false, expiresAt: 0, message: "Internal server error", requestId },
       { status: 500 }

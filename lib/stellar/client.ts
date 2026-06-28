@@ -26,6 +26,77 @@ export const networkConfig = {
   horizonUrl: HORIZON_URL,
 };
 
+// ─── Sequence Manager ─────────────────────────────────────────────────────────
+
+export class SequenceManager {
+  // address → current local sequence number (as string to match StellarSdk)
+  private readonly counters = new Map<string, bigint>();
+  // address → in-progress reset promise (deduplicate concurrent resets)
+  private readonly resetPromises = new Map<string, Promise<bigint>>();
+
+  /**
+   * Returns a StellarSdk.Account whose sequence number is the next value to
+   * use. Increments the local counter optimistically so the next caller gets
+   * seq+1 without waiting for network confirmation.
+   */
+  async nextAccount(address: string): Promise<StellarSdk.Account> {
+    if (!this.counters.has(address)) {
+      // First use for this address — fetch from network and seed the counter.
+      await this.fetchAndSeed(address);
+    }
+
+    const seq = this.counters.get(address)!;
+    // Increment before returning so the *next* concurrent call gets seq+1.
+    this.counters.set(address, seq + 1n);
+
+    // StellarSdk.Account constructor takes the *current* (pre-increment) seq
+    // and internally adds 1 when building. So we pass seq (not seq+1).
+    return new StellarSdk.Account(address, seq.toString());
+  }
+
+  /**
+   * Reset the local counter from the network (authoritative value).
+   * Called after a tx_bad_seq error. Deduplicates concurrent calls so a
+   * flurry of failures only triggers one network request.
+   */
+  async reset(address: string): Promise<void> {
+    await this.fetchAndSeed(address);
+  }
+
+  /**
+   * Explicitly evict a counter (e.g. on wallet disconnect).
+   */
+  evict(address: string): void {
+    this.counters.delete(address);
+    this.resetPromises.delete(address);
+  }
+
+  // ── private ────────────────────────────────────────────────────────────────
+
+  private async fetchAndSeed(address: string): Promise<bigint> {
+    // Deduplicate: if a reset is already in-flight for this address, wait for
+    // it instead of launching a second network request.
+    const existing = this.resetPromises.get(address);
+    if (existing) return existing;
+
+    const promise = rpc
+      .getAccount(address)
+      .then((account) => {
+        const seq = BigInt(account.sequenceNumber());
+        this.counters.set(address, seq);
+        return seq;
+      })
+      .finally(() => {
+        this.resetPromises.delete(address);
+      });
+
+    this.resetPromises.set(address, promise);
+    return promise;
+  }
+}
+
+export const sequenceManager = new SequenceManager();
+
 // ─── USDC asset definition ────────────────────────────────────────────────────
 
 /**
@@ -432,9 +503,7 @@ export async function getContractEvents(
       try {
         // Decode topics
         const topics = raw.topic.map((t) => {
-          const val = typeof t === "string"
-            ? StellarSdk.xdr.ScVal.fromXDR(t as string, "base64")
-            : (t as StellarSdk.xdr.ScVal);
+          const val = typeof t === "string" ? StellarSdk.xdr.ScVal.fromXDR(t, "base64") : (t as StellarSdk.xdr.ScVal);
           return parseTopicToString(val);
         });
 
@@ -443,9 +512,7 @@ export async function getContractEvents(
         if (!eventTypes.includes(eventName)) return null;
 
         // Decode data payload
-        const dataVal = typeof raw.value === "string"
-          ? StellarSdk.xdr.ScVal.fromXDR(raw.value as string, "base64")
-          : (raw.value as StellarSdk.xdr.ScVal);
+        const dataVal = typeof raw.value === "string" ? StellarSdk.xdr.ScVal.fromXDR(raw.value, "base64") : (raw.value as StellarSdk.xdr.ScVal);
 
         const tokenId = parseTokenIdFromData(dataVal) || topics[1] || "";
         const amount = parseAmountFromData(dataVal);
@@ -478,6 +545,27 @@ export async function getContractEvents(
 }
 
 // ─── Transaction submission ───────────────────────────────────────────────────
+
+/** Error thrown when the network rejects a transaction due to a bad sequence number. */
+export class BadSequenceError extends Error {
+  constructor() {
+    super("tx_bad_seq");
+    this.name = "BadSequenceError";
+  }
+}
+
+/** Returns true if a Soroban RPC send result represents a tx_bad_seq failure. */
+export function isBadSeqResult(
+  result: StellarSdk.rpc.Api.SendTransactionResponse
+): boolean {
+  if (result.status !== "ERROR") return false;
+  // The error extras may contain result codes; check common shapes.
+  const extras = (result as unknown as { errorResultXdr?: string; extras?: { result_codes?: { transaction?: string } } }).extras;
+  const txCode = extras?.result_codes?.transaction ?? "";
+  // Also check errorResultXdr for tx_bad_seq if present
+  const xdr = (result as unknown as { errorResultXdr?: string }).errorResultXdr ?? "";
+  return txCode === "tx_bad_seq" || xdr.includes("txBAD_SEQ");
+}
 
 /**
  * Submit a signed XDR transaction to the Soroban RPC.
@@ -577,113 +665,61 @@ export async function waitForTransaction(
   throw new Error(`Transaction ${hash} not confirmed after ${maxAttempts} attempts`);
 }
 
-export class BadSequenceError extends Error {
-  constructor() {
-    super("tx_bad_seq");
-    this.name = "BadSequenceError";
-  }
+// ─── Transaction Details ──────────────────────────────────────────────────────
+
+export interface TransactionDetails {
+  hash: string;
+  ledger: number;
+  createdAt: string;
+  feePaid: string; // in stroops
+  feeXlm: number;
+  successful: boolean;
+  sourceAccount: string;
+  operationCount: number;
+  memo: string | null;
 }
 
-export function isBadSeqResult(result: any): boolean {
-  if (!result || result.status !== "ERROR") return false;
-  const txCode = result.extras?.result_codes?.transaction ?? "";
-  const xdr = result.errorResultXdr ?? "";
-  return txCode === "tx_bad_seq" || xdr.includes("txBAD_SEQ");
+/**
+ * Fetch full transaction details from Horizon by hash.
+ * Uses NEXT_PUBLIC_STELLAR_HORIZON_URL — no hardcoded URLs.
+ */
+export async function fetchTransactionDetails(hash: string): Promise<TransactionDetails> {
+  const tx = await horizon.transactions().transaction(hash).call();
+  return {
+    hash: tx.hash,
+    ledger: tx.ledger_attr,
+    createdAt: tx.created_at,
+    feePaid: String(tx.fee_charged),
+    feeXlm: parseInt(String(tx.fee_charged), 10) / 10_000_000,
+    successful: tx.successful,
+    sourceAccount: tx.source_account,
+    operationCount: tx.operation_count,
+    memo: tx.memo ?? null,
+  };
 }
 
-export class SequenceManager {
-  private readonly counters = new Map<string, bigint>();
-  private readonly resetPromises = new Map<string, Promise<bigint>>();
+// ─── RPC Health Check ─────────────────────────────────────────────────────────
 
-  constructor() {}
-
-  async nextAccount(address: string): Promise<any> {
-    if (!this.counters.has(address)) {
-      await this.fetchAndSeed(address);
-    }
-    const seq = this.counters.get(address)!;
-    this.counters.set(address, seq + 1n);
-    
-    const isValidStellarAddress = /^G[A-Z2-7]{55}$/.test(address);
-    if (isValidStellarAddress) {
-      return new StellarSdk.Account(address, seq.toString());
-    }
-    return {
-      sequenceNumber: () => seq.toString(),
-    };
-  }
-
-  async reset(address: string): Promise<void> {
-    await this.fetchAndSeed(address);
-  }
-
-  evict(address: string): void {
-    this.counters.delete(address);
-    this.resetPromises.delete(address);
-  }
-
-  getCounter(address: string): bigint | undefined {
-    return this.counters.get(address);
-  }
-
-  private async fetchAccount(address: string): Promise<{ sequenceNumber: () => string }> {
-    return rpc.getAccount(address);
-  }
-
-  private async fetchAndSeed(address: string): Promise<bigint> {
-    const existing = this.resetPromises.get(address);
-    if (existing) return existing;
-
-    const promise = this.fetchAccount(address)
-      .then((account) => {
-        const seq = BigInt(account.sequenceNumber());
-        this.counters.set(address, seq);
-        return seq;
-      })
-      .finally(() => {
-        this.resetPromises.delete(address);
-      });
-
-    this.resetPromises.set(address, promise);
-    return promise;
-  }
+export interface RpcHealthResult {
+  ok: boolean;
+  latencyMs: number;
 }
 
-export const sequenceManager = new SequenceManager();
-
-export async function fetchTransactionDetails(hash: string) {
-  try {
-    const tx = await horizon.transactions().transaction(hash).call();
-    const feePaid = Number(tx.fee_charged) || 0;
-    return {
-      id: tx.id,
-      ledger: tx.ledger,
-      created_at: tx.created_at,
-      createdAt: tx.created_at,
-      source_account: tx.source_account,
-      fee_charged: tx.fee_charged,
-      feePaid,
-      feeXlm: feePaid / 10_000_000,
-      successful: tx.successful,
-      operationCount: tx.operation_count,
-      memo: tx.memo,
-    };
-  } catch (error) {
-    console.error("Error fetching transaction details:", error);
-    throw error;
-  }
-}
-
-export async function checkRpcHealth(): Promise<{ ok: boolean; latencyMs: number }> {
+/**
+ * Ping the Soroban RPC and return health status + latency.
+ * Never throws — returns ok:false on error.
+ */
+export async function checkRpcHealth(): Promise<RpcHealthResult> {
   const start = Date.now();
   try {
-    const healthResponse = await rpc.getHealth();
-    const latencyMs = Date.now() - start;
-    const ok = healthResponse.status === "healthy";
-    return { ok, latencyMs };
-  } catch (error) {
-    const latencyMs = Date.now() - start;
-    console.error("RPC Health Check Failed:", error);
-    return { ok: false, latencyMs };
+    await Promise.race([
+      rpc.getHealth(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5_000)),
+    ]);
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch {
+    return { ok: false, latencyMs: Date.now() - start };
   }
 }
+
+

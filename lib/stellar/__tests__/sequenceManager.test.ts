@@ -73,7 +73,7 @@ class TestableSequenceManager extends SequenceManager {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const ADDR = "GABC1234TESTADDRESS000000000000000000000000000000000000000";
+const ADDR = StellarSdk.Keypair.random().publicKey();
 
 function makeManager(fetchFn: (addr: string) => Promise<bigint>) {
   return new TestableSequenceManager(fetchFn);
@@ -200,7 +200,7 @@ describe("SequenceManager", () => {
 
   describe("multiple addresses", () => {
     it("maintains independent counters per address", async () => {
-      const ADDR_B = "GBBB5678TESTADDRESS000000000000000000000000000000000000000";
+      const ADDR_B = StellarSdk.Keypair.random().publicKey();
       const fetch = vi.fn()
         .mockImplementation(async (addr: string) =>
           addr === ADDR ? 100n : 200n

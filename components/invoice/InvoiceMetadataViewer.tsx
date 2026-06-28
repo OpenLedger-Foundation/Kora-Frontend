@@ -24,7 +24,7 @@ import { CopyButton } from "@/components/ui/CopyButton";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { Invoice } from "@/types/invoice";
-import { safeStellarTxUrl } from "@/lib/security";
+import { safeStellarTxUrl, safeIpfsUrl } from "@/lib/security";
 
 interface InvoiceMetadataViewerProps {
   invoice: Invoice;
@@ -217,7 +217,7 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
               value={ipfsCid} 
               copyText={ipfsCid}
               isLink
-              linkUrl={`https://ipfs.io/ipfs/${ipfsCid}`}
+              linkUrl={safeIpfsUrl(ipfsCid, "https://ipfs.io/ipfs")}
             />
             <div className="grid grid-cols-2 gap-2">
               <MetadataField label="Invoice #" value={metadata.invoiceNumber} copyText={metadata.invoiceNumber} />

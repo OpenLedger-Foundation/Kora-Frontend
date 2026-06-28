@@ -314,7 +314,12 @@ function MarketplaceContent() {
 
   const { data, isLoading, dataUpdatedAt } = useInvoices();
 
+  const [showFilters, setShowFilters] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Infinite loader (loads more pages as user scrolls)
   const infinite = useInfiniteQuery({
@@ -330,19 +335,16 @@ function MarketplaceContent() {
         },
         // translate sortBy into marketplace sort
         { key: sortBy?.split("_")[0] as any, direction: sortBy?.endsWith("asc") ? "asc" : "desc" },
-        pageParam,
+        pageParam as number,
         pageSize
       ),
     initialPageParam: 1,
-    getNextPageParam: (last: any) => (last.hasMore ? last.page + 1 : undefined),
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     enabled: isUrlHydrated,
   });
 
   const isFetchingNextPage = infinite.isFetchingNextPage;
   const hasNextPage = infinite.hasNextPage;
-  const [showFilters, setShowFilters] = useState(false);
-  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Close history dropdown on outside click
@@ -355,10 +357,6 @@ function MarketplaceContent() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  // Pagination State
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   // 1. URL to Zustand Sync Loop (On Mount / Initial Hydration)
   /* Hydrates the client-side Zustand store with initial filters parsed from the URL search queries */

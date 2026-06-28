@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
+import { logger } from "@/lib/logger";
 
 interface ChallengeResponse {
   challenge: string;
@@ -13,6 +14,7 @@ interface ChallengeResponse {
  */
 export async function POST(_request: NextRequest): Promise<NextResponse> {
   const requestId = _request.headers.get("x-request-id") ?? crypto.randomUUID();
+  const route = "/api/auth/challenge";
   try {
     const nonce = randomBytes(32).toString("hex");
     const timestamp = Date.now();
@@ -20,7 +22,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json<ChallengeResponse>({ challenge, timestamp });
   } catch (error) {
-    console.error("Error generating challenge:", requestId, error);
+    logger.error("Error generating challenge", { requestId, route, error });
     return NextResponse.json({ error: "Failed to generate challenge", requestId }, { status: 500 });
   }
 }

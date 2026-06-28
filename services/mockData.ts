@@ -416,8 +416,10 @@ export const MOCK_TRANSACTIONS = generateTransactions(100, MOCK_INVOICES, 444);
 export const MOCK_ANALYTICS = generateAnalyticsSeries(90, 555);
 
 export const MOCK_STATS = {
-  activeInvoices: 42,
-  totalVolumeFinanced: 1250000,
-  averageApr: 8.5,
-  totalInvestors: 184,
+  totalVolumeFinanced: 48_200_000,
+  activeInvoices: 127,
+  totalInvestors: 843,
+  averageApr: 22.4,
+  defaultRate: 0.8,
+  totalSMEs: 312,
 };

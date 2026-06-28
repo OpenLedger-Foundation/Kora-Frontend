@@ -20,7 +20,7 @@ const meta: Meta<typeof RangeSlider> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function DefaultStory(args: any) {
+function DefaultWrapper(args: any) {
   const [value, setValue] = useState<[number, number]>([20, 80]);
   return (
     <div className="w-[400px]">
@@ -42,7 +42,7 @@ export const Default: Story = {
   },
 };
 
-function APRFilterStory() {
+function APRFilterWrapper() {
   const [value, setValue] = useState<[number, number]>([5, 25]);
   return (
     <div className="w-[400px]">
@@ -59,15 +59,15 @@ function APRFilterStory() {
 }
 
 export const APRFilter: Story = {
-  render: () => <APRFilterStory />,
+  render: () => <APRFilterWrapper />,
 };
 
-function WithHistogramStory() {
+function WithHistogramWrapper() {
   const [value, setValue] = useState<[number, number]>([10, 40]);
-  const histogram = Array.from({ length: 20 }, (_, i) => ({
+  const [histogram] = useState(() => Array.from({ length: 20 }, (_, i) => ({
     value: i * 2.5,
     count: Math.floor(Math.random() * 100) + 10,
-  }));
+  })));
   
   return (
     <div className="w-[400px]">
@@ -85,10 +85,10 @@ function WithHistogramStory() {
 }
 
 export const WithHistogram: Story = {
-  render: () => <WithHistogramStory />,
+  render: () => <WithHistogramWrapper />,
 };
 
-function DisabledStory() {
+function DisabledWrapper() {
   const [value, setValue] = useState<[number, number]>([30, 70]);
   return (
     <div className="w-[400px]">
@@ -105,5 +105,5 @@ function DisabledStory() {
 }
 
 export const Disabled: Story = {
-  render: () => <DisabledStory />,
+  render: () => <DisabledWrapper />,
 };

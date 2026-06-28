@@ -403,7 +403,7 @@ export default function SMEDashboardPage() {
                   cell: (row) => {
                     const isDue = new Date(row.terms.repaymentDate) <= new Date();
                     const canRepay = row.status === "fully_funded" && isDue;
-                    const canCancel = row.status === "draft" || row.status === "pending_mint" || row.status === "listed";
+                    const canCancel = (row.status === "listed" || row.status === "pending_mint") && row.funding.totalRaised === 0;
 
                     return (
                       <div className="flex items-center gap-2">

@@ -16,6 +16,7 @@ import { useUIStore } from "@/store";
 import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/security";
+import { getWalletIconSvg, sanitizeSvg } from "@/lib/svgHelper";
 
 const WALLETS = [
   {
@@ -73,6 +74,13 @@ export function WalletConnectModal() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
 
+  const wallet = activeWallet ? WALLETS.find((w) => w.id === activeWallet) : null;
+  const isConnecting = walletState === "connecting";
+  const isSuccess = walletState === "success";
+  const isError = walletState === "error";
+  const installed = wallet ? wallet.isAvailable() : false;
+  const i = 0;
+
   useEffect(() => {
     if (walletModalOpen) {
       setTimeout(() => firstFocusRef.current?.focus(), 50);
@@ -114,35 +122,156 @@ export function WalletConnectModal() {
       >
         <DialogHeader>
           <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-kora-muted text-primary">
-            <Wallet className="h-5 w-5" />
+            <Wallet className="h-5 w-5" aria-hidden="true" />
           </div>
           <DialogTitle>{t("connectTitle")}</DialogTitle>
           <DialogDescription>{t("connectToAccess")}</DialogDescription>
         </DialogHeader>
 
         <AnimatePresence mode="wait">
-          {walletState === "success" ? (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="flex flex-col items-center justify-center py-8 gap-4"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/10 text-green-500">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
+          {walletState === "success" ? (() => {
+            const wallet = WALLETS.find((w) => w.id === activeWallet);
+            if (!wallet) return null;
+            const installed = wallet.isAvailable();
+            const i = WALLETS.indexOf(wallet);
+            const isConnecting = false;
+            const isSuccess = true;
+            const isError = false;
+
+            return (
               <motion.div
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-                className="text-center"
+                key="success"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex flex-col items-center justify-center py-8 gap-4"
               >
-                <p className="font-medium text-foreground">Wallet Connected!</p>
-                <p className="text-sm text-muted-foreground mt-1">Redirecting…</p>
+                <motion.div
+                  key={wallet.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.06 }}
+                  className={cn(
+                    "relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-all",
+                    isConnecting && "border-primary/30 bg-kora-muted",
+                    isSuccess && "border-green-500/40 bg-green-500/5",
+                    isError && "border-destructive/40 bg-destructive/5"
+                  )}
+                >
+                  {(() => {
+                    const svg = getWalletIconSvg(wallet.id);
+                    if (svg) {
+                      return (
+                        <div
+                          className="shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
+                          style={{ width: 32, height: 32 }}
+                          dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }}
+                        />
+                      );
+                    }
+                    return (
+                      <Image
+                        src={wallet.icon}
+                        alt={wallet.name}
+                        width={32}
+                        height={32}
+                        className="shrink-0 rounded-lg"
+                      />
+                    );
+                  })()}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-foreground">
+                        {wallet.name}
+                      </span>
+                      {wallet.popular && (
+                        <span className="rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          {t("popular")}
+                        </span>
+                      )}
+                      {!installed && (
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {t("notInstalled")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {wallet.description}
+                    </p>
+                    <AnimatePresence>
+                      {isError && (
+                        <motion.p
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-1 text-xs text-destructive"
+                        >
+                          {errorMsg}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    {isConnecting && (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    )}
+                    {isSuccess && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 300 }}
+                      >
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      </motion.div>
+                    )}
+                    {isError && (
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
+                      >
+                        <AlertCircle className="h-3 w-3" /> {t("retry")}
+                      </button>
+                    )}
+                    {!isConnecting && !isSuccess && !isError &&
+                      (installed ? (
+                        <button
+                          ref={i === 0 ? firstFocusRef : undefined}
+                          type="button"
+                          onClick={() => handleConnect(wallet.id)}
+                          disabled={isConnecting}
+                          aria-label={`Connect ${wallet.name}`}
+                          className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Connect <ChevronRight className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <a
+                          href={safeExternalUrl(wallet.installUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Install ${wallet.name} extension`}
+                          className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          {t("install")} <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ))}
+                  </div>
+
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="text-center"
+                >
+                  <p className="font-medium text-foreground">Wallet Connected!</p>
+                  <p className="text-sm text-muted-foreground mt-1">Redirecting…</p>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          ) : (
+            );
+          })() : (
             <motion.div
               key="list"
               initial={{ opacity: 0 }}
@@ -169,24 +298,38 @@ export function WalletConnectModal() {
                       isError && "border-destructive/40 bg-destructive/5",
                     )}
                   >
-                    <Image
-                      src={wallet.icon}
-                      alt={wallet.name}
-                      width={32}
-                      height={32}
-                      className="shrink-0 rounded-lg"
-                    />
+                    {(() => {
+                      const svg = getWalletIconSvg(wallet.id);
+                      if (svg) {
+                        return (
+                          <div
+                            className="shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
+                            style={{ width: 32, height: 32 }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeSvg(svg) }}
+                          />
+                        );
+                      }
+                      return (
+                        <Image
+                          src={wallet.icon}
+                          alt={wallet.name}
+                          width={32}
+                          height={32}
+                          className="shrink-0 rounded-lg"
+                        />
+                      );
+                    })()}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-foreground">{wallet.name}</span>
                         {wallet.popular && (
                           <span className="rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                            Popular
+                            {t("popular")}
                           </span>
                         )}
                         {!installed && (
                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                            Not installed
+                            {t("notInstalled")}
                           </span>
                         )}
                       </div>
@@ -211,7 +354,7 @@ export function WalletConnectModal() {
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                         >
-                          <Loader2 className="h-4 w-4 text-primary" />
+                          <Loader2 className="h-4 w-4 text-primary" aria-hidden="true" />
                         </motion.div>
                       )}
                       {isError && (
@@ -220,7 +363,7 @@ export function WalletConnectModal() {
                           onClick={handleRetry}
                           className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20 transition-colors"
                         >
-                          <AlertCircle className="h-3 w-3" /> Retry
+                          <AlertCircle className="h-3 w-3" aria-hidden="true" /> {t("retry")}
                         </button>
                       )}
                       {!isConnecting && !isError && (
@@ -233,7 +376,7 @@ export function WalletConnectModal() {
                             aria-label={`Connect ${wallet.name}`}
                             className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                           >
-                            Connect <ChevronRight className="h-3 w-3" />
+                            Connect <ChevronRight className="h-3 w-3" aria-hidden="true" />
                           </button>
                         ) : (
                           <a
@@ -243,7 +386,7 @@ export function WalletConnectModal() {
                             aria-label={`Install ${wallet.name} extension`}
                             className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                           >
-                            Install <ExternalLink className="h-3 w-3" />
+                            {t("install")} <ExternalLink className="h-3 w-3" aria-hidden="true" />
                           </a>
                         )
                       )}

@@ -106,6 +106,33 @@ describe("formatCurrency", () => {
   it("compact: exactly 1_000 boundary", () => {
     expect(formatCurrency(1_000, "USDC", true)).toBe("$1.0K USDC");
   });
+
+  // ── Locale tests (Issue #290) ──────────────────────────────────────────────
+  it("locale en-US: 1000 → '1,234.00 USDC'", () => {
+    // en-US uses comma thousands sep and period decimal
+    expect(formatCurrency(1000, "USDC", false, "en-US")).toBe("$1,000.00 USDC");
+  });
+  it("locale en-US: 1000.00 matches spec", () => {
+    expect(formatCurrency(1000, "USDC", false, "en-US")).toContain("1,000.00");
+  });
+  it("locale es-ES: 1000 → contains '1.000,00'", () => {
+    // es-ES uses period thousands sep and comma decimal
+    const result = formatCurrency(1000, "USDC", false, "es-ES");
+    expect(result).toContain("1.000,00");
+    expect(result).toContain("USDC");
+  });
+  it("locale fr-FR: 1000 → contains '1\u00a0000,00'", () => {
+    // fr-FR uses narrow no-break space as thousands sep and comma decimal
+    const result = formatCurrency(1000, "USDC", false, "fr-FR");
+    // Accept either a regular space or narrow no-break space (\u202f or \u00a0)
+    expect(result.replace(/[\u00a0\u202f]/g, " ")).toContain("1 000,00");
+    expect(result).toContain("USDC");
+  });
+  it("currency symbol always remains USDC regardless of locale", () => {
+    expect(formatCurrency(100, "USDC", false, "de-DE")).toContain("USDC");
+    expect(formatCurrency(100, "USDC", false, "ja-JP")).toContain("USDC");
+    expect(formatCurrency(100, "USDC", false, "ar-SA")).toContain("USDC");
+  });
 });
 
 // ─── 3. formatUSDC ───────────────────────────────────────────────────────────

@@ -136,7 +136,7 @@ export function useTransaction() {
       if (status === "retrying") {
         setTxState({ status: "submitting" });
       } else {
-        setTxState({ status: status as any });
+        setTxState({ status } as any);
       }
       // Show loading toast for in-progress stages
       const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
@@ -234,11 +234,14 @@ export function useTransaction() {
 
         // 3. Sign
         setStage("signing");
-        let signedXdr = unsignedXdr.startsWith("mock_")
-          ? unsignedXdr
-          : await signTransaction(unsignedXdr);
+        let signedXdr: string;
+        if (unsignedXdr.startsWith("mock_")) {
+          signedXdr = unsignedXdr;
+        } else {
+          signedXdr = await signTransaction(unsignedXdr);
+        }
 
-        // ── Phase 4: submit (with one seq-reset retry) ─────────────────────
+        // 4. Submit
         setStage("submitting");
         let hash: string;
 
@@ -248,31 +251,9 @@ export function useTransaction() {
             Math.floor(Math.random() * 16).toString(16)
           ).join("");
         } else {
-          try {
-            const result = await submitTransaction(signedXdr);
-            if (result.status === "ERROR") throw new Error("Transaction submission failed");
-            hash = result.hash;
-          } catch (err) {
-            if (err instanceof BadSequenceError && publicKey) {
-              // Reset the local sequence counter from the authoritative network
-              // value, rebuild the transaction with the corrected sequence, and
-              // retry exactly once. The user never sees this — it's transparent.
-              setStage("retrying");
-              await sequenceManager.reset(publicKey);
-
-              setStage("building");
-              signedXdr = await buildAndSign(buildFn, signTransaction, setStage);
-
-              setStage("submitting");
-              const retryResult = await submitTransaction(signedXdr);
-              if (retryResult.status === "ERROR") {
-                throw new Error("Transaction submission failed after sequence reset");
-              }
-              hash = retryResult.hash;
-            } else {
-              throw err;
-            }
-          }
+          const result = await submitTransaction(signedXdr);
+          if (result.status === "ERROR") throw new Error("Transaction submission failed");
+          hash = result.hash;
         }
 
         // Add to history as pending
@@ -309,12 +290,7 @@ export function useTransaction() {
       } catch (err) {
         const message = err instanceof Error ? err.message : t("failed");
         setState({ status: "failed", error: message });
-        
-        const serviceError: ServiceError = {
-          code: "TRANSACTION_FAILED",
-          message,
-        };
-        setTxState({ status: "failed", error: serviceError });
+        setTxState({ status: "failed", error: { code: "TRANSACTION_FAILED", message } });
         
         // Update history if we have a hash
         if (state.txHash) {

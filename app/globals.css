@@ -124,19 +124,34 @@ html {
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /*
-   * Smooth theme transition — applied only after the ThemeProvider mounts
-   * (data-theme-ready is set by ThemeProvider on first effect run).
-   * This prevents the flash of transition on initial page load while still
-   * giving a polished 200ms crossfade on user-triggered theme changes.
-   */
-  html[data-theme-ready] *,
-  html[data-theme-ready] *::before,
-  html[data-theme-ready] *::after {
-    transition-property: color, background-color, border-color, fill, stroke,
-      box-shadow, outline-color;
-    transition-duration: 200ms;
-    transition-timing-function: ease;
+  /* Focus-visible styles for keyboard navigation (WCAG AA compliant) */
+  /* Only show focus ring when navigating with keyboard, not mouse */
+  *:focus-visible {
+    @apply outline-none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+  /* Ensure focus ring is visible on dark backgrounds */
+  .dark *:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+  /* Enhanced focus ring for interactive elements */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+    border-color: hsl(var(--ring));
+  }
+
+  /* Card-like elements with focus-visible */
+  .card:focus-visible,
+  [role="button"]:focus-visible,
+  [role="link"]:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring)), var(--shadow-lg);
   }
   ::-webkit-scrollbar {
     width: 6px;
@@ -263,5 +278,104 @@ html {
   a[href^="#"]::after,
   a[href^="javascript:"]::after {
     content: "";
+  }
+}
+
+/* ─── Forced Colours / High Contrast Mode (Issue #291) ──────────────────── */
+/*
+ * Overrides for Windows High Contrast Mode and macOS Increase Contrast.
+ * Only system color keywords are used (ButtonText, Highlight, CanvasText …)
+ * so these rules are completely inert in normal rendering.
+ *
+ * WCAG 1.4.11 (Non-text Contrast) & 1.4.3 (Contrast Minimum).
+ */
+@media (forced-colors: active) {
+  /* ── Buttons ────────────────────────────────────────────────────────── */
+  button,
+  [role="button"],
+  a[href] {
+    /* Ensure button chrome remains visible */
+    forced-color-adjust: none;
+    border: 1px solid ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+  }
+
+  button:hover,
+  [role="button"]:hover,
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    border-color: Highlight;
+    color: HighlightText;
+    background: Highlight;
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    color: GrayText;
+    border-color: GrayText;
+    background: Canvas;
+  }
+
+  /* ── Badges ─────────────────────────────────────────────────────────── */
+  /*
+   * Badges use color alone in normal mode.
+   * In forced-colors we restore borders so the shape is distinguishable.
+   */
+  [class*="badge"],
+  [class*="Badge"] {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  /* High-risk pulse ring — keep a visible border in forced colors */
+  [class*="badge"] [class*="pulse"],
+  [class*="Badge"] [class*="pulse"] {
+    border: 2px solid Highlight;
+    animation: none; /* animations add no value in HC mode */
+  }
+
+  /* ── Progress bars ──────────────────────────────────────────────────── */
+  /*
+   * Progress indicators must remain distinguishable from their track.
+   * We use Highlight for the filled portion and Canvas for the track.
+   */
+  [role="progressbar"],
+  [data-radix-progress-root] {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+
+  [role="progressbar"] > *,
+  [data-radix-progress-indicator] {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  /* Inline progress elements (native <progress>) */
+  progress {
+    forced-color-adjust: none;
+    accent-color: Highlight;
+  }
+
+  /* ── Status dots (InvoiceStatusBadge animated ping) ────────────────── */
+  [class*="animate-ping"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    animation: none;
+  }
+
+  /* ── Skip link ──────────────────────────────────────────────────────── */
+  a[href="#main-content"]:focus {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
   }
 }

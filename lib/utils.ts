@@ -1,6 +1,12 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
+import { StrKey } from "@stellar/stellar-sdk";
+
+export function isValidStellarAddress(address: string | null | undefined): boolean {
+  if (!address) return false;
+  return StrKey.isValidEd25519PublicKey(address.trim());
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -8,8 +14,13 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Format a number as a currency string.
- * Existing signature preserved: formatCurrency(amount, currency?, compact?)
- * Extended: formatCurrency(amount, currency?, compact?, locale?)
+ * Always uses USDC (or the provided currency label) as the symbol.
+ * The number is formatted according to the active locale.
+ *
+ * @param amount   - The numeric value to format (null/undefined → 0)
+ * @param currency - Currency label appended to the formatted number (default: "USDC")
+ * @param compact  - When true, abbreviates large numbers as K / M (default: false)
+ * @param locale   - BCP 47 locale string used for number formatting (default: "en-US")
  */
 export function formatCurrency(
   amount: number | null | undefined,
@@ -19,10 +30,18 @@ export function formatCurrency(
 ): string {
   const n = amount ?? 0;
   if (compact && Math.abs(n) >= 1_000_000) {
-    return `$${(n / 1_000_000).toFixed(1)}M ${currency}`;
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(n / 1_000_000);
+    return `${formatted}M ${currency}`;
   }
   if (compact && Math.abs(n) >= 1_000) {
-    return `$${(n / 1_000).toFixed(1)}K ${currency}`;
+    const formatted = new Intl.NumberFormat(locale, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    }).format(n / 1_000);
+    return `${formatted}K ${currency}`;
   }
   return (
     new Intl.NumberFormat(locale, {
@@ -147,6 +166,14 @@ export function truncateAddress(address: string | null | undefined, chars = 4): 
   const clean = address.trim();
   if (clean.length <= chars * 2) return clean;
   return `${clean.slice(0, chars)}...${clean.slice(-chars)}`;
+}
+
+/** Shorten a Stellar address/hash for display, keeping prefix plus chars */
+export function shortenAddress(address: string | null | undefined, chars = 4): string {
+  if (!address) return "";
+  const clean = address.trim();
+  if (clean.length <= chars * 2) return clean;
+  return `${clean.slice(0, chars + 1)}...${clean.slice(-chars)}`;
 }
 
 /** Convert stroops to XLM */
@@ -300,6 +327,21 @@ export const STATUS_COLORS: Record<string, string> = {
   defaulted: "text-destructive bg-destructive/10",
   cancelled: "text-muted-foreground bg-muted",
 };
+
+/** Export an array of objects as a CSV file download */
+export function exportCsv(data: Record<string, unknown>[], filename: string): void {
+  if (!data.length) return;
+  const headers = Object.keys(data[0]);
+  const rows = data.map((row) => headers.map((h) => JSON.stringify(row[h] ?? "")).join(","));
+  const csv = [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 /** Retry a function up to `attempts` times with exponential backoff on 5xx errors */
 export async function withRetry<T>(

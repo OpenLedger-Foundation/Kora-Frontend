@@ -38,11 +38,11 @@ export function useAccountBalance(address: string | undefined) {
         return { usdc: 999_999, xlm: 10_000, eurc: 5_000 };
       }
       const raw = await getAccountBalances(address);
-      const eurcBalance = raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0";
+      const eurcAsset = raw.otherAssets.find((a) => a.code === "EURC");
       return {
-        usdc: parseFloat(raw.usdc ?? "0"),
-        xlm: parseFloat(raw.xlm ?? "0"),
-        eurc: parseFloat(eurcBalance),
+        usdc: parseFloat(raw.usdc),
+        xlm: parseFloat(raw.xlm),
+        eurc: eurcAsset ? parseFloat(eurcAsset.balance) : 0,
       };
     },
   });

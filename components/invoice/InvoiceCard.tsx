@@ -83,7 +83,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Check if invoice is expired
-  const countdown = useCountdown(listingExpiry || new Date(0).toISOString());
+  const countdown = useCountdown(listingExpiry ?? 0);
   const isExpired = countdown.isExpired || status === "cancelled";
 
   const handleMouseEnter = useCallback(() => {
@@ -149,7 +149,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
       <motion.div
         layoutId={`invoice-card-${invoice.id}`}
         className={cn(
-          "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg flex flex-col h-full justify-between",
+          "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background flex flex-col h-full justify-between",
           isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
         )}
         initial={{ opacity: 0, y: 16 }}
@@ -205,7 +205,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
           <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4">
             <div>
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <TrendingUp className="h-3 w-3 text-primary" /> APR
+                <TrendingUp className="h-3 w-3 text-primary" aria-hidden="true" /> APR
               </p>
               <p className="mt-0.5 text-sm font-semibold text-primary">
                 {formatApr(terms.apr)}
@@ -213,7 +213,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
             </div>
             <div>
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <Calendar className="h-3 w-3 text-muted-foreground" /> Tenor
+                <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" /> Tenor
               </p>
               <p className="mt-0.5 text-sm font-medium text-foreground">
                 {terms.tenor}d
@@ -221,7 +221,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
             </div>
             <div>
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <Users className="h-3 w-3 text-muted-foreground" /> Investors
+                <Users className="h-3 w-3 text-muted-foreground" aria-hidden="true" /> Investors
               </p>
               <p className="mt-0.5 text-sm font-medium text-foreground">
                 {funding.investorCount}
@@ -240,13 +240,13 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
             <span className={cn("text-xs flex items-center gap-1 shrink-0 font-medium", isExpired ? "text-muted-foreground" : "text-muted-foreground")}>
               {isExpired ? (
                 <>
-                  <Clock className="h-3 w-3" />
+                  <Clock className="h-3 w-3" aria-hidden="true" />
                   Expired
                 </>
               ) : (
                 <>
-                  <Calendar className="h-3 w-3" />
-                  <CountdownTimer targetDate={listingExpiry || new Date(0).toISOString()} compact className="ml-1" />
+                  <Calendar className="h-3 w-3" aria-hidden="true" />
+                  <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
                 </>
               )}
             </span>
@@ -279,7 +279,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
             }
             aria-pressed={isInComparison}
           >
-            <GitCompareArrows className="h-3.5 w-3.5" />
+            <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
             {isInComparison ? "Remove from Compare" : "Add to Compare"}
           </button>        </div>
 
@@ -287,7 +287,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
         <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex items-center justify-center pointer-events-none">
           <div className="bg-primary text-primary-foreground font-semibold px-5 py-2.5 rounded-lg shadow-xl flex items-center gap-2 border border-primary/20 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 pointer-events-auto">
             View Details
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </div>
         </div>
 

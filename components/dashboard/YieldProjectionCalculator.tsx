@@ -114,10 +114,10 @@ export function YieldProjectionCalculator() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Risk Tier Preference</label>
               <Select
+                label="Risk Tier Preference"
                 value={tier}
-                onChange={(val) => setTier(val)}
+                onChange={setTier}
                 options={RISK_TIERS.map((t) => ({
                   value: t,
                   label: `Tier ${t} (${RISK_TIER_APR[t]}% APR)`,
@@ -125,10 +125,10 @@ export function YieldProjectionCalculator() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">Horizon (Months)</label>
               <Select
+                label="Horizon (Months)"
                 value={horizon.toString()}
-                onChange={(val) => setHorizon(Number(val))}
+                onChange={(v) => setHorizon(Number(v))}
                 options={[3, 6, 12, 18, 24, 36].map((m) => ({
                   value: m.toString(),
                   label: `${m} Months`,

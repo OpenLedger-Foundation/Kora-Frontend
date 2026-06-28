@@ -33,7 +33,9 @@ const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
 
 // ─── List ─────────────────────────────────────────────────────────────────────
 
-export function useInvoices(page = 1) {
+export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, opts?: { refetchInterval?: number }) {
+  const page = typeof pageOrOpts === "number" ? pageOrOpts : 1;
+  const refetchInterval = typeof pageOrOpts === "object" ? pageOrOpts?.refetchInterval : opts?.refetchInterval;
   const { filters, sort } = useInvoiceStore();
   return useQuery({
     queryKey: queryKeys.invoices.list(filters, sort, page),

@@ -9,7 +9,15 @@ export function usePositions(investorAddress?: string, opts?: { refetchInterval?
     queryKey: ["positions", investorAddress],
     queryFn: async () => {
       if (!investorAddress) return [];
-      return getPositions(investorAddress);
+      const positions = await getPositions(investorAddress);
+      return positions.map((p) => ({
+        id: p.invoiceId,
+        invoiceId: p.invoiceId,
+        invoice: p.invoice,
+        investedAmount: p.investedAmount,
+        expectedReturn: p.expectedReturn,
+        status: p.status,
+      }));
     },
     enabled: !!investorAddress,
     staleTime: 30_000,
