@@ -89,13 +89,31 @@ const serverSchema = z.object({
   VIRUSTOTAL_API_KEY: z.string().optional(),
 });
 
+const clientEnv = {
+  NEXT_PUBLIC_STELLAR_NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK,
+  NEXT_PUBLIC_STELLAR_RPC_URL: process.env.NEXT_PUBLIC_STELLAR_RPC_URL,
+  NEXT_PUBLIC_STELLAR_HORIZON_URL: process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL,
+  NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE:
+    process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE,
+  NEXT_PUBLIC_INVOICE_CONTRACT_ID: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID,
+  NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID:
+    process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID,
+  NEXT_PUBLIC_TOKEN_CONTRACT_ID: process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ID,
+  NEXT_PUBLIC_IPFS_GATEWAY: process.env.NEXT_PUBLIC_IPFS_GATEWAY,
+  NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
+  NEXT_PUBLIC_APP_DESCRIPTION: process.env.NEXT_PUBLIC_APP_DESCRIPTION,
+  NEXT_PUBLIC_ENABLE_MOCK_DATA: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
+  NEXT_PUBLIC_ENABLE_DEVTOOLS: process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS,
+};
+
 // ─── Parse & validate ─────────────────────────────────────────────────────────
 
 function parseEnv() {
   const isServer = typeof window === "undefined";
 
   // Validate client vars — runs on both server and client
-  const clientResult = clientSchema.safeParse(process.env);
+  const clientResult = clientSchema.safeParse(clientEnv);
   if (!clientResult.success) {
     const msg = clientResult.error.issues
       .map((i) => `  ${i.path.join(".")}: ${i.message}`)
@@ -115,13 +133,19 @@ function parseEnv() {
     const missingRequired = issues.filter((i) => i.path[0] === "PINATA_JWT");
 
     if (isProd && missingRequired.length > 0) {
-      const msg = issues.map((i) => `  ${i.path.join(".")}: ${i.message}`).join("\n");
-      throw new Error(`❌ Missing required server environment variables:\n${msg}`);
+      const msg = issues
+        .map((i) => `  ${i.path.join(".")}: ${i.message}`)
+        .join("\n");
+      throw new Error(
+        `❌ Missing required server environment variables:\n${msg}`,
+      );
     }
 
     // Dev: warn about optional missing vars but don't throw
     issues.forEach((i) => {
-      console.warn(`⚠️  Optional env var missing or invalid: ${i.path.join(".")}`);
+      console.warn(
+        `⚠️  Optional env var missing or invalid: ${i.path.join(".")}`,
+      );
     });
 
     return {
