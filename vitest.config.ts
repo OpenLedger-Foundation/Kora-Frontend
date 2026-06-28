@@ -11,6 +11,30 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: [],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html", "lcov"],
+      exclude: [
+        "node_modules/**",
+        ".next/**",
+        "out/**",
+        "coverage/**",
+        "**/*.config.{js,ts}",
+        "**/*.d.ts",
+        "**/types/**",
+        "**/__tests__/**",
+        "**/*.test.{js,ts,jsx,tsx}",
+        "**/*.spec.{js,ts,jsx,tsx}",
+        ".storybook/**",
+        "**/*.stories.{js,ts,jsx,tsx}",
+      ],
+      thresholds: {
+        lines: 80,
+        branches: 70,
+        functions: 75,
+        statements: 80,
+      },
+    },
   },
   resolve: {
     alias: {
