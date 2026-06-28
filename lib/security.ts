@@ -97,6 +97,26 @@ export function verifyUploadToken(
   }
 }
 
+// ─── General Input Sanitization ──────────────────────────────────────────────
+
+const MAX_INPUT_LENGTH = 2048;
+
+/**
+ * Sanitize a user-supplied string input: strips HTML tags, removes control
+ * characters, and enforces a maximum length.
+ *
+ * Use this on every user-supplied string before storing or rendering it.
+ * For rendering untrusted HTML blobs, use sanitizeHtml() instead.
+ */
+export function sanitizeInput(value: string | undefined | null, maxLength = MAX_INPUT_LENGTH): string {
+  if (!value) return "";
+  return value
+    .replace(/<[^>]*>/g, "")       // strip HTML tags
+    .replace(/[^\x20-\x7E -￿]/g, "") // remove control chars
+    .slice(0, maxLength)
+    .trim();
+}
+
 // ─── HTML Sanitization ────────────────────────────────────────────────────────
 
 /**

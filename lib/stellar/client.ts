@@ -501,7 +501,7 @@ export async function getContractEvents(
   const events: ContractEvent[] = response.events
     .map((raw): ContractEvent | null => {
       try {
-        // Decode topics from base64 XDR
+        // Decode topics
         const topics = raw.topic.map((t) => {
           const val = typeof t === "string" ? StellarSdk.xdr.ScVal.fromXDR(t, "base64") : (t as StellarSdk.xdr.ScVal);
           return parseTopicToString(val);

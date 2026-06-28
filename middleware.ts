@@ -36,7 +36,9 @@ export function middleware(req: NextRequest) {
       const url = req.nextUrl.clone();
       url.pathname = "/";
       url.searchParams.set("redirectTo", pathname + (search || ""));
-      const redirect = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+      const redirect = NextResponse.rewrite(url, {
+        request: { headers: requestHeaders },
+      });
       redirect.headers.set("x-request-id", requestId);
       if (!cookieValue || cookieValue !== locale) {
         redirect.cookies.set(

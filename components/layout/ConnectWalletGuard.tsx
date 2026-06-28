@@ -7,17 +7,24 @@ import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { WalletButton } from "@/components/wallet/WalletButton";
 
-export function ConnectWalletGuard({ children }: { children: React.ReactNode }) {
-  const t = useTranslations("wallet");
-  const pathname = usePathname();
+function IntendedDestinationSetter() {
   const searchParams = useSearchParams();
-  const { isConnected } = useWallet();
   const { setIntendedDestination } = useUIStore();
 
   useEffect(() => {
     const redirectTo = searchParams.get("redirectTo");
     if (redirectTo) setIntendedDestination(redirectTo);
   }, [searchParams, setIntendedDestination]);
+
+  return null;
+}
+
+import { Suspense } from "react";
+
+export function ConnectWalletGuard({ children }: { children: React.ReactNode }) {
+  const t = useTranslations("wallet");
+  const pathname = usePathname();
+  const { isConnected } = useWallet();
 
   if (
     !isConnected &&
@@ -38,5 +45,12 @@ export function ConnectWalletGuard({ children }: { children: React.ReactNode }) 
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <Suspense fallback={null}>
+        <IntendedDestinationSetter />
+      </Suspense>
+      {children}
+    </>
+  );
 }
