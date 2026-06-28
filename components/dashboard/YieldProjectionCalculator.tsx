@@ -1,0 +1,202 @@
+"use client";
+
+import React, { useState, useMemo, useRef } from "react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import {
+  calculateYieldProjection,
+  formatCurrency,
+  formatPercentage,
+  RISK_TIER_APR,
+  YIELD_BENCHMARKS,
+} from "@/lib/utils";
+import { Download, Info } from "lucide-react";
+import { toast } from "sonner";
+import { useTranslations } from "next-intl";
+
+const RISK_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
+
+export function YieldProjectionCalculator() {
+  const t = useTranslations("yieldCalculator");
+  const [amount, setAmount] = useState<number>(10000);
+  const [tier, setTier] = useState<string>("A");
+  const [horizon, setHorizon] = useState<number>(12);
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  const projection = useMemo(
+    () => calculateYieldProjection(amount, tier, horizon),
+    [amount, tier, horizon]
+  );
+
+  const handleExport = async () => {
+    if (!chartRef.current) return;
+    try {
+      const svg = chartRef.current.querySelector("svg");
+      if (!svg) throw new Error("SVG not found");
+
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      const svgSize = svg.getBoundingClientRect();
+      const scale = 2;
+      canvas.width = svgSize.width * scale;
+      canvas.height = svgSize.height * scale;
+
+      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+
+      img.onload = () => {
+        if (ctx) {
+          ctx.fillStyle = "#09090b";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const pngUrl = canvas.toDataURL("image/png");
+          const downloadLink = document.createElement("a");
+          downloadLink.href = pngUrl;
+          downloadLink.download = `yield-projection-${tier}-${horizon}m.png`;
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+          URL.revokeObjectURL(url);
+          toast.success(t("exportSuccess"));
+        }
+      };
+      img.src = url;
+    } catch (error) {
+      console.error("Export failed:", error);
+      toast.error(t("exportError"));
+    }
+  };
+
+  return (
+    <Card className="col-span-full">
+      <CardHeader>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-xl font-bold">{t("title")}</CardTitle>
+            <CardDescription>{t("description")}</CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleExport} className="w-fit gap-2">
+            <Download className="h-4 w-4" />
+            {t("saveProjection")}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-8 lg:grid-cols-4">
+          {/* Inputs */}
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-muted-foreground">{t("amountLabel")}</label>
+              <Input
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                placeholder={t("amountPlaceholder")}
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-2">
+              <Select
+                label={t("riskTierLabel")}
+                value={tier}
+                onChange={setTier}
+                options={RISK_TIERS.map((r) => ({
+                  value: r,
+                  label: t("riskTierOption", { tier: r, apr: RISK_TIER_APR[r] }),
+                }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Select
+                label={t("horizonLabel")}
+                value={horizon.toString()}
+                onChange={(v) => setHorizon(Number(v))}
+                options={[3, 6, 12, 18, 24, 36].map((m) => ({
+                  value: m.toString(),
+                  label: t("horizonMonths", { count: m }),
+                }))}
+              />
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Info className="h-3 w-3" />
+                <span>{t("assumptionsLabel")}</span>
+              </div>
+              <p className="text-[10px] leading-relaxed text-muted-foreground/80">
+                {t("assumptionsText", {
+                  tier,
+                  apr: RISK_TIER_APR[tier],
+                  savings: YIELD_BENCHMARKS.SAVINGS_APY,
+                  tbills: YIELD_BENCHMARKS.T_BILLS_APY,
+                })}
+              </p>
+            </div>
+          </div>
+
+          {/* Chart & Stats */}
+          <div className="lg:col-span-3 space-y-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-xl border bg-card p-4">
+                <p className="text-xs text-muted-foreground">{t("projectedYield")}</p>
+                <p className="text-lg font-bold text-teal-500">
+                  +{formatCurrency(projection.totalYield, "USDC")}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-card p-4">
+                <p className="text-xs text-muted-foreground">{t("annualizedReturn")}</p>
+                <p className="text-lg font-bold text-primary">
+                  {formatPercentage(projection.annualizedReturn)}
+                </p>
+              </div>
+              <div className="rounded-xl border bg-card p-4">
+                <p className="text-xs text-muted-foreground">{t("invoicesNeeded")}</p>
+                <p className="text-lg font-bold text-foreground">~{projection.invoicesNeeded}</p>
+              </div>
+            </div>
+
+            <div className="h-[350px] w-full" ref={chartRef}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={projection.data} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorPortfolio" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
+                  <XAxis dataKey="monthName" axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: "#71717a", fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "8px" }}
+                    itemStyle={{ fontSize: "12px" }}
+                    labelStyle={{ color: "#71717a", marginBottom: "4px" }}
+                    formatter={(value: number) => [formatCurrency(value), ""]}
+                  />
+                  <Legend verticalAlign="top" height={40} iconType="circle" wrapperStyle={{ fontSize: "12px", color: "#71717a" }} />
+                  <Area name="Projected Portfolio" type="monotone" dataKey="portfolio" stroke="#14b8a6" strokeWidth={2} fillOpacity={1} fill="url(#colorPortfolio)" animationDuration={1000} />
+                  <Area name="T-Bills (5%)" type="monotone" dataKey="tbills" stroke="#818cf8" strokeWidth={2} fill="transparent" strokeDasharray="5 5" animationDuration={1000} />
+                  <Area name="Savings (4%)" type="monotone" dataKey="savings" stroke="#94a3b8" strokeWidth={2} fill="transparent" strokeDasharray="5 5" animationDuration={1000} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

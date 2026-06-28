@@ -1,0 +1,381 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Smooth theme transition — CSS custom properties on :root cascade to all
+ * consumers. Adding transition to the html element ensures background and
+ * text colors animate smoothly on theme switch without interfering with
+ * component-level transitions (which override via specificity).
+ * The inline script in layout.tsx prevents the first-load FOUC.
+ */
+html {
+  transition:
+    background-color 200ms ease,
+    color 200ms ease;
+}
+
+@layer base {
+  :root {
+    /* Semantic color tokens (HSL components) */
+    --color-primary: 174 72% 40%;
+    --color-primary-foreground: 0 0% 100%;
+    --color-surface: 0 0% 98%;
+    --color-surface-elevated: 0 0% 100%;
+    --color-surface-muted: 0 0% 96%;
+    --color-border: 0 0% 90%;
+    --color-border-subtle: 0 0% 94%;
+    --color-text: 0 0% 9%;
+    --color-text-muted: 0 0% 45%;
+    --color-text-subtle: 0 0% 55%;
+    --color-accent: 174 72% 40%;
+    --color-accent-muted: 174 72% 95%;
+    --color-destructive: 0 72% 51%;
+    --color-destructive-muted: 0 72% 97%;
+    --color-success: 142 71% 45%;
+    --color-warning: 38 92% 50%;
+    --color-info: 217 91% 60%;
+
+    /* Legacy shadcn-compatible aliases */
+    --background: var(--color-surface);
+    --foreground: var(--color-text);
+    --card: var(--color-surface-elevated);
+    --card-foreground: var(--color-text);
+    --popover: var(--color-surface-elevated);
+    --popover-foreground: var(--color-text);
+    --primary: var(--color-primary);
+    --primary-foreground: var(--color-primary-foreground);
+    --secondary: var(--color-surface-muted);
+    --secondary-foreground: var(--color-text);
+    --muted: var(--color-surface-muted);
+    --muted-foreground: var(--color-text-muted);
+    --accent: var(--color-accent);
+    --accent-foreground: var(--color-primary-foreground);
+    --destructive: var(--color-destructive);
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--color-border);
+    --input: var(--color-border);
+    --ring: var(--color-primary);
+
+    /* Spacing scale */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+
+    /* Typography scale */
+    --font-size-xs: 0.75rem;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --font-size-2xl: 1.5rem;
+    --font-size-3xl: 1.875rem;
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.625;
+
+    /* Shadow tokens */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.08), 0 2px 4px -2px hsl(0 0% 0% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -4px hsl(0 0% 0% / 0.08);
+    --shadow-glow: 0 0 20px 4px hsl(var(--color-primary) / 0.25);
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --color-primary: 174 72% 40%;
+    --color-primary-foreground: 0 0% 98%;
+    --color-surface: 0 0% 3.9%;
+    --color-surface-elevated: 0 0% 5%;
+    --color-surface-muted: 0 0% 10%;
+    --color-border: 0 0% 12%;
+    --color-border-subtle: 0 0% 8%;
+    --color-text: 0 0% 98%;
+    --color-text-muted: 0 0% 45%;
+    --color-text-subtle: 0 0% 55%;
+    --color-accent: 174 72% 40%;
+    --color-accent-muted: 174 72% 15%;
+    --color-destructive: 0 62.8% 50%;
+    --color-destructive-muted: 0 62.8% 15%;
+    --color-success: 142 71% 45%;
+    --color-warning: 38 92% 50%;
+    --color-info: 217 91% 60%;
+
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -2px hsl(0 0% 0% / 0.3);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -4px hsl(0 0% 0% / 0.4);
+    --shadow-glow: 0 0 20px 4px hsl(var(--color-primary) / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Focus-visible styles for keyboard navigation (WCAG AA compliant) */
+  /* Only show focus ring when navigating with keyboard, not mouse */
+  *:focus-visible {
+    @apply outline-none;
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+  /* Ensure focus ring is visible on dark backgrounds */
+  .dark *:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+  }
+
+  /* Enhanced focus ring for interactive elements */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+    border-color: hsl(var(--ring));
+  }
+
+  /* Card-like elements with focus-visible */
+  .card:focus-visible,
+  [role="button"]:focus-visible,
+  [role="link"]:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring)), var(--shadow-lg);
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+.bg-mesh {
+  background-image:
+    radial-gradient(at 40% 20%, hsl(var(--color-primary) / 0.08) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, hsl(189 100% 56% / 0.05) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, hsl(var(--color-primary) / 0.05) 0px, transparent 50%);
+}
+
+@layer utilities {
+  .hero-background {
+    background-image:
+      radial-gradient(circle at 15% 15%, rgba(56, 189, 248, 0.26), transparent 20%),
+      radial-gradient(circle at 85% 10%, rgba(129, 140, 248, 0.18), transparent 18%),
+      radial-gradient(circle at 25% 78%, rgba(168, 85, 247, 0.18), transparent 19%),
+      radial-gradient(circle at 90% 80%, rgba(56, 189, 248, 0.14), transparent 14%);
+    animation: hero-background-shift 18s ease-in-out infinite alternate;
+    opacity: 0.95;
+  }
+
+  .hero-grid-dots {
+    background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 52px 52px;
+    opacity: 0.16;
+    animation: hero-dots-fade 12s ease-in-out infinite;
+  }
+
+  @keyframes hero-background-shift {
+    0% {
+      background-position: 0% 0%, 100% 0%, 0% 100%, 100% 100%;
+    }
+    50% {
+      background-position: 8% 12%, 92% 2%, 2% 86%, 96% 78%;
+    }
+    100% {
+      background-position: 0% 0%, 100% 8%, 12% 100%, 88% 94%;
+    }
+  }
+
+  @keyframes hero-dots-fade {
+    0%, 100% {
+      opacity: 0.14;
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      opacity: 0.18;
+      transform: translate(10px, -10px) scale(1.02);
+    }
+  }
+}
+
+/* ─── Print Styles ────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide non-essential UI */
+  nav,
+  header,
+  footer,
+  .print\\:hidden,
+  [data-print="hidden"],
+  button:not([data-print="show"]),
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset backgrounds for readability */
+  body,
+  html {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 12pt;
+  }
+
+  /* Cards become plain boxes */
+  .card,
+  [class*="Card"] {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    break-inside: avoid;
+  }
+
+  /* Ensure charts and tables don't break across pages */
+  .recharts-wrapper,
+  table {
+    break-inside: avoid;
+  }
+
+  /* Invoice detail print layout */
+  .print-layout {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Page breaks */
+  .page-break-before {
+    break-before: page;
+  }
+  .page-break-after {
+    break-after: page;
+  }
+
+  /* Links */
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 10pt;
+    color: #555;
+  }
+  a[href^="#"]::after,
+  a[href^="javascript:"]::after {
+    content: "";
+  }
+}
+
+/* ─── Forced Colours / High Contrast Mode (Issue #291) ──────────────────── */
+/*
+ * Overrides for Windows High Contrast Mode and macOS Increase Contrast.
+ * Only system color keywords are used (ButtonText, Highlight, CanvasText …)
+ * so these rules are completely inert in normal rendering.
+ *
+ * WCAG 1.4.11 (Non-text Contrast) & 1.4.3 (Contrast Minimum).
+ */
+@media (forced-colors: active) {
+  /* ── Buttons ────────────────────────────────────────────────────────── */
+  button,
+  [role="button"],
+  a[href] {
+    /* Ensure button chrome remains visible */
+    forced-color-adjust: none;
+    border: 1px solid ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+  }
+
+  button:hover,
+  [role="button"]:hover,
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    border-color: Highlight;
+    color: HighlightText;
+    background: Highlight;
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    color: GrayText;
+    border-color: GrayText;
+    background: Canvas;
+  }
+
+  /* ── Badges ─────────────────────────────────────────────────────────── */
+  /*
+   * Badges use color alone in normal mode.
+   * In forced-colors we restore borders so the shape is distinguishable.
+   */
+  [class*="badge"],
+  [class*="Badge"] {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+  }
+
+  /* High-risk pulse ring — keep a visible border in forced colors */
+  [class*="badge"] [class*="pulse"],
+  [class*="Badge"] [class*="pulse"] {
+    border: 2px solid Highlight;
+    animation: none; /* animations add no value in HC mode */
+  }
+
+  /* ── Progress bars ──────────────────────────────────────────────────── */
+  /*
+   * Progress indicators must remain distinguishable from their track.
+   * We use Highlight for the filled portion and Canvas for the track.
+   */
+  [role="progressbar"],
+  [data-radix-progress-root] {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+
+  [role="progressbar"] > *,
+  [data-radix-progress-indicator] {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+
+  /* Inline progress elements (native <progress>) */
+  progress {
+    forced-color-adjust: none;
+    accent-color: Highlight;
+  }
+
+  /* ── Status dots (InvoiceStatusBadge animated ping) ────────────────── */
+  [class*="animate-ping"] {
+    forced-color-adjust: none;
+    background: Highlight;
+    animation: none;
+  }
+
+  /* ── Skip link ──────────────────────────────────────────────────────── */
+  a[href="#main-content"]:focus {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+}
