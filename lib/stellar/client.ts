@@ -47,7 +47,7 @@ export class SequenceManager {
 
     const seq = this.counters.get(address)!;
     // Increment before returning so the *next* concurrent call gets seq+1.
-    this.counters.set(address, seq + 1n);
+    this.counters.set(address, seq + BigInt(1));
 
     // StellarSdk.Account constructor takes the *current* (pre-increment) seq
     // and internally adds 1 when building. So we pass seq (not seq+1).

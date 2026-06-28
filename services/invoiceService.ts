@@ -707,7 +707,7 @@ export async function fetchBatchInvoicesByTokenIds(
 ): Promise<Invoice[]> {
   if (tokenIds.length === 0) return [];
 
-  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
   if (useMock) {
     const idSet = new Set(tokenIds);
     return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
@@ -811,7 +811,7 @@ export async function prepareUpdateInvoiceStatus(
   const chainIndex = STATUS_TO_CHAIN_INDEX[to];
   if (chainIndex < 0) throw new Error(`Status "${to}" has no on-chain representation`);
 
-  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
   if (useMock) {
     return `mock_unsigned_xdr_update_status_${tokenId}_${to}_${ownerAddress}`;
   }
