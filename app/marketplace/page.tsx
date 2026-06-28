@@ -447,7 +447,7 @@ function MarketplaceContent() {
 
   // Use infinite query data when available, fall back to paginated data
   const allInvoices = infinite.data
-    ? infinite.data.pages.flatMap((p) => p.data)
+    ? infinite.data.pages.flatMap((p: any) => p.data)
     : data?.data ?? [];
 
   // Client-side Search filter

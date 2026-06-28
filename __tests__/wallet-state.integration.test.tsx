@@ -14,8 +14,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMockInvoice, mockWalletConnected, mockWalletDisconnected } from "./fixtures";
-import { createTestQueryClient } from "./setup";
+import { createTestQueryClient, mockParams } from "./setup";
 import React from "react";
+
+import { useWallet } from "@/hooks/useWallet";
+import { useUIStore } from "@/store";
+import { useTransaction } from "@/hooks/useTransaction";
+import { useInvoice } from "@/hooks/useInvoices";
+import { prepareFundInvoice } from "@/services/invoiceService";
 
 // Mock invoice
 const mockInvoice = createMockInvoice({
@@ -60,10 +66,7 @@ vi.mock("@/hooks/useInvoices", () => ({
   })),
 }));
 
-vi.mock("next/navigation", () => ({
-  useParams: () => ({ id: "inv_wallet_test" }),
-  notFound: () => { throw new Error("Not found"); },
-}));
+
 
 const mockSetWalletModalOpen = vi.fn();
 
@@ -84,10 +87,10 @@ vi.mock("@/services/invoiceService", () => ({
 
 // Test component
 const WalletStateTest = () => {
-  const { isConnected, address } = require("@/hooks/useWallet")();
-  const { setWalletModalOpen } = require("@/store").useUIStore();
-  const { execute } = require("@/hooks/useTransaction")();
-  const { data: invoice } = require("@/hooks/useInvoices").useInvoice("inv_wallet_test");
+  const { isConnected, address } = useWallet();
+  const { setWalletModalOpen } = useUIStore();
+  const { execute } = useTransaction();
+  const { data: invoice } = useInvoice("inv_wallet_test");
   const [amount, setAmount] = React.useState("10000");
   const [fundingInProgress, setFundingInProgress] = React.useState(false);
   const [lastError, setLastError] = React.useState<string | null>(null);
@@ -106,7 +109,7 @@ const WalletStateTest = () => {
     setLastError(null);
 
     try {
-      const { prepareFundInvoice } = require("@/services/invoiceService");
+
       const xdr = await prepareFundInvoice(invoice.tokenId, parseFloat(amount), address);
       await execute(() => Promise.resolve(xdr));
     } catch (error: any) {
@@ -151,11 +154,16 @@ describe("Wallet and Transaction State Integration Tests", () => {
   let queryClient: any;
 
   beforeEach(() => {
+    vi.resetAllMocks();
     queryClient = createTestQueryClient();
     mockWalletState = mockWalletConnected;
     mockTransactionState = { status: "idle" as const, txHash: null, error: null };
     mockSetWalletModalOpen.mockClear();
-    vi.clearAllMocks();
+    mockParams.mockReturnValue({ id: "inv_wallet_test" });
+  });
+
+  afterEach(() => {
+    vi.resetAllMocks();
   });
 
   describe("Connected Wallet State", () => {
@@ -304,12 +312,12 @@ describe("Wallet and Transaction State Integration Tests", () => {
     it("displays error message on transaction failure", async () => {
       const user = userEvent.setup();
 
-      vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
+      vi.mocked(useTransaction).mockReturnValue({
         state: mockTransactionState,
         execute: vi.fn(async () => {
           throw new Error("Transaction rejected");
         }),
-      }));
+      } as any);
 
       render(
         <QueryClientProvider client={queryClient}>
@@ -329,7 +337,7 @@ describe("Wallet and Transaction State Integration Tests", () => {
       const user = userEvent.setup();
       let shouldFail = true;
 
-      vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
+      vi.mocked(useTransaction).mockReturnValue({
         state: mockTransactionState,
         execute: vi.fn(async () => {
           if (shouldFail) {
@@ -338,7 +346,7 @@ describe("Wallet and Transaction State Integration Tests", () => {
           }
           return "success";
         }),
-      }));
+      } as any);
 
       const { rerender } = render(
         <QueryClientProvider client={queryClient}>
@@ -410,6 +418,7 @@ describe("Wallet and Transaction State Integration Tests", () => {
 
   describe("Wallet Connection Flow", () => {
     it("transitions from disconnected to connected state", () => {
+      mockWalletState = mockWalletDisconnected;
       const { rerender } = render(
         <QueryClientProvider client={queryClient}>
           <WalletStateTest />

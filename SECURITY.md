@@ -31,8 +31,24 @@ We welcome good-faith security research. Please avoid privacy violations, data d
 ## Security Best Practices for Contributors
 
 - Never commit secrets or credentials. Use environment variables and secret stores.
-- Keep dependencies up to date; run `pnpm audit` and address high/critical issues.
+- Keep dependencies up to date; run `npm audit` and address high/critical issues.
 - Validate and sanitize all inputs, especially when interacting with contract builders and IPFS uploads.
+
+## Dependency Vulnerability Scanning
+
+We run automated dependency vulnerability scanning in CI using `npm audit --audit-level=high`. The build will fail if any unexcepted high or critical severity vulnerabilities are detected.
+
+### Handling Vulnerability Reports & False Positives
+
+If a vulnerability is identified as a false positive, does not affect Kora-Frontend due to our specific usage, or is a development-only threat, it can be bypassed by adding an entry to [audit-exceptions.json](file:///workspaces/Kora-Frontend/audit-exceptions.json).
+
+Each exception must include:
+- `advisoryId`: The security advisory ID.
+- `package`: The name of the package.
+- `url`: The link to the GitHub Advisory or vulnerability report.
+- `reason`: A detailed justification explaining why this vulnerability is not exploitable or applicable in our project.
+
+The CI environment executes `scripts/audit.js` to enforce these checks.
 
 ## Contact
 

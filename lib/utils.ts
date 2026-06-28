@@ -3,7 +3,9 @@ import { twMerge } from "tailwind-merge";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { StrKey } from "@stellar/stellar-sdk";
 
-export function isValidStellarAddress(address: string | null | undefined): boolean {
+export function isValidStellarAddress(
+  address: string | null | undefined,
+): boolean {
   if (!address) return false;
   return StrKey.isValidEd25519PublicKey(address.trim());
 }
@@ -26,7 +28,7 @@ export function formatCurrency(
   amount: number | null | undefined,
   currency = "USDC",
   compact = false,
-  locale = "en-US"
+  locale = "en-US",
 ): string {
   const n = amount ?? 0;
   if (compact && Math.abs(n) >= 1_000_000) {
@@ -57,7 +59,7 @@ export function formatCurrency(
 export function formatUSDC(
   amount: number | null | undefined,
   decimals = 2,
-  locale = "en-US"
+  locale = "en-US",
 ): string {
   const n = amount ?? 0;
   return (
@@ -71,7 +73,7 @@ export function formatUSDC(
 /** Format an amount as XLM: "1,234.5678900 XLM" (7 decimal places) */
 export function formatXLM(
   amount: number | null | undefined,
-  locale = "en-US"
+  locale = "en-US",
 ): string {
   const n = amount ?? 0;
   return (
@@ -86,7 +88,7 @@ export function formatXLM(
 export function formatPercentage(
   value: number | null | undefined,
   decimals = 2,
-  locale = "en-US"
+  locale = "en-US",
 ): string {
   const n = value ?? 0;
   return new Intl.NumberFormat(locale, {
@@ -97,7 +99,10 @@ export function formatPercentage(
 }
 
 /** @deprecated Use formatPercentage. Kept for backward compatibility. */
-export function formatPercent(value: number | null | undefined, decimals = 2): string {
+export function formatPercent(
+  value: number | null | undefined,
+  decimals = 2,
+): string {
   return `${((value ?? 0) * 100).toFixed(decimals)}%`;
 }
 
@@ -109,7 +114,7 @@ export function formatApr(apr: number | null | undefined): string {
 /** Format a date string. format: "short" = "Jan 5, 2025", "long" = "January 5, 2025", "relative" = relative time */
 export function formatDate(
   dateStr: string | null | undefined,
-  fmt: "short" | "long" | "relative" = "short"
+  fmt: "short" | "long" | "relative" = "short",
 ): string {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
@@ -122,7 +127,7 @@ export function formatDate(
 /** Relative time (e.g. "in 30 days", "2 hours ago") using Intl.RelativeTimeFormat */
 export function formatRelativeTime(
   date: string | Date | null | undefined,
-  locale = "en"
+  locale = "en",
 ): string {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;
@@ -161,7 +166,10 @@ export function daysUntil(dateStr: string): number {
 }
 
 /** Shorten a Stellar address/hash for display */
-export function truncateAddress(address: string | null | undefined, chars = 4): string {
+export function truncateAddress(
+  address: string | null | undefined,
+  chars = 4,
+): string {
   if (!address) return "";
   const clean = address.trim();
   if (clean.length <= chars * 2) return clean;
@@ -169,7 +177,10 @@ export function truncateAddress(address: string | null | undefined, chars = 4): 
 }
 
 /** Shorten a Stellar address/hash for display, keeping prefix plus chars */
-export function shortenAddress(address: string | null | undefined, chars = 4): string {
+export function shortenAddress(
+  address: string | null | undefined,
+  chars = 4,
+): string {
   if (!address) return "";
   const clean = address.trim();
   if (clean.length <= chars * 2) return clean;
@@ -278,7 +289,7 @@ export interface YieldProjectionResult {
 export function calculateYieldProjection(
   amount: number,
   tier: string,
-  horizonMonths: number
+  horizonMonths: number,
 ): YieldProjectionResult {
   const apr = RISK_TIER_APR[tier] || 12;
   const monthlyRate = apr / 100 / 12;
@@ -286,7 +297,7 @@ export function calculateYieldProjection(
   const tbillsMonthlyRate = YIELD_BENCHMARKS.T_BILLS_APY / 100 / 12;
 
   const data: YieldProjectionPoint[] = [];
-  
+
   for (let m = 0; m <= horizonMonths; m++) {
     const date = new Date();
     date.setMonth(date.getMonth() + m);
@@ -303,7 +314,7 @@ export function calculateYieldProjection(
 
   const finalPortfolio = data[data.length - 1].portfolio;
   const totalYield = finalPortfolio - amount;
-  
+
   // Simple heuristic for invoices needed: average $5k per invoice
   const invoicesNeeded = Math.ceil(amount / 5000);
 
@@ -328,26 +339,11 @@ export const STATUS_COLORS: Record<string, string> = {
   cancelled: "text-muted-foreground bg-muted",
 };
 
-/** Export an array of objects as a CSV file download */
-export function exportCsv(data: Record<string, unknown>[], filename: string): void {
-  if (!data.length) return;
-  const headers = Object.keys(data[0]);
-  const rows = data.map((row) => headers.map((h) => JSON.stringify(row[h] ?? "")).join(","));
-  const csv = [headers.join(","), ...rows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 /** Retry a function up to `attempts` times with exponential backoff on 5xx errors */
 export async function withRetry<T>(
   fn: () => Promise<T>,
   attempts = 3,
-  baseDelayMs = 500
+  baseDelayMs = 500,
 ): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i < attempts; i++) {
@@ -355,8 +351,7 @@ export async function withRetry<T>(
       return await fn();
     } catch (err) {
       lastError = err;
-      const is5xx =
-        err instanceof Error && /5\d{2}/.test(err.message);
+      const is5xx = err instanceof Error && /5\d{2}/.test(err.message);
       if (!is5xx || i === attempts - 1) throw err;
       await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** i));
     }
@@ -366,24 +361,27 @@ export async function withRetry<T>(
 
 /** Risk tier APR multipliers for risk-adjusted returns */
 export const RISK_TIER_MULTIPLIERS: Record<string, number> = {
-  AAA: 1.0,  // No adjustment
-  AA: 1.05,  // 5% boost
-  A: 1.1,    // 10% boost
+  AAA: 1.0, // No adjustment
+  AA: 1.05, // 5% boost
+  A: 1.1, // 10% boost
   BBB: 1.15, // 15% boost
-  BB: 1.2,   // 20% boost
-  B: 1.25,   // 25% boost
-  CCC: 1.3,  // 30% boost
+  BB: 1.2, // 20% boost
+  B: 1.25, // 25% boost
+  CCC: 1.3, // 30% boost
 };
 
 /**
  * Calculate APR from discount rate and days to maturity.
  * Formula: APR = (discount / (1 - discount)) * (365 / days) * 100
- * 
+ *
  * @param discountRate - Discount as decimal (e.g., 0.05 for 5%)
  * @param daysToMaturity - Number of days until maturity
  * @returns APR as percentage (e.g., 12.5 for 12.5% APR)
  */
-export function calculateAPR(discountRate: number, daysToMaturity: number): number {
+export function calculateAPR(
+  discountRate: number,
+  daysToMaturity: number,
+): number {
   if (daysToMaturity <= 0 || discountRate <= 0 || discountRate >= 1) {
     return 0;
   }
@@ -393,24 +391,30 @@ export function calculateAPR(discountRate: number, daysToMaturity: number): numb
 /**
  * Calculate expected return for an investor at maturity.
  * Formula: return = amount * discountRate
- * 
+ *
  * @param amount - Investment amount
  * @param discountRate - Discount as decimal (e.g., 0.05 for 5%)
  * @returns Expected return amount
  */
-export function calculateExpectedReturn(amount: number, discountRate: number): number {
+export function calculateExpectedReturn(
+  amount: number,
+  discountRate: number,
+): number {
   return amount * discountRate;
 }
 
 /**
  * Calculate risk-adjusted return based on APR and risk tier.
  * Formula: adjustedAPR = APR * riskMultiplier
- * 
+ *
  * @param apr - APR as percentage
  * @param riskTier - Risk tier (e.g., "AAA", "BB")
  * @returns Risk-adjusted APR as percentage
  */
-export function calculateRiskAdjustedReturn(apr: number, riskTier: string): number {
+export function calculateRiskAdjustedReturn(
+  apr: number,
+  riskTier: string,
+): number {
   const multiplier = RISK_TIER_MULTIPLIERS[riskTier] ?? 1.0;
   return apr * multiplier;
 }
@@ -421,9 +425,9 @@ export function calculateRiskAdjustedReturn(apr: number, riskTier: string): numb
  * @returns Tailwind color class
  */
 export function getAPRColor(apr: number): string {
-  if (apr >= 15) return "text-emerald-400";  // Green: excellent
-  if (apr >= 8) return "text-amber-400";     // Amber: good
-  return "text-red-400";                      // Red: low
+  if (apr >= 15) return "text-emerald-400"; // Green: excellent
+  if (apr >= 8) return "text-amber-400"; // Amber: good
+  return "text-red-400"; // Red: low
 }
 
 /**
@@ -431,7 +435,10 @@ export function getAPRColor(apr: number): string {
  * @param rows   Array of plain objects (all rows must share the same keys)
  * @param filename  Desired filename including `.csv` extension
  */
-export function exportCsv(rows: Record<string, unknown>[], filename = "export.csv"): void {
+export function exportCsv(
+  rows: Record<string, unknown>[],
+  filename = "export.csv",
+): void {
   if (!rows.length) return;
   const headers = Object.keys(rows[0]);
   const escape = (v: unknown) => {
