@@ -6,7 +6,21 @@ import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    {
+      name: "compile-jsx-for-vitest",
+      async transform(code, id) {
+        if (id.endsWith(".tsx") || id.endsWith(".jsx")) {
+          return transformWithEsbuild(code, id, {
+            loader: id.endsWith(".tsx") ? "tsx" : "jsx",
+            jsx: "automatic",
+          });
+        }
+        return null;
+      },
+    },
+    react(),
+  ],
   test: {
     globals: true,
     environment: "jsdom",

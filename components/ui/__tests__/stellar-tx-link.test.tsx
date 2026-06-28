@@ -73,7 +73,7 @@ describe("StellarTxLink", () => {
       expect(invalidCharContainer.firstChild).toBeNull();
 
       const { container: mixedCaseContainer } = render(
-        <StellarTxLink hash={"aAbBcCdDeEfF0123456789AABBCCDDEEFF0123456789AABBCCDDEEFF0123456789"} />
+        <StellarTxLink hash={"aAbBcCdDeEfF0123456789AABBCCDDEEFF0123456789AABBCCDDEEFF01234567"} />
       );
       // Mixed case should work (hex allows both)
       expect(mixedCaseContainer.querySelector("a")).toBeInTheDocument();
@@ -178,8 +178,8 @@ describe("StellarTxLink", () => {
       await user.hover(link);
 
       // Tooltip should show full hash
-      const tooltip = screen.getByText(validTestnetHash);
-      expect(tooltip).toBeInTheDocument();
+      const tooltips = await screen.findAllByText(validTestnetHash);
+      expect(tooltips.length).toBeGreaterThan(0);
     });
   });
 

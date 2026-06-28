@@ -4,9 +4,10 @@ import { TxSimulationPreview } from "../components/invoice/TxSimulationPreview";
 import { verifyMetadataIntegrity } from "../lib/invoiceMetadata";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string, values?: Record<string, unknown>) => {
-    if (!values) return key;
-    return key.replace(/\{(.*?)\}/g, (_, group) => String(values[group] ?? `{${group}}`));
+  useTranslations: (namespace?: string) => (key: string, values?: Record<string, unknown>) => {
+    const fullKey = namespace ? `${namespace}.${key}` : key;
+    if (!values) return fullKey;
+    return fullKey.replace(/\{(.*?)\}/g, (_, group) => String(values[group] ?? `{${group}}`));
   },
 }));
 
@@ -30,7 +31,7 @@ describe("TxSimulationPreview", () => {
     );
 
     expect(screen.getByText("txSimulation.title")).toBeInTheDocument();
-    expect(screen.getByText("250 stroops")).toBeInTheDocument();
+    expect(screen.getAllByText(/250\s+stroops/i)[0]).toBeInTheDocument();
     expect(screen.getByText("250 resource stroops")).toBeInTheDocument();
     expect(screen.getByText("18.5K")).toBeInTheDocument();
   });

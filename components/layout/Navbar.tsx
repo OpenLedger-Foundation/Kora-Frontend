@@ -57,6 +57,15 @@ export function Navbar() {
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const navRef = useRef<HTMLElement>(null);
   const [addressBookOpen, setAddressBookOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const resolvedTheme = theme === "system"
+    ? (mounted && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : theme;
 
   // Nav links defined inside component so labels are translated
   const NAV_LINKS = [
