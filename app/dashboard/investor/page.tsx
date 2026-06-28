@@ -16,7 +16,7 @@ const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   {
     ssr: false,
     loading: () => <div className="h-48 rounded bg-zinc-900/40" />,
-  }
+  },
 );
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
@@ -90,7 +90,10 @@ function InvestorPortfolioSection({ address }: { address: string }) {
     {
       label: "Expected Yield",
       value: formatCurrency(totalYield, "USDC", true),
-      change: totalInvested > 0 ? `${((totalYield / totalInvested) * 100).toFixed(1)}% return` : "0.0% return",
+      change:
+        totalInvested > 0
+          ? `${((totalYield / totalInvested) * 100).toFixed(1)}% return`
+          : "0.0% return",
       changePositive: true,
       icon: <TrendingUp className="h-4 w-4" />,
     },
@@ -115,8 +118,12 @@ function InvestorPortfolioSection({ address }: { address: string }) {
       accessor: (row) => row.invoice?.metadata.invoiceNumber ?? row.invoiceId,
       cell: (row) => (
         <div>
-          <p className="font-medium text-foreground">{row.invoice?.metadata.invoiceNumber ?? `Invoice ${row.invoiceId}`}</p>
-          <p className="text-xs text-muted-foreground">{row.invoice?.metadata.category ?? "Unspecified"}</p>
+          <p className="font-medium text-foreground">
+            {row.invoice?.metadata.invoiceNumber ?? `Invoice ${row.invoiceId}`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {row.invoice?.metadata.category ?? "Unspecified"}
+          </p>
         </div>
       ),
     },
@@ -124,14 +131,20 @@ function InvestorPortfolioSection({ address }: { address: string }) {
       id: "debtor",
       header: "Debtor",
       accessor: (row) => row.invoice?.metadata.debtorName ?? "Unknown debtor",
-      cell: (row) => <span className="text-muted-foreground">{row.invoice?.metadata.debtorName ?? "Unknown debtor"}</span>,
+      cell: (row) => (
+        <span className="text-muted-foreground">
+          {row.invoice?.metadata.debtorName ?? "Unknown debtor"}
+        </span>
+      ),
     },
     {
       id: "invested",
       header: "Invested",
       accessor: (row) => row.investedAmount,
       cell: (row) => (
-        <span className="font-medium text-foreground">{formatCurrency(row.investedAmount, "USDC", true)}</span>
+        <span className="font-medium text-foreground">
+          {formatCurrency(row.investedAmount, "USDC", true)}
+        </span>
       ),
     },
     {
@@ -139,27 +152,47 @@ function InvestorPortfolioSection({ address }: { address: string }) {
       header: "Expected Return",
       accessor: (row) => row.expectedReturn,
       cell: (row) => (
-        <span className="font-medium text-success">{formatCurrency(row.expectedReturn, "USDC", true)}</span>
+        <span className="font-medium text-success">
+          {formatCurrency(row.expectedReturn, "USDC", true)}
+        </span>
       ),
     },
     {
       id: "yield",
       header: "Yield",
       accessor: (row) => row.expectedReturn - row.investedAmount,
-      cell: (row) => <span className="text-primary">+{formatCurrency(row.expectedReturn - row.investedAmount, "USDC", true)}</span>,
+      cell: (row) => (
+        <span className="text-primary">
+          +
+          {formatCurrency(
+            row.expectedReturn - row.investedAmount,
+            "USDC",
+            true,
+          )}
+        </span>
+      ),
     },
     {
       id: "apr",
       header: "APR",
       accessor: (row) => row.invoice?.terms.apr ?? 0,
-      cell: (row) => <span className="font-medium text-primary">{formatApr(row.invoice?.terms.apr ?? 0)}</span>,
+      cell: (row) => (
+        <span className="font-medium text-primary">
+          {formatApr(row.invoice?.terms.apr ?? 0)}
+        </span>
+      ),
     },
     {
       id: "risk",
       header: "Risk",
       accessor: (row) => row.invoice?.riskTier ?? "AAA",
       cell: (row) => (
-        <span className={cn("rounded-md border px-2 py-0.5 text-xs font-semibold", RISK_TIER_COLORS[row.invoice?.riskTier ?? "AAA"])}>
+        <span
+          className={cn(
+            "rounded-md border px-2 py-0.5 text-xs font-semibold",
+            RISK_TIER_COLORS[row.invoice?.riskTier ?? "AAA"],
+          )}
+        >
           {row.invoice?.riskTier ?? "AAA"}
         </span>
       ),
@@ -168,7 +201,11 @@ function InvestorPortfolioSection({ address }: { address: string }) {
       id: "due",
       header: "Due Date",
       accessor: (row) => row.invoice?.terms.repaymentDate ?? "",
-      cell: (row) => <span className="text-xs text-muted-foreground">{formatDate(row.invoice?.terms.repaymentDate ?? "")}</span>,
+      cell: (row) => (
+        <span className="text-xs text-muted-foreground">
+          {formatDate(row.invoice?.terms.repaymentDate ?? "")}
+        </span>
+      ),
     },
     {
       id: "actions",
@@ -181,7 +218,10 @@ function InvestorPortfolioSection({ address }: { address: string }) {
               Claim
             </Button>
           ) : null}
-          <Link href={`/marketplace/${row.invoice?.id ?? row.invoiceId}`} className="text-xs text-primary hover:opacity-80">
+          <Link
+            href={`/marketplace/${row.invoice?.id ?? row.invoiceId}`}
+            className="text-xs text-primary hover:opacity-80"
+          >
             View →
           </Link>
         </div>
@@ -216,8 +256,11 @@ function InvestorPortfolioSection({ address }: { address: string }) {
             pageSize={5}
             emptyState={{
               title: "No positions",
-              message: "Fund invoices on the marketplace to build your portfolio.",
-              illustration: <BarChart3 className="h-10 w-10 text-muted-foreground" />,
+              message:
+                "Fund invoices on the marketplace to build your portfolio.",
+              illustration: (
+                <BarChart3 className="h-10 w-10 text-muted-foreground" />
+              ),
             }}
           />
         </CardContent>
@@ -234,14 +277,17 @@ function InvestorPortfolioSection({ address }: { address: string }) {
                 const tier = p.invoice?.riskTier ?? "AAA";
                 acc[tier] = (acc[tier] || 0) + p.investedAmount;
                 return acc;
-              }, {})
+              }, {}),
             ).map(([tier, amount]) => (
               <div key={tier} className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <RiskBadge tier={tier as import("@/components/ui/badge").AnyRiskTier} />
                   <span className="text-muted-foreground">{formatCurrency(amount, "USDC", true)}</span>
                 </div>
-                <Progress value={(amount / totalInvested) * 100} className="h-1.5" />
+                <Progress
+                  value={(amount / totalInvested) * 100}
+                  className="h-1.5"
+                />
               </div>
             ))}
           </CardContent>
@@ -257,7 +303,7 @@ function InvestorPortfolioSection({ address }: { address: string }) {
                 const jurisdiction = p.invoice?.metadata.jurisdiction ?? "OTHER";
                 acc[jurisdiction] = (acc[jurisdiction] || 0) + p.investedAmount;
                 return acc;
-              }, {})
+              }, {}),
             ).map(([jurisdiction, amount]) => (
               <div key={jurisdiction} className="space-y-1">
                 <div className="flex justify-between text-sm">

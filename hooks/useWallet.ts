@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   StellarWalletsKit,
   WalletNetwork,
@@ -14,7 +14,12 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { useWalletStore, useUIStore } from "@/store";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { getAccountBalances, fundTestnetAccount, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
+import {
+  getAccountBalances,
+  fundTestnetAccount,
+  submitTransaction,
+  waitForTransaction,
+} from "@/lib/stellar/client";
 import { buildTestnetUsdcMintTx } from "@/lib/stellar/contracts";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
@@ -58,10 +63,52 @@ export function useWallet() {
     setVerified,
     clearVerification,
     isVerificationExpired,
+    updateActivity,
+    isSessionExpired,
   } = useWalletStore();
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
+
+  // Debounced activity tracker — updates lastActivityAt at most once per 5s.
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleActivity = useCallback(() => {
+    if (activityTimerRef.current) return;
+    activityTimerRef.current = setTimeout(() => {
+      activityTimerRef.current = null;
+      updateActivity();
+    }, 5_000);
+  }, [updateActivity]);
+
+  // Register global activity listeners when connected.
+  useEffect(() => {
+    if (!isConnected) return;
+    window.addEventListener("click", handleActivity, { passive: true });
+    window.addEventListener("keydown", handleActivity, { passive: true });
+    return () => {
+      window.removeEventListener("click", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
+    };
+  }, [isConnected, handleActivity]);
+
+  // Check session expiry on page focus and on route change.
+  // Does not disconnect mid-transaction — the signTransaction guard handles that.
+  useEffect(() => {
+    if (!isConnected) return;
+    const checkExpiry = () => {
+      if (isSessionExpired()) {
+        useWalletStore.getState().disconnect();
+        // Inform the user via a custom event; the UI layer can listen and show a toast.
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("kora:session-expired"));
+        }
+      }
+    };
+    checkExpiry();
+    window.addEventListener("focus", checkExpiry);
+    return () => window.removeEventListener("focus", checkExpiry);
+  }, [isConnected, pathname, isSessionExpired]);
 
   const connectWallet = useCallback(
     async (walletId: string = FREIGHTER_ID) => {
@@ -103,7 +150,7 @@ export function useWallet() {
         // best-effort redirect; ignore failures
       }
     },
-    [connect, setBalance]
+    [connect, setBalance],
   );
 
   const disconnectWallet = useCallback(async () => {
@@ -140,6 +187,9 @@ export function useWallet() {
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
       if (!isConnected) throw new Error("Wallet not connected");
+      // Do not block a transaction already in-flight — session expiry is checked
+      // on focus and route change, not during active signing.
+      updateActivity();
       if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA || xdr.startsWith("mock_")) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         return `${xdr}_signed`;
@@ -152,7 +202,7 @@ export function useWallet() {
       });
       return result;
     },
-    [isConnected, address]
+    [isConnected, address],
   );
 
   const refreshBalance = useCallback(async () => {
@@ -246,7 +296,14 @@ export function useWallet() {
       clearVerification();
       throw error;
     }
-  }, [isConnected, address, publicKey, requestChallenge, setVerified, clearVerification]);
+  }, [
+    isConnected,
+    address,
+    publicKey,
+    requestChallenge,
+    setVerified,
+    clearVerification,
+  ]);
 
   const checkVerification = useCallback((): boolean => {
     if (!isConnected) return false;
@@ -263,13 +320,16 @@ export function useWallet() {
     }
   }, [checkVerification]);
 
+  const verificationValid =
+    isConnected && isVerified && !isVerificationExpired();
+
   return {
     address,
     publicKey,
     isConnected,
     provider,
     balance,
-    isVerified: checkVerification(),
+    isVerified: verificationValid,
     verifiedAt,
     connectWallet,
     disconnectWallet,

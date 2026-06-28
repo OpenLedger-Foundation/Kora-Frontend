@@ -53,6 +53,20 @@ export type ServiceErrorCode =
   | "UNSUPPORTED_MEDIA_TYPE"
   | "VALIDATION_FAILED"
   | "INVALID_RESPONSE"
+  | "FETCH_ERROR"
+  | "INVALID_CID"
+  | "IPFS_ERROR"
+  | "CONTRACT_ERROR"
+  | "SUBMISSION_ERROR"
+  | "CONFIRMATION_ERROR"
+  | "SUBMIT_ERROR"
+  | "INVALID_FORM"
+  | "CREATE_ERROR"
+  | "FUND_ERROR"
+  | "REPAY_ERROR"
+  | "CLAIM_ERROR"
+  | "CANCEL_ERROR"
+  | "NOT_IMPLEMENTED"
   | "UNKNOWN_ERROR";
 
 export interface ServiceError {

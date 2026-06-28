@@ -29,9 +29,10 @@ export function StellarTxLink({
   showIcon = true,
 }: StellarTxLinkProps) {
   if (!hash) return null;
+  const href = safeStellarTxUrl(hash);
+  if (href === "#") return null;
 
   const truncated = truncateAddress(hash, chars);
-  const href = safeStellarTxUrl(hash);
 
   return (
     <Tooltip.Provider delayDuration={200}>

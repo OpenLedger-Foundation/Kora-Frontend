@@ -9,6 +9,9 @@ const EMPTY_BALANCE: WalletBalance = {
   eurc: "0",
 };
 
+/** Session expires after 24 hours of inactivity. Change this constant to adjust. */
+export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
 function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
@@ -17,6 +20,7 @@ type WalletStoreState = WalletState & {
   isConnected: boolean;
   isVerified: boolean;
   verifiedAt: number | null;
+  lastActivityAt: number | null;
   addressBook: { id: string; address: string; label: string }[];
   walletPassphrase: string | null;
 };
@@ -30,6 +34,8 @@ type WalletStoreActions = {
   isVerificationExpired: () => boolean;
   isWrongNetwork: () => boolean;
   hasPassphraseMismatch: () => boolean;
+  updateActivity: () => void;
+  isSessionExpired: () => boolean;
   addAddressBookEntry: (address: string, label?: string) => void;
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
   removeAddressBookEntry: (id: string) => void;
@@ -49,11 +55,21 @@ export const useWalletStore = create<WalletStore>()(
       balance: null,
       isVerified: false,
       verifiedAt: null,
+      lastActivityAt: null,
       addressBook: [],
       walletPassphrase: null,
 
       connect: (provider, address, publicKey, walletPassphrase) =>
-        set({ status: "connected", provider, address, publicKey, balance: EMPTY_BALANCE, isConnected: true, walletPassphrase: walletPassphrase || null }),
+        set({
+          status: "connected",
+          provider,
+          address,
+          publicKey,
+          balance: EMPTY_BALANCE,
+          isConnected: true,
+          walletPassphrase: walletPassphrase || null,
+          lastActivityAt: Date.now(),
+        }),
 
       disconnect: () =>
         set({
@@ -65,6 +81,7 @@ export const useWalletStore = create<WalletStore>()(
           balance: null,
           isVerified: false,
           verifiedAt: null,
+          lastActivityAt: null,
           walletPassphrase: null,
         }),
 
@@ -96,6 +113,15 @@ export const useWalletStore = create<WalletStore>()(
         return state.walletPassphrase !== env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE;
       },
 
+      updateActivity: () =>
+        set({ lastActivityAt: Date.now() }),
+
+      isSessionExpired: () => {
+        const state = get();
+        if (!state.isConnected || !state.lastActivityAt) return false;
+        return Date.now() - state.lastActivityAt > SESSION_EXPIRY_MS;
+      },
+
       addAddressBookEntry: (address, label = "") =>
         set((s) => ({
           addressBook: [
@@ -121,6 +147,7 @@ export const useWalletStore = create<WalletStore>()(
         network: s.network,
         isVerified: s.isVerified,
         verifiedAt: s.verifiedAt,
+        lastActivityAt: s.lastActivityAt,
         addressBook: s.addressBook,
         walletPassphrase: s.walletPassphrase,
       }),

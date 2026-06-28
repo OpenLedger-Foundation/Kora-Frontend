@@ -376,11 +376,22 @@ describe("svgToFile", () => {
     expect(file.size).toBeGreaterThan(0);
   });
 
-  it("file content matches the SVG string", async () => {
+  it("file content matches the SVG string", () => {
     const svg = generateInvoiceSvg(BASE_METADATA);
     const file = svgToFile(svg);
-    const text = await file.text();
-    expect(text).toBe(svg);
+    return new Promise<void>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          expect(reader.result).toBe(svg);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
   });
 });
 
