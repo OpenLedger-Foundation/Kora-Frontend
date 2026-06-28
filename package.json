@@ -4,7 +4,7 @@
   "private": true,
   "description": "On-chain Invoice Financing Protocol built on Stellar Soroban",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

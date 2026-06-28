@@ -34,7 +34,7 @@ function DefaultWrapper(args: any) {
 }
 
 export const Default: Story = {
-  render: (args) => <DefaultWrapper {...args} />,
+  render: (args) => <DefaultStory {...args} />,
   args: {
     min: 0,
     max: 100,

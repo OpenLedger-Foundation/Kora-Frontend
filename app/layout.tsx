@@ -186,12 +186,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Apple PWA meta — Next.js metadata API doesn't cover all apple-* tags */}
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
-        {/* DNS prefetch for external origins used at runtime */}
-        <link rel="dns-prefetch" href="https://soroban-testnet.stellar.org" />
-        <link rel="dns-prefetch" href="https://horizon-testnet.stellar.org" />
-        <link rel="dns-prefetch" href="https://gateway.pinata.cloud" />
-        {/* Preconnect to IPFS gateway — used for invoice images on marketplace */}
-        <link rel="preconnect" href="https://gateway.pinata.cloud" crossOrigin="anonymous" />
+        {/* Resource hints: URLs sourced from env vars; testnet hints omitted in production */}
+        {env.NEXT_PUBLIC_STELLAR_RPC_URL && (
+          <link rel="preconnect" href={new URL(env.NEXT_PUBLIC_STELLAR_RPC_URL).origin} crossOrigin="anonymous" />
+        )}
+        {env.NEXT_PUBLIC_STELLAR_HORIZON_URL && (
+          <link rel="preconnect" href={new URL(env.NEXT_PUBLIC_STELLAR_HORIZON_URL).origin} crossOrigin="anonymous" />
+        )}
+        {env.NEXT_PUBLIC_IPFS_GATEWAY && (
+          <>
+            <link rel="preconnect" href={new URL(env.NEXT_PUBLIC_IPFS_GATEWAY).origin} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={new URL(env.NEXT_PUBLIC_IPFS_GATEWAY).origin} />
+          </>
+        )}
         {/* Structured data: WebSite + Organization for SEO ≥ 95 */}
         <script
           type="application/ld+json"

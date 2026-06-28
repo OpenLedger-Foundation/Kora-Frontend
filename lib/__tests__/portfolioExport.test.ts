@@ -29,11 +29,13 @@ beforeEach(() => {
   });
   vi.spyOn(document.body, "removeChild").mockImplementation(() => mockLink as any);
 
-  const mockBlob = { type: "text/csv;charset=utf-8;" };
-  vi.stubGlobal("Blob", vi.fn((parts: string[]) => {
-    downloadedContent = parts[0];
-    return mockBlob;
-  }));
+  class MockBlob {
+    type = "text/csv;charset=utf-8;";
+    constructor(parts: string[]) {
+      downloadedContent = parts[0];
+    }
+  }
+  vi.stubGlobal("Blob", MockBlob);
   vi.stubGlobal("URL", {
     createObjectURL: vi.fn(() => "blob:mock"),
     revokeObjectURL: vi.fn(),

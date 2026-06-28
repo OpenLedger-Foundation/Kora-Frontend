@@ -1,0 +1,599 @@
+{
+  "nav": {
+    "marketplace": "Mercado",
+    "invest": "Investir",
+    "myInvoices": "Minhas Faturas",
+    "createInvoice": "Criar Fatura",
+    "history": "Histórico",
+    "addressBook": "Agenda de Endereços",
+    "switchToLight": "Mudar para modo claro",
+    "switchToDark": "Mudar para modo escuro",
+    "openMenu": "Abrir menu",
+    "closeMenu": "Fechar menu",
+    "testnet": "TESTNET"
+  },
+  "wallet": {
+    "connect": "Conectar Carteira",
+    "connectToAccess": "Conecte sua carteira Stellar para acessar o Kora Protocol.",
+    "connectTitle": "Conectar Carteira",
+    "disconnect": "Desconectar",
+    "disconnectTitle": "Desconectar carteira?",
+    "disconnectConfirm": "Tem certeza? Isso encerrará sua sessão da carteira e redirecionará das páginas protegidas.",
+    "balances": "Saldos",
+    "copyAddress": "Copiar endereço",
+    "viewExplorer": "Ver no Explorador",
+    "notificationSettings": "Configurações de notificação",
+    "fundTestnet": "Financiar Conta Testnet",
+    "funding": "Financiando...",
+    "fundingTestnet": "Financiando conta testnet...",
+    "fundSuccess": "Conta testnet financiada com 10.000 XLM",
+    "fundFailed": "Falha no financiamento",
+    "cancel": "Cancelar",
+    "popular": "Popular",
+    "notInstalled": "Não instalado",
+    "install": "Instalar",
+    "retry": "Tentar novamente",
+    "termsPrefix": "Ao conectar, você concorda com nossos",
+    "termsLink": "Termos de Serviço",
+    "connectGuardTitle": "Conecte sua carteira para continuar",
+    "connectGuardDesc": "Esta página requer uma carteira conectada."
+  },
+  "landing": {
+    "headline": "Financiamento de Faturas, On-Chain",
+    "badge": "Ao vivo na Stellar Testnet",
+    "subtitle": "Desbloqueie capital de giro para PMEs de mercados emergentes com financiamento de faturas on-chain, liquidez em stablecoin e acesso transparente a investidores — tudo sem custódia.",
+    "financeInvoice": "Financiar Minha Fatura",
+    "browseMarketplace": "Explorar Mercado",
+    "exploreMarketplace": "Explorar Mercado",
+    "createInvoice": "Criar Fatura",
+    "ctaTitle": "Pronto para desbloquear seu capital?",
+    "ctaSubtitle": "Junte-se a centenas de PMEs que já financiam faturas no Kora Protocol.",
+    "howItWorksTitle": "Como Funciona",
+    "howItWorksSubtitle": "Cinco passos da fatura à liquidez",
+    "featuresTitle": "Construído para a Economia Real",
+    "featuresSubtitle": "Infraestrutura de nível institucional para PMEs de mercados emergentes",
+    "architectureTitle": "Arquitetura do Protocolo",
+    "architectureSubtitle": "Totalmente on-chain, sem custódia e auditável",
+    "stats": {
+      "totalInvoices": "Total de Faturas",
+      "totalFinanced": "Total Financiado em USDC",
+      "averageApr": "APR Médio",
+      "totalVolume": "Volume Total Financiado",
+      "activeInvoices": "Faturas Ativas",
+      "liquidityProviders": "Provedores de Liquidez",
+      "avgApr": "APR Médio"
+    },
+    "howItWorks": {
+      "step1Title": "Conectar Carteira",
+      "step1Desc": "Conecte sua carteira Stellar (Freighter, xBull, LOBSTR) para acessar o protocolo.",
+      "step2Title": "Enviar Fatura",
+      "step2Desc": "Envie sua fatura não paga. Os metadados são armazenados no IPFS; o NFT é criado no Soroban.",
+      "step3Title": "Listar no Mercado",
+      "step3Desc": "Defina sua taxa de desconto e investimento mínimo. Sua fatura fica ativa instantaneamente.",
+      "step4Title": "Receber Liquidez",
+      "step4Desc": "Investidores financiam sua fatura. USDC é transferido para sua carteira imediatamente.",
+      "step5Title": "Reembolsar e Encerrar",
+      "step5Desc": "Na data de vencimento, reembolse o valor financiado. Investidores recebem principal + rendimento."
+    },
+    "features": {
+      "instantTitle": "Liquidação Instantânea",
+      "instantDesc": "Contratos inteligentes Soroban liquidam transações em segundos, não em dias.",
+      "nonCustodialTitle": "Sem Custódia",
+      "nonCustodialDesc": "Seus ativos ficam na sua carteira. Contratos inteligentes mantêm o escrow, não nós.",
+      "globalTitle": "Acesso Global",
+      "globalDesc": "PMEs da África, Ásia e América Latina acessam financiamento de nível institucional.",
+      "transparentTitle": "Risco Transparente",
+      "transparentDesc": "Pontuações de risco e histórico de pagamentos on-chain visíveis a todos os participantes."
+    },
+    "architecture": {
+      "appLayer": "Camada de Aplicação",
+      "protocolLayer": "Camada de Protocolo",
+      "storageLayer": "Camada de Armazenamento"
+    }
+  },
+  "marketplace": {
+    "title": "Mercado de Faturas",
+    "subtitle": "Descobrindo oportunidades...",
+    "showing": "Exibindo {count} faturas listadas",
+    "shareFilters": "Compartilhar Filtros",
+    "searchPlaceholder": "Buscar por devedor, número de fatura ou jurisdição…",
+    "clearSearch": "Limpar busca",
+    "filters": "Filtros",
+    "quickFilters": "Filtros Rápidos",
+    "marketplaceFilters": "Filtros do Mercado",
+    "filterInvoices": "Filtrar Faturas",
+    "active": "{count} ativo(s)",
+    "resetFilters": "Redefinir Todos os Filtros",
+    "activeOnly": "Apenas Ativas",
+    "activeOnlyDesc": "Ocultar faturas totalmente financiadas ou inadimplentes",
+    "aprRange": "Faixa de APR",
+    "riskTier": "Nível de Risco",
+    "categories": "Categorias",
+    "jurisdictions": "Jurisdições",
+    "allCategories": "Todas as Categorias",
+    "allJurisdictions": "Todas as Jurisdições",
+    "noResults": "Nenhuma fatura corresponde aos seus filtros",
+    "noResultsDesc": "Não encontramos nenhuma listagem ativa com sua seleção atual. Tente redefinir seus filtros para explorar outras oportunidades.",
+    "clearAllFilters": "Limpar Todos os Filtros",
+    "loadingMore": "Carregando mais…",
+    "allLoaded": "Todas as faturas carregadas",
+    "backToTop": "↑ Topo",
+    "recent": "Recente",
+    "clear": "Limpar",
+    "sort": {
+      "aprDesc": "APR: Maior para Menor",
+      "aprAsc": "APR: Menor para Maior",
+      "amountDesc": "Valor: Maior para Menor",
+      "amountAsc": "Valor: Menor para Maior",
+      "dueSoonest": "Vencimento: Mais Próximo",
+      "dueLatest": "Vencimento: Mais Distante",
+      "newest": "Listadas Mais Recentemente"
+    }
+  },
+  "invoiceDetail": {
+    "backToMarketplace": "Voltar ao Mercado",
+    "financingTerms": "Condições de Financiamento",
+    "fundingProgress": "Progresso do Financiamento",
+    "ipfsPreview": "Pré-visualização do Documento IPFS",
+    "fundThisInvoice": "Financiar Esta Fatura",
+    "expectedApr": "APR Esperado",
+    "maturity": "Vencimento",
+    "connectToInvest": "Conecte sua carteira Stellar para visualizar rendimentos e começar a investir.",
+    "connectWalletToInvest": "Conectar Carteira para Investir",
+    "selfFundBlocked": "Auto-Financiamento Bloqueado",
+    "selfFundDesc": "Você não pode financiar sua própria fatura. As regras de escrow de factoring descoupado restringem os proprietários de faturas de participar como provedores de liquidez.",
+    "cannotFundOwn": "Você não pode financiar sua própria fatura",
+    "fullyFundedTitle": "Fatura Totalmente Financiada",
+    "fullyFundedDesc": "Esta fatura atingiu sua meta de financiamento e está agora bloqueada em escrow de contrato inteligente.",
+    "fullyFunded": "Totalmente Financiada",
+    "investmentAmount": "Valor do Investimento (USDC)",
+    "fundInvoice": "Financiar Fatura",
+    "escrowNote": "Os depósitos de liquidez são mantidos com segurança em contratos inteligentes de escrow Soroban até que o reembolso seja confirmado.",
+    "pendingConfirmation": "Aguardando confirmação",
+    "viewDocument": "Ver Documento da Fatura",
+    "documentUnavailable": "Documento indisponível",
+    "documentUnavailableDesc": "Não foi possível carregar o documento PDF.",
+    "downloadPdf": "Baixar PDF",
+    "noDocumentTitle": "Sem pré-visualização de documento disponível",
+    "noDocumentDesc": "Esta fatura não possui um PDF ou URL de documento anexado.",
+    "pdfReady": "PDF pronto para download",
+    "raised": "{amount} arrecadado(s)",
+    "percentOf": "{percent}% de {total}",
+    "investors": "Investidores",
+    "remaining": "Restante",
+    "closes": "Encerra",
+    "issued": "Emitida em {date}",
+    "due": "Vence em {date}",
+    "terms": {
+      "invoiceAmount": "Valor da Fatura",
+      "financingAmount": "Valor do Financiamento",
+      "discountRate": "Taxa de Desconto",
+      "apr": "APR",
+      "tenor": "Prazo",
+      "repaymentDate": "Data de Reembolso",
+      "minInvestment": "Investimento Mínimo",
+      "maxInvestment": "Investimento Máximo",
+      "daysRemaining": "Dias Restantes",
+      "days": "{count} dias"
+    },
+    "investment": {
+      "principal": "Principal do Investimento",
+      "holdingDuration": "Duração da Posição",
+      "totalPayoff": "Pagamento Total Esperado",
+      "netYield": "Rendimento Líquido",
+      "days": "{count} dias"
+    },
+    "errors": {
+      "minInvestment": "O investimento mínimo é {amount}",
+      "exceedsCapacity": "O valor excede a capacidade restante de {amount}"
+    },
+    "hint": {
+      "minRemaining": "Mín: ${min} · Capacidade Restante: ${remaining}"
+    }
+  },
+  "createInvoice": {
+    "title": "Criar Fatura",
+    "subtitle": "Tokenize sua fatura e acesse liquidez instantânea",
+    "steps": {
+      "details": "Dados da Fatura",
+      "terms": "Condições de Financiamento",
+      "review": "Envio e Revisão"
+    },
+    "fields": {
+      "invoiceNumber": "Número da Fatura",
+      "invoiceNumberPlaceholder": "FAT-2024-0001",
+      "debtorName": "Nome da Empresa Devedora",
+      "debtorNamePlaceholder": "Acme Corporação Ltda",
+      "debtorAddress": "Endereço do Devedor",
+      "debtorAddressPlaceholder": "Rua Comercial, 123, Cidade, País",
+      "addToAddressBook": "+ Adicionar à Agenda",
+      "invoiceAmount": "Valor da Fatura (USDC)",
+      "invoiceAmountHint": "Mínimo 100 USDC",
+      "dueDate": "Data de Vencimento",
+      "description": "Descrição / Memo",
+      "descriptionPlaceholder": "Detalhes opcionais ou condições da fatura...",
+      "jurisdiction": "Jurisdição",
+      "category": "Categoria do Setor",
+      "debtorPrivacy": "Nível de Privacidade do Devedor",
+      "discountRate": "Taxa de Desconto (%)",
+      "minInvestment": "Investimento Mínimo (USDC)",
+      "minInvestmentHint": "Menor valor que um único investidor pode contribuir",
+      "listingExpiry": "Data de Expiração da Listagem",
+      "listingExpiryHint": "Quando o período de listagem se encerra"
+    },
+    "preview": {
+      "title": "Pré-visualização ao Vivo",
+      "subtitle": "Revise os dados da fatura enquanto digita.",
+      "step": "Passo 1 de 3",
+      "invoice": "Fatura",
+      "debtor": "Devedor",
+      "amount": "Valor",
+      "dueDate": "Vencimento",
+      "jurisdiction": "Jurisdição",
+      "invoicePlaceholder": "FAT-XXXX-XXXX",
+      "descriptionPlaceholder": "Adicione um memo ou descrição para resumir a fatura.",
+      "debtorPlaceholder": "Nome da Empresa Devedora",
+      "debtorAddressPlaceholder": "O endereço do devedor será exibido aqui.",
+      "selectDueDate": "Selecionar data de vencimento",
+      "select": "Selecionar"
+    },
+    "financingPreview": {
+      "title": "Pré-visualização do Financiamento",
+      "daysToMaturity": "{count} dias para o vencimento",
+      "youReceive": "Valor do Financiamento (Você Recebe)",
+      "investorPayout": "Pagamento ao Investidor no Vencimento",
+      "capitalSeek": "Capital Buscado ({percent}%)",
+      "yieldCost": "Custo do Rendimento ({percent}%)"
+    },
+    "upload": {
+      "dragDrop": "Arraste e solte o PDF da fatura aqui",
+      "orClick": "ou clique para navegar",
+      "maxSize": "Apenas PDF · Máx 10MB",
+      "uploading": "Enviando para IPFS...",
+      "uploaded": "Enviado",
+      "remove": "Remover",
+      "errors": {
+        "tooLarge": "Arquivo muito grande. O tamanho máximo é exatamente 10MB.",
+        "invalidType": "Tipo de arquivo inválido. Apenas documentos PDF são permitidos.",
+        "required": "Por favor, envie o PDF da fatura antes de criar o token."
+      }
+    },
+    "review": {
+      "title": "Revisar e Criar Token",
+      "subtitle": "Confirme os dados da fatura antes de criar o token no Soroban",
+      "mintButton": "Criar NFT da Fatura",
+      "minting": "Criando token...",
+      "connectToMint": "Conecte a carteira para criar o token"
+    },
+    "success": {
+      "title": "Fatura Tokenizada!",
+      "subtitle": "Sua fatura foi tokenizada como um NFT na rede Stellar Soroban e está pronta para receber financiamento.",
+      "tokenId": "ID do Token NFT",
+      "txHash": "Hash da Transação",
+      "ipfsCid": "CID de Metadados IPFS",
+      "verifyStellar": "Verificar no Stellar Expert",
+      "viewMarketplace": "Ver no Mercado"
+    },
+    "navigation": {
+      "next": "Próximo",
+      "back": "Voltar",
+      "nextStep": "Próximo: {step}"
+    },
+    "privacy": {
+      "full": "Completo (Nome + Endereço)",
+      "partial": "Parcial (Apenas Nome)",
+      "anonymized": "Anonimizado (Setor + País)"
+    },
+    "discountRateDesc": "O desconto oferecido aos investidores. Uma taxa maior atrai financiamento mais rápido, mas aumenta o custo."
+  },
+  "smeDashboard": {
+    "title": "Painel PME",
+    "subtitle": "Gerencie seu financiamento de faturas",
+    "newInvoice": "Nova Fatura",
+    "myInvoices": "Minhas Faturas",
+    "connectTitle": "Conecte sua carteira",
+    "connectDesc": "Conecte para visualizar e gerenciar suas faturas",
+    "repaymentDue": "Reembolso Próximo do Vencimento",
+    "repaymentDueDesc": "Você tem faturas se aproximando da data de reembolso. Certifique-se de ter saldo suficiente de USDC.",
+    "stats": {
+      "totalFinanced": "Total Financiado",
+      "activeInvoices": "Faturas Ativas",
+      "pendingRepayment": "Reembolso Pendente",
+      "repaymentRate": "Taxa de Reembolso",
+      "allTime": "Todo período",
+      "thisMonth": "12,4% este mês"
+    },
+    "table": {
+      "invoice": "Fatura",
+      "debtor": "Devedor",
+      "amount": "Valor",
+      "apr": "APR",
+      "progress": "Progresso",
+      "status": "Status",
+      "dueDate": "Vencimento",
+      "repay": "Reembolsar",
+      "cancel": "Cancelar",
+      "view": "Ver →"
+    },
+    "empty": {
+      "title": "Nenhuma fatura ainda",
+      "message": "Crie sua primeira fatura para começar a captar liquidez."
+    },
+    "batch": {
+      "title": "Resumo da Operação em Lote",
+      "exportSelected": "Exportar selecionados",
+      "processingLabel": "Cancelando {count} fatura(s)..."
+    }
+  },
+  "investorDashboard": {
+    "title": "Painel do Investidor",
+    "subtitle": "Acompanhe sua carteira de financiamento de faturas",
+    "browseMarketplace": "Explorar Mercado",
+    "connectTitle": "Conecte sua carteira",
+    "connectDesc": "Conecte para visualizar sua carteira de investimentos",
+    "stats": {
+      "portfolioValue": "Valor da Carteira",
+      "expectedYield": "Rendimento Esperado",
+      "activePositions": "Posições Ativas",
+      "avgApr": "APR Médio",
+      "activePositionsChange": "{count} posição(ões) ativa(s)",
+      "returnChange": "{percent}% de retorno",
+      "acrossPositions": "Em todas as posições"
+    },
+    "table": {
+      "invoice": "Fatura",
+      "debtor": "Devedor",
+      "invested": "Investido",
+      "expectedReturn": "Retorno Esperado",
+      "yield": "Rendimento",
+      "apr": "APR",
+      "risk": "Risco",
+      "dueDate": "Vencimento",
+      "claim": "Resgatar",
+      "view": "Ver →"
+    },
+    "activePositions": "Posições Ativas",
+    "allocationRisk": "Alocação por Nível de Risco",
+    "allocationJurisdiction": "Alocação por Jurisdição",
+    "empty": {
+      "title": "Nenhuma posição",
+      "message": "Financie faturas no mercado para construir sua carteira."
+    },
+    "fundTestnet": "Financiar Conta Testnet"
+  },
+  "transactions": {
+    "title": "Histórico de Transações",
+    "subtitle": "Toda sua atividade on-chain no Kora Protocol",
+    "exportCsv": "Exportar CSV",
+    "clearAll": "Limpar Tudo",
+    "connectTitle": "Conecte sua carteira",
+    "connectDesc": "Conecte para visualizar seu histórico de transações on-chain",
+    "searchPlaceholder": "Buscar por hash, número de fatura ou descrição…",
+    "clearSearch": "Limpar busca",
+    "noResults": "Sem resultados",
+    "noResultsDesc": "Tente ajustar sua busca ou filtros",
+    "filteredFrom": "Filtrado de {total} no total",
+    "types": {
+      "all": "Todos os Tipos",
+      "mint": "Criações",
+      "fund": "Financiamentos",
+      "repay": "Reembolsos",
+      "claim": "Resgates",
+      "mintLabel": "Fatura Criada",
+      "fundLabel": "Fatura Financiada",
+      "repayLabel": "Reembolso",
+      "claimLabel": "Rendimento Resgatado"
+    },
+    "status": {
+      "all": "todos",
+      "confirmed": "confirmado",
+      "failed": "falhou"
+    },
+    "stats": {
+      "total": "Total de Transações",
+      "confirmed": "Confirmadas",
+      "totalVolume": "Volume Total",
+      "invoicesFunded": "Faturas Financiadas",
+      "failed": "{count} com falha",
+      "minted": "{count} criadas"
+    },
+    "empty": {
+      "title": "Nenhuma transação ainda",
+      "description": "Sua atividade on-chain aparecerá aqui depois que você criar tokens, financiar ou reembolsar faturas."
+    },
+    "txCount": "{count} transação",
+    "txCountPlural": "{count} transações",
+    "viewStellar": "Ver no Stellar Expert",
+    "remove": "Remover transação"
+  },
+  "analytics": {
+    "title": "Análise de Carteira",
+    "subtitle": "Visão geral de desempenho da sua carteira de financiamento de faturas",
+    "connectTitle": "Conecte sua carteira",
+    "connectDesc": "Conecte para visualizar a análise da sua carteira",
+    "range": "Período:",
+    "exportPortfolio": "Exportar CSV da Carteira",
+    "exportYield": "Exportar CSV de Rendimentos",
+    "stats": {
+      "totalDeployed": "Total Investido",
+      "totalYield": "Total de Rendimentos Obtidos",
+      "annualisedReturn": "Retorno Anualizado",
+      "defaultRate": "Taxa de Inadimplência"
+    }
+  },
+  "repaymentDialog": {
+    "title": "Confirmar Reembolso",
+    "principal": "Principal (captado)",
+    "interest": "Juros devidos",
+    "total": "Reembolso total",
+    "insufficientBalance": "Saldo de USDC insuficiente. Você precisa de {amount}.",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar Reembolso",
+    "processing": "Processando…"
+  },
+  "cancelDialog": {
+    "title": "Cancelar Fatura",
+    "description": "Esta ação não pode ser desfeita. A fatura será cancelada permanentemente.",
+    "partiallyFunded": "Parcialmente Financiada",
+    "partiallyFundedDesc": "Esta fatura tem {amount} em financiamento. O cancelamento não é permitido para faturas parcialmente financiadas.",
+    "effectsTitle": "Efeitos do Cancelamento",
+    "effects": {
+      "markedOnChain": "A fatura será marcada como cancelada on-chain",
+      "removedMarketplace": "Será removida do mercado",
+      "investorsNotified": "Os investidores serão notificados",
+      "ipfsCleanup": "Os arquivos fixados no IPFS serão removidos"
+    },
+    "keepInvoice": "Manter Fatura",
+    "cancelInvoice": "Cancelar Fatura",
+    "cancelling": "Cancelando...",
+    "fields": {
+      "debtor": "Devedor",
+      "invoiceAmount": "Valor da Fatura",
+      "financingAmount": "Valor do Financiamento",
+      "dueDate": "Vencimento",
+      "fundedAmount": "Valor Financiado"
+    }
+  },
+  "transaction": {
+    "building": "Construindo transação…",
+    "simulating": "Simulando transação…",
+    "signing": "Aguardando assinatura da carteira…",
+    "submitting": "Enviando para a rede Stellar…",
+    "polling": "Aguardando confirmação…",
+    "confirmed": "Transação confirmada!",
+    "failed": "Transação falhou",
+    "retry": "Tentar novamente",
+    "dismiss": "Fechar"
+  },
+  "txSimulation": {
+    "title": "Pré-visualização da Transação",
+    "subtitle": "Revise as taxas estimadas e o uso de recursos antes de assinar",
+    "estimatedFee": "Taxa Estimada",
+    "feeUsd": "≈ {usd} USD",
+    "resourceUsage": "Uso de Recursos",
+    "cpuInstructions": "Instruções de CPU",
+    "memoryBytes": "Memória",
+    "readBytes": "Bytes Lidos",
+    "writeBytes": "Bytes Escritos",
+    "simulationError": "Erro de Simulação",
+    "simulationErrorDesc": "Esta transação não pode ser executada. Revise o erro abaixo.",
+    "timeout": "A simulação expirou após 10 segundos. Tente novamente.",
+    "simulating": "Simulando transação…",
+    "proceed": "Prosseguir e Assinar",
+    "cancel": "Cancelar",
+    "stroops": "{amount} stroops",
+    "xlm": "{amount} XLM",
+    "instructions": "{count} instruções",
+    "bytes": "{count} bytes",
+    "kb": "{count} KB"
+  },
+  "network": {
+    "operational": "Operacional",
+    "degraded": "Degradado",
+    "down": "Indisponível",
+    "operationalDesc": "Todos os serviços funcionando normalmente",
+    "degradedDesc": "Alguns serviços com atraso",
+    "downDesc": "Serviços indisponíveis",
+    "sorobanRpc": "Soroban RPC",
+    "horizonApi": "API Horizon",
+    "lastChecked": "Última verificação: {time}",
+    "testnet": "Testnet",
+    "mainnet": "Mainnet",
+    "error": "Erro"
+  },
+  "offline": {
+    "title": "Você está offline",
+    "subtitle": "O Kora Protocol requer conexão à internet para interagir com a rede Stellar. Verifique sua conexão e tente novamente.",
+    "availableOffline": "Disponível offline",
+    "requiresConnection": "Requer conexão",
+    "cachedListings": "Listagens do mercado visitadas anteriormente",
+    "cachedAssets": "Páginas estáticas e recursos em cache",
+    "walletSigning": "Conexão e assinatura da carteira",
+    "invoiceCreation": "Criação e tokenização de faturas",
+    "liveData": "Dados ao vivo do mercado",
+    "reload": "Tentar Novamente",
+    "browseCached": "Navegar nas listagens em cache"
+  },
+  "notFound": {
+    "title": "Página não encontrada",
+    "description": "A página que você procura não existe ou foi movida.",
+    "goHome": "Ir para o Início",
+    "goBack": "Voltar"
+  },
+  "error": {
+    "title": "Algo deu errado",
+    "description": "Ocorreu um erro inesperado. Você pode tentar novamente ou voltar para a página inicial.",
+    "tryAgain": "Tentar Novamente",
+    "goHome": "Ir para o Início"
+  },
+  "common": {
+    "loading": "Carregando…",
+    "connectWallet": "Conectar Carteira",
+    "skipToContent": "Pular para o conteúdo",
+    "close": "Fechar",
+    "back": "Voltar"
+  },
+  "language": {
+    "label": "Idioma",
+    "en": "English",
+    "es": "Español",
+    "pt-BR": "Português (BR)",
+    "switchTo": "Mudar para {lang}"
+  },
+  "validation": {
+    "invoiceNumber": {
+      "required": "O número da fatura é obrigatório",
+      "invalid": "O número da fatura deve conter apenas caracteres alfanuméricos e hifens"
+    },
+    "debtorName": {
+      "required": "O nome do devedor é obrigatório",
+      "minLength": "O nome do devedor deve ter pelo menos 2 caracteres"
+    },
+    "debtorAddress": {
+      "required": "O endereço do devedor é obrigatório",
+      "minLength": "O endereço do devedor deve ter pelo menos 5 caracteres"
+    },
+    "amount": {
+      "positive": "O valor deve ser positivo",
+      "min": "Mínimo $100 USDC"
+    },
+    "dueDate": {
+      "required": "A data de vencimento é obrigatória",
+      "afterIssueDate": "A data de vencimento deve ser posterior à data de emissão"
+    },
+    "description": {
+      "maxLength": "A descrição não pode exceder 200 caracteres"
+    },
+    "discountRate": {
+      "min": "Mín 0,5%",
+      "max": "Máx 20%"
+    },
+    "minInvestment": {
+      "positive": "O investimento mínimo deve ser positivo",
+      "min": "Mín $100",
+      "exceedsAmount": "O investimento mínimo não pode exceder o valor total da fatura"
+    },
+    "listingExpiryDate": {
+      "required": "A data de expiração da listagem é obrigatória",
+      "beforeDueDate": "A data de expiração da listagem deve ser estritamente anterior à data de vencimento"
+    },
+    "file": {
+      "required": "O arquivo é obrigatório",
+      "type": "Apenas arquivos PDF são permitidos",
+      "size": "O tamanho do arquivo não deve exceder 10MB"
+    },
+    "fundingAmount": {
+      "minInvestment": "O valor do financiamento deve ser pelo menos o valor mínimo de investimento",
+      "exceedsCapacity": "O valor do financiamento não pode exceder a capacidade restante"
+    },
+    "repayment": {
+      "exactMatch": "O valor do reembolso deve corresponder exatamente ao saldo pendente"
+    },
+    "userProfile": {
+      "nameMinLength": "O nome deve ter pelo menos 2 caracteres",
+      "emailInvalid": "Endereço de e-mail inválido",
+      "companyNameMinLength": "O nome da empresa deve ter pelo menos 2 caracteres",
+      "walletAddressInvalid": "Formato de chave pública Stellar inválido"
+    }
+  }
+}

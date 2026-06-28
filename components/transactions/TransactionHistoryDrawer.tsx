@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronRight,
@@ -40,16 +40,49 @@ interface TransactionHistoryDrawerProps {
   limit?: number;
 }
 
-const TX_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  mint_invoice: { label: "Mint Invoice", icon: <FileText className="h-3.5 w-3.5" />, color: "text-blue-500" },
-  fund_invoice: { label: "Fund Invoice", icon: <Coins className="h-3.5 w-3.5" />, color: "text-green-500" },
-  repay_invoice: { label: "Repay Invoice", icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: "text-purple-500" },
-  claim_yield: { label: "Claim Yield", icon: <Coins className="h-3.5 w-3.5" />, color: "text-yellow-500" },
-  transfer: { label: "Transfer", icon: <ChevronRight className="h-3.5 w-3.5" />, color: "text-indigo-500" },
-  other: { label: "Transaction", icon: <Clock className="h-3.5 w-3.5" />, color: "text-gray-500" },
+const TX_TYPE_LABELS: Record<
+  string,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
+  mint_invoice: {
+    label: "Mint Invoice",
+    icon: <FileText className="h-3.5 w-3.5" />,
+    color: "text-blue-500",
+  },
+  fund_invoice: {
+    label: "Fund Invoice",
+    icon: <Coins className="h-3.5 w-3.5" />,
+    color: "text-green-500",
+  },
+  repay_invoice: {
+    label: "Repay Invoice",
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+    color: "text-purple-500",
+  },
+  claim_yield: {
+    label: "Claim Yield",
+    icon: <Coins className="h-3.5 w-3.5" />,
+    color: "text-yellow-500",
+  },
+  transfer: {
+    label: "Transfer",
+    icon: <ChevronRight className="h-3.5 w-3.5" />,
+    color: "text-indigo-500",
+  },
+  other: {
+    label: "Transaction",
+    icon: <Clock className="h-3.5 w-3.5" />,
+    color: "text-gray-500",
+  },
 };
 
-function TransactionRow({ tx, onSelect }: { tx: TransactionRecord; onSelect: (tx: TransactionRecord) => void }) {
+function TransactionRow({
+  tx,
+  onSelect,
+}: {
+  tx: TransactionRecord;
+  onSelect: (tx: TransactionRecord) => void;
+}) {
   const typeConfig = TX_TYPE_LABELS[tx.type] || TX_TYPE_LABELS.other;
   const isConfirmed = tx.status === "confirmed";
   const isFailed = tx.status === "failed";
@@ -74,12 +107,16 @@ function TransactionRow({ tx, onSelect }: { tx: TransactionRecord; onSelect: (tx
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           {/* Icon */}
-          <div className={cn("shrink-0 mt-0.5", typeConfig.color)}>{typeConfig.icon}</div>
+          <div className={cn("shrink-0 mt-0.5", typeConfig.color)}>
+            {typeConfig.icon}
+          </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-foreground truncate">{typeConfig.label}</span>
+              <span className="text-sm font-medium text-foreground truncate">
+                {typeConfig.label}
+              </span>
               {isPending && (
                 <motion.div
                   animate={{ rotate: 360 }}
@@ -88,8 +125,12 @@ function TransactionRow({ tx, onSelect }: { tx: TransactionRecord; onSelect: (tx
                   <Clock className="h-3 w-3 text-primary flex-shrink-0" />
                 </motion.div>
               )}
-              {isConfirmed && <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />}
-              {isFailed && <AlertCircle className="h-3 w-3 text-destructive flex-shrink-0" />}
+              {isConfirmed && (
+                <CheckCircle2 className="h-3 w-3 text-green-500 flex-shrink-0" />
+              )}
+              {isFailed && (
+                <AlertCircle className="h-3 w-3 text-destructive flex-shrink-0" />
+              )}
             </div>
 
             {/* Hash + Details */}
@@ -109,9 +150,13 @@ function TransactionRow({ tx, onSelect }: { tx: TransactionRecord; onSelect: (tx
 
             {/* Description or Error */}
             {tx.description && (
-              <p className="text-xs text-muted-foreground truncate">{tx.description}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {tx.description}
+              </p>
             )}
-            {tx.error && <p className="text-xs text-destructive truncate">{tx.error}</p>}
+            {tx.error && (
+              <p className="text-xs text-destructive truncate">{tx.error}</p>
+            )}
           </div>
         </div>
 
@@ -122,7 +167,13 @@ function TransactionRow({ tx, onSelect }: { tx: TransactionRecord; onSelect: (tx
   );
 }
 
-function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: () => void }) {
+function TransactionDetail({
+  tx,
+  onClose,
+}: {
+  tx: TransactionRecord;
+  onClose: () => void;
+}) {
   const typeConfig = TX_TYPE_LABELS[tx.type] || TX_TYPE_LABELS.other;
   const dateObj = new Date(tx.timestamp);
 
@@ -167,9 +218,13 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: ()
 
       {/* Hash */}
       <div className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">Transaction Hash</p>
+        <p className="text-xs font-medium text-muted-foreground">
+          Transaction Hash
+        </p>
         <div className="flex items-center gap-2 bg-muted/50 rounded px-2.5 py-1.5 border border-border/50">
-          <span className="text-xs font-mono text-foreground flex-1 break-all">{tx.hash}</span>
+          <span className="text-xs font-mono text-foreground flex-1 break-all">
+            {tx.hash}
+          </span>
           <button
             type="button"
             onClick={() => navigator.clipboard.writeText(tx.hash)}
@@ -185,10 +240,18 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: ()
       <div className="space-y-1">
         <p className="text-xs font-medium text-muted-foreground">Status</p>
         <div className="flex items-center gap-2">
-          {tx.status === "confirmed" && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-          {tx.status === "failed" && <AlertCircle className="h-4 w-4 text-destructive" />}
-          {tx.status === "pending" && <Clock className="h-4 w-4 text-primary" />}
-          <span className="text-sm text-foreground capitalize">{tx.status}</span>
+          {tx.status === "confirmed" && (
+            <CheckCircle2 className="h-4 w-4 text-green-500" />
+          )}
+          {tx.status === "failed" && (
+            <AlertCircle className="h-4 w-4 text-destructive" />
+          )}
+          {tx.status === "pending" && (
+            <Clock className="h-4 w-4 text-primary" />
+          )}
+          <span className="text-sm text-foreground capitalize">
+            {tx.status}
+          </span>
         </div>
       </div>
 
@@ -211,7 +274,9 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: ()
       {/* ── Enriched Horizon details ─────────────────────────────────────────── */}
       {tx.status === "confirmed" && (
         <div className="space-y-3 border-t pt-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">On-chain Details</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            On-chain Details
+          </p>
 
           {loadingDetails ? (
             <div className="space-y-2">
@@ -222,9 +287,18 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: ()
           ) : details ? (
             <div className="space-y-2 text-sm">
               <DetailRow label="Ledger" value={String(details.ledger)} />
-              <DetailRow label="Fee Paid" value={`${details.feeXlm.toFixed(7)} XLM (${details.feePaid} stroops)`} />
-              <DetailRow label="Confirmed At" value={new Date(details.createdAt).toLocaleString()} />
-              <DetailRow label="Operations" value={String(details.operationCount)} />
+              <DetailRow
+                label="Fee Paid"
+                value={`${details.feeXlm.toFixed(7)} XLM (${details.feePaid} stroops)`}
+              />
+              <DetailRow
+                label="Confirmed At"
+                value={new Date(details.createdAt).toLocaleString()}
+              />
+              <DetailRow
+                label="Operations"
+                value={String(details.operationCount)}
+              />
               {details.memo && <DetailRow label="Memo" value={details.memo} />}
             </div>
           ) : (
@@ -236,7 +310,9 @@ function TransactionDetail({ tx, onClose }: { tx: TransactionRecord; onClose: ()
       {/* Description */}
       {tx.description && (
         <div className="space-y-1">
-          <p className="text-xs font-medium text-muted-foreground">Description</p>
+          <p className="text-xs font-medium text-muted-foreground">
+            Description
+          </p>
           <p className="text-sm text-foreground">{tx.description}</p>
         </div>
       )}
@@ -281,7 +357,11 @@ export function TransactionHistoryDrawer({
   onOpenChange,
   limit = 15,
 }: TransactionHistoryDrawerProps) {
-  const transactions = useTransactionHistoryStore((s) => s.getRecentTransactions(limit));
+  const allTransactions = useTransactionHistoryStore((s) => s.transactions);
+  const transactions = useMemo(
+    () => allTransactions.slice(0, limit),
+    [allTransactions, limit],
+  );
   const clearHistory = useTransactionHistoryStore((s) => s.clearHistory);
   const [selectedTx, setSelectedTx] = useState<TransactionRecord | null>(null);
 
@@ -289,7 +369,16 @@ export function TransactionHistoryDrawer({
     if (transactions.length === 0) return;
 
     const csv = [
-      ["Hash", "Type", "Status", "Amount", "Asset", "Timestamp", "Description", "Error"],
+      [
+        "Hash",
+        "Type",
+        "Status",
+        "Amount",
+        "Asset",
+        "Timestamp",
+        "Description",
+        "Error",
+      ],
       ...transactions.map((tx) => [
         tx.hash,
         tx.type,
@@ -314,7 +403,9 @@ export function TransactionHistoryDrawer({
   };
 
   const handleClearHistory = () => {
-    if (window.confirm("Clear all transaction history? This cannot be undone.")) {
+    if (
+      window.confirm("Clear all transaction history? This cannot be undone.")
+    ) {
       clearHistory();
       setSelectedTx(null);
     }
@@ -348,7 +439,10 @@ export function TransactionHistoryDrawer({
           >
             {/* Header */}
             <div className="flex items-center justify-between gap-3 px-4 py-4 border-b border-border/50">
-              <h2 id="drawer-title" className="text-lg font-semibold text-foreground">
+              <h2
+                id="drawer-title"
+                className="text-lg font-semibold text-foreground"
+              >
                 Transactions
               </h2>
               <button
@@ -364,12 +458,17 @@ export function TransactionHistoryDrawer({
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-4 py-3">
               {selectedTx ? (
-                <TransactionDetail tx={selectedTx} onClose={() => setSelectedTx(null)} />
+                <TransactionDetail
+                  tx={selectedTx}
+                  onClose={() => setSelectedTx(null)}
+                />
               ) : transactions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
                   <Clock className="h-8 w-8 text-muted-foreground" />
                   <div>
-                    <p className="text-sm font-medium text-foreground">No transactions yet</p>
+                    <p className="text-sm font-medium text-foreground">
+                      No transactions yet
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
                       Transactions will appear here
                     </p>

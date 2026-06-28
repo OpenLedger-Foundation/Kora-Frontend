@@ -5,11 +5,12 @@ import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
-import { rpc, submitTransaction } from "@/lib/stellar/client";
+import { rpc, submitTransaction, BadSequenceError, sequenceManager } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
+import type { ServiceError } from "@/types";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -21,6 +22,17 @@ export type TxLifecycleStatus =
   | "polling"
   | "confirmed"
   | "failed";
+
+async function buildAndSign(
+  buildFn: () => Promise<string>,
+  signTransaction: (xdr: string) => Promise<string>,
+  setStage: (stage: TxLifecycleStatus) => void
+): Promise<string> {
+  setStage("building");
+  const unsignedXdr = await buildFn();
+  setStage("signing");
+  return signTransaction(unsignedXdr);
+}
 
 interface TxState {
   status: TxLifecycleStatus;
@@ -34,6 +46,8 @@ export interface SimulationPreview {
   feeStroops: number;
   /** Fee in XLM */
   feeXlm: number;
+  /** Resource fee in stroops */
+  resourceFee: number;
   /** CPU instructions consumed */
   cpuInstructions: number;
   /** Memory bytes consumed */
@@ -103,13 +117,13 @@ function parseSimulationPreview(
     // Resource parsing is best-effort; leave zeros if unavailable
   }
 
-  return { feeStroops, feeXlm, cpuInstructions, memoryBytes, readBytes, writeBytes };
+  return { feeStroops, feeXlm, resourceFee: feeStroops, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
 
 export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
-  const { signTransaction } = useWallet();
+  const { signTransaction, publicKey } = useWallet();
   const toast = useToast();
   const t = useTranslations("transaction");
   const setTxState = useUIStore((s) => s.setTxState);
@@ -185,6 +199,7 @@ export function useTransaction() {
             const preview: SimulationPreview = {
               feeStroops: 0,
               feeXlm: 0,
+              resourceFee: 0,
               cpuInstructions: 0,
               memoryBytes: 0,
               readBytes: 0,

@@ -11,6 +11,7 @@ import type {
   InvoicePosition,
   IInvoiceService,
   ServiceError,
+  ServiceErrorCode,
   Result,
   InvoiceStatus,
 } from "@/types";
@@ -827,3 +828,4 @@ export async function prepareUpdateInvoiceStatus(
 }
 
 
+export { fetchInvoicesByTokenIds as fetchBatchInvoicesByTokenIds };

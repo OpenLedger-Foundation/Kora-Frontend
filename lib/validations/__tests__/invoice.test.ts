@@ -44,6 +44,19 @@ function expectFailure(
   }
 }
 
+function expectRefinementPassed(
+  schema: { safeParse: (v: unknown) => { success: boolean; error?: any } },
+  value: unknown,
+  refinementMessage: string
+) {
+  const result = schema.safeParse(value);
+  expect(result.success).toBe(false);
+  if (result.error) {
+    const messages = result.error.issues.map((i: any) => i.message);
+    expect(messages).not.toContain(refinementMessage);
+  }
+}
+
 // ─── invoiceDetailsStepSchema / invoiceDetailsSchema ─────────────────────────
 
 describe("invoiceDetailsStepSchema", () => {
@@ -527,6 +540,7 @@ describe("createInvoiceSchema", () => {
     dueDate: "2025-01-01",
     jurisdiction: "KE",
     category: "technology",
+    debtorPrivacy: "full",
     discountRate: 5,
     minInvestment: 1000,
     listingExpiryDate: "2024-12-01",
