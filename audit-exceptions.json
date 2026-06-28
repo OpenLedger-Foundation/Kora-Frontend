@@ -1,0 +1,22 @@
+{
+  "exceptions": [
+    {
+      "advisoryId": 1120743,
+      "package": "form-data",
+      "url": "https://github.com/advisories/GHSA-hmw2-7cc7-3qxx",
+      "reason": "CRLF injection in form-data occurs only when unescaped filenames are manipulated via the client library. In our app, form-data is a transitive dev dependency for testing/Storybook, and the production upload route utilizes Next.js built-in req.formData() parsing, which is safe."
+    },
+    {
+      "advisoryId": 1113686,
+      "package": "serialize-javascript",
+      "url": "https://github.com/advisories/GHSA-5c6j-r48x-rmvq",
+      "reason": "Remote Code Execution in serialize-javascript. This package is transitively used by rollup-plugin-terser inside workbox-build for PWA generation at build time, never in production runtime or dynamic server contexts."
+    },
+    {
+      "advisoryId": 1120789,
+      "package": "vite",
+      "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff",
+      "reason": "Vite server.fs.deny bypass only affects dev servers running on Windows platforms. Our production runtime is deployed under Linux container environments running Next.js."
+    }
+  ]
+}

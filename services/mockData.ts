@@ -73,6 +73,7 @@ export function generateMockInvoices(count = 50, seed = 42): Invoice[] {
       },
       riskTier: pick(rng, riskTiers) as any,
       riskScore: Math.round(30 + rng() * 70),
+      debtorPrivacy: "full",
       status: pick(rng, statuses) as any,
       createdAt: new Date(Date.now() - Math.round(rng() * 90) * 24 * 3600 * 1000).toISOString(),
       updatedAt: new Date().toISOString(),
