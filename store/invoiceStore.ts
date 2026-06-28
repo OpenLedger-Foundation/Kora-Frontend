@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { Invoice, InvoiceFunding, InvoiceStatus } from "@/types";
 import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
 
@@ -104,6 +106,54 @@ export function getFilteredInvoices(
     }
     return sort.sortDir === "asc" ? aVal - bVal : bVal - aVal;
   });
+}
+
+type FilterCacheEntry = {
+  invoicesRef: Invoice[];
+  filters: FilterState;
+  sort: SortState;
+  searchQuery: string;
+  result: Invoice[];
+};
+
+let filterCache: FilterCacheEntry | null = null;
+
+function readFilteredInvoices(
+  invoices: Invoice[],
+  filters: FilterState,
+  sort: SortState,
+  searchQuery: string
+): Invoice[] {
+  if (
+    filterCache &&
+    filterCache.invoicesRef === invoices &&
+    filterCache.filters === filters &&
+    filterCache.sort === sort &&
+    filterCache.searchQuery === searchQuery
+  ) {
+    return filterCache.result;
+  }
+
+  const result = getFilteredInvoices(invoices, filters, sort, searchQuery);
+  filterCache = { invoicesRef: invoices, filters, sort, searchQuery, result };
+  return result;
+}
+
+/** React hook — memoized filtered invoice list keyed on store filter state. */
+export function useFilteredInvoices(): Invoice[] {
+  const { invoices, filters, sort, searchQuery } = useInvoiceStore(
+    useShallow((state) => ({
+      invoices: state.invoices,
+      filters: state.filters,
+      sort: state.sort,
+      searchQuery: state.searchQuery,
+    }))
+  );
+
+  return useMemo(
+    () => getFilteredInvoices(invoices, filters, sort, searchQuery),
+    [invoices, filters, sort, searchQuery]
+  );
 }
 
 // ─── URL serialization ────────────────────────────────────────────────────────
@@ -383,7 +433,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
 
       getFiltered: () => {
         const { invoices, filters, sort, searchQuery } = get();
-        return getFilteredInvoices(invoices, filters, sort, searchQuery);
+        return readFilteredInvoices(invoices, filters, sort, searchQuery);
       },
     }),
     {

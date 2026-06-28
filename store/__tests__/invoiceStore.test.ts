@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   getFilteredInvoices,
   toQueryParams,
   fromQueryParams,
   DEFAULT_FILTERS,
+  useInvoiceStore,
 } from "@/store/invoiceStore";
 import type { Invoice } from "@/types";
 
@@ -110,6 +111,59 @@ describe("getFilteredInvoices", () => {
   it("filters by search query on debtor name", () => {
     const result = getFilteredInvoices(invoices, DEFAULT_FILTERS, { sortBy: "apr", sortDir: "desc" }, "debtor");
     expect(result).toHaveLength(3); // all have "Debtor Inc"
+  });
+});
+
+describe("getFiltered memoization", () => {
+  beforeEach(() => {
+    useInvoiceStore.setState({
+      invoices: [],
+      filters: DEFAULT_FILTERS,
+      sort: { sortBy: "apr", sortDir: "desc" },
+      searchQuery: "",
+    });
+  });
+
+  it("returns the same array reference when inputs are unchanged", () => {
+    const store = useInvoiceStore.getState();
+    const first = store.getFiltered();
+    const second = store.getFiltered();
+    expect(first).toBe(second);
+  });
+
+  it("recomputes when invoice data changes", () => {
+    const store = useInvoiceStore.getState();
+    const first = store.getFiltered();
+
+    useInvoiceStore.getState().setInvoices([
+      {
+        id: "inv_new",
+        tokenId: "tok_new",
+        metadata: {
+          debtorName: "New Debtor",
+          invoiceNumber: "INV-NEW",
+          amount: 1000,
+          category: "technology",
+          jurisdiction: "KE",
+          dueDate: "2025-12-31",
+        },
+        terms: { apr: 12, repaymentDate: "2025-12-31", minInvestment: 100 },
+        funding: {
+          totalRaised: 0,
+          targetAmount: 1000,
+          fundingProgress: 0,
+          investorCount: 0,
+          remainingCapacity: 1000,
+        },
+        riskTier: "A",
+        status: "listed",
+        createdAt: "2025-01-01",
+      } as any,
+    ]);
+
+    const second = useInvoiceStore.getState().getFiltered();
+    expect(second).not.toBe(first);
+    expect(second).toHaveLength(1);
   });
 });
 
