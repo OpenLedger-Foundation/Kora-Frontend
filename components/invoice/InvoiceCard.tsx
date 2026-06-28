@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
@@ -133,6 +133,17 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
     if (!comparisonFull) toggleComparison(invoice.id);
   };
 
+  const fundingPct = Math.min(100, Math.round((funding.totalRaised / Math.max(funding.targetAmount, 1)) * 100));
+  const previousFundingPctRef = useRef(fundingPct);
+  const [fundingAnnouncement, setFundingAnnouncement] = useState("");
+
+  useEffect(() => {
+    if (fundingPct !== previousFundingPctRef.current) {
+      setFundingAnnouncement(`Invoice ${metadata.invoiceNumber} is now ${fundingPct}% funded`);
+      previousFundingPctRef.current = fundingPct;
+    }
+  }, [fundingPct, metadata.invoiceNumber]);
+
   return (
     <Link
       ref={cardRef}
@@ -157,6 +168,10 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
         whileHover={!isExpired ? { y: -6 } : {}}
         transition={{ duration: 0.3, delay: index * 0.05 }}
       >
+        <span className="sr-only" aria-live="polite" aria-atomic="true">
+          {fundingAnnouncement}
+        </span>
+
         <div>
           {/* Header */}
           <div className="flex items-start justify-between gap-3">

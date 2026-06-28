@@ -109,12 +109,11 @@ function parseSimulationPreview(
 export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
-  const { signTransaction } = useWallet();
+  const { signTransaction, address } = useWallet();
   const toast = useToast();
   const t = useTranslations("transaction");
   const setTxState = useUIStore((s) => s.setTxState);
-  const addTransaction = useTransactionHistoryStore((s) => s.addTransaction);
-  const updateTransactionStatus = useTransactionHistoryStore((s) => s.updateTransactionStatus);
+  const appendAuditRecord = useTransactionHistoryStore((s) => s.appendAuditRecord);
 
   const setStage = useCallback(
     (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
@@ -154,8 +153,10 @@ export function useTransaction() {
         txDescription?: string;
         txAmount?: string;
         txAssetCode?: string;
+        txTargetAddress?: string;
       }
     ): Promise<string | null> => {
+      let submittedHash: string | null = null;
       try {
         // 1. Build
         setStage("building");
@@ -240,16 +241,7 @@ export function useTransaction() {
           if (result.status === "ERROR") throw new Error("Transaction submission failed");
           hash = result.hash;
         }
-
-        // Add to history as pending
-        addTransaction({
-          hash,
-          type: (options?.txType as any) || "other",
-          status: "pending",
-          description: options?.txDescription,
-          amount: options?.txAmount,
-          assetCode: options?.txAssetCode,
-        });
+        submittedHash = hash;
 
         // 5. Poll
         setStage("polling", { txHash: hash });
@@ -262,7 +254,15 @@ export function useTransaction() {
         // ── Phase 5: done ──────────────────────────────────────────────────
         setState({ status: "confirmed", txHash: hash });
         setTxState({ status: "confirmed", txHash: hash });
-        updateTransactionStatus(hash, "confirmed");
+        appendAuditRecord({
+          hash,
+          type: (options?.txType as any) || "other",
+          status: "confirmed",
+          description: options?.txDescription,
+          amount: options?.txAmount,
+          assetCode: options?.txAssetCode,
+          targetAddress: options?.txTargetAddress || address || "",
+        });
         toast.success(
           options?.successMessage ?? t("confirmed"),
           hash,
@@ -276,12 +276,20 @@ export function useTransaction() {
         const message = err instanceof Error ? err.message : t("failed");
         setState({ status: "failed", error: message });
         setTxState({ status: "failed", error: { code: "TRANSACTION_FAILED", message } });
-        
-        // Update history if we have a hash
-        if (state.txHash) {
-          updateTransactionStatus(state.txHash, "failed", message);
+
+        if (submittedHash) {
+          appendAuditRecord({
+            hash: submittedHash,
+            type: (options?.txType as any) || "other",
+            status: "failed",
+            description: options?.txDescription,
+            amount: options?.txAmount,
+            assetCode: options?.txAssetCode,
+            targetAddress: options?.txTargetAddress || address || "",
+            error: message,
+          });
         }
-        
+
         toast.error(
           t("failed"),
           message,
@@ -293,7 +301,7 @@ export function useTransaction() {
         return null;
       }
     },
-    [signTransaction, setStage, setTxState, addTransaction, updateTransactionStatus, t, toast, state.txHash]
+    [signTransaction, address, setStage, setTxState, appendAuditRecord, t, toast]
   );
 
   const reset = useCallback(() => {

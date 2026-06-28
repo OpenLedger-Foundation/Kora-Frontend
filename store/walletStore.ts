@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { WalletBalance, WalletNetwork, WalletProvider, WalletState } from "@/types";
 import { env } from "@/lib/env";
+import { createPersistentJSONStorage } from "./storageAdapter";
 
 const EMPTY_BALANCE: WalletBalance = {
   xlm: "0",
@@ -114,6 +115,7 @@ export const useWalletStore = create<WalletStore>()(
     }),
     {
       name: "kora-wallet",
+      storage: createPersistentJSONStorage(),
       partialize: (s) => ({
         address: s.address,
         publicKey: s.publicKey,

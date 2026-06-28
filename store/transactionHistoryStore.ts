@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { createPersistentJSONStorage } from "./storageAdapter";
 
-export type TxType =
+export type TransactionAuditType =
   | "mint_invoice"
   | "fund_invoice"
   | "repay_invoice"
@@ -9,27 +10,27 @@ export type TxType =
   | "transfer"
   | "other";
 
-export type TxStatus = "pending" | "confirmed" | "failed";
+export type TransactionAuditStatus = "pending" | "confirmed" | "failed";
 
 export interface TransactionRecord {
-  hash: string;
-  type: TxType;
-  status: TxStatus;
-  amount?: string; // in USDC or XLM
-  assetCode?: string; // USDC, XLM, EURC
-  timestamp: number; // Unix ms
-  description?: string;
-  invoiceId?: string;
-  error?: string;
+  readonly hash: string;
+  readonly type: TransactionAuditType;
+  readonly status: TransactionAuditStatus;
+  readonly amount?: string; // in USDC or XLM
+  readonly assetCode?: string; // USDC, XLM, EURC
+  readonly targetAddress: string;
+  readonly timestamp: number; // Unix ms
+  readonly description?: string;
+  readonly invoiceId?: string;
+  readonly error?: string;
 }
 
 interface TransactionHistoryStore {
-  transactions: TransactionRecord[];
-  addTransaction: (tx: Omit<TransactionRecord, "timestamp">) => void;
-  updateTransactionStatus: (hash: string, status: TxStatus, error?: string) => void;
-  clearHistory: () => void;
-  getRecentTransactions: (limit?: number) => TransactionRecord[];
+  readonly transactions: readonly TransactionRecord[];
+  appendAuditRecord: (tx: Omit<TransactionRecord, "timestamp"> & { timestamp?: number }) => void;
+  getRecentTransactions: (limit?: number) => readonly TransactionRecord[];
   getTransactionByHash: (hash: string) => TransactionRecord | undefined;
+  exportAuditLog: () => string;
 }
 
 export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
@@ -37,27 +38,19 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
     (set, get) => ({
       transactions: [],
 
-      addTransaction: (tx) => {
+      appendAuditRecord: (tx) => {
         set((state) => ({
-          transactions: [
-            {
-              ...tx,
-              timestamp: Date.now(),
-            },
-            ...state.transactions,
-          ].slice(0, 100), // Keep last 100 transactions
+          transactions: state.transactions.some((entry) => entry.hash === tx.hash)
+            ? state.transactions
+            : [
+                {
+                  ...tx,
+                  timestamp: tx.timestamp ?? Date.now(),
+                },
+                ...state.transactions,
+              ].slice(0, 200), // Keep last 200 immutable audit records
         }));
       },
-
-      updateTransactionStatus: (hash, status, error) => {
-        set((state) => ({
-          transactions: state.transactions.map((tx) =>
-            tx.hash === hash ? { ...tx, status, error } : tx
-          ),
-        }));
-      },
-
-      clearHistory: () => set({ transactions: [] }),
 
       getRecentTransactions: (limit = 10) => {
         return get().transactions.slice(0, limit);
@@ -66,9 +59,14 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
       getTransactionByHash: (hash) => {
         return get().transactions.find((tx) => tx.hash === hash);
       },
+
+      exportAuditLog: () => {
+        return JSON.stringify(get().transactions, null, 2);
+      },
     }),
     {
       name: "kora-transaction-history",
+      storage: createPersistentJSONStorage(),
       partialize: (state) => ({
         transactions: state.transactions,
       }),
@@ -95,12 +93,18 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
               status: tx.status === "failed" ? "failed" : tx.status === "confirmed" ? "confirmed" : "pending",
               amount: typeof tx.amount === "string" ? tx.amount : undefined,
               assetCode: typeof tx.assetCode === "string" ? tx.assetCode : undefined,
+              targetAddress:
+                typeof tx.targetAddress === "string"
+                  ? tx.targetAddress
+                  : typeof tx.address === "string"
+                    ? tx.address
+                    : "",
               timestamp: Number(tx.timestamp) || Date.now(),
               description: typeof tx.description === "string" ? tx.description : undefined,
               invoiceId: typeof tx.invoiceId === "string" ? tx.invoiceId : undefined,
               error: typeof tx.error === "string" ? tx.error : undefined,
             }))
-            .slice(0, 100);
+            .slice(0, 200);
           return { state: { transactions } };
         } catch {
           return { state: { transactions: [] } };

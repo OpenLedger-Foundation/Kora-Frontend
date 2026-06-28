@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Invoice, InvoiceFunding, InvoiceStatus } from "@/types";
 import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
+import {
+  createPersistentJSONStorage,
+  safeStorageGetItem,
+  safeStorageSetItem,
+} from "./storageAdapter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -151,17 +156,15 @@ const SEARCH_HISTORY_KEY = "kora-search-history";
 const MAX_HISTORY = 5;
 
 function loadSearchHistory(): string[] {
-  if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]");
+    return JSON.parse(safeStorageGetItem(SEARCH_HISTORY_KEY) || "[]");
   } catch {
     return [];
   }
 }
 
 function saveSearchHistory(history: string[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
+  safeStorageSetItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
 }
 
 type FundingBackup = InvoiceFunding & { status: InvoiceStatus };
@@ -202,10 +205,6 @@ interface InvoiceStore {
   _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
-  // Marketplace page aliases
-  sortBy: string;
-  setSortBy: (sortBy: string) => void;
-  updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
 
   /** Toggle an invoice in/out of the comparison list (max 3) */
   toggleComparison: (id: string) => void;
@@ -282,11 +281,6 @@ export const useInvoiceStore = create<InvoiceStore>()(
       },
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
-
-      // Marketplace page aliases
-      sortBy: DEFAULT_SORT.sortBy,
-      setSortBy: (sortBy) => set((s) => ({ sort: { ...s.sort, sortBy: sortBy as SortState["sortBy"] }, sortBy: sortBy as SortState["sortBy"] })),
-      updateSingleFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
 
       /** Optimistic update — instantly reflects new funding amount in UI */
       updateInvoiceFunding: (id, newAmount) =>
@@ -393,6 +387,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
     }),
     {
       name: "kora-invoice-store",
+      storage: createPersistentJSONStorage(),
       partialize: (state) => ({ createDraft: state.createDraft }),
     }
   )

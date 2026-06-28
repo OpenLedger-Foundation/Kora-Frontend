@@ -10,7 +10,6 @@ import {
   Coins,
   FileText,
   Download,
-  Trash2,
   X,
   Copy,
 } from "lucide-react";
@@ -29,8 +28,7 @@ import { cn } from "@/lib/utils";
  * - Lists last N transactions with status, hash, timestamp, type
  * - Status badges: pending (spinner), confirmed (checkmark), failed (error)
  * - Shows amount, asset code, description
- * - Export to CSV button
- * - Clear history button
+ * - Download immutable audit log as JSON
  * - Click tx to view details (optional, shows full hash + copy button)
  */
 
@@ -282,42 +280,19 @@ export function TransactionHistoryDrawer({
   limit = 15,
 }: TransactionHistoryDrawerProps) {
   const transactions = useTransactionHistoryStore((s) => s.getRecentTransactions(limit));
-  const clearHistory = useTransactionHistoryStore((s) => s.clearHistory);
+  const exportAuditLog = useTransactionHistoryStore((s) => s.exportAuditLog);
   const [selectedTx, setSelectedTx] = useState<TransactionRecord | null>(null);
 
-  const handleExport = () => {
+  const handleDownloadAuditLog = () => {
     if (transactions.length === 0) return;
 
-    const csv = [
-      ["Hash", "Type", "Status", "Amount", "Asset", "Timestamp", "Description", "Error"],
-      ...transactions.map((tx) => [
-        tx.hash,
-        tx.type,
-        tx.status,
-        tx.amount || "",
-        tx.assetCode || "",
-        new Date(tx.timestamp).toISOString(),
-        tx.description || "",
-        tx.error || "",
-      ]),
-    ]
-      .map((row) => row.map((cell) => `"${cell}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv" });
+    const blob = new Blob([exportAuditLog()], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `kora-transactions-${Date.now()}.csv`;
+    a.download = `kora-audit-log-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const handleClearHistory = () => {
-    if (window.confirm("Clear all transaction history? This cannot be undone.")) {
-      clearHistory();
-      setSelectedTx(null);
-    }
   };
 
   return (
@@ -393,20 +368,12 @@ export function TransactionHistoryDrawer({
               <div className="flex items-center gap-2 px-4 py-3 border-t border-border/50">
                 <button
                   type="button"
-                  onClick={handleExport}
-                  aria-label="Export transactions to CSV"
+                  onClick={handleDownloadAuditLog}
+                  aria-label="Download audit log as JSON"
                   className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
                 >
                   <Download className="h-4 w-4" />
-                  Export
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearHistory}
-                  aria-label="Clear transaction history"
-                  className="flex items-center justify-center px-3 py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
+                  Download Audit Log
                 </button>
               </div>
             )}
