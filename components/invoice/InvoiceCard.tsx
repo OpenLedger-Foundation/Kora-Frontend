@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, memo } from "react";
 import { motion } from "framer-motion";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/queryKeys";
-import { fetchInvoiceById } from "@/services/invoiceService";
+import { usePrefetchInvoice } from "@/hooks/useInvoices";
 import {
   formatCurrency,
   formatApr,
@@ -67,12 +65,12 @@ function getFlagEmoji(countryCode: string) {
   }
 }
 
-export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
+export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
   const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
-  const queryClient = useQueryClient();
+  const { prefetch: prefetchInvoice, cancelPrefetch } = usePrefetchInvoice();
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= 3 && !isInComparison;
@@ -87,12 +85,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   const isExpired = countdown.isExpired || status === "cancelled";
 
   const handleMouseEnter = useCallback(() => {
-    // Prefetch detail query
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.invoices.detail(invoice.id),
-      queryFn: () => fetchInvoiceById(invoice.id),
-      staleTime: 30000,
-    });
+    prefetchInvoice(invoice.id);
 
     // Delay popover open to avoid flash on quick hovers
     hoverTimeoutRef.current = setTimeout(() => {
@@ -100,9 +93,10 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
         setPopoverOpen(true);
       }
     }, 300);
-  }, [queryClient, invoice.id, isExpired]);
+  }, [prefetchInvoice, invoice.id, isExpired]);
 
   const handleMouseLeave = useCallback(() => {
+    cancelPrefetch();
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
@@ -301,7 +295,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
       </motion.div>
     </Link>
   );
-}
+});
 
 export function InvoiceCardSkeleton() {
   return (

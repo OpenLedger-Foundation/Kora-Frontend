@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import {
   useQuery,
   useMutation,
@@ -23,6 +23,15 @@ import type { CreateInvoiceFormData, InvoiceStatus, MarketplaceSortKey } from "@
 const STALE_30S = 30_000;
 const GC_5MIN = 5 * 60 * 1000;
 const POLL_INTERVAL_MS = 30_000;
+export const PREFETCH_DELAY_MS = 200;
+export const MAX_CONCURRENT_PREFETCHES = 5;
+
+const activePrefetches = new Set<string>();
+
+function isFinePointerDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(pointer: fine)").matches;
+}
 
 const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
   apr: "apr",
@@ -77,15 +86,51 @@ export function useInvoice(id: string) {
   });
 }
 
-/** Call on InvoiceCard mouseEnter to warm the cache before navigation. */
+/** Prefetch invoice detail on desktop hover (>200ms) with a max of 5 in flight. */
 export function usePrefetchInvoice() {
   const queryClient = useQueryClient();
-  return (id: string) =>
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.invoices.detail(id),
-      queryFn: () => fetchInvoiceById(id),
-      staleTime: STALE_30S,
-    });
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduledIdRef = useRef<string | null>(null);
+
+  const cancelPrefetch = useCallback(() => {
+    if (hoverTimerRef.current !== null) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    scheduledIdRef.current = null;
+  }, []);
+
+  const prefetch = useCallback(
+    (id: string) => {
+      cancelPrefetch();
+      if (!isFinePointerDevice()) return;
+
+      scheduledIdRef.current = id;
+      hoverTimerRef.current = setTimeout(() => {
+        if (scheduledIdRef.current !== id) return;
+
+        const queryKey = queryKeys.invoices.detail(id);
+        if (queryClient.getQueryData(queryKey)) return;
+        if (activePrefetches.size >= MAX_CONCURRENT_PREFETCHES) return;
+
+        activePrefetches.add(id);
+        void queryClient
+          .prefetchQuery({
+            queryKey,
+            queryFn: () => fetchInvoiceById(id),
+            staleTime: STALE_30S,
+          })
+          .finally(() => {
+            activePrefetches.delete(id);
+          });
+      }, PREFETCH_DELAY_MS);
+    },
+    [queryClient, cancelPrefetch]
+  );
+
+  useEffect(() => () => cancelPrefetch(), [cancelPrefetch]);
+
+  return { prefetch, cancelPrefetch };
 }
 
 // ─── SME invoices ─────────────────────────────────────────────────────────────
