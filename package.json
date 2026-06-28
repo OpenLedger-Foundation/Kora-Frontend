@@ -90,6 +90,21 @@
     "@semantic-release/git": "10.0.1",
     "@semantic-release/github": "11.0.6",
     "@semantic-release/npm": "13.1.5",
-    "semantic-release": "24.2.1"
-  }
+    "semantic-release": "24.2.1",
+    "bundlesize": "0.18.2"
+  },
+  "bundlesize": [
+    {
+      "path": ".next/static/chunks/main-*.js",
+      "maxSize": "250 kB"
+    },
+    {
+      "path": ".next/static/chunks/framework-*.js",
+      "maxSize": "500 kB"
+    },
+    {
+      "path": ".next/static/chunks/pages/**/*.js",
+      "maxSize": "300 kB"
+    }
+  ]
 }
