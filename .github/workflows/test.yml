@@ -43,3 +43,51 @@ jobs:
         run: |
           echo "Coverage thresholds enforced in vitest.config.ts"
           echo "Lines: 80%, Branches: 70%, Functions: 75%"
+
+  playwright-components:
+    name: Playwright — Component tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        # Only install Chromium — the component tests use the "components" project
+        # which targets Desktop Chrome exclusively.
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Next.js application
+        # A production build is faster and more stable for CI than `npm run dev`.
+        run: npm run build
+        env:
+          # Disable telemetry in CI
+          NEXT_TELEMETRY_DISABLED: 1
+          # Ensure mock data is enabled so tests don't need a live Soroban RPC
+          NEXT_PUBLIC_ENABLE_MOCK_DATA: true
+
+      - name: Run Playwright component tests
+        run: npx playwright test --project=components
+        env:
+          CI: true
+          # Point Playwright at the production server started by webServer config
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          NEXT_PUBLIC_ENABLE_MOCK_DATA: true
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-component-report
+          path: playwright-report/
+          retention-days: 30
+
