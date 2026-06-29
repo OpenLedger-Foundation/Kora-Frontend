@@ -35,7 +35,7 @@ import {
   formatRelativeTime,
   formatRelativeDate,
   daysUntil,
-  shortenAddress,
+  truncateAddress,
   stroopsToXlm,
   xlmToStroops,
   RISK_TIER_COLORS,
@@ -381,22 +381,21 @@ describe("daysUntil", () => {
   });
 });
 
-// ─── 12. shortenAddress ──────────────────────────────────────────────────────
+// ─── 12. truncateAddress ──────────────────────────────────────────────────────
 
-describe("shortenAddress", () => {
+describe("truncateAddress", () => {
   const addr = "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ";
 
   it("shortens with default 4 chars", () => {
-    expect(shortenAddress(addr)).toBe("GBVZQ...KZQKZQ".slice(0, 5) + "..." + addr.slice(-4));
+    expect(truncateAddress(addr)).toBe("GBVZ...QKZQ");
   });
   it("shortens with custom chars", () => {
-    const result = shortenAddress(addr, 6);
-    expect(result).toBe(`${addr.slice(0, 7)}...${addr.slice(-6)}`);
+    expect(truncateAddress(addr, 6)).toBe("GBVZQ4...KZQKZQ");
   });
   it("returns empty string for empty input", () => {
-    expect(shortenAddress("")).toBe("");
+    expect(truncateAddress("")).toBe("");
   });
   it("returns empty string for falsy input", () => {
-    expect(shortenAddress(undefined as any)).toBe("");
+    expect(truncateAddress(undefined as any)).toBe("");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PlusCircle, TrendingUp, FileText, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -9,15 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
 import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
-import { DashboardSkeleton } from "@/components/ui/skeleton";
+import { DashboardSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
-  BatchActionToolbar, 
-  BatchResultSummary 
+import {
+  BatchActionToolbar,
+  BatchResultSummary
 } from "@/components/dashboard/BatchActionToolbar";
-import { 
-  prepareCancelInvoice, 
-  submitAndConfirm 
+import {
+  prepareCancelInvoice,
+  submitAndConfirm,
+  fetchInvoicesByOwner,
 } from "@/services/invoiceService";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
@@ -32,7 +33,7 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
-import { useQueryClient } from "@tanstack/react-query";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { prepareRepayInvoice } from "@/services/invoiceService";
@@ -52,6 +53,78 @@ import type { ColumnDef } from "@/types/table";
 import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
+
+// ─── Skeleton for stats grid while data loads ─────────────────────────────────
+
+function StatsGridSkeleton() {
+  return (
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-28 rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+// ─── Stats grid — suspends until invoices are loaded ─────────────────────────
+
+function SMEStatsGrid({ address }: { address: string }) {
+  const { data: rawData } = useSuspenseQuery({
+    queryKey: queryKeys.invoices.byOwner(address),
+    queryFn: () => fetchInvoicesByOwner(address),
+    staleTime: 30_000,
+  });
+
+  const myInvoices: Invoice[] = (rawData ?? []).filter(
+    (inv: Invoice) => inv.ownerAddress === address
+  );
+
+  const stats = [
+    {
+      label: "Total Financed",
+      value: formatCurrency(myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0), "USDC", true),
+      change: "12.4% this month",
+      changePositive: true,
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Active Invoices",
+      value: myInvoices.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length.toString(),
+      icon: <FileText className="h-4 w-4" />,
+    },
+    {
+      label: "Pending Repayment",
+      value: formatCurrency(
+        myInvoices.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
+        "USDC",
+        true
+      ),
+      icon: <Clock className="h-4 w-4" />,
+    },
+    {
+      label: "Repayment Rate",
+      value: "100%",
+      change: "All-time",
+      changePositive: true,
+      icon: <CheckCircle2 className="h-4 w-4" />,
+    },
+  ];
+
+  return (
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {stats.map((stat, i) => (
+        <motion.div
+          key={stat.label}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.07 }}
+        >
+          <StatCard {...stat} />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
 
 
 export default function SMEDashboardPage() {
@@ -73,6 +146,7 @@ export default function SMEDashboardPage() {
     failed: number;
     errors: Array<{ id: string; error: string }>;
   } | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const myInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
     (inv: Invoice) => inv.ownerAddress === address
@@ -94,43 +168,6 @@ export default function SMEDashboardPage() {
       </div>
     );
   }
-  const STATS = [
-    {
-      label: "Total Financed",
-      value: formatCurrency(
-        myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0),
-        "USDC",
-        true
-      ),
-      valueRaw: myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0),
-      change: "12.4% this month",
-      changePositive: true,
-      icon: <TrendingUp className="h-4 w-4" />,
-    },
-    {
-      label: "Active Invoices",
-      value: myInvoices.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length.toString(),
-      valueRaw: myInvoices.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length,
-      icon: <FileText className="h-4 w-4" />,
-    },
-    {
-      label: "Pending Repayment",
-      value: formatCurrency(
-        myInvoices.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
-        "USDC",
-        true
-      ),
-      valueRaw: myInvoices.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
-      icon: <Clock className="h-4 w-4" />,
-    },
-    {
-      label: "Repayment Rate",
-      value: "100%",
-      change: "All-time",
-      changePositive: true,
-      icon: <CheckCircle2 className="h-4 w-4" />,
-    },
-  ];
 
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
@@ -214,20 +251,38 @@ export default function SMEDashboardPage() {
   const handleBatchCancel = async () => {
     if (!address || selectedIds.length === 0) return;
 
-    const invoicesToCancel = myInvoices.filter(
-      (inv) => selectedIds.includes(inv.id) && 
-      (inv.status === "listed" || inv.status === "pending_mint") &&
-      inv.funding.totalRaised === 0
+    // Only Active-status invoices may be batch-cancelled per spec constraint
+    const eligible = myInvoices.filter(
+      (inv) =>
+        selectedIds.includes(inv.id) &&
+        inv.status === "active"
     );
 
-    if (invoicesToCancel.length === 0) {
-      toast.error("No eligible invoices selected for cancellation. Only listed/pending invoices with 0 funding can be cancelled.");
+    if (eligible.length === 0) {
+      toast.error(
+        "No eligible invoices selected. Only invoices in Active status can be batch-cancelled."
+      );
       return;
     }
 
+    // Open confirmation dialog — the user must confirm before any action fires
+    setCancelConfirmOpen(true);
+  };
+
+  /** Called after the user clicks "Confirm" in the cancel confirmation dialog */
+  const executeBatchCancel = async () => {
+    if (!address || selectedIds.length === 0) return;
+    setCancelConfirmOpen(false);
+
+    const invoicesToCancel = myInvoices.filter(
+      (inv) =>
+        selectedIds.includes(inv.id) &&
+        inv.status === "active"
+    );
+
     setIsBatchProcessing(true);
     setBatchProgress(0);
-    
+
     let successCount = 0;
     let failedCount = 0;
     const errors: Array<{ id: string; error: string }> = [];
@@ -236,13 +291,14 @@ export default function SMEDashboardPage() {
       const inv = invoicesToCancel[i];
       try {
         const unsignedXdr = await prepareCancelInvoice(inv.tokenId, address);
-        // In a real app, we'd need to sign each one. 
-        // For this implementation, we assume submitAndConfirm handles the mock/real logic.
         await submitAndConfirm(unsignedXdr);
         successCount++;
       } catch (err) {
         failedCount++;
-        errors.push({ id: inv.metadata.invoiceNumber, error: err instanceof Error ? err.message : "Unknown error" });
+        errors.push({
+          id: inv.metadata.invoiceNumber,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
       }
       setBatchProgress(((i + 1) / invoicesToCancel.length) * 100);
     }
@@ -253,7 +309,7 @@ export default function SMEDashboardPage() {
       total: invoicesToCancel.length,
       success: successCount,
       failed: failedCount,
-      errors
+      errors,
     });
     invoicesQuery.refetch();
   };
@@ -310,18 +366,11 @@ export default function SMEDashboardPage() {
         </Link>
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {STATS.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07 }}
-          >
-            <StatCard {...stat} />
-          </motion.div>
-        ))}
-      </div>
+      {address && (
+        <Suspense fallback={<StatsGridSkeleton />}>
+          <SMEStatsGrid address={address} />
+        </Suspense>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
@@ -505,6 +554,51 @@ export default function SMEDashboardPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Cancel confirmation dialog — shows count of invoices to be cancelled */}
+      {(() => {
+        const eligibleCount = selectedIds.filter((id) =>
+          myInvoices.find((inv) => inv.id === id && inv.status === "active")
+        ).length;
+        return (
+          <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  Cancel {eligibleCount} Invoice{eligibleCount !== 1 ? "s" : ""}?
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-muted-foreground">
+                  You are about to cancel{" "}
+                  <strong>
+                    {eligibleCount} active invoice{eligibleCount !== 1 ? "s" : ""}
+                  </strong>
+                  . This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCancelConfirmOpen(false)}
+                    data-testid="cancel-confirm-dismiss"
+                  >
+                    Go Back
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={executeBatchCancel}
+                    data-testid="cancel-confirm-proceed"
+                  >
+                    Yes, Cancel {eligibleCount} Invoice{eligibleCount !== 1 ? "s" : ""}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Transaction simulation preview dialog */}
       <TxSimulationPreview {...simulationDialogProps} />

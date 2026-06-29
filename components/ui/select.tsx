@@ -32,6 +32,8 @@ export interface SelectProps {
   name?: string;
   onBlur?: React.FocusEventHandler<HTMLSelectElement>;
   id?: string;
+  "aria-required"?: React.AriaAttributes["aria-required"];
+  "aria-describedby"?: string;
 }
 
 function HighlightText({ text, highlight }: { text: string; highlight: string }) {
@@ -96,6 +98,13 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     const [isLoadingAsync, setIsLoadingAsync] = React.useState(false);
 
     const selectId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    const errorId = `${selectId}-error`;
+    const ariaDescribedBy = [
+      error ? errorId : null,
+      props["aria-describedby"] ? String(props["aria-describedby"]) : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
     const hiddenSelectRef = React.useRef<HTMLSelectElement>(null);
 
     // Combine external ref with internal ref
@@ -286,6 +295,9 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           multiple={isMulti}
           value={selectedValues}
           onBlur={onBlur}
+          aria-invalid={!!error}
+          aria-describedby={ariaDescribedBy || undefined}
+          aria-required={props["aria-required"]}
           className="hidden"
           disabled={disabled}
           {...props}
@@ -303,6 +315,9 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             <button
               type="button"
               disabled={disabled}
+              aria-invalid={!!error}
+              aria-describedby={ariaDescribedBy || undefined}
+              aria-required={props["aria-required"]}
               className={cn(
                 "flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-1.5 text-sm text-foreground transition-all hover:border-zinc-700 hover:bg-zinc-900/60 focus:border-kora-500 focus:outline-none focus:ring-1 focus:ring-kora-500/50 disabled:cursor-not-allowed disabled:opacity-50",
                 isOpen && "border-kora-500 ring-1 ring-kora-500/50",
@@ -434,7 +449,11 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           </Popover.Portal>
         </Popover.Root>
 
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && (
+          <p id={errorId} className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
       </div>
     );
   }

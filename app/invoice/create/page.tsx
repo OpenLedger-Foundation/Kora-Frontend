@@ -358,32 +358,32 @@ export default function CreateInvoicePage() {
           <div className="mb-8 flex items-center gap-2">
             {STEPS.map((label, i) => (
               <div key={label} className="flex items-center gap-2">
-            <div
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors",
-                i < step
-                  ? "bg-kora-500 text-white"
-                  : i === step
-                    ? "border-kora-500 text-kora-400 border-2"
-                    : "border border-zinc-700 text-zinc-600"
-              )}
-            >
-              {i < step ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                  <div
+                    className={cn(
+                      "flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors",
+                      i < step
+                        ? "bg-kora-500 text-white"
+                        : i === step
+                          ? "border-kora-500 text-kora-400 border-2"
+                          : "border border-zinc-700 text-zinc-600"
+                    )}
+                  >
+                    {i < step ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                  </div>
+                  <span
+                    className={cn(
+                      "hidden text-xs sm:block",
+                      i === step ? "text-zinc-300" : "text-zinc-600"
+                    )}
+                  >
+                    {label}
+                  </span>
+                  {i < STEPS.length - 1 && <div className="h-px w-8 bg-zinc-800" />}
+                </div>
+              ))}
             </div>
-            <span
-              className={cn(
-                "hidden text-xs sm:block",
-                i === step ? "text-zinc-300" : "text-zinc-600"
-              )}
-            >
-              {label}
-            </span>
-            {i < STEPS.length - 1 && <div className="h-px w-8 bg-zinc-800" />}
-          </div>
-        ))}
-      </div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+            <form onSubmit={handleSubmit(onSubmit)}>
         <AnimatePresence mode="wait">
           {/* ── Step 0: Invoice Details ─────────────────────────────────── */}
           {step === 0 && (
@@ -400,12 +400,14 @@ export default function CreateInvoicePage() {
                 <Input
                   label="Invoice Number"
                   placeholder="INV-2024-0001"
+                  aria-required="true"
                   error={errors.invoiceNumber?.message}
                   {...register("invoiceNumber")}
                 />
                 <Input
                   label="Debtor Company Name"
                   placeholder="Acme Corporation Ltd"
+                  aria-required="true"
                   error={errors.debtorName?.message}
                   {...register("debtorName")}
                 />
@@ -413,6 +415,7 @@ export default function CreateInvoicePage() {
                   <Input
                     label="Debtor Address"
                     placeholder="123 Business St, City, Country"
+                    aria-required="true"
                     error={errors.debtorAddress?.message}
                     list="address-book-list"
                     {...register("debtorAddress")}
@@ -443,12 +446,14 @@ export default function CreateInvoicePage() {
                     label="Invoice Amount (USDC)"
                     placeholder="50000"
                     hint="Minimum 100 USDC"
+                    aria-required="true"
                     error={errors.amount?.message}
                     success={!!watch("amount") && !errors.amount}
                     {...register("amount")}
                   />
                   <DatePicker
                     label="Due Date"
+                    aria-required="true"
                     error={errors.dueDate?.message}
                     success={!!watch("dueDate") && !errors.dueDate}
                     min={TODAY}
@@ -468,12 +473,14 @@ export default function CreateInvoicePage() {
                   <Select
                     label="Jurisdiction"
                     options={JURISDICTION_OPTIONS}
+                    aria-required="true"
                     error={errors.jurisdiction?.message}
                     {...register("jurisdiction")}
                   />
                   <Select
                     label="Industry Category"
                     options={CATEGORY_OPTIONS}
+                    aria-required="true"
                     error={errors.category?.message}
                     {...register("category")}
                   />
@@ -482,6 +489,7 @@ export default function CreateInvoicePage() {
                 <Select
                   label="Debtor Privacy Level"
                   options={PRIVACY_OPTIONS}
+                  aria-required="true"
                   error={errors.debtorPrivacy?.message}
                   {...register("debtorPrivacy")}
                 />
@@ -565,6 +573,7 @@ export default function CreateInvoicePage() {
                       <Input
                         id="discount-rate-input"
                         aria-labelledby="discount-rate-label"
+                        aria-required="true"
                         type="number"
                         step="0.1"
                         min="0.5"
@@ -585,7 +594,9 @@ export default function CreateInvoicePage() {
                   <div className="flex items-center gap-4 rounded-lg border border-zinc-800/40 bg-zinc-900/40 px-3 py-2">
                     <span className="font-mono text-xs text-zinc-500">0.5%</span>
                     <input
+                      id="discount-rate-range"
                       type="range"
+                      aria-labelledby="discount-rate-label"
                       min="0.5"
                       max="20"
                       step="0.1"
@@ -613,6 +624,7 @@ export default function CreateInvoicePage() {
                     label="Minimum Investment (USDC)"
                     placeholder="1000"
                     hint="Smallest amount a single investor can contribute"
+                    aria-required="true"
                     error={errors.minInvestment?.message}
                     success={!!watch("minInvestment") && !errors.minInvestment}
                     {...register("minInvestment")}
@@ -624,6 +636,7 @@ export default function CreateInvoicePage() {
                     max={maxExpiryDate}
                     placeholder="Select expiry date..."
                     hint="When the listing period closes"
+                    aria-required="true"
                     error={errors.listingExpiryDate?.message}
                     success={!!watch("listingExpiryDate") && !errors.listingExpiryDate}
                     {...register("listingExpiryDate")}
@@ -806,11 +819,13 @@ export default function CreateInvoicePage() {
                     </div>
                   ) : (
                     <FileInput
+                      label="Invoice Document"
                       value={file}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      onChange={(e) => {
                         setFile(e.target.files?.[0] ?? null);
                         setFileError(null);
                       }}
+                      aria-required="true"
                       error={fileError || undefined}
                       disabled={isUploading || pinataStatus === "unhealthy"}
                     />

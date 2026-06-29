@@ -1,16 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useRef, useState, useCallback, memo } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@/lib/queryKeys";
-import { fetchInvoiceById } from "@/services/invoiceService";
+import { usePrefetchInvoice } from "@/hooks/useInvoices";
 import {
   formatCurrency,
   formatApr,
@@ -67,15 +65,16 @@ function getFlagEmoji(countryCode: string) {
   }
 }
 
-export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
+export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
   const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
-  const queryClient = useQueryClient();
+  const { prefetch: prefetchInvoice, cancelPrefetch } = usePrefetchInvoice();
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= 3 && !isInComparison;
+  const reduced = useReducedMotion();
   
   // Hover popover state
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -87,12 +86,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
   const isExpired = countdown.isExpired || status === "cancelled";
 
   const handleMouseEnter = useCallback(() => {
-    // Prefetch detail query
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.invoices.detail(invoice.id),
-      queryFn: () => fetchInvoiceById(invoice.id),
-      staleTime: 30000,
-    });
+    prefetchInvoice(invoice.id);
 
     // Delay popover open to avoid flash on quick hovers
     hoverTimeoutRef.current = setTimeout(() => {
@@ -100,9 +94,10 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
         setPopoverOpen(true);
       }
     }, 300);
-  }, [queryClient, invoice.id, isExpired]);
+  }, [prefetchInvoice, invoice.id, isExpired]);
 
   const handleMouseLeave = useCallback(() => {
+    cancelPrefetch();
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
@@ -152,10 +147,10 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
           "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background flex flex-col h-full justify-between",
           isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
         )}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={!isExpired ? { y: -6 } : {}}
-        transition={{ duration: 0.3, delay: index * 0.05 }}
+        initial={reduced ? false : { opacity: 0, y: 16 }}
+        animate={reduced ? {} : { opacity: 1, y: 0 }}
+        whileHover={(!isExpired && !reduced) ? { y: -6 } : {}}
+        transition={reduced ? { duration: 0 } : { duration: 0.3, delay: index * 0.05 }}
       >
         <div>
           {/* Header */}
@@ -243,12 +238,12 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
                   <Clock className="h-3 w-3" aria-hidden="true" />
                   Expired
                 </>
-              ) : (
+              ) : listingExpiry ? (
                 <>
                   <Calendar className="h-3 w-3" aria-hidden="true" />
                   <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
                 </>
-              )}
+              ) : null}
             </span>
           </div>
 
@@ -301,7 +296,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
       </motion.div>
     </Link>
   );
-}
+});
 
 export function InvoiceCardSkeleton() {
   return (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { logger } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 interface VerifyRequest {
   challenge: string;
@@ -20,6 +21,9 @@ interface VerifyResponse {
  * Uses Stellar SDK to verify the signature.
  */
 export async function POST(request: NextRequest): Promise<NextResponse<VerifyResponse>> {
+  const csrfError = verifyCsrf(request);
+  if (csrfError) return csrfError as NextResponse<VerifyResponse>;
+
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const body = await request.json() as VerifyRequest;

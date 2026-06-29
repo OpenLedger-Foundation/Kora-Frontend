@@ -18,12 +18,19 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, GlassCard } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  GlassCard,
+} from "@/components/ui/card";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { InvoiceDetailSkeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useInvoice } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
+import { useToast } from "@/hooks/useToast";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
@@ -47,8 +54,14 @@ import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { RiskScoreGauge } from "@/components/invoice/RiskScoreGauge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import { InvoiceMetadataViewer } from "@/components/invoice/InvoiceMetadataViewer";
-import { validateRouteId, safeIpfsUrl, safeExternalUrl, safeStellarTxUrl } from "@/lib/security";
+import {
+  validateRouteId,
+  safeIpfsUrl,
+  safeExternalUrl,
+  safeStellarTxUrl,
+} from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { FundingYieldCalculator } from "@/components/invoice/FundingYieldCalculator";
 import { env } from "@/lib/env";
 import Script from "next/script";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
@@ -61,17 +74,18 @@ import {
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
   const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
-  const { isConnected, address } = useWallet();
+  const { isConnected, address, balance } = useWallet();
+  const toast = useToast();
   const { data: positions } = usePositions(address ?? undefined);
   const { setWalletModalOpen } = useUIStore();
   const { execute } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
   const queryClient = useQueryClient();
-   const [amount, setAmount] = useState("");
-   const [funding, setFunding] = useState(false);
-   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
-   const [iframeLoaded, setIframeLoaded] = useState(false);
-   const [iframeError, setIframeError] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [funding, setFunding] = useState(false);
+  const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [iframeError, setIframeError] = useState(false);
 
   if (!id || isLoading) return <InvoiceDetailSkeleton />;
   if (!invoice) return notFound();
@@ -82,20 +96,30 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const { metadata, terms, funding: fundingState, riskTier, status } = invoice;
   const days = daysUntil(terms.repaymentDate);
   const daysToMaturity = Math.max(0, days);
-  
+
   // SME Owner Gating Check
-  const isSmeOwner = isConnected && address && invoice.ownerAddress && address.toLowerCase() === invoice.ownerAddress.toLowerCase();
-  
+  const isSmeOwner =
+    isConnected &&
+    address &&
+    invoice.ownerAddress &&
+    address.toLowerCase() === invoice.ownerAddress.toLowerCase();
+
   // Already Fully Funded Check
-  const isFullyFunded = fundingState.fundingProgress >= 1.0 || status === "fully_funded";
-  
+  const isFullyFunded =
+    fundingState.fundingProgress >= 1.0 || status === "fully_funded";
+
   // Stateful Gating Eligibility
-  const canFund = (status === "listed" || status === "partially_funded") && !isFullyFunded && !isSmeOwner;
-  
+  const canFund =
+    (status === "listed" || status === "partially_funded") &&
+    !isFullyFunded &&
+    !isSmeOwner;
+
   const amountNum = parseFloat(amount) || 0;
-  
+  const usdcBalance = balance?.usdc ? Number(balance.usdc) : null;
+
   // Precise holding period Expected Return Calculator
-  const expectedReturn = amountNum * (1 + ((terms.apr / 100) * (daysToMaturity / 365)));
+  const expectedReturn =
+    amountNum * (1 + (terms.apr / 100) * (daysToMaturity / 365));
 
   const documentPreviewUrl =
     metadata.documentUrl && safeExternalUrl(metadata.documentUrl) !== "#"
@@ -121,27 +145,42 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
         10,
         Math.min(
           92,
-          invoice.riskScore + (invoice.metadata.jurisdiction === "US" || invoice.metadata.jurisdiction === "EU" ? 4 : -8)
-        )
+          invoice.riskScore +
+            (invoice.metadata.jurisdiction === "US" ||
+            invoice.metadata.jurisdiction === "EU"
+              ? 4
+              : -8),
+        ),
       ),
     },
     {
       key: "invoice_age",
       label: "Invoice Age",
-      score: Math.max(12, Math.min(96, invoice.riskScore - Math.min(18, Math.floor(daysToMaturity / 4)))),
+      score: Math.max(
+        12,
+        Math.min(
+          96,
+          invoice.riskScore - Math.min(18, Math.floor(daysToMaturity / 4)),
+        ),
+      ),
     },
   ];
 
   const riskTrend = (() => {
-    const sameDebtor = MOCK_INVOICES
-      .filter((inv) => inv.metadata.debtorName === invoice.metadata.debtorName && inv.id !== invoice.id)
+    const sameDebtor = MOCK_INVOICES.filter(
+      (inv) =>
+        inv.metadata.debtorName === invoice.metadata.debtorName &&
+        inv.id !== invoice.id,
+    )
       .slice(0, 4)
       .map((inv) => inv.riskScore);
 
     const combined = [...sameDebtor, invoice.riskScore];
     while (combined.length < 5) {
       const seed = combined[0] ?? invoice.riskScore;
-      combined.unshift(Math.max(0, Math.min(100, seed + (combined.length % 2 === 0 ? -4 : 3))));
+      combined.unshift(
+        Math.max(0, Math.min(100, seed + (combined.length % 2 === 0 ? -4 : 3))),
+      );
     }
     return combined.slice(-5);
   })();
@@ -155,15 +194,49 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       inputError = `Amount exceeds remaining capacity of ${formatCurrency(fundingState.remainingCapacity, metadata.currency)}`;
     }
   }
+  const insufficientBalanceMessage =
+    isConnected && usdcBalance !== null && amountNum > usdcBalance
+      ? `Insufficient USDC balance. Available: ${formatCurrency(usdcBalance, "USDC")}`
+      : "";
 
   const handleFund = async () => {
-    if (!isConnected) { setWalletModalOpen(true); return; }
-    if (!amountNum || amountNum < terms.minInvestment || amountNum > fundingState.remainingCapacity) return;
+    if (!isConnected) {
+      setWalletModalOpen(true);
+      return;
+    }
+    if (
+      !amountNum ||
+      amountNum < terms.minInvestment ||
+      amountNum > fundingState.remainingCapacity
+    )
+      return;
+    if (usdcBalance !== null && amountNum > usdcBalance) {
+      toast.error(
+        "Insufficient balance",
+        `You have ${formatCurrency(usdcBalance, "USDC")} available, but tried to invest ${formatCurrency(amountNum, "USDC")}.`,
+      );
+      return;
+    }
     setFunding(true);
 
     // Optimistic update: immediately reflect new totals in UI
     const newTotalRaised = fundingState.totalRaised + amountNum;
+    const optimisticInvoice: Invoice = {
+      ...invoice,
+      status:
+        newTotalRaised >= terms.financingAmount
+          ? "fully_funded"
+          : "partially_funded",
+      funding: {
+        ...fundingState,
+        totalRaised: newTotalRaised,
+        investorCount: fundingState.investorCount + 1,
+        remainingCapacity: Math.max(0, terms.financingAmount - newTotalRaised),
+        fundingProgress: Math.min(1, newTotalRaised / terms.financingAmount),
+      },
+    };
     useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
+    queryClient.setQueryData(["invoice", id], optimisticInvoice);
 
     await execute(
       () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
@@ -178,15 +251,21 @@ Token NFT ID: ${invoice.tokenId}
 Escrow Amount deposited: ${amountNum} USDC
 Escrow Yield Expectation: ${expectedReturn - amountNum} USDC
 Stellar Testnet Transaction Hash: ${txHash}`);
-          
+
           setFundTxHash(txHash);
 
           // Calculate optimistic state changes
           const newTotalRaised = fundingState.totalRaised + amountNum;
           const isFull = newTotalRaised >= terms.financingAmount;
           const newInvestorCount = fundingState.investorCount + 1;
-          const newRemaining = Math.max(0, terms.financingAmount - newTotalRaised);
-          const newProgress = Math.min(1, newTotalRaised / terms.financingAmount);
+          const newRemaining = Math.max(
+            0,
+            terms.financingAmount - newTotalRaised,
+          );
+          const newProgress = Math.min(
+            1,
+            newTotalRaised / terms.financingAmount,
+          );
           const newStatus = isFull ? "fully_funded" : "partially_funded";
 
           const updatedInvoice: Invoice = {
@@ -213,7 +292,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           const { invoices, setInvoices } = useInvoiceStore.getState();
           if (invoices && invoices.length > 0) {
             const updatedInvoices = invoices.map((inv) =>
-              inv.id === id ? updatedInvoice : inv
+              inv.id === id ? updatedInvoice : inv,
             );
             setInvoices(updatedInvoices);
           }
@@ -224,495 +303,665 @@ Stellar Testnet Transaction Hash: ${txHash}`);
 
           // Clear form input amount
           setAmount("");
-        }
-        ,
+        },
         onError: (err) => {
           // Rollback optimistic change
           useInvoiceStore.getState().rollbackInvoiceFunding(id);
+          queryClient.setQueryData(["invoice", id], invoice);
           console.error("Fund transaction failed", err);
-        }
-      }
+        },
+      },
     );
     setFunding(false);
   };
 
   return (
     <ErrorBoundary>
-    {/* Structured data for SEO ≥ 95 */}
-    <Script
-      id="ld-invoice"
-      type="application/ld+json"
-      strategy="afterInteractive"
-      dangerouslySetInnerHTML={{
-        __html: serializeSchema(
-          invoiceFinancialProductSchema({
-            id,
-            invoiceNumber: metadata.invoiceNumber,
-            debtorName: metadata.debtorName,
-            amount: metadata.amount,
-            currency: metadata.currency,
-            apr: terms.apr,
-            dueDate: metadata.dueDate,
-            jurisdiction: metadata.jurisdiction,
-            category: metadata.category,
-            riskTier,
-          })
-        ),
-      }}
-    />
-    <Script
-      id="ld-breadcrumb-invoice"
-      type="application/ld+json"
-      strategy="afterInteractive"
-      dangerouslySetInnerHTML={{
-        __html: serializeSchema(
-          breadcrumbSchema([
-            { name: "Home", url: "/" },
-            { name: "Marketplace", url: "/marketplace" },
-            { name: metadata.invoiceNumber, url: `/marketplace/${id}` },
-          ])
-        ),
-      }}
-    />
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <div className="mb-6 flex items-center justify-between">
-        <Link
-          href="/marketplace"
-          className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300"
-        >
-          <ArrowLeft className="h-4 w-4" /> {t("backToMarketplace")}
-        </Link>
-        <PrintButton label="Print / Save PDF" />      </div>
+      {/* Structured data for SEO ≥ 95 */}
+      <Script
+        id="ld-invoice"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: serializeSchema(
+            invoiceFinancialProductSchema({
+              id,
+              invoiceNumber: metadata.invoiceNumber,
+              debtorName: metadata.debtorName,
+              amount: metadata.amount,
+              currency: metadata.currency,
+              apr: terms.apr,
+              dueDate: metadata.dueDate,
+              jurisdiction: metadata.jurisdiction,
+              category: metadata.category,
+              riskTier,
+            }),
+          ),
+        }}
+      />
+      <Script
+        id="ld-breadcrumb-invoice"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: serializeSchema(
+            breadcrumbSchema([
+              { name: "Home", url: "/" },
+              { name: "Marketplace", url: "/marketplace" },
+              { name: metadata.invoiceNumber, url: `/marketplace/${id}` },
+            ]),
+          ),
+        }}
+      />
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href="/marketplace"
+            className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300"
+          >
+            <ArrowLeft className="h-4 w-4" /> {t("backToMarketplace")}
+          </Link>
+          <PrintButton label="Print / Save PDF" />{" "}
+        </div>
 
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* ── Left: Invoice Details ─────────────────────────────────────── */}
-        <PrintLayout
-          title={metadata.invoiceNumber}
-          subtitle={`${metadata.debtorName} · ${metadata.issuerName}`}
-          className="space-y-6 lg:col-span-2"
-        >
-          {/* Header card */}
-          <motion.div layoutId={`invoice-card-${id}`} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-col gap-1">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{metadata.invoiceNumber}</p>
-                    <DebtorDisplay invoice={invoice} isFunded={isFunded} className="mt-1" />
-                    <p className="mt-1.5 text-sm font-medium text-zinc-500">{metadata.issuerName}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <RiskBadge tier={riskTier} />
-                    <div className="flex items-center gap-2">
-                      <InvoiceStatusBadge status={status} />
-                      <ShareInvoiceButton id={id} invoiceTitle={metadata.invoiceNumber} summary={metadata.description} />
-                      {funding && (
-                        <span className="rounded-md bg-yellow-600/20 px-2 py-0.5 text-[11px] text-yellow-300">
-                          Pending confirmation
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Calendar className="h-4 w-4 text-zinc-600" />
-                    <span>Issued {formatDate(metadata.issueDate)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Calendar className="h-4 w-4 text-zinc-600" />
-                    <span>Due {formatDate(metadata.dueDate)}</span>
-                  </div>
-                </div>
-                {metadata.description && (
-                  <p className="mt-4 text-sm text-zinc-500 leading-relaxed">{metadata.description}</p>
-                )}
-                {metadata.documentUrl && (
-                  <a
-                    href={safeExternalUrl(metadata.documentUrl)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 text-sm text-kora-400 hover:text-kora-300"
-                  >
-                    <FileText className="h-4 w-4" /> View Invoice Document
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Financing terms */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Financing Terms</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {[
-                    { label: "Invoice Amount", value: formatCurrency(metadata.amount, metadata.currency, true) },
-                    { label: "Financing Amount", value: formatCurrency(terms.financingAmount, metadata.currency, true) },
-                    { label: "Discount Rate", value: `${(terms.discountRate * 100).toFixed(1)}%` },
-                    { label: "APR", value: formatApr(terms.apr), highlight: true },
-                    { label: "Tenor", value: `${terms.tenor} days` },
-                    { label: "Repayment Date", value: formatDate(terms.repaymentDate) },
-                    { label: "Min Investment", value: formatCurrency(terms.minInvestment, metadata.currency, true) },
-                    { label: "Max Investment", value: formatCurrency(terms.maxInvestment, metadata.currency, true) },
-                    { label: "Days Remaining", value: <CountdownTimer targetDate={terms.repaymentDate} compact={false} /> },
-                  ].map(({ label, value, highlight }) => (
-                    <div key={label} className="rounded-lg bg-zinc-800/50 p-3">
-                      <p className="text-xs text-zinc-500">{label}</p>
-                      <p className={cn("mt-1 text-sm font-semibold", highlight ? "text-kora-400" : "text-zinc-200")}>
-                        {value}
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* ── Left: Invoice Details ─────────────────────────────────────── */}
+          <PrintLayout
+            title={metadata.invoiceNumber}
+            subtitle={`${metadata.debtorName} · ${metadata.issuerName}`}
+            className="space-y-6 lg:col-span-2"
+          >
+            {/* Header card */}
+            <motion.div
+              layoutId={`invoice-card-${id}`}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                        {metadata.invoiceNumber}
+                      </p>
+                      <DebtorDisplay
+                        invoice={invoice}
+                        isFunded={isFunded}
+                        className="mt-1"
+                      />
+                      <p className="mt-1.5 text-sm font-medium text-zinc-500">
+                        {metadata.issuerName}
                       </p>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Funding progress */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-zinc-500" /> Funding Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-zinc-400">
-                    {formatCurrency(fundingState.totalRaised, metadata.currency, true)} raised
-                  </span>
-                  <span className="font-semibold text-zinc-200">
-                    {Math.round(fundingState.fundingProgress * 100)}% of{" "}
-                    {formatCurrency(terms.financingAmount, metadata.currency, true)}
-                  </span>
-                </div>
-                <InvoiceFundingProgress
-                  funded={fundingState.totalRaised}
-                  target={fundingState.targetAmount}
-                  currency={metadata.currency}
-                  updatedAt={dataUpdatedAt}
-                />
-                <div className="grid grid-cols-3 gap-4 pt-2">
-                  <div>
-                    <p className="text-xs text-zinc-500">Investors</p>
-                    <p className="mt-0.5 text-lg font-semibold text-zinc-200">{fundingState.investorCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">Remaining</p>
-                    <p className="mt-0.5 text-lg font-semibold text-zinc-200">
-                      {formatCurrency(fundingState.remainingCapacity, metadata.currency, true)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">Closes</p>
-                    <p className="mt-0.5 text-sm font-medium text-zinc-400">
-                      {formatRelativeDate(terms.repaymentDate)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-           {/* IPFS PDF Document Preview */}
-           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-             <Card>
-               <CardHeader>
-                 <CardTitle className="flex items-center gap-2">
-                   <FileText className="h-4 w-4 text-zinc-500" /> IPFS Document Preview
-                 </CardTitle>
-               </CardHeader>
-               <CardContent className="space-y-4">
-                 {hasDocument ? (
-                   <div className="relative">
-                     <div className="hidden sm:block">
-                       <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
-                         <iframe
-                           src={`${documentPreviewUrl}#toolbar=0&navpanes=0&scrollbar=0`}
-                           className="w-full h-[450px] rounded"
-                           title="Invoice PDF Document"
-                           referrerPolicy="no-referrer"
-                           sandbox="allow-scripts allow-same-origin allow-popups"
-                           onLoad={() => setIframeLoaded(true)}
-                           onError={() => setIframeError(true)}
-                         />
-                         {!iframeLoaded && !iframeError && (
-                           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50">
-                             <InvoiceDetailSkeleton />
-                           </div>
-                         )}
-                         {iframeError && (
-                           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/50 p-6 text-center">
-                             <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
-                             <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
-                             <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document.</p>
-                             <a
-                               href={documentPreviewUrl}
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
-                             >
-                               Download PDF <ExternalLink className="h-3 w-3" />
-                             </a>
-                           </div>
-                         )}
-                       </div>
-                     </div>
-
-                     <div className="block sm:hidden bg-zinc-900 rounded-lg border border-zinc-800 p-6 text-center">
-                       {!iframeLoaded && !iframeError && (
-                         <div className="flex flex-col items-center justify-center py-8">
-                           <InvoiceDetailSkeleton />
-                         </div>
-                       )}
-                       {iframeError && (
-                         <div className="flex flex-col items-center justify-center">
-                           <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
-                           <p className="text-sm font-medium text-zinc-400 mb-2">Document unavailable</p>
-                           <p className="text-xs text-zinc-500 mb-4">Unable to load the PDF document.</p>
-                           <a
-                             href={documentPreviewUrl}
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
-                           >
-                             Download PDF <ExternalLink className="h-3 w-3" />
-                           </a>
-                         </div>
-                       )}
-                       {!iframeError && (
-                         <div className="flex flex-col items-center justify-center">
-                           <FileText className="h-10 w-10 text-zinc-500 mb-4" />
-                           <p className="text-sm font-medium text-zinc-400 mb-2">PDF ready for download</p>
-                           <a
-                             href={documentPreviewUrl}
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
-                           >
-                             Download PDF <ExternalLink className="h-3 w-3" />
-                           </a>
-                         </div>
-                       )}
-                     </div>
-                   </div>
-                 ) : (
-                   <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
-                     <FileText className="h-8 w-8 text-zinc-600 mb-2" />
-                     <p className="text-sm font-medium text-zinc-400">No document preview available</p>
-                     <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF preview or document URL.</p>
-                   </div>
-                 )}
-               </CardContent>
-             </Card>
-           </motion.div>
-
-           {/* Metadata Viewer */}
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <InvoiceMetadataViewer invoice={invoice} isFunded={isFunded} />
-            </motion.div>
-        </PrintLayout>
-
-        {/* ── Right: Fund Panel ─────────────────────────────────────────── */}
-        <div className="space-y-4" data-print-hide>
-          <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-            <GlassCard className="p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-kora-400" />
-                <h2 className="font-semibold text-zinc-100">Fund This Invoice</h2>
-              </div>
-
-              {/* APR Metric Badge */}
-              <div className="mb-6 rounded-lg bg-kora-500/5 border border-kora-500/10 p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Expected APR</p>
-                  <p className="text-2xl font-bold text-kora-400 mt-0.5">{formatApr(terms.apr)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Maturity</p>
-                  <p className="text-xl font-bold text-zinc-200 mt-0.5"><CountdownTimer targetDate={terms.repaymentDate} compact={false} /></p>
-                  {/* Backwards-compat test hook: keep numeric days for integration tests */}
-                  <div data-testid="days-to-maturity" className="sr-only">{daysToMaturity} days</div>
-                </div>
-              </div>
-
-              {/* Wallet Not Connected Gate */}
-              {!isConnected ? (
-                <div className="space-y-4">
-                  <div className="rounded-lg bg-zinc-800/40 border border-zinc-700/30 p-4 text-center">
-                    <p className="text-sm text-zinc-400">Connect your Stellar wallet to view yields and start investing.</p>
-                  </div>
-                  <Button
-                    className="w-full bg-kora-500 hover:bg-kora-600 text-white font-semibold"
-                    size="lg"
-                    onClick={() => setWalletModalOpen(true)}
-                  >
-                    Connect Wallet to Invest
-                  </Button>
-                </div>
-              ) : isSmeOwner ? (
-                /* SME Owner Self-Funding Lock Gate */
-                <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-4 space-y-3">
-                  <div className="flex gap-2.5 items-start">
-                    <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-sm text-yellow-400">Self-Funding Blocked</p>
-                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                        You cannot fund your own invoice. Decoupled factoring escrow rules restrict invoice owners from bidding as liquidity providers.
-                      </p>
-                    </div>
-                  </div>
-                  <Button className="w-full cursor-not-allowed" variant="secondary" disabled size="lg">
-                    You cannot fund your own invoice
-                  </Button>
-                </div>
-              ) : isFullyFunded ? (
-                /* Already Fully Funded Lock Gate */
-                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-center space-y-3">
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-emerald-400 text-sm">Invoice Fully Funded</p>
-                    <p className="text-xs text-zinc-400 mt-1">
-                      This invoice has completed its financing target and is now locked in smart contract escrow.
-                    </p>
-                  </div>
-                  <Button className="w-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed font-semibold" disabled size="lg">
-                    Fully Funded
-                  </Button>
-                </div>
-              ) : (
-                /* Active Investor Funding Input Card */
-                <div className="space-y-4">
-                  <div>
-                    <Input
-                      label="Investment Amount (USDC)"
-                      type="number"
-                      placeholder={`Min ${terms.minInvestment}`}
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      hint={`Min: $${terms.minInvestment.toLocaleString()} · Remaining Capacity: $${fundingState.remainingCapacity.toLocaleString()}`}
-                      disabled={funding}
-                      className={cn(inputError && "border-red-500 focus-visible:ring-red-500")}
-                    />
-                    {inputError && (
-                      <p className="mt-1.5 text-xs text-red-400 font-medium flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" /> {inputError}
-                      </p>
-                    )}
-                  </div>
-
-                  {amountNum > 0 && !inputError && (
-                    <div className="rounded-lg bg-zinc-800/40 border border-zinc-800 p-3.5 space-y-2 text-sm">
-                      <div className="flex justify-between text-zinc-400">
-                        <span>Investment Principal</span>
-                        <span className="font-mono">{formatCurrency(amountNum, "USDC")}</span>
-                      </div>
-                      <div className="flex justify-between text-zinc-400">
-                        <span>Holding Duration</span>
-                        <span className="font-semibold text-zinc-300">{daysToMaturity} days</span>
-                      </div>
-                      <hr className="border-zinc-800 my-1.5" />
-                      <div className="flex justify-between font-semibold text-zinc-200">
-                        <span>Total Expected Payoff</span>
-                        <span className="font-mono">{formatCurrency(expectedReturn, "USDC")}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-kora-400 font-semibold pt-0.5">
-                        <span>Net Yield</span>
-                        <span className="font-mono">+{formatCurrency(expectedReturn - amountNum, "USDC")}</span>
+                    <div className="flex flex-col items-end gap-2">
+                      <RiskBadge tier={riskTier} />
+                      <div className="flex items-center gap-2">
+                        <InvoiceStatusBadge status={status} />
+                        <ShareInvoiceButton
+                          id={id}
+                          invoiceTitle={metadata.invoiceNumber}
+                          summary={metadata.description}
+                        />
+                        {funding && (
+                          <span className="rounded-md bg-yellow-600/20 px-2 py-0.5 text-[11px] text-yellow-300">
+                            Pending confirmation
+                          </span>
+                        )}
                       </div>
                     </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center gap-2 text-sm text-zinc-400">
+                      <Calendar className="h-4 w-4 text-zinc-600" />
+                      <span>Issued {formatDate(metadata.issueDate)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-zinc-400">
+                      <Calendar className="h-4 w-4 text-zinc-600" />
+                      <span>Due {formatDate(metadata.dueDate)}</span>
+                    </div>
+                  </div>
+                  {metadata.description && (
+                    <p className="mt-4 text-sm text-zinc-500 leading-relaxed">
+                      {metadata.description}
+                    </p>
                   )}
-
-                  <Button
-                    className="w-full bg-kora-500 hover:bg-kora-600 text-white font-semibold shadow-lg shadow-kora-500/20"
-                    size="lg"
-                    onClick={handleFund}
-                    loading={funding}
-                    disabled={!canFund || !!inputError || !amountNum}
-                  >
-                    Fund Invoice
-                  </Button>
-
-                  <p className="text-center text-[10px] text-zinc-500 leading-normal">
-                    Liquidity deposits are held securely in Soroban escrow smart contracts until repayment is confirmed.
-                  </p>
-                </div>
-              )}
-            </GlassCard>
-          </motion.div>
-
-          {/* Risk info */}
-          <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Shield className="h-4 w-4 text-zinc-500" />
-                <p className="text-sm font-medium text-zinc-300">Risk Assessment</p>
-              </div>
-              <RiskScoreGauge
-                score={invoice.riskScore}
-                tier={riskTier}
-                factors={riskFactors}
-                trend={riskTrend}
-              />
-            </Card>
-          </motion.div>
-
-          {/* Fund Success Block */}
-          {fundTxHash && (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-              <GlassCard className="p-5 border-emerald-500/20 bg-emerald-500/5 space-y-2">
-                <div className="flex gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
-                  <div className="space-y-1 text-sm">
-                    <p className="font-bold text-emerald-400">Factoring escrow deposits funded!</p>
-                    <p className="text-xs text-zinc-400 leading-relaxed">
-                      Escrow deposit completed successfully. Your factoring shares are logged under on-chain token state.
-                    </p>
-                    <div className="pt-2">
-                      <a
-                        href={safeStellarTxUrl(fundTxHash)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-kora-400 hover:text-kora-300 font-semibold"
-                      >
-                        <ExternalLink className="h-3 w-3" /> View transaction on Stellar Expert
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          )}
-
-          {/* On-chain info */}
-          {invoice.txHash && (
-            <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
-              <Card className="p-4">
-                <p className="mb-2 text-xs text-zinc-500">On-Chain</p>
-                <a
-                  href={safeStellarTxUrl(invoice.txHash)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-kora-400 hover:text-kora-300"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  View mint transaction
-                </a>
+                  {metadata.documentUrl && (
+                    <a
+                      href={safeExternalUrl(metadata.documentUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-4 inline-flex items-center gap-2 text-sm text-kora-400 hover:text-kora-300"
+                    >
+                      <FileText className="h-4 w-4" /> View Invoice Document
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </CardContent>
               </Card>
             </motion.div>
-          )}
+
+            {/* Financing terms */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle>Financing Terms</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    {[
+                      {
+                        label: "Invoice Amount",
+                        value: formatCurrency(
+                          metadata.amount,
+                          metadata.currency,
+                          true,
+                        ),
+                      },
+                      {
+                        label: "Financing Amount",
+                        value: formatCurrency(
+                          terms.financingAmount,
+                          metadata.currency,
+                          true,
+                        ),
+                      },
+                      {
+                        label: "Discount Rate",
+                        value: `${(terms.discountRate * 100).toFixed(1)}%`,
+                      },
+                      {
+                        label: "APR",
+                        value: formatApr(terms.apr),
+                        highlight: true,
+                      },
+                      { label: "Tenor", value: `${terms.tenor} days` },
+                      {
+                        label: "Repayment Date",
+                        value: formatDate(terms.repaymentDate),
+                      },
+                      {
+                        label: "Min Investment",
+                        value: formatCurrency(
+                          terms.minInvestment,
+                          metadata.currency,
+                          true,
+                        ),
+                      },
+                      {
+                        label: "Max Investment",
+                        value: formatCurrency(
+                          terms.maxInvestment,
+                          metadata.currency,
+                          true,
+                        ),
+                      },
+                      {
+                        label: "Days Remaining",
+                        value: (
+                          <CountdownTimer
+                            targetDate={terms.repaymentDate}
+                            compact={false}
+                          />
+                        ),
+                      },
+                    ].map(({ label, value, highlight }) => (
+                      <div
+                        key={label}
+                        className="rounded-lg bg-zinc-800/50 p-3"
+                      >
+                        <p className="text-xs text-zinc-500">{label}</p>
+                        <p
+                          className={cn(
+                            "mt-1 text-sm font-semibold",
+                            highlight ? "text-kora-400" : "text-zinc-200",
+                          )}
+                        >
+                          {value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Funding progress */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-zinc-500" /> Funding Progress
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-400">
+                      {formatCurrency(
+                        fundingState.totalRaised,
+                        metadata.currency,
+                        true,
+                      )}{" "}
+                      raised
+                    </span>
+                    <span className="font-semibold text-zinc-200">
+                      {Math.round(fundingState.fundingProgress * 100)}% of{" "}
+                      {formatCurrency(
+                        terms.financingAmount,
+                        metadata.currency,
+                        true,
+                      )}
+                    </span>
+                  </div>
+                  <InvoiceFundingProgress
+                    funded={fundingState.totalRaised}
+                    target={fundingState.targetAmount}
+                    currency={metadata.currency}
+                    updatedAt={dataUpdatedAt}
+                  />
+                  <div className="grid grid-cols-3 gap-4 pt-2">
+                    <div>
+                      <p className="text-xs text-zinc-500">Investors</p>
+                      <p className="mt-0.5 text-lg font-semibold text-zinc-200">
+                        {fundingState.investorCount}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-zinc-500">Remaining</p>
+                      <p className="mt-0.5 text-lg font-semibold text-zinc-200">
+                        {formatCurrency(
+                          fundingState.remainingCapacity,
+                          metadata.currency,
+                          true,
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-zinc-500">Closes</p>
+                      <p className="mt-0.5 text-sm font-medium text-zinc-400">
+                        {formatRelativeDate(terms.repaymentDate)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* IPFS PDF Document Preview */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 }}
+            >
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-zinc-500" /> IPFS Document
+                    Preview
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {hasDocument ? (
+                    <div className="relative">
+                      <div className="hidden sm:block">
+                        <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800">
+                          <iframe
+                            src={`${documentPreviewUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+                            className="w-full h-[450px] rounded"
+                            title="Invoice PDF Document"
+                            referrerPolicy="no-referrer"
+                            sandbox="allow-scripts allow-same-origin allow-popups"
+                            onLoad={() => setIframeLoaded(true)}
+                            onError={() => setIframeError(true)}
+                          />
+                          {!iframeLoaded && !iframeError && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50">
+                              <InvoiceDetailSkeleton />
+                            </div>
+                          )}
+                          {iframeError && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900/50 p-6 text-center">
+                              <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
+                              <p className="text-sm font-medium text-zinc-400 mb-2">
+                                Document unavailable
+                              </p>
+                              <p className="text-xs text-zinc-500 mb-4">
+                                Unable to load the PDF document.
+                              </p>
+                              <a
+                                href={documentPreviewUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                              >
+                                Download PDF{" "}
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="block sm:hidden bg-zinc-900 rounded-lg border border-zinc-800 p-6 text-center">
+                        {!iframeLoaded && !iframeError && (
+                          <div className="flex flex-col items-center justify-center py-8">
+                            <InvoiceDetailSkeleton />
+                          </div>
+                        )}
+                        {iframeError && (
+                          <div className="flex flex-col items-center justify-center">
+                            <AlertTriangle className="h-8 w-8 text-zinc-400 mb-4" />
+                            <p className="text-sm font-medium text-zinc-400 mb-2">
+                              Document unavailable
+                            </p>
+                            <p className="text-xs text-zinc-500 mb-4">
+                              Unable to load the PDF document.
+                            </p>
+                            <a
+                              href={documentPreviewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                            >
+                              Download PDF <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
+                        {!iframeError && (
+                          <div className="flex flex-col items-center justify-center">
+                            <FileText className="h-10 w-10 text-zinc-500 mb-4" />
+                            <p className="text-sm font-medium text-zinc-400 mb-2">
+                              PDF ready for download
+                            </p>
+                            <a
+                              href={documentPreviewUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                            >
+                              Download PDF <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
+                      <FileText className="h-8 w-8 text-zinc-600 mb-2" />
+                      <p className="text-sm font-medium text-zinc-400">
+                        No document preview available
+                      </p>
+                      <p className="text-xs text-zinc-600 mt-1">
+                        This invoice does not have an attached PDF preview or
+                        document URL.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* Metadata Viewer */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <InvoiceMetadataViewer invoice={invoice} isFunded={isFunded} />
+            </motion.div>
+          </PrintLayout>
+
+          {/* ── Right: Fund Panel ─────────────────────────────────────────── */}
+          <div className="space-y-4" data-print-hide>
+            <motion.div
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <GlassCard className="p-6">
+                <div className="mb-4 flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-kora-400" />
+                  <h2 className="font-semibold text-zinc-100">
+                    Fund This Invoice
+                  </h2>
+                </div>
+
+                {/* APR Metric Badge */}
+                <div className="mb-6 rounded-lg bg-kora-500/5 border border-kora-500/10 p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
+                      Expected APR
+                    </p>
+                    <p className="text-2xl font-bold text-kora-400 mt-0.5">
+                      {formatApr(terms.apr)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
+                      Maturity
+                    </p>
+                    <p className="text-xl font-bold text-zinc-200 mt-0.5">
+                      <CountdownTimer
+                        targetDate={terms.repaymentDate}
+                        compact={false}
+                      />
+                    </p>
+                    {/* Backwards-compat test hook: keep numeric days for integration tests */}
+                    <div data-testid="days-to-maturity" className="sr-only">
+                      {daysToMaturity} days
+                    </div>
+                  </div>
+                </div>
+
+                {/* Wallet Not Connected Gate */}
+                {!isConnected ? (
+                  <div className="space-y-4">
+                    <div className="rounded-lg bg-zinc-800/40 border border-zinc-700/30 p-4 text-center">
+                      <p className="text-sm text-zinc-400">
+                        Connect your Stellar wallet to view yields and start
+                        investing.
+                      </p>
+                    </div>
+                    <Button
+                      className="w-full bg-kora-500 hover:bg-kora-600 text-white font-semibold"
+                      size="lg"
+                      onClick={() => setWalletModalOpen(true)}
+                    >
+                      Connect Wallet to Invest
+                    </Button>
+                  </div>
+                ) : isSmeOwner ? (
+                  /* SME Owner Self-Funding Lock Gate */
+                  <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-4 space-y-3">
+                    <div className="flex gap-2.5 items-start">
+                      <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-sm text-yellow-400">
+                          Self-Funding Blocked
+                        </p>
+                        <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                          You cannot fund your own invoice. Decoupled factoring
+                          escrow rules restrict invoice owners from bidding as
+                          liquidity providers.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      className="w-full cursor-not-allowed"
+                      variant="secondary"
+                      disabled
+                      size="lg"
+                    >
+                      You cannot fund your own invoice
+                    </Button>
+                  </div>
+                ) : isFullyFunded ? (
+                  /* Already Fully Funded Lock Gate */
+                  <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-center space-y-3">
+                    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-emerald-400 text-sm">
+                        Invoice Fully Funded
+                      </p>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        This invoice has completed its financing target and is
+                        now locked in smart contract escrow.
+                      </p>
+                    </div>
+                    <Button
+                      className="w-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed font-semibold"
+                      disabled
+                      size="lg"
+                    >
+                      Fully Funded
+                    </Button>
+                  </div>
+                ) : (
+                  /* Active Investor Funding Input Card */
+                  <div className="space-y-4">
+                    <div>
+                      <Input
+                        label="Investment Amount (USDC)"
+                        type="number"
+                        placeholder={`Min ${terms.minInvestment}`}
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        hint={`Min: $${terms.minInvestment.toLocaleString()} · Remaining Capacity: $${fundingState.remainingCapacity.toLocaleString()}`}
+                        disabled={funding}
+                        className={cn(
+                          (inputError || insufficientBalanceMessage) &&
+                            "border-red-500 focus-visible:ring-red-500",
+                        )}
+                      />
+                      {(inputError || insufficientBalanceMessage) && (
+                        <p className="mt-1.5 text-xs text-red-400 font-medium flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />{" "}
+                          {inputError || insufficientBalanceMessage}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* FundingYieldCalculator — debounced, uses same APR formula */}
+                    {!inputError && (
+                      <FundingYieldCalculator
+                        amountInput={amount}
+                        apr={terms.apr}
+                        daysToMaturity={daysToMaturity}
+                        repaymentDate={terms.repaymentDate}
+                        currency={metadata.currency}
+                      />
+                    )}
+
+                    <Button
+                      className="w-full bg-kora-500 hover:bg-kora-600 text-white font-semibold shadow-lg shadow-kora-500/20"
+                      size="lg"
+                      onClick={handleFund}
+                      loading={funding}
+                      disabled={!canFund || !!inputError || !amountNum}
+                    >
+                      Fund Invoice
+                    </Button>
+
+                    <p className="text-center text-[10px] text-zinc-500 leading-normal">
+                      Liquidity deposits are held securely in Soroban escrow
+                      smart contracts until repayment is confirmed.
+                    </p>
+                  </div>
+                )}
+              </GlassCard>
+            </motion.div>
+
+            {/* Risk info */}
+            <motion.div
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.25 }}
+            >
+              <Card className="p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="h-4 w-4 text-zinc-500" />
+                  <p className="text-sm font-medium text-zinc-300">
+                    Risk Assessment
+                  </p>
+                </div>
+                <RiskScoreGauge
+                  score={invoice.riskScore}
+                  tier={riskTier}
+                  factors={riskFactors}
+                  trend={riskTrend}
+                />
+              </Card>
+            </motion.div>
+
+            {/* Fund Success Block */}
+            {fundTxHash && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+              >
+                <GlassCard className="p-5 border-emerald-500/20 bg-emerald-500/5 space-y-2">
+                  <div className="flex gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
+                    <div className="space-y-1 text-sm">
+                      <p className="font-bold text-emerald-400">
+                        Factoring escrow deposits funded!
+                      </p>
+                      <p className="text-xs text-zinc-400 leading-relaxed">
+                        Escrow deposit completed successfully. Your factoring
+                        shares are logged under on-chain token state.
+                      </p>
+                      <div className="pt-2">
+                        <a
+                          href={safeStellarTxUrl(fundTxHash)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-kora-400 hover:text-kora-300 font-semibold"
+                        >
+                          <ExternalLink className="h-3 w-3" /> View transaction
+                          on Stellar Expert
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </GlassCard>
+              </motion.div>
+            )}
+
+            {/* On-chain info */}
+            {invoice.txHash && (
+              <motion.div
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.3 }}
+              >
+                <Card className="p-4">
+                  <p className="mb-2 text-xs text-zinc-500">On-Chain</p>
+                  <a
+                    href={safeStellarTxUrl(invoice.txHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-kora-400 hover:text-kora-300"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    View mint transaction
+                  </a>
+                </Card>
+              </motion.div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
 
       {/* Transaction simulation preview dialog */}
       <TxSimulationPreview {...simulationDialogProps} />

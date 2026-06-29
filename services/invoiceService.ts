@@ -11,6 +11,7 @@ import type {
   InvoicePosition,
   IInvoiceService,
   ServiceError,
+  ServiceErrorCode,
   Result,
   InvoiceStatus,
 } from "@/types";
@@ -27,7 +28,7 @@ function success<T>(value: T): Result<T> {
 }
 
 // ─── Helper: Create error result ──────────────────────────────────────────
-function failure(code: string, message: string, details?: Record<string, unknown>): Result<never> {
+function failure(code: ServiceErrorCode, message: string, details?: any): Result<never> {
   return { ok: false, error: { code, message, details } };
 }
 
@@ -168,7 +169,7 @@ class MockInvoiceService implements IInvoiceService {
           expectedReturn: invested * (1 + inv.terms.discountRate),
           yieldEarned,
           investedAt: new Date().toISOString(),
-          status: (isRepaid ? "repaid" : "active") as const,
+          status: (isRepaid ? "repaid" : "active") as "repaid" | "active",
         };
       });
       return success(positions);
@@ -483,8 +484,8 @@ class LiveInvoiceService implements IInvoiceService {
 
   async cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
     try {
-      const xdr = await marketplaceContract.cancelInvoice(
-        { tokenId: BigInt(tokenId) },
+      const xdr = await invoiceContract.cancelInvoice(
+        BigInt(tokenId),
         ownerAddress
       );
       return success(xdr);
@@ -563,7 +564,7 @@ export async function fetchInvoicesByTokenIds(
   tokenIds: string[],
   sourcePublicKey: string
 ): Promise<Invoice[]> {
-  if (USE_MOCK) {
+  if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
     // No RPC calls in mock mode — just look up from static mock data
     const idSet = new Set(tokenIds);
     return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
@@ -706,7 +707,7 @@ export async function fetchBatchInvoicesByTokenIds(
 ): Promise<Invoice[]> {
   if (tokenIds.length === 0) return [];
 
-  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
   if (useMock) {
     const idSet = new Set(tokenIds);
     return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
@@ -810,7 +811,7 @@ export async function prepareUpdateInvoiceStatus(
   const chainIndex = STATUS_TO_CHAIN_INDEX[to];
   if (chainIndex < 0) throw new Error(`Status "${to}" has no on-chain representation`);
 
-  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
   if (useMock) {
     return `mock_unsigned_xdr_update_status_${tokenId}_${to}_${ownerAddress}`;
   }
@@ -820,3 +821,4 @@ export async function prepareUpdateInvoiceStatus(
 }
 
 
+export { fetchInvoicesByTokenIds as fetchBatchInvoicesByTokenIds };

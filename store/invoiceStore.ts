@@ -1,7 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
 import type { Invoice, InvoiceFunding, InvoiceStatus } from "@/types";
 import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
+import {
+  createPersistentJSONStorage,
+  safeStorageGetItem,
+  safeStorageSetItem,
+} from "./storageAdapter";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,6 +113,54 @@ export function getFilteredInvoices(
   });
 }
 
+type FilterCacheEntry = {
+  invoicesRef: Invoice[];
+  filters: FilterState;
+  sort: SortState;
+  searchQuery: string;
+  result: Invoice[];
+};
+
+let filterCache: FilterCacheEntry | null = null;
+
+function readFilteredInvoices(
+  invoices: Invoice[],
+  filters: FilterState,
+  sort: SortState,
+  searchQuery: string
+): Invoice[] {
+  if (
+    filterCache &&
+    filterCache.invoicesRef === invoices &&
+    filterCache.filters === filters &&
+    filterCache.sort === sort &&
+    filterCache.searchQuery === searchQuery
+  ) {
+    return filterCache.result;
+  }
+
+  const result = getFilteredInvoices(invoices, filters, sort, searchQuery);
+  filterCache = { invoicesRef: invoices, filters, sort, searchQuery, result };
+  return result;
+}
+
+/** React hook — memoized filtered invoice list keyed on store filter state. */
+export function useFilteredInvoices(): Invoice[] {
+  const { invoices, filters, sort, searchQuery } = useInvoiceStore(
+    useShallow((state) => ({
+      invoices: state.invoices,
+      filters: state.filters,
+      sort: state.sort,
+      searchQuery: state.searchQuery,
+    }))
+  );
+
+  return useMemo(
+    () => getFilteredInvoices(invoices, filters, sort, searchQuery),
+    [invoices, filters, sort, searchQuery]
+  );
+}
+
 // ─── URL serialization ────────────────────────────────────────────────────────
 
 export function toQueryParams(filters: FilterState, sort: SortState): URLSearchParams {
@@ -151,17 +206,15 @@ const SEARCH_HISTORY_KEY = "kora-search-history";
 const MAX_HISTORY = 5;
 
 function loadSearchHistory(): string[] {
-  if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]");
+    return JSON.parse(safeStorageGetItem(SEARCH_HISTORY_KEY) || "[]");
   } catch {
     return [];
   }
 }
 
 function saveSearchHistory(history: string[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
+  safeStorageSetItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
 }
 
 type FundingBackup = InvoiceFunding & { status: InvoiceStatus };
@@ -202,10 +255,6 @@ interface InvoiceStore {
   _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
-  // Marketplace page aliases
-  sortBy: string;
-  setSortBy: (sortBy: string) => void;
-  updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
 
   /** Toggle an invoice in/out of the comparison list (max 3) */
   toggleComparison: (id: string) => void;
@@ -263,7 +312,11 @@ export const useInvoiceStore = create<InvoiceStore>()(
       setSort: (sort) =>
         set((s) => ({ sort: { ...s.sort, ...sort }, sortBy: sort.sortBy ?? s.sort.sortBy })),
 
-      setSortBy: (sortBy) => set({ sortBy }),
+      setSortBy: (sortBy) =>
+        set((s) => ({
+          sort: { ...s.sort, sortBy: sortBy.split("_")[0] as SortState["sortBy"] },
+          sortBy,
+        })),
 
       setSearchQuery: (searchQuery) =>
         set((s) => {
@@ -282,11 +335,6 @@ export const useInvoiceStore = create<InvoiceStore>()(
       },
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
-
-      // Marketplace page aliases
-      sortBy: DEFAULT_SORT.sortBy,
-      setSortBy: (sortBy) => set((s) => ({ sort: { ...s.sort, sortBy: sortBy as SortState["sortBy"] }, sortBy: sortBy as SortState["sortBy"] })),
-      updateSingleFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
 
       /** Optimistic update — instantly reflects new funding amount in UI */
       updateInvoiceFunding: (id, newAmount) =>
@@ -343,7 +391,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const prev = s.invoices.find((i) => i.id === id);
           const backup = prev ? { status: prev.status } : undefined;
           const invoices = s.invoices.map((inv) =>
-            inv.id === id ? { ...inv, status } : inv
+            inv.id === id ? ({ ...inv, status } as Invoice) : inv
           );
           return {
             invoices,
@@ -356,7 +404,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
           const backup = s._statusBackup?.[id];
           if (!backup) return {};
           const invoices = s.invoices.map((inv) =>
-            inv.id === id ? { ...inv, status: backup.status } : inv
+            inv.id === id ? ({ ...inv, status: backup.status } as Invoice) : inv
           );
           const nextBackup = { ...(s._statusBackup || {}) };
           delete nextBackup[id];
@@ -388,11 +436,12 @@ export const useInvoiceStore = create<InvoiceStore>()(
 
       getFiltered: () => {
         const { invoices, filters, sort, searchQuery } = get();
-        return getFilteredInvoices(invoices, filters, sort, searchQuery);
+        return readFilteredInvoices(invoices, filters, sort, searchQuery);
       },
     }),
     {
       name: "kora-invoice-store",
+      storage: createPersistentJSONStorage(),
       partialize: (state) => ({ createDraft: state.createDraft }),
     }
   )

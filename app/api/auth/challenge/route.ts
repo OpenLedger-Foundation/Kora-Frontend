@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { logger } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 interface ChallengeResponse {
   challenge: string;
@@ -13,6 +14,9 @@ interface ChallengeResponse {
  * The client will sign this challenge with their private key.
  */
 export async function POST(_request: NextRequest): Promise<NextResponse> {
+  const csrfError = verifyCsrf(_request);
+  if (csrfError) return csrfError;
+
   const requestId = _request.headers.get("x-request-id") ?? crypto.randomUUID();
   const route = "/api/auth/challenge";
   try {

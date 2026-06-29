@@ -35,6 +35,7 @@ import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
+import { isEnabled } from "@/lib/featureFlags";
 
 // Pre-load both locale message files at the module level so they are
 // bundled and available synchronously on the client.
@@ -93,7 +94,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <LocaleProvider allMessages={ALL_MESSAGES}>
         <ThemeProvider>
           {children}
-          <OnboardingTour />
+          {isEnabled("onboarding-tour") && <OnboardingTour />}
           <WalletConnectModal />
           <InProgressOverlay />
           <InstallPrompt />
@@ -102,7 +103,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <CommandPalette />
           <ChangelogModal />
           <ThemedToaster />
-          {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
+          {isEnabled("devtools") && (
             <ReactQueryDevtools initialIsOpen={false} />
           )}
         </ThemeProvider>

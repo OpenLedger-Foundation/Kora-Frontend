@@ -12,6 +12,8 @@ export interface ShortcutDefinition {
   description: string;
   /** Category for grouping in the modal */
   category: "Navigation" | "Marketplace" | "Dashboard";
+  /** When true, only registered in dev builds */
+  devOnly?: boolean;
 }
 
 // ── Shortcut registry (exported for the modal) ────────────────────────────────
@@ -56,6 +58,16 @@ export const SHORTCUT_DEFINITIONS: Record<string, ShortcutDefinition> = {
     description: "Open shortcut reference",
     category: "Navigation",
   },
+  ...(process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true"
+    ? {
+        "ctrl+shift+v": {
+          label: "Ctrl+Shift+V",
+          description: "Toggle Web Vitals panel (dev only)",
+          category: "Navigation" as const,
+          devOnly: true,
+        },
+      }
+    : {}),
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -74,6 +86,7 @@ function isInputFocused(): boolean {
 function eventToKey(e: KeyboardEvent): string {
   const mod = e.metaKey || e.ctrlKey;
   const key = e.key.toLowerCase();
+  if (mod && e.shiftKey) return `ctrl+shift+${key}`;
   if (mod) return `cmd+${key}`;
   return key;
 }
@@ -93,9 +106,11 @@ function eventToKey(e: KeyboardEvent): string {
 export function useKeyboardShortcuts({
   onOpenSearch,
   onOpenShortcutModal,
+  onToggleWebVitals,
 }: {
   onOpenSearch?: () => void;
   onOpenShortcutModal?: () => void;
+  onToggleWebVitals?: () => void;
 }) {
   const router = useRouter();
   const setWalletModalOpen = useUIStore((s) => s.setWalletModalOpen);
@@ -134,6 +149,17 @@ export function useKeyboardShortcuts({
         // Only intercept if not a browser tab-close scenario (no modifier ambiguity on Mac)
         e.preventDefault();
         setWalletModalOpen(true);
+        clearSequence();
+        return;
+      }
+
+      // ── Dev-only shortcuts ─────────────────────────────────────────────────
+      if (
+        key === "ctrl+shift+v" &&
+        process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true"
+      ) {
+        e.preventDefault();
+        onToggleWebVitals?.();
         clearSequence();
         return;
       }
@@ -200,6 +226,7 @@ export function useKeyboardShortcuts({
     setWalletModalOpen,
     onOpenSearch,
     onOpenShortcutModal,
+    onToggleWebVitals,
     clearSequence,
   ]);
 }

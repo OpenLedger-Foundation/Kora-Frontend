@@ -32,6 +32,7 @@ import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
+import { isEnabled } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 
@@ -446,18 +447,20 @@ function MarketplaceContent() {
 
   // Use infinite query data when available, fall back to paginated data
   const allInvoices = infinite.data
-    ? infinite.data.pages.flatMap((p) => p.data)
+    ? infinite.data.pages.flatMap((p: any) => p.data)
     : data?.data ?? [];
 
   // Client-side Search filter
-  const filteredInvoices = debouncedSearchQuery
-    ? allInvoices.filter(
-        (inv) =>
-          inv.metadata.debtorName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.invoiceNumber.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      )
-    : allInvoices;
+  const filteredInvoices = useMemo(() => {
+    if (!debouncedSearchQuery) return allInvoices;
+    const query = debouncedSearchQuery.toLowerCase();
+    return allInvoices.filter(
+      (inv) =>
+        inv.metadata.debtorName.toLowerCase().includes(query) ||
+        inv.metadata.invoiceNumber.toLowerCase().includes(query) ||
+        inv.metadata.category.toLowerCase().includes(query)
+    );
+  }, [allInvoices, debouncedSearchQuery]);
 
   // Slice the filtered list for display
   const paginatedInvoices = useMemo<Invoice[]>(() => {
@@ -771,7 +774,7 @@ function MarketplaceContent() {
       </BottomSheet>
 
       {/* Fixed comparison bar — renders above the page when invoices are selected */}
-      <ComparisonBar />
+      {isEnabled("comparison") && <ComparisonBar />}
     </Container>
   );
 }
