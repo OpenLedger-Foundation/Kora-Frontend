@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWalletStore } from "@/store";
 import { isValidStellarAddress } from "@/lib/utils";
 
 export function AddressBook({ onClose }: { onClose?: () => void }) {
+  const t = useTranslations("addressBook");
   const { addressBook, addAddressBookEntry, updateAddressBookEntry, removeAddressBookEntry } = useWalletStore();
   const [addr, setAddr] = useState("");
   const [label, setLabel] = useState("");
@@ -18,7 +20,7 @@ export function AddressBook({ onClose }: { onClose?: () => void }) {
       return;
     }
     if (!isValidStellarAddress(addr)) {
-      setError("Invalid Stellar address format");
+      setError(t("invalidAddress"));
     } else {
       setError(null);
     }
@@ -34,7 +36,7 @@ export function AddressBook({ onClose }: { onClose?: () => void }) {
   const add = () => {
     if (!addr) return;
     if (!isValidStellarAddress(addr)) {
-      setError("Invalid Stellar address format");
+      setError(t("invalidAddress"));
       return;
     }
     addAddressBookEntry(addr, label);
@@ -43,19 +45,18 @@ export function AddressBook({ onClose }: { onClose?: () => void }) {
     setError(null);
   };
 
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="mx-auto max-w-2xl rounded-xl border border-border bg-card p-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold">Address Book</h3>
+          <h3 className="text-lg font-bold">{t("title")}</h3>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => onClose?.()}>Close</Button>
+            <Button variant="ghost" onClick={() => onClose?.()}>{t("close")}</Button>
           </div>
         </div>
 
         <div className="mt-4 grid gap-2">
-          {addressBook.length === 0 && <p className="text-sm text-muted-foreground">No saved addresses</p>}
+          {addressBook.length === 0 && <p className="text-sm text-muted-foreground">{t("noSaved")}</p>}
           {addressBook.map((e) => (
             <div key={e.id} className="flex items-center justify-between gap-3 rounded-md border p-2">
               <div>
@@ -64,10 +65,10 @@ export function AddressBook({ onClose }: { onClose?: () => void }) {
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={() => {
-                  const newLabel = prompt("Label:", e.label || "") || "";
+                  const newLabel = prompt(`${t("editLabel")}`, e.label || "") || "";
                   updateAddressBookEntry(e.id, { label: newLabel });
-                }}>Edit</Button>
-                <Button size="sm" variant="destructive" onClick={() => removeAddressBookEntry(e.id)}>Delete</Button>
+                }}>{t("editButton")}</Button>
+                <Button size="sm" variant="destructive" onClick={() => removeAddressBookEntry(e.id)}>{t("deleteButton")}</Button>
               </div>
             </div>
           ))}
@@ -75,15 +76,15 @@ export function AddressBook({ onClose }: { onClose?: () => void }) {
 
         <div className="mt-4 grid gap-2">
           <Input 
-            placeholder="Stellar address (G...)" 
+            placeholder={t("addressPlaceholder")}
             value={addr} 
             onChange={handleAddrChange} 
             onBlur={handleBlur}
             error={error || undefined}
           />
-          <Input placeholder="Label (optional)" value={label} onChange={(e) => setLabel(e.target.value)} />
+          <Input placeholder={t("labelPlaceholder")} value={label} onChange={(e) => setLabel(e.target.value)} />
           <div className="flex justify-end">
-            <Button onClick={add}>Add to Address Book</Button>
+            <Button onClick={add}>{t("addButton")}</Button>
           </div>
         </div>
       </div>

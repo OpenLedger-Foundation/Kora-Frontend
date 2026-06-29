@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useWalletStore } from "@/store/walletStore";
@@ -51,6 +52,7 @@ async function captureScreenshot(): Promise<string | null> {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function FeedbackWidget() {
+  const t = useTranslations("feedback");
   const [open, setOpen] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [capturingScreen, setCapturingScreen] = useState(false);
@@ -88,11 +90,11 @@ export function FeedbackWidget() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file");
+      toast.error(t("invalidImageType"));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("Screenshot must be under 5 MB");
+      toast.error(t("imageTooLarge"));
       return;
     }
     const reader = new FileReader();

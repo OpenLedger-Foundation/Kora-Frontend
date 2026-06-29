@@ -3,12 +3,14 @@
 import { AlertCircle, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletStore } from "@/store";
 import { env } from "@/lib/env";
 import { cn } from "@/lib/utils";
 
 export function WrongNetworkBanner() {
+  const t = useTranslations("wrongNetwork");
   const { isConnected } = useWallet();
   const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
   const [dismissed, setDismissed] = useState(false);
@@ -24,7 +26,7 @@ export function WrongNetworkBanner() {
 
   if (!isWrongNetworkState) return null;
 
-  const networkLabel = {
+  const networkLabel: Record<string, string> = {
     testnet: "Testnet",
     mainnet: "Mainnet",
     futurenet: "Futurenet",
@@ -44,17 +46,17 @@ export function WrongNetworkBanner() {
         <div className="flex items-center gap-2 flex-1">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="font-medium">
-            Wrong Network: Connected to{" "}
-            <span className="capitalize">{networkLabel[network] || network}</span>, but this app requires{" "}
-            <span className="capitalize">{networkLabel[expectedNetwork] || expectedNetwork}</span>
-            {passphraseMismatch && " (passphrase mismatch)"}.
-            Please switch your wallet network to continue.
+            {t("message", {
+              current: networkLabel[network] || network,
+              expected: networkLabel[expectedNetwork] || expectedNetwork,
+              passphrase: passphraseMismatch ? t("passphraseMismatch") : "",
+            })}
           </span>
         </div>
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          aria-label="Dismiss wrong network warning"
+          aria-label={t("dismiss")}
           className="shrink-0 rounded-md p-1 hover:bg-destructive/20 transition-colors"
         >
           <X className="h-4 w-4" />

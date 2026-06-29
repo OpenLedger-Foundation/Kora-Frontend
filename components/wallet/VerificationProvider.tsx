@@ -25,6 +25,7 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionType, setActionType] = useState<string>("");
+  const [challengeMessage, setChallengeMessage] = useState<string | undefined>(undefined);
   const [verificationPromise, setVerificationPromise] = useState<{
     resolve: () => void;
     reject: (reason: Error) => void;
@@ -32,7 +33,7 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
 
   const requireVerification = useCallback(
     async (type: string): Promise<void> => {
-      // Check if already verified
+      // Skip if already verified within the current session
       if (wallet.checkVerification()) {
         return;
       }
@@ -40,7 +41,16 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
       setActionType(type);
       setError(null);
 
-      // Create a promise that will be resolved when user completes verification
+      // Pre-fetch the challenge so we can show the message to the user before they sign
+      let prefetchedChallenge: string | undefined;
+      try {
+        prefetchedChallenge = await wallet.requestChallenge();
+        setChallengeMessage(prefetchedChallenge);
+      } catch {
+        // Non-fatal: modal will just not show the message preview
+        setChallengeMessage(undefined);
+      }
+
       return new Promise((resolve, reject) => {
         setVerificationPromise({ resolve, reject });
         setIsOpen(true);
@@ -56,14 +66,14 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
     try {
       await wallet.verifyOwnership();
       setIsOpen(false);
+      setChallengeMessage(undefined);
       verificationPromise?.resolve();
       setVerificationPromise(null);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Verification failed. Please try again.";
       setError(message);
-      verificationPromise?.reject(new Error(message));
-      setVerificationPromise(null);
+      // Don't reject the promise on error — let the user retry
     } finally {
       setIsLoading(false);
     }
@@ -71,11 +81,12 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
 
   const handleCancel = useCallback(() => {
     setIsOpen(false);
+    setChallengeMessage(undefined);
     verificationPromise?.reject(new Error("Verification cancelled"));
     setVerificationPromise(null);
   }, [verificationPromise]);
 
-  // Clear verification state if wallet is disconnected
+  // Clear if wallet disconnects while modal is open
   useEffect(() => {
     if (!wallet.isConnected && isOpen) {
       handleCancel();
@@ -96,6 +107,7 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
         isLoading={isLoading}
         error={error ?? undefined}
         actionType={actionType}
+        challengeMessage={challengeMessage}
         onVerify={handleVerify}
         onCancel={handleCancel}
       />

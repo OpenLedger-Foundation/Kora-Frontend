@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Sparkles, Bug, AlertTriangle, List, X, Tag } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { useChangelog, parseChangelog } from "@/hooks/useChangelog";
 import type { ChangelogSection, ChangelogRelease } from "@/hooks/useChangelog";
@@ -14,16 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
-// ─── Raw CHANGELOG.md content (inlined at build time) ────────────────────────
-// We import the raw markdown string. Next.js supports raw file imports via
-// webpack's asset/source loader when configured, but for simplicity we inline
-// the content here and keep it in sync with CHANGELOG.md via the hook.
-// In a real build pipeline you'd use:  import changelog from "!!raw-loader!@/../../CHANGELOG.md"
-// For now we fetch it client-side from the public folder (copy is placed there by build).
-
 const APP_VERSION = "0.1.0"; // Keep in sync with package.json
-
-// ─── Section styling ──────────────────────────────────────────────────────────
 
 const SECTION_CONFIG: Record<
   ChangelogSection["type"],
@@ -55,18 +47,25 @@ const SECTION_CONFIG: Record<
   },
 };
 
-// ─── Release card ─────────────────────────────────────────────────────────────
-
-function ReleaseCard({ release, isLatest }: { release: ChangelogRelease; isLatest: boolean }) {
+function ReleaseCard({
+  release,
+  isLatest,
+  latestLabel,
+  noDetailsLabel,
+}: {
+  release: ChangelogRelease;
+  isLatest: boolean;
+  latestLabel: string;
+  noDetailsLabel: string;
+}) {
   return (
     <div className="space-y-3">
-      {/* Version header */}
       <div className="flex items-center gap-2">
         <Tag className="h-4 w-4 text-primary" aria-hidden="true" />
         <span className="font-semibold text-foreground">v{release.version}</span>
         {isLatest && (
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-            Latest
+            {latestLabel}
           </span>
         )}
         {release.date && (
@@ -74,9 +73,8 @@ function ReleaseCard({ release, isLatest }: { release: ChangelogRelease; isLates
         )}
       </div>
 
-      {/* Sections */}
       {release.sections.length === 0 ? (
-        <p className="text-sm text-muted-foreground pl-6">No details available.</p>
+        <p className="text-sm text-muted-foreground pl-6">{noDetailsLabel}</p>
       ) : (
         release.sections.map((section, i) => {
           const cfg = SECTION_CONFIG[section.type];
@@ -84,11 +82,7 @@ function ReleaseCard({ release, isLatest }: { release: ChangelogRelease; isLates
           return (
             <div
               key={i}
-              className={cn(
-                "rounded-lg border p-3 space-y-2",
-                cfg.bg,
-                cfg.border
-              )}
+              className={cn("rounded-lg border p-3 space-y-2", cfg.bg, cfg.border)}
             >
               <div className={cn("flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide", cfg.color)}>
                 <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -110,13 +104,11 @@ function ReleaseCard({ release, isLatest }: { release: ChangelogRelease; isLates
   );
 }
 
-// ─── Main modal ───────────────────────────────────────────────────────────────
-
 export function ChangelogModal() {
+  const t = useTranslations("changelog");
   const { isOpen, dismiss } = useChangelog(APP_VERSION);
   const [releases, setReleases] = React.useState<ChangelogRelease[]>([]);
 
-  // Fetch and parse CHANGELOG.md
   React.useEffect(() => {
     if (!isOpen) return;
     fetch("/CHANGELOG.md")
@@ -125,7 +117,6 @@ export function ChangelogModal() {
         if (text) setReleases(parseChangelog(text));
       })
       .catch(() => {
-        // Fallback: show a minimal entry from the known version
         setReleases([
           {
             version: APP_VERSION,
@@ -145,14 +136,13 @@ export function ChangelogModal() {
   return (
     <Dialog open={isOpen} onOpenChange={(v) => !v && dismiss()}>
       <DialogContent className="sm:max-w-[540px] max-h-[85vh] flex flex-col p-0 gap-0">
-        {/* Header */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
               <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
             </div>
             <div>
-              <DialogTitle className="text-base">What&apos;s New</DialogTitle>
+              <DialogTitle className="text-base">{t("whatsNew")}</DialogTitle>
               <DialogDescription className="text-xs">
                 Kora Protocol · v{APP_VERSION}
               </DialogDescription>
@@ -160,26 +150,28 @@ export function ChangelogModal() {
           </div>
         </DialogHeader>
 
-        {/* Scrollable release notes */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 overscroll-contain">
           {releases.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              Loading release notes…
+              {t("loading")}
             </div>
           ) : (
             releases.map((release, i) => (
-              <ReleaseCard key={release.version} release={release} isLatest={i === 0} />
+              <ReleaseCard
+                key={release.version}
+                release={release}
+                isLatest={i === 0}
+                latestLabel={t("latestBadge")}
+                noDetailsLabel={t("noDetails")}
+              />
             ))
           )}
         </div>
 
-        {/* Footer */}
         <div className="shrink-0 border-t border-border px-6 py-4 flex items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
-            You&apos;re on the latest version.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("latestVersion")}</p>
           <Button onClick={dismiss} size="sm">
-            Got it
+            {t("gotIt")}
           </Button>
         </div>
       </DialogContent>

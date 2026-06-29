@@ -5,6 +5,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { Copy, Linkedin, QrCode, Twitter } from "lucide-react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 
@@ -23,28 +24,18 @@ export function buildInvoiceShareUrl(origin: string, tokenId: string): string {
 }
 
 function supportsMobileShare(): boolean {
-  if (typeof navigator === "undefined" || typeof navigator.share !== "function")
-    return false;
-  return (
-    navigator.maxTouchPoints > 0 ||
-    window.matchMedia?.("(pointer: coarse)").matches === true
-  );
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") return false;
+  return navigator.maxTouchPoints > 0 || window.matchMedia?.("(pointer: coarse)").matches === true;
 }
 
-export default function ShareInvoiceButton({
-  id,
-  invoiceTitle,
-  summary,
-}: Props): JSX.Element {
+export default function ShareInvoiceButton({ id, invoiceTitle, summary }: Props): JSX.Element {
+  const t = useTranslations("shareInvoice");
   const [open, setOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const { copy, copied } = useCopyToClipboard();
 
   const invoiceUrl = useMemo(
-    () =>
-      typeof window === "undefined"
-        ? ""
-        : buildInvoiceShareUrl(window.location.origin, id),
+    () => (typeof window === "undefined" ? "" : buildInvoiceShareUrl(window.location.origin, id)),
     [id],
   );
 
@@ -54,13 +45,10 @@ export default function ShareInvoiceButton({
     QRCode.toDataURL(invoiceUrl, { margin: 1, width: 240 })
       .then((dataUrl: string) => mounted && setQrDataUrl(dataUrl))
       .catch(() => mounted && setQrDataUrl(null));
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [invoiceUrl]);
 
   useEffect(() => {
-    // Shared links carry attribution, but the visible/canonical page URL stays clean.
     const current = new URL(window.location.href);
     const tracked = ["utm_source", "utm_medium", "utm_content"].some((key) =>
       current.searchParams.has(key),
@@ -70,8 +58,7 @@ export default function ShareInvoiceButton({
     current.searchParams.delete("utm_medium");
     current.searchParams.delete("utm_content");
     window.history.replaceState(
-      window.history.state,
-      "",
+      window.history.state, "",
       `${current.pathname}${current.search}${current.hash}`,
     );
   }, []);
@@ -79,10 +66,10 @@ export default function ShareInvoiceButton({
   const copyShareLink = async () => {
     const success = await copy(invoiceUrl);
     if (success) {
-      toast.success("Link copied");
+      toast.success(t("linkCopiedToast"));
       setOpen(true);
     } else {
-      toast.error("Unable to copy link");
+      toast.error(t("unableToCopy"));
     }
   };
 
@@ -94,20 +81,16 @@ export default function ShareInvoiceButton({
           text: summary ?? "Review this invoice financing opportunity on Kora.",
           url: invoiceUrl,
         });
-        toast.success("Shared successfully");
+        toast.success(t("sharedSuccessfully"));
         return;
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError")
-          return;
-        // Native sharing can fail after opening; clipboard remains a reliable fallback.
+        if (error instanceof DOMException && error.name === "AbortError") return;
       }
     }
     await copyShareLink();
   };
 
-  const tweetText = encodeURIComponent(
-    `${invoiceTitle ?? "Invoice"} · ${summary ?? "Invoice listed on Kora"}`,
-  );
+  const tweetText = encodeURIComponent(`${invoiceTitle ?? "Invoice"} · ${summary ?? "Invoice listed on Kora"}`);
   const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(invoiceUrl)}`;
   const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(invoiceUrl)}`;
 
@@ -117,13 +100,10 @@ export default function ShareInvoiceButton({
         <Button
           size="sm"
           variant="ghost"
-          aria-label="Share invoice"
-          onClick={(event) => {
-            event.preventDefault();
-            void handlePrimaryShare();
-          }}
+          aria-label={t("shareLabel")}
+          onClick={(event) => { event.preventDefault(); void handlePrimaryShare(); }}
         >
-          Share
+          {t("shareButton")}
         </Button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -132,49 +112,30 @@ export default function ShareInvoiceButton({
           sideOffset={8}
         >
           <div className="flex flex-col gap-2 p-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => void copyShareLink()}
-              className="w-full"
-            >
-              <Copy className="mr-2 h-4 w-4" />{" "}
-              {copied ? "Link copied" : "Copy link"}
+            <Button size="sm" variant="ghost" onClick={() => void copyShareLink()} className="w-full">
+              <Copy className="mr-2 h-4 w-4" />
+              {copied ? t("linkCopied") : t("copyLink")}
             </Button>
 
             <div className="flex items-center gap-2">
-              <a
-                href={twitterUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1"
-              >
+              <a href={twitterUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
                 <Button size="sm" variant="ghost" className="w-full">
-                  <Twitter className="mr-2 h-4 w-4" /> Share on X
+                  <Twitter className="mr-2 h-4 w-4" /> {t("shareOnX")}
                 </Button>
               </a>
-              <a
-                href={linkedInUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1"
-              >
+              <a href={linkedInUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
                 <Button size="sm" variant="ghost" className="w-full">
-                  <Linkedin className="mr-2 h-4 w-4" /> LinkedIn
+                  <Linkedin className="mr-2 h-4 w-4" /> {t("shareOnLinkedIn")}
                 </Button>
               </a>
             </div>
 
             <div className="pt-1 text-center">
-              <div className="text-xs text-muted-foreground">QR Code</div>
+              <div className="text-xs text-muted-foreground">{t("qrCodeLabel")}</div>
               <div className="mt-2 flex justify-center">
                 {qrDataUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={qrDataUrl}
-                    alt="QR code for shared invoice link"
-                    className="h-32 w-32"
-                  />
+                  <img src={qrDataUrl} alt={t("qrCodeAlt")} className="h-32 w-32" />
                 ) : (
                   <div className="flex h-32 w-32 items-center justify-center rounded bg-muted">
                     <QrCode aria-hidden="true" />

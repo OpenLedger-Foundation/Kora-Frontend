@@ -12,6 +12,8 @@ import {
   ArrowRight,
   ArrowLeft,
   AlertCircle,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, NumberInput, DatePicker, FileInput, Select } from "@/components/ui";
@@ -34,6 +36,7 @@ import {
 import { cn, isValidStellarAddress } from "@/lib/utils";
 import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { usePinataHealth } from "@/hooks/usePinataHealth";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -87,6 +90,9 @@ export default function CreateInvoicePage() {
     txHash: string;
     metadataCid: string;
   } | null>(null);
+
+  // Pinata health — checked when the user reaches the Upload step
+  const { isHealthy: pinataHealthy, isChecking: pinataChecking, status: pinataStatus, recheck: recheckPinata } = usePinataHealth();
 
   const {
     register,
@@ -752,6 +758,40 @@ export default function CreateInvoicePage() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
+              {/* Pinata unavailability banner */}
+              {!pinataChecking && pinataStatus === "unhealthy" && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300"
+                  role="alert"
+                  data-testid="pinata-unavailable-banner"
+                >
+                  <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold">IPFS storage is temporarily unavailable.</p>
+                    <p className="mt-0.5 text-xs text-amber-400/80">
+                      Your invoice cannot be minted right now. All your form data has been saved — you can try again when the service recovers.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={recheckPinata}
+                    className="shrink-0 rounded-lg p-1 text-amber-400 transition-colors hover:bg-amber-500/20"
+                    aria-label="Retry health check"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  </button>
+                </motion.div>
+              )}
+
+              {pinataChecking && (
+                <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-xs text-zinc-400" aria-live="polite">
+                  <span className="h-1.5 w-1.5 animate-ping rounded-full bg-zinc-400" aria-hidden="true" />
+                  Checking IPFS storage availability…
+                </div>
+              )}
+
               <GlassCard className="space-y-4 p-6">
                 <div>
                   <p className="mb-2 text-sm font-medium text-zinc-300">Invoice Document</p>
@@ -787,7 +827,7 @@ export default function CreateInvoicePage() {
                       }}
                       aria-required="true"
                       error={fileError || undefined}
-                      disabled={isUploading}
+                      disabled={isUploading || pinataStatus === "unhealthy"}
                     />
                   )}
                 </div>
@@ -876,8 +916,9 @@ export default function CreateInvoicePage() {
           ) : (
             <Button
               type="submit"
-              disabled={!file || !isConnected || isUploading || txStatus === "signing" || txStatus === "submitting" || txStatus === "polling"}
+              disabled={!file || !isConnected || isUploading || pinataStatus === "unhealthy" || pinataChecking || txStatus === "signing" || txStatus === "submitting" || txStatus === "polling"}
               onClick={!isConnected ? () => setWalletModalOpen(true) : undefined}
+              title={pinataStatus === "unhealthy" ? "IPFS storage is temporarily unavailable" : undefined}
             >
               {!isConnected ? "Connect Wallet" : "Mint Invoice NFT"}
             </Button>

@@ -59,8 +59,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
         });
       }
 
-      // Extract timestamp from challenge to validate freshness
-      const timestampMatch = challenge.match(/Timestamp: (\d+)/);
+      // Extract timestamp from challenge format: "Kora Protocol authentication: {timestamp}:{nonce}"
+      const timestampMatch = challenge.match(/^Kora Protocol authentication: (\d+):/);
       if (!timestampMatch) {
         return NextResponse.json({
           verified: false,
