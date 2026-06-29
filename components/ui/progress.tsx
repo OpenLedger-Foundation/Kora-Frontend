@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -83,10 +83,8 @@ function InvoiceFundingProgress({
   const showInnerLabel = pct >= 30;
   const relativeTime = useRelativeTime(updatedAt);
 
-  // Respect prefers-reduced-motion
-  const prefersReduced = typeof window !== "undefined"
-    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    : false;
+  // Use Framer Motion's useReducedMotion for consistent SSR-safe behavior
+  const prefersReduced = useReducedMotion();
 
   // Flash the bar when funded amount changes
   const prevFunded = React.useRef(funded);

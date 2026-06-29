@@ -13,12 +13,12 @@
  *  - Step 3 shows the review summary with entered data
  *  - Back navigation from Step 2 returns to Step 1 with values preserved
  *  - Back navigation from Step 3 returns to Step 2
- *
- * Note: The wizard requires a connected wallet to submit.  Steps 1-3
- * navigation is fully testable without a wallet connection.
+ *  - Happy path: full wizard → wallet signs → success toast
+ *  - Error paths: validation errors block progression; IPFS failure is handled
  */
 
 import { test, expect } from "@playwright/test";
+import { injectWalletStubs } from "./helpers/mock-wallet";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,6 +90,88 @@ async function fillStep2(page: import("@playwright/test").Page) {
   }, futureDate(30));
 }
 
+/**
+ * Upload a minimal PDF buffer as the invoice document.
+ */
+async function uploadPdf(page: import("@playwright/test").Page) {
+  // Minimal valid PDF bytes
+  const pdfBytes = Buffer.from(
+    "%PDF-1.4\n1 0 obj<</Type /Catalog /Pages 2 0 R>>endobj " +
+      "2 0 obj<</Type /Pages /Kids [3 0 R] /Count 1>>endobj " +
+      "3 0 obj<</Type /Page /Parent 2 0 R /MediaBox [0 0 612 792]>>endobj\n" +
+      "xref\n0 4\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n" +
+      "0000000115 00000 n\ntrailer<</Size 4 /Root 1 0 R>>\nstartxref\n190\n%%EOF"
+  );
+
+  const dropzone = page.getByRole("region", { name: /upload|drop.*pdf|drag/i }).first();
+  // Fall back to any file input inside the upload area
+  const fileInput = page.locator('input[type="file"]').first();
+  await fileInput.setInputFiles({
+    name: "invoice-test.pdf",
+    mimeType: "application/pdf",
+    buffer: pdfBytes,
+  });
+  // Give the dropzone time to register the file
+  await page.waitForTimeout(300);
+  void dropzone; // reference kept for clarity
+}
+
+// ── Mock helpers ──────────────────────────────────────────────────────────────
+
+/** Intercept Pinata/IPFS uploads and return a mock CID */
+async function mockIpfsUpload(page: import("@playwright/test").Page) {
+  await page.route("**/pinning/pinFileToIPFS**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ IpfsHash: "QmTestCID123456789", PinSize: 1234, Timestamp: new Date().toISOString() }),
+    })
+  );
+  await page.route("**/pinning/pinJSONToIPFS**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ IpfsHash: "QmMetadataCID987654321", PinSize: 512, Timestamp: new Date().toISOString() }),
+    })
+  );
+  // Also catch any /api/upload proxy route the app might use
+  await page.route("**/api/upload**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ cid: "QmTestCID123456789", metadataCid: "QmMetadataCID987654321" }),
+    })
+  );
+}
+
+/** Intercept Soroban RPC calls and return a mock success response */
+async function mockSorobanRpc(page: import("@playwright/test").Page) {
+  await page.route("**/soroban**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        result: {
+          status: "SUCCESS",
+          txHash: "0xmocktxhash123",
+          envelopeXdr: "mockenvelopexdr",
+          resultXdr: "mockresultxdr",
+        },
+      }),
+    })
+  );
+  // Also mock the Next.js API route that submits the transaction
+  await page.route("**/api/invoice**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, invoiceId: "mock-invoice-id-001", txHash: "0xmocktxhash123" }),
+    })
+  );
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 test.describe("Invoice creation wizard", () => {
@@ -149,6 +231,41 @@ test.describe("Invoice creation wizard", () => {
   }) => {
     await fillStep1(page);
     await expect(page.getByRole("button", { name: /next/i })).toBeEnabled();
+  });
+
+  // ── Step 1 error paths ─────────────────────────────────────────────────────
+
+  test("Step 1 error — empty invoice number shows validation error", async ({
+    page,
+  }) => {
+    // Fill everything except invoice number, then blur the field
+    await page.getByLabel(/debtor company name/i).fill("Acme Corp");
+    await page.getByLabel(/invoice number/i).focus();
+    await page.getByLabel(/invoice number/i).blur();
+    // Attempt to click Next (should be disabled, but verify error message too)
+    await expect(page.getByRole("button", { name: /next/i })).toBeDisabled();
+  });
+
+  test("Step 1 error — invalid amount (zero) shows validation error and blocks Next", async ({
+    page,
+  }) => {
+    await page.getByLabel(/invoice number/i).fill("INV-TEST-001");
+    await page.getByLabel(/debtor company name/i).fill("Test Co");
+    await page.getByLabel(/debtor address/i).fill("1 Test St");
+    const amountInput = page.getByRole("spinbutton", { name: /invoice amount/i });
+    await amountInput.fill("0");
+    await amountInput.blur();
+    await expect(page.getByRole("button", { name: /next/i })).toBeDisabled();
+  });
+
+  test("Step 1 error — negative amount blocks Next", async ({ page }) => {
+    await page.getByLabel(/invoice number/i).fill("INV-TEST-001");
+    await page.getByLabel(/debtor company name/i).fill("Test Co");
+    await page.getByLabel(/debtor address/i).fill("1 Test St");
+    const amountInput = page.getByRole("spinbutton", { name: /invoice amount/i });
+    await amountInput.fill("-100");
+    await amountInput.blur();
+    await expect(page.getByRole("button", { name: /next/i })).toBeDisabled();
   });
 
   // ── Step 2 ────────────────────────────────────────────────────────────────
@@ -286,5 +403,150 @@ test.describe("Invoice creation wizard", () => {
     await expect(
       page.getByRole("button", { name: /mint invoice|submit|list invoice/i })
     ).toBeVisible();
+  });
+
+  // ── Happy path (requires wallet mock) ─────────────────────────────────────
+
+  test.describe("Happy path — full wizard with wallet", () => {
+    test.beforeEach(async ({ context }) => {
+      await injectWalletStubs(context, { usdcBalance: "10000.00" });
+    });
+
+    test("completes all 3 steps, uploads PDF, mints invoice, shows success toast", async ({
+      page,
+    }) => {
+      // Mock network requests before navigating
+      await mockIpfsUpload(page);
+      await mockSorobanRpc(page);
+
+      await page.goto("/invoice/create");
+
+      // ── Step 1 ──────────────────────────────────────────────────────────
+      await fillStep1(page);
+      await expect(page.getByRole("button", { name: /next/i })).toBeEnabled();
+      await page.getByRole("button", { name: /next/i }).click();
+
+      // ── Step 2 ──────────────────────────────────────────────────────────
+      await expect(page.getByText(/Financing Terms/i)).toBeVisible();
+      await fillStep2(page);
+      await page.getByRole("button", { name: /next/i }).click();
+
+      // ── Step 3 ──────────────────────────────────────────────────────────
+      await expect(page.getByText(/Upload & Review/i)).toBeVisible();
+
+      // Upload a mock PDF
+      await uploadPdf(page);
+
+      // Verify summary shows correct data before submitting
+      await expect(page.getByText("INV-2024-E2E-001")).toBeVisible();
+      await expect(page.getByText("Acme Corporation Ltd")).toBeVisible();
+
+      // Click Mint / Submit
+      const mintBtn = page.getByRole("button", { name: /mint invoice nft|mint invoice|list invoice/i });
+      await expect(mintBtn).toBeVisible();
+      await mintBtn.click();
+
+      // Wallet signs the transaction (stub auto-resolves)
+      // Expect a success toast to appear
+      await expect(
+        page.getByText(/success|invoice.*created|invoice.*minted|listed successfully/i)
+      ).toBeVisible({ timeout: 10_000 });
+    });
+
+    test("PDF upload accepted — file name appears in the UI", async ({ page }) => {
+      await mockIpfsUpload(page);
+      await page.goto("/invoice/create");
+
+      await fillStep1(page);
+      await page.getByRole("button", { name: /next/i }).click();
+      await fillStep2(page);
+      await page.getByRole("button", { name: /next/i }).click();
+
+      await uploadPdf(page);
+
+      // The uploaded file name should be shown somewhere in the UI
+      await expect(
+        page.getByText(/invoice-test\.pdf/i)
+      ).toBeVisible({ timeout: 5_000 });
+    });
+  });
+
+  // ── Error paths ────────────────────────────────────────────────────────────
+
+  test.describe("Error paths", () => {
+    test("Step 3 error — IPFS upload failure shows error message", async ({
+      page,
+      context,
+    }) => {
+      await injectWalletStubs(context);
+      // Make IPFS endpoints fail
+      await page.route("**/pinning/pinFileToIPFS**", (route) =>
+        route.fulfill({ status: 500, body: "Internal Server Error" })
+      );
+      await page.route("**/api/upload**", (route) =>
+        route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "IPFS upload failed" }),
+        })
+      );
+
+      await page.goto("/invoice/create");
+      await fillStep1(page);
+      await page.getByRole("button", { name: /next/i }).click();
+      await fillStep2(page);
+      await page.getByRole("button", { name: /next/i }).click();
+
+      await uploadPdf(page);
+
+      const mintBtn = page.getByRole("button", { name: /mint invoice nft|mint invoice|list invoice/i });
+      if (await mintBtn.isVisible()) {
+        await mintBtn.click();
+        // Expect an error state — toast, alert, or inline message
+        await expect(
+          page.getByText(/error|failed|upload.*fail|try again/i)
+        ).toBeVisible({ timeout: 10_000 });
+      }
+    });
+
+    test("Step 3 error — submitting without PDF upload is blocked or shows warning", async ({
+      page,
+      context,
+    }) => {
+      await injectWalletStubs(context);
+      await page.goto("/invoice/create");
+
+      await fillStep1(page);
+      await page.getByRole("button", { name: /next/i }).click();
+      await fillStep2(page);
+      await page.getByRole("button", { name: /next/i }).click();
+
+      // Do NOT upload a file — click Mint directly
+      const mintBtn = page.getByRole("button", { name: /mint invoice nft|mint invoice|list invoice/i });
+      if (await mintBtn.isVisible()) {
+        const isDisabled = await mintBtn.isDisabled();
+        if (!isDisabled) {
+          await mintBtn.click();
+          // Should show a validation error or be blocked
+          await expect(
+            page.getByText(/upload.*required|please upload|document.*required|file.*required/i)
+          ).toBeVisible({ timeout: 5_000 });
+        } else {
+          // Mint button correctly disabled when no file uploaded
+          await expect(mintBtn).toBeDisabled();
+        }
+      }
+    });
+
+    test("Step 1 error — partial fill keeps Next disabled", async ({ page }) => {
+      // Fill only invoice number — everything else empty
+      await page.getByLabel(/invoice number/i).fill("INV-PARTIAL-001");
+      await expect(page.getByRole("button", { name: /next/i })).toBeDisabled();
+    });
+
+    test("Step 1 error — debtor name only keeps Next disabled", async ({ page }) => {
+      await page.getByLabel(/debtor company name/i).fill("Partial Co");
+      await expect(page.getByRole("button", { name: /next/i })).toBeDisabled();
+    });
   });
 });

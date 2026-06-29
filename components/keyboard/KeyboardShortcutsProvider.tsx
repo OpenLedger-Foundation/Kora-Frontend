@@ -13,6 +13,8 @@ import { ShortcutReferenceModal } from "./ShortcutReferenceModal";
  * Search (⌘K) is wired to a custom event so any search component can listen
  * without tight coupling. The Navbar keyboard icon also dispatches
  * "kora:open-shortcut-modal" which is handled here.
+ *
+ * Ctrl+Shift+V dispatches "kora:toggle-webvitals" (dev mode only).
  */
 export function KeyboardShortcutsProvider() {
   const [shortcutModalOpen, setShortcutModalOpen] = useState(false);
@@ -23,6 +25,10 @@ export function KeyboardShortcutsProvider() {
 
   const handleOpenShortcutModal = useCallback(() => {
     setShortcutModalOpen(true);
+  }, []);
+
+  const handleToggleWebVitals = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("kora:toggle-webvitals"));
   }, []);
 
   // Also listen for the custom event dispatched by the Navbar keyboard button
@@ -37,6 +43,7 @@ export function KeyboardShortcutsProvider() {
   useKeyboardShortcuts({
     onOpenSearch: handleOpenSearch,
     onOpenShortcutModal: handleOpenShortcutModal,
+    onToggleWebVitals: handleToggleWebVitals,
   });
 
   return (
