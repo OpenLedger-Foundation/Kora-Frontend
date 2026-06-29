@@ -61,6 +61,7 @@ import {
   safeStellarTxUrl,
 } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { FundingYieldCalculator } from "@/components/invoice/FundingYieldCalculator";
 import { env } from "@/lib/env";
 import Script from "next/script";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
@@ -851,35 +852,15 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       )}
                     </div>
 
-                    {amountNum > 0 && !inputError && (
-                      <div className="rounded-lg bg-zinc-800/40 border border-zinc-800 p-3.5 space-y-2 text-sm">
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Investment Principal</span>
-                          <span className="font-mono">
-                            {formatCurrency(amountNum, "USDC")}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-zinc-400">
-                          <span>Holding Duration</span>
-                          <span className="font-semibold text-zinc-300">
-                            {daysToMaturity} days
-                          </span>
-                        </div>
-                        <hr className="border-zinc-800 my-1.5" />
-                        <div className="flex justify-between font-semibold text-zinc-200">
-                          <span>Total Expected Payoff</span>
-                          <span className="font-mono">
-                            {formatCurrency(expectedReturn, "USDC")}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-xs text-kora-400 font-semibold pt-0.5">
-                          <span>Net Yield</span>
-                          <span className="font-mono">
-                            +
-                            {formatCurrency(expectedReturn - amountNum, "USDC")}
-                          </span>
-                        </div>
-                      </div>
+                    {/* FundingYieldCalculator — debounced, uses same APR formula */}
+                    {!inputError && (
+                      <FundingYieldCalculator
+                        amountInput={amount}
+                        apr={terms.apr}
+                        daysToMaturity={daysToMaturity}
+                        repaymentDate={terms.repaymentDate}
+                        currency={metadata.currency}
+                      />
                     )}
 
                     <Button

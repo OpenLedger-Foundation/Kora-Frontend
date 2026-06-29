@@ -146,6 +146,7 @@ export default function SMEDashboardPage() {
     failed: number;
     errors: Array<{ id: string; error: string }>;
   } | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
 
   const myInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
     (inv: Invoice) => inv.ownerAddress === address
@@ -250,20 +251,38 @@ export default function SMEDashboardPage() {
   const handleBatchCancel = async () => {
     if (!address || selectedIds.length === 0) return;
 
-    const invoicesToCancel = myInvoices.filter(
-      (inv) => selectedIds.includes(inv.id) && 
-      (inv.status === "listed" || inv.status === "pending_mint") &&
-      inv.funding.totalRaised === 0
+    // Only Active-status invoices may be batch-cancelled per spec constraint
+    const eligible = myInvoices.filter(
+      (inv) =>
+        selectedIds.includes(inv.id) &&
+        inv.status === "active"
     );
 
-    if (invoicesToCancel.length === 0) {
-      toast.error("No eligible invoices selected for cancellation. Only listed/pending invoices with 0 funding can be cancelled.");
+    if (eligible.length === 0) {
+      toast.error(
+        "No eligible invoices selected. Only invoices in Active status can be batch-cancelled."
+      );
       return;
     }
 
+    // Open confirmation dialog — the user must confirm before any action fires
+    setCancelConfirmOpen(true);
+  };
+
+  /** Called after the user clicks "Confirm" in the cancel confirmation dialog */
+  const executeBatchCancel = async () => {
+    if (!address || selectedIds.length === 0) return;
+    setCancelConfirmOpen(false);
+
+    const invoicesToCancel = myInvoices.filter(
+      (inv) =>
+        selectedIds.includes(inv.id) &&
+        inv.status === "active"
+    );
+
     setIsBatchProcessing(true);
     setBatchProgress(0);
-    
+
     let successCount = 0;
     let failedCount = 0;
     const errors: Array<{ id: string; error: string }> = [];
@@ -272,13 +291,14 @@ export default function SMEDashboardPage() {
       const inv = invoicesToCancel[i];
       try {
         const unsignedXdr = await prepareCancelInvoice(inv.tokenId, address);
-        // In a real app, we'd need to sign each one. 
-        // For this implementation, we assume submitAndConfirm handles the mock/real logic.
         await submitAndConfirm(unsignedXdr);
         successCount++;
       } catch (err) {
         failedCount++;
-        errors.push({ id: inv.metadata.invoiceNumber, error: err instanceof Error ? err.message : "Unknown error" });
+        errors.push({
+          id: inv.metadata.invoiceNumber,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
       }
       setBatchProgress(((i + 1) / invoicesToCancel.length) * 100);
     }
@@ -289,7 +309,7 @@ export default function SMEDashboardPage() {
       total: invoicesToCancel.length,
       success: successCount,
       failed: failedCount,
-      errors
+      errors,
     });
     invoicesQuery.refetch();
   };
@@ -534,6 +554,51 @@ export default function SMEDashboardPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Cancel confirmation dialog — shows count of invoices to be cancelled */}
+      {(() => {
+        const eligibleCount = selectedIds.filter((id) =>
+          myInvoices.find((inv) => inv.id === id && inv.status === "active")
+        ).length;
+        return (
+          <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  Cancel {eligibleCount} Invoice{eligibleCount !== 1 ? "s" : ""}?
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-muted-foreground">
+                  You are about to cancel{" "}
+                  <strong>
+                    {eligibleCount} active invoice{eligibleCount !== 1 ? "s" : ""}
+                  </strong>
+                  . This action cannot be undone.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCancelConfirmOpen(false)}
+                    data-testid="cancel-confirm-dismiss"
+                  >
+                    Go Back
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={executeBatchCancel}
+                    data-testid="cancel-confirm-proceed"
+                  >
+                    Yes, Cancel {eligibleCount} Invoice{eligibleCount !== 1 ? "s" : ""}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
 
       {/* Transaction simulation preview dialog */}
       <TxSimulationPreview {...simulationDialogProps} />
