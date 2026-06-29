@@ -23,6 +23,64 @@ const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 // CID v0 (Qm...) or CID v1 (bafy...)
 const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
 
+// ─── Pinata Health Check ──────────────────────────────────────────────────────
+
+const HEALTH_CACHE_TTL = 60_000; // 60 seconds
+const HEALTH_TIMEOUT_MS = 3_000; // 3 seconds
+
+interface HealthCacheEntry {
+  healthy: boolean;
+  checkedAt: number;
+}
+
+let _healthCache: HealthCacheEntry | null = null;
+
+/**
+ * Ping the Pinata health endpoint.
+ * Result is cached for 60 s to avoid hammering Pinata.
+ * Times out in < 3 s to avoid blocking the UI.
+ *
+ * @returns true  — Pinata is reachable and healthy
+ * @returns false — Pinata is down, unreachable, or timed out
+ */
+export async function checkPinataHealth(): Promise<boolean> {
+  const now = Date.now();
+  if (_healthCache && now - _healthCache.checkedAt < HEALTH_CACHE_TTL) {
+    return _healthCache.healthy;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), HEALTH_TIMEOUT_MS);
+
+    const res = await fetch("https://api.pinata.cloud/data/testAuthentication", {
+      method: "GET",
+      signal: controller.signal,
+      // No auth needed — this endpoint returns 401 even without a JWT,
+      // but a reachable 401 means Pinata is up. Only network errors / timeouts
+      // mean it's truly unavailable.
+    });
+
+    clearTimeout(timeoutId);
+
+    // Any HTTP response (including 401 Unauthorized) means the service is reachable.
+    const healthy = res.status < 500;
+    _healthCache = { healthy, checkedAt: Date.now() };
+    return healthy;
+  } catch {
+    // AbortError (timeout) or network error → treat as unhealthy
+    _healthCache = { healthy: false, checkedAt: Date.now() };
+    return false;
+  }
+}
+
+/**
+ * Invalidate the health cache (useful in tests or after a known outage).
+ */
+export function invalidatePinataHealthCache(): void {
+  _healthCache = null;
+}
+
 export function isValidCID(cid: string): boolean {
   return CID_REGEX.test(cid);
 }

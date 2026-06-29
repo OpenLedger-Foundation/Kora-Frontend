@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -33,6 +34,7 @@ export function StatusTransitionButtons({
   onTransition,
   isLoading,
 }: StatusTransitionButtonsProps) {
+  const t = useTranslations("statusTransition");
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
 
   const transitions = getAllowedTransitions(invoice.status);
@@ -44,23 +46,22 @@ export function StatusTransitionButtons({
     <>
       <TooltipPrimitive.Provider delayDuration={200}>
         <div className="flex items-center gap-1.5">
-          {transitions.map((t) => {
-            const blockedReason = getBlockedReason(invoice.status, t.to, isOwner);
+          {transitions.map((tx) => {
+            const blockedReason = getBlockedReason(invoice.status, tx.to, isOwner);
             const isBlocked = blockedReason !== null;
 
             return (
-              <TooltipPrimitive.Root key={t.to}>
+              <TooltipPrimitive.Root key={tx.to}>
                 <TooltipPrimitive.Trigger asChild>
-                  {/* Wrap in span so tooltip works even when button is disabled */}
                   <span className={isBlocked ? "cursor-not-allowed" : undefined}>
                     <Button
                       size="sm"
-                      variant={t.variant}
+                      variant={tx.variant}
                       disabled={isBlocked || isLoading}
-                      onClick={() => setConfirm({ transition: t, invoice })}
-                      aria-label={t.label}
+                      onClick={() => setConfirm({ transition: tx, invoice })}
+                      aria-label={tx.label}
                     >
-                      {t.label}
+                      {tx.label}
                     </Button>
                   </span>
                 </TooltipPrimitive.Trigger>
@@ -81,27 +82,21 @@ export function StatusTransitionButtons({
         </div>
       </TooltipPrimitive.Provider>
 
-      {/* Confirmation dialog */}
-      <Dialog
-        open={!!confirm}
-        onOpenChange={(open) => { if (!open) setConfirm(null); }}
-      >
+      <Dialog open={!!confirm} onOpenChange={(open) => { if (!open) setConfirm(null); }}>
         {confirm && (
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>Confirm: {confirm.transition.label}</DialogTitle>
-              <DialogDescription>
-                {confirm.transition.description}
-              </DialogDescription>
+              <DialogTitle>{t("confirmTitle", { label: confirm.transition.label })}</DialogTitle>
+              <DialogDescription>{confirm.transition.description}</DialogDescription>
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
-              Invoice <span className="font-medium text-foreground">{confirm.invoice.metadata.invoiceNumber}</span>
-              {" "}will be moved from{" "}
-              <span className="font-medium text-foreground capitalize">{confirm.invoice.status.replace(/_/g, " ")}</span>
-              {" "}to{" "}
-              <span className="font-medium text-foreground capitalize">{confirm.transition.to.replace(/_/g, " ")}</span>.
+              {t("confirmBody", {
+                invoiceNumber: <span key="inv" className="font-medium text-foreground">{confirm.invoice.metadata.invoiceNumber}</span>,
+                from: <span key="from" className="font-medium text-foreground capitalize">{confirm.invoice.status.replace(/_/g, " ")}</span>,
+                to: <span key="to" className="font-medium text-foreground capitalize">{confirm.transition.to.replace(/_/g, " ")}</span>,
+              })}
             </p>
-            <p className="text-xs text-muted-foreground">This action is recorded on-chain and cannot be reversed.</p>
+            <p className="text-xs text-muted-foreground">{t("onChainWarning")}</p>
             <div className="flex gap-2 pt-1">
               <Button
                 variant="outline"
@@ -109,7 +104,7 @@ export function StatusTransitionButtons({
                 onClick={() => setConfirm(null)}
                 disabled={isLoading}
               >
-                Go back
+                {t("goBack")}
               </Button>
               <Button
                 variant={confirm.transition.variant}
@@ -120,7 +115,7 @@ export function StatusTransitionButtons({
                   setConfirm(null);
                 }}
               >
-                {isLoading ? "Processing…" : "Confirm"}
+                {isLoading ? t("processing") : t("confirm")}
               </Button>
             </div>
           </DialogContent>

@@ -18,7 +18,8 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
   try {
     const nonce = randomBytes(32).toString("hex");
     const timestamp = Date.now();
-    const challenge = `Verify wallet ownership\nNonce: ${nonce}\nTimestamp: ${timestamp}`;
+    // Format required by spec: prevents replay attacks via embedded timestamp + unique nonce
+    const challenge = `Kora Protocol authentication: ${timestamp}:${nonce}`;
 
     return NextResponse.json<ChallengeResponse>({ challenge, timestamp });
   } catch (error) {

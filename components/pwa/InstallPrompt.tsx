@@ -15,6 +15,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { X, Download } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 const DISMISSED_KEY = "kora-pwa-install-dismissed";
 
@@ -25,6 +26,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function InstallPrompt() {
+  const t = useTranslations("installPrompt");
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
 
@@ -72,34 +74,30 @@ export function InstallPrompt() {
   return (
     <div
       role="dialog"
-      aria-label="Install Kora Protocol app"
+      aria-label={t("ariaLabel")}
       aria-live="polite"
       className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-sm rounded-2xl border border-zinc-700/60 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-6 sm:max-w-xs"
     >
       <div className="flex items-start gap-3">
-        {/* App icon */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/icons/icon-192.png"
-          alt="Kora Protocol icon"
+          alt={t("iconAlt")}
           width={44}
           height={44}
           className="shrink-0 rounded-xl"
         />
 
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-zinc-100">Add to Home Screen</p>
-          <p className="mt-0.5 text-xs text-zinc-400">
-            Install Kora for faster access and offline support.
-          </p>
+          <p className="text-sm font-semibold text-zinc-100">{t("addToHomeScreen")}</p>
+          <p className="mt-0.5 text-xs text-zinc-400">{t("description")}</p>
         </div>
 
-        {/* Dismiss */}
         <button
           type="button"
           onClick={handleDismiss}
           className="shrink-0 rounded-lg p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300"
-          aria-label="Dismiss install prompt"
+          aria-label={t("dismissLabel")}
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
@@ -112,14 +110,14 @@ export function InstallPrompt() {
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-primary/50"
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
-          Install
+          {t("install")}
         </button>
         <button
           type="button"
           onClick={handleDismiss}
           className="rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-500/50"
         >
-          Not now
+          {t("notNow")}
         </button>
       </div>
     </div>
