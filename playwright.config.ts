@@ -6,6 +6,13 @@ import { defineConfig, devices } from "@playwright/test";
  * Runs against the local Next.js dev server (or a pre-built production server
  * in CI).  All tests use mock data — no live Stellar RPC calls are made.
  *
+ * Projects:
+ *  - chromium          : Full E2E flows (e2e/*.spec.ts)
+ *  - components        : Browser-level component tests (e2e/components/*.spec.ts)
+ *                        These cover interactions that are hard to test in jsdom,
+ *                        such as drag-and-drop, native range inputs, and Radix
+ *                        portalled popovers.
+ *
  * CI usage:
  *   npx playwright test --reporter=html
  */
@@ -38,9 +45,21 @@ export default defineConfig({
   },
 
   projects: [
+    /* ── Full E2E flows ─────────────────────────────────────────────────── */
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testMatch: /(?<!components\/).*\.spec\.ts/,
+    },
+
+    /* ── Component-level browser tests ───────────────────────────────────
+     *  Isolated to e2e/components/ so they never accidentally run as part
+     *  of the full E2E suite (and vice-versa).
+     * ─────────────────────────────────────────────────────────────────── */
+    {
+      name: "components",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: /components\/.*\.spec\.ts/,
     },
   ],
 
