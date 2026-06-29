@@ -36,7 +36,17 @@
     "termsPrefix": "By connecting, you agree to our",
     "termsLink": "Terms of Service",
     "connectGuardTitle": "Connect your wallet to continue",
-    "connectGuardDesc": "This page requires a connected wallet."
+    "connectGuardDesc": "This page requires a connected wallet.",
+    "verification": {
+      "title": "Verify Wallet Ownership",
+      "description": "Your verification has expired. Please sign a message with your wallet to continue",
+      "descriptionWithAction": "Your verification has expired. Please sign a message with your wallet to continue with {actionType}.",
+      "signMessageHint": "A message will be sent to your wallet for signing. You will not be charged any gas fees.",
+      "verifyButton": "Verify Ownership",
+      "verifyingButton": "Verifying...",
+      "failed": "Verification failed. Please try again.",
+      "cancelled": "Verification cancelled"
+    }
   },
   "landing": {
     "headline": "Invoice Financing, On-Chain",
@@ -189,11 +199,63 @@
     },
     "hint": {
       "minRemaining": "Min: ${min} · Remaining Capacity: ${remaining}"
+    },
+    "metadata": {
+      "verification": {
+        "pending": "Verifying metadata...",
+        "pendingDesc": "Checking that on-chain CID and IPFS content are consistent.",
+        "verified": "Metadata Verified",
+        "verifiedDesc": "IPFS content matches the stored metadata record.",
+        "failed": "Verification Warning",
+        "failedDesc": "IPFS CID mismatch detected. The metadata may have been altered."
+      },
+      "labels": {
+        "tokenId": "Token ID",
+        "contractAddress": "Contract Address",
+        "mintTransaction": "Mint Transaction",
+        "pending": "Pending",
+        "blockTimestamp": "Block Timestamp",
+        "ipfsCid": "IPFS Content ID (CID)",
+        "invoiceNumber": "Invoice #",
+        "currency": "Currency",
+        "issuer": "Issuer",
+        "debtor": "Debtor",
+        "issueDate": "Issue Date",
+        "dueDate": "Due Date",
+        "issuerAddress": "Issuer Address",
+        "debtorAddress": "Debtor Address",
+        "jurisdiction": "Jurisdiction",
+        "category": "Category",
+        "description": "Description"
+      },
+      "badges": {
+        "authentic": "Authentic",
+        "verifying": "Verifying",
+        "unverified": "Unverified"
+      },
+      "attestation": {
+        "signed": "Signed by owner ✓",
+        "invalid": "Attestation signature invalid"
+      },
+      "identityHidden": "Identity hidden",
+      "addressHidden": "Address hidden",
+      "noDescription": "No description provided.",
+      "viewRaw": "View Raw Metadata JSON"
+    },
+    "onChain": {
+      "title": "On-Chain Ledger Records"
+    },
+    "ipfsMetadata": {
+      "title": "IPFS Content Metadata"
+    },
+    "detailedInfo": {
+      "title": "Detailed Information"
     }
   },
   "createInvoice": {
     "title": "Create Invoice",
     "subtitle": "Tokenize your invoice and access instant liquidity",
+    "ipfsUnavailable": "IPFS storage is temporarily unavailable. Your invoice cannot be minted right now.",
     "steps": {
       "details": "Invoice Details",
       "terms": "Financing Terms",
@@ -539,5 +601,61 @@
     "es": "Español",
     "ar": "العربية",
     "switchTo": "Switch to {lang}"
+  },
+  "validation": {
+    "invoiceNumber": {
+      "required": "Invoice number is required",
+      "invalid": "Invoice number must contain only alphanumeric characters and hyphens"
+    },
+    "debtorName": {
+      "required": "Debtor name is required",
+      "minLength": "Debtor name must be at least 2 characters"
+    },
+    "debtorAddress": {
+      "required": "Debtor address is required",
+      "minLength": "Debtor address must be at least 5 characters"
+    },
+    "amount": {
+      "positive": "Amount must be positive",
+      "min": "Minimum 100 USDC"
+    },
+    "dueDate": {
+      "required": "Due date is required",
+      "afterIssueDate": "Due date must be after issue date"
+    },
+    "description": {
+      "maxLength": "Description cannot exceed 200 characters"
+    },
+    "discountRate": {
+      "min": "Min 0.5%",
+      "max": "Max 20%"
+    },
+    "minInvestment": {
+      "positive": "Minimum investment must be positive",
+      "min": "Min $100",
+      "exceedsAmount": "Minimum investment cannot exceed the total invoice amount"
+    },
+    "listingExpiryDate": {
+      "required": "Listing expiry date is required",
+      "beforeDueDate": "Listing expiry date must be strictly earlier than the due date"
+    },
+    "file": {
+      "required": "File is required",
+      "type": "Only PDF files are allowed",
+      "size": "File size must not exceed 10MB"
+    },
+    "fundingAmount": {
+      "minInvestment": "Funding amount must be at least the minimum investment amount",
+      "exceedsCapacity": "Funding amount cannot exceed the remaining capacity"
+    },
+    "repayment": {
+      "exactMatch": "Repayment amount must exactly match the outstanding balance"
+    },
+    "userProfile": {
+      "nameMinLength": "Name must be at least 2 characters",
+      "emailInvalid": "Invalid email address",
+      "companyNameMinLength": "Company name must be at least 2 characters",
+      "walletAddressInvalid": "Invalid Stellar public key format"
+    }
   }
 }

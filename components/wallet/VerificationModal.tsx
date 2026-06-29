@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +20,7 @@ export function VerificationModal({
   onVerify,
   onCancel,
 }: VerificationModalProps) {
+  const t = useTranslations("wallet");
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleVerify = async () => {
@@ -27,7 +29,7 @@ export function VerificationModal({
       await onVerify();
     } catch (err) {
       setLocalError(
-        err instanceof Error ? err.message : "Verification failed. Please try again."
+        err instanceof Error ? err.message : t("verification.failed")
       );
     }
   };
@@ -36,10 +38,11 @@ export function VerificationModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Verify Wallet Ownership</DialogTitle>
+          <DialogTitle>{t("verification.title")}</DialogTitle>
           <DialogDescription>
-            Your verification has expired. Please sign a message with your wallet to continue
-            {actionType && ` with ${actionType}`}.
+            {actionType
+              ? t("verification.descriptionWithAction", { actionType })
+              : t("verification.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -48,15 +51,15 @@ export function VerificationModal({
           {localError && <div className="text-sm text-red-500">{localError}</div>}
 
           <p className="text-sm text-gray-600">
-            A message will be sent to your wallet for signing. You will not be charged any gas fees.
+            {t("verification.signMessageHint")}
           </p>
 
           <div className="flex gap-3">
             <Button variant="outline" onClick={onCancel} disabled={isLoading}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button onClick={handleVerify} disabled={isLoading}>
-              {isLoading ? "Verifying..." : "Verify Ownership"}
+              {isLoading ? t("verification.verifyingButton") : t("verification.verifyButton")}
             </Button>
           </div>
         </div>

@@ -16,6 +16,7 @@ import type {
 } from "@/types";
 import { MOCK_INVOICES } from "./mockData";
 import { uploadFileToPinata, uploadInvoiceMetadata, isValidCID } from "@/lib/ipfs";
+import { buildInvoiceMetadata, attachMetadataAttestation } from "@/lib/invoiceMetadata";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
@@ -198,7 +199,8 @@ class MockInvoiceService implements IInvoiceService {
   async createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    signAttestation?: (message: string) => Promise<string>
   ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
     try {
       await this.delay();
@@ -345,7 +347,8 @@ class LiveInvoiceService implements IInvoiceService {
   async createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    signAttestation?: (message: string) => Promise<string>
   ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
     try {
       if (!formData.document) {
@@ -371,31 +374,40 @@ class LiveInvoiceService implements IInvoiceService {
           ? (formData.discountRate / (1 - formData.discountRate)) * (365 / daysToMaturity) * 100
           : 0;
 
-      const metadata = {
-        name: "Invoice Asset",
+      // Build validated metadata using the canonical schema
+      let metadata = buildInvoiceMetadata({
+        name: `Invoice ${formData.invoiceNumber}`,
         description: formData.description || "Tokenized Invoice Factoring Asset",
         image: `ipfs://${docCid}`,
-        properties: {
-          debtor: formData.debtorName,
-          amount: formData.amount,
-          apr: Number(effectiveAPR.toFixed(2)),
-          dueDate: formData.dueDate,
-          jurisdiction: formData.jurisdiction,
-        },
-        invoiceNumber: formData.invoiceNumber,
-        issuerName: ownerAddress,
-        issuerAddress: ownerAddress,
-        debtorName: formData.debtorName,
-        debtorAddress: formData.debtorAddress,
+        invoice_number: formData.invoiceNumber,
         amount: formData.amount,
         currency: formData.currency,
-        issueDate: formData.issueDate,
-        dueDate: formData.dueDate,
+        due_date: formData.dueDate,
+        issuer: {
+          address: ownerAddress,
+          name: formData.issuerName,
+        },
+        debtor: {
+          name: formData.debtorName,
+          address: formData.debtorAddress,
+          privacy: formData.debtorPrivacy ?? "full",
+        },
         jurisdiction: formData.jurisdiction,
         category: formData.category,
-        documentHash: docCid,
-        documentUrl: `${env.NEXT_PUBLIC_IPFS_GATEWAY}/${docCid}`,
-      };
+        ipfs_document_cid: docCid,
+        discount_rate: formData.discountRate / 100,
+        external_url: `${env.NEXT_PUBLIC_APP_URL ?? ""}/marketplace`,
+      });
+
+      // Attach wallet attestation if a signing function is provided
+      if (signAttestation) {
+        try {
+          metadata = await attachMetadataAttestation(metadata, ownerAddress, signAttestation);
+        } catch (attestError) {
+          // Attestation is best-effort — log and continue without it
+          console.warn("Metadata attestation signing failed:", attestError);
+        }
+      }
 
       onProgress?.(75);
       const metadataCid = await uploadInvoiceMetadata(metadata, ownerAddress);
@@ -405,7 +417,7 @@ class LiveInvoiceService implements IInvoiceService {
         Math.floor(new Date(formData.dueDate).getTime() / 1000)
       );
       const financingAmount = BigInt(
-        Math.round(formData.amount * (1 - formData.discountRate) * 1_000_000)
+        Math.round(formData.amount * (1 - formData.discountRate / 100) * 1_000_000)
       );
 
       const unsignedXdr = await invoiceContract.mintInvoice(
@@ -413,7 +425,7 @@ class LiveInvoiceService implements IInvoiceService {
           ipfsCid: metadataCid,
           amount: BigInt(Math.round(formData.amount * 1_000_000)),
           financingAmount,
-          discountRate: Math.round(formData.discountRate * 10_000),
+          discountRate: Math.round(formData.discountRate * 100),
           dueDate: dueTimestamp,
         },
         ownerAddress
@@ -626,9 +638,10 @@ export async function fetchPositions(investorAddress: string) {
 export async function prepareCreateInvoice(
   formData: CreateInvoiceFormData,
   ownerAddress: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signAttestation?: (message: string) => Promise<string>
 ): Promise<{ unsignedXdr: string; metadataCid: string }> {
-  const result = await service.createInvoice(formData, ownerAddress, onProgress);
+  const result = await service.createInvoice(formData, ownerAddress, onProgress, signAttestation);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }

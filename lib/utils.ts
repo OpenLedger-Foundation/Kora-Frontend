@@ -328,21 +328,6 @@ export const STATUS_COLORS: Record<string, string> = {
   cancelled: "text-muted-foreground bg-muted",
 };
 
-/** Export an array of objects as a CSV file download */
-export function exportCsv(data: Record<string, unknown>[], filename: string): void {
-  if (!data.length) return;
-  const headers = Object.keys(data[0]);
-  const rows = data.map((row) => headers.map((h) => JSON.stringify(row[h] ?? "")).join(","));
-  const csv = [headers.join(","), ...rows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 /** Retry a function up to `attempts` times with exponential backoff on 5xx errors */
 export async function withRetry<T>(
   fn: () => Promise<T>,

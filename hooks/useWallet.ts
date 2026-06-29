@@ -19,6 +19,7 @@ import { buildTestnetUsdcMintTx } from "@/lib/stellar/contracts";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
+import { generateChallenge, verifySignature } from "@/lib/walletVerification";
 
 let kit: StellarWalletsKit | null = null;
 
@@ -190,26 +191,14 @@ export function useWallet() {
     await refreshBalance();
   }, [address, refreshBalance, signTransaction]);
 
-  const requestChallenge = useCallback(async (): Promise<string> => {
-    try {
-      const res = await fetch("/api/auth/challenge", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to request challenge");
-      const data = await res.json();
-      return data.challenge;
-    } catch (error) {
-      console.error("Error requesting challenge:", error);
-      throw error;
-    }
-  }, []);
-
   const verifyOwnership = useCallback(async (): Promise<boolean> => {
     if (!isConnected || !address || !publicKey) {
       throw new Error("Wallet not connected");
     }
 
     try {
-      // Request a challenge from the server
-      const challenge = await requestChallenge();
+      // Generate challenge client-side
+      const challenge = generateChallenge();
 
       // Sign the challenge with the wallet
       const walletKit = getKit();
@@ -219,34 +208,47 @@ export function useWallet() {
         publicKey: publicKey,
       });
 
-      // Send signature to server for verification
-      const verifyRes = await fetch("/api/auth/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          challenge,
-          signature,
-          publicKey,
-        }),
-      });
+      // Verify signature client-side
+      const { valid, message } = verifySignature(challenge, signature, publicKey);
 
-      if (!verifyRes.ok) throw new Error("Verification request failed");
-      const verifyData = await verifyRes.json();
-
-      if (verifyData.verified) {
-        setVerified(true, verifyData.expiresAt);
+      if (valid) {
+        const SESSION_DURATION = 60 * 60 * 1000; // 1 hour
+        const expiresAt = Date.now() + SESSION_DURATION;
+        setVerified(true, expiresAt);
         return true;
       } else {
         clearVerification();
-        console.error("Verification failed:", verifyData.message);
-        return false;
+        console.error("Verification failed:", message);
+        throw new Error(message || "Verification failed");
       }
     } catch (error) {
       console.error("Error during verification:", error);
       clearVerification();
       throw error;
     }
-  }, [isConnected, address, publicKey, requestChallenge, setVerified, clearVerification]);
+  }, [isConnected, address, publicKey, setVerified, clearVerification]);
+
+  /**
+   * Signs an arbitrary UTF-8 message with the connected wallet.
+   * Returns the signature as a base64-encoded string.
+   * Used for metadata attestation during invoice creation.
+   */
+  const signMessage = useCallback(
+    async (message: string): Promise<string> => {
+      if (!isConnected || !publicKey) throw new Error("Wallet not connected");
+      const walletKit = getKit();
+      const { result: signature } = await (walletKit as any).signMessage({
+        message,
+        publicKey,
+      });
+      // Wallets may return hex or base64 — normalise to base64
+      if (/^[0-9a-f]+$/i.test(signature) && signature.length % 2 === 0) {
+        return Buffer.from(signature, "hex").toString("base64");
+      }
+      return signature as string;
+    },
+    [isConnected, publicKey]
+  );
 
   const checkVerification = useCallback((): boolean => {
     if (!isConnected) return false;
@@ -275,8 +277,8 @@ export function useWallet() {
     disconnectWallet,
     fundWalletOnTestnet,
     signTransaction,
+    signMessage,
     refreshBalance,
-    requestChallenge,
     verifyOwnership,
     checkVerification,
     requireVerification,

@@ -20,6 +20,42 @@ import { generateInvoiceSvg, svgToFile } from "@/lib/invoiceSvg";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
+// Cache health check for 60 seconds to avoid hammering Pinata
+let healthCheckCache: { healthy: boolean; lastChecked: number } | null = null;
+
+/**
+ * Checks if Pinata (and our upload proxy) is available.
+ * @returns true if Pinata is available, false otherwise
+ */
+export async function isPinataHealthy(): Promise<boolean> {
+  const now = Date.now();
+
+  // Return cached result if it's less than 60 seconds old
+  if (healthCheckCache && now - healthCheckCache.lastChecked < 60 * 1000) {
+    return healthCheckCache.healthy;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch("/api/upload/health", {
+      method: "GET",
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    const healthy = response.ok;
+
+    // Update cache
+    healthCheckCache = { healthy, lastChecked: now };
+    return healthy;
+  } catch (error) {
+    healthCheckCache = { healthy: false, lastChecked: now };
+    return false;
+  }
+}
+
 // CID v0 (Qm...) or CID v1 (bafy...)
 const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
 

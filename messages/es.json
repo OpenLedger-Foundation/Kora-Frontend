@@ -36,7 +36,17 @@
     "termsPrefix": "Al conectar, aceptas nuestros",
     "termsLink": "Términos de Servicio",
     "connectGuardTitle": "Conecta tu billetera para continuar",
-    "connectGuardDesc": "Esta página requiere una billetera conectada."
+    "connectGuardDesc": "Esta página requiere una billetera conectada.",
+    "verification": {
+      "title": "Verificar Propiedad de Billetera",
+      "description": "Tu verificación ha expirado. Por favor, firma un mensaje con tu billetera para continuar",
+      "descriptionWithAction": "Tu verificación ha expirado. Por favor, firma un mensaje con tu billetera para continuar con {actionType}.",
+      "signMessageHint": "Se enviará un mensaje a tu billetera para firmar. No se te cobrarán tarifas de gas.",
+      "verifyButton": "Verificar Propiedad",
+      "verifyingButton": "Verificando...",
+      "failed": "La verificación falló. Por favor, intenta de nuevo.",
+      "cancelled": "Verificación cancelada"
+    }
   },
   "landing": {
     "headline": "Financiamiento de Facturas, En Cadena",
@@ -189,11 +199,63 @@
     },
     "hint": {
       "minRemaining": "Mín: ${min} · Capacidad Restante: ${remaining}"
+    },
+    "metadata": {
+      "verification": {
+        "pending": "Verificando metadatos...",
+        "pendingDesc": "Comprobando que el CID en cadena y el contenido IPFS sean consistentes.",
+        "verified": "Metadatos Verificados",
+        "verifiedDesc": "El contenido IPFS coincide con el registro de metadatos almacenado.",
+        "failed": "Advertencia de Verificación",
+        "failedDesc": "Se detectó una discrepancia en el CID IPFS. Los metadatos pueden haber sido alterados."
+      },
+      "labels": {
+        "tokenId": "ID del Token",
+        "contractAddress": "Dirección del Contrato",
+        "mintTransaction": "Transacción de Acuñación",
+        "pending": "Pendiente",
+        "blockTimestamp": "Marca de Tiempo del Bloque",
+        "ipfsCid": "ID de Contenido IPFS (CID)",
+        "invoiceNumber": "Factura #",
+        "currency": "Moneda",
+        "issuer": "Emisor",
+        "debtor": "Deudor",
+        "issueDate": "Fecha de Emisión",
+        "dueDate": "Fecha de Vencimiento",
+        "issuerAddress": "Dirección del Emisor",
+        "debtorAddress": "Dirección del Deudor",
+        "jurisdiction": "Jurisdicción",
+        "category": "Categoría",
+        "description": "Descripción"
+      },
+      "badges": {
+        "authentic": "Auténtico",
+        "verifying": "Verificando",
+        "unverified": "No Verificado"
+      },
+      "attestation": {
+        "signed": "Firmado por el propietario ✓",
+        "invalid": "Firma de atestación inválida"
+      },
+      "identityHidden": "Identidad oculta",
+      "addressHidden": "Dirección oculta",
+      "noDescription": "No hay descripción proporcionada.",
+      "viewRaw": "Ver Metadatos JSON Brutos"
+    },
+    "onChain": {
+      "title": "Registros de la Cadena de Bloques"
+    },
+    "ipfsMetadata": {
+      "title": "Metadatos de Contenido IPFS"
+    },
+    "detailedInfo": {
+      "title": "Información Detallada"
     }
   },
   "createInvoice": {
     "title": "Crear Factura",
     "subtitle": "Tokeniza tu factura y accede a liquidez instantánea",
+    "ipfsUnavailable": "El almacenamiento IPFS está temporalmente indisponible. No se puede mintear tu factura en este momento.",
     "steps": {
       "details": "Detalles de Factura",
       "terms": "Términos de Financiamiento",
@@ -537,6 +599,7 @@
     "label": "Idioma",
     "en": "English",
     "es": "Español",
+    "ar": "العربية",
     "switchTo": "Cambiar a {lang}"
   },
   "validation": {

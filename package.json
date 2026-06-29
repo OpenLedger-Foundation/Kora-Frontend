@@ -19,7 +19,8 @@
     "test:e2e:report": "playwright show-report",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "release:dry": "semantic-release --dry-run"
+    "release:dry": "semantic-release --dry-run",
+    "check-locale-parity": "node scripts/check-locale-parity.js"
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "^0.9.2",

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { 
   FileText, 
   Hash, 
@@ -17,7 +18,7 @@ import {
   Globe,
   Lock
 } from "lucide-react";
-import { verifyMetadataIntegrity } from "@/lib/invoiceMetadata";
+import { verifyMetadataIntegrity, verifyMetadataAttestation } from "@/lib/invoiceMetadata";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -32,8 +33,13 @@ interface InvoiceMetadataViewerProps {
 }
 
 export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMetadataViewerProps) {
+  const t = useTranslations("invoiceDetail.metadata");
+  const tOnChain = useTranslations("invoiceDetail.onChain");
+  const tIpfs = useTranslations("invoiceDetail.ipfsMetadata");
+  const tDetailed = useTranslations("invoiceDetail.detailedInfo");
   const [showRaw, setShowRaw] = useState(false);
   const [verificationState, setVerificationState] = useState<"pending" | "verified" | "failed">("pending");
+  const [attestationState, setAttestationState] = useState<"none" | "valid" | "invalid">("none");
   const { metadata, tokenId, contractAddress, txHash, createdAt, ipfsCid, debtorPrivacy } = invoice;
   
   // Post-fund reveal logic
@@ -63,19 +69,43 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
     };
   }, [ipfsCid, metadata]);
 
+  // Verify attestation from metadata (synchronous, no network needed)
+  useEffect(() => {
+    if (!metadata.attestation) {
+      setAttestationState("none");
+      return;
+    }
+    // Reconstruct a minimal InvoiceMetadataV1-compatible shape for verification
+    const metadataV1 = {
+      metadata_version: "1.0" as const,
+      name: `Invoice ${metadata.invoiceNumber}`,
+      description: metadata.description,
+      image: metadata.documentUrl,
+      invoice_number: metadata.invoiceNumber,
+      amount: metadata.amount,
+      currency: metadata.currency as "USDC" | "EURC" | "XLM",
+      due_date: metadata.dueDate.split("T")[0],
+      issuer: { address: metadata.issuerAddress, name: metadata.issuerName },
+      debtor: { name: metadata.debtorName, address: metadata.debtorAddress, privacy: "full" as const },
+      attestation: metadata.attestation,
+    };
+    const valid = verifyMetadataAttestation(metadataV1);
+    setAttestationState(valid ? "valid" : "invalid");
+  }, [metadata]);
+
   const isVerified = verificationState === "verified";
   const verificationLabel =
     verificationState === "pending"
-      ? "Verifying metadata..."
+      ? t("verification.pending")
       : isVerified
-      ? "Metadata Verified"
-      : "Verification Warning";
+      ? t("verification.verified")
+      : t("verification.failed");
   const verificationCopy =
     verificationState === "pending"
-      ? "Checking that on-chain CID and IPFS content are consistent."
+      ? t("verification.pendingDesc")
       : isVerified
-      ? "IPFS content matches the stored metadata record."
-      : "IPFS CID mismatch detected. The metadata may have been altered.";
+      ? t("verification.verifiedDesc")
+      : t("verification.failedDesc");
 
   const formatDateWithTZ = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -118,7 +148,7 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
         <div className="flex items-center gap-2 overflow-hidden">
           {isSensitive ? (
             <span className="flex items-center gap-1.5 text-xs text-muted-foreground italic">
-              <Lock className="h-3 w-3" /> Identity hidden
+              <Lock className="h-3 w-3" /> {t("identityHidden")}
             </span>
           ) : isLink ? (
             <a 
@@ -166,7 +196,7 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
           variant={verificationState === "verified" ? "success" : verificationState === "pending" ? "info" : "warning"}
           className="h-fit"
         >
-          {verificationState === "verified" ? "Authentic" : verificationState === "pending" ? "Verifying" : "Unverified"}
+          {verificationState === "verified" ? t("badges.authentic") : verificationState === "pending" ? t("badges.verifying") : t("badges.unverified")}
         </Badge>
       </div>
 
@@ -175,27 +205,27 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Hash className="h-4 w-4 text-primary" /> On-Chain Ledger Records
+              <Hash className="h-4 w-4 text-primary" /> {tOnChain("title")}
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2">
-            <MetadataField label="Token ID" value={tokenId} copyText={tokenId} />
+            <MetadataField label={t("labels.tokenId")} value={tokenId} copyText={tokenId} />
             <MetadataField 
-              label="Contract Address" 
+              label={t("labels.contractAddress")} 
               value={contractAddress} 
               copyText={contractAddress}
               isLink
               linkUrl={`https://stellar.expert/explorer/testnet/contract/${contractAddress}`}
             />
             <MetadataField 
-              label="Mint Transaction" 
-              value={txHash || "Pending"} 
+              label={t("labels.mintTransaction")} 
+              value={txHash || t("labels.pending")} 
               copyText={txHash}
               isLink={!!txHash}
               linkUrl={txHash ? safeStellarTxUrl(txHash) : undefined}
             />
             <div className="flex flex-col gap-1 p-2">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Block Timestamp</span>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("labels.blockTimestamp")}</span>
               <div className="flex flex-col">
                 <span className="text-sm font-medium text-foreground">{createdDates.local}</span>
                 <span className="text-[10px] text-muted-foreground">{createdDates.utc}</span>
@@ -208,36 +238,56 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-4 w-4 text-primary" /> IPFS Content Metadata
+              <FileText className="h-4 w-4 text-primary" /> {tIpfs("title")}
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2">
             <MetadataField 
-              label="IPFS Content ID (CID)" 
+              label={t("labels.ipfsCid")} 
               value={ipfsCid} 
               copyText={ipfsCid}
               isLink
               linkUrl={safeIpfsUrl(ipfsCid, "https://ipfs.io/ipfs")}
             />
             <div className="grid grid-cols-2 gap-2">
-              <MetadataField label="Invoice #" value={metadata.invoiceNumber} copyText={metadata.invoiceNumber} />
-              <MetadataField label="Currency" value={metadata.currency} />
+              <MetadataField label={t("labels.invoiceNumber")} value={metadata.invoiceNumber} copyText={metadata.invoiceNumber} />
+              <MetadataField label={t("labels.currency")} value={metadata.currency} />
             </div>
-            <MetadataField label="Issuer" value={metadata.issuerName} copyText={metadata.issuerName} />
+            <MetadataField label={t("labels.issuer")} value={metadata.issuerName} copyText={metadata.issuerName} />
             <MetadataField 
-              label="Debtor" 
+              label={t("labels.debtor")} 
               value={metadata.debtorName} 
               copyText={metadata.debtorName} 
               isSensitive={isAnonymized}
             />
+            {/* Attestation badge */}
+            {attestationState !== "none" && (
+              <div className={cn(
+                "flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium",
+                attestationState === "valid"
+                  ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-500"
+                  : "border-amber-500/20 bg-amber-500/5 text-amber-500"
+              )}>
+                {attestationState === "valid" ? (
+                  <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                ) : (
+                  <ShieldAlert className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                )}
+                <span>
+                  {attestationState === "valid"
+                    ? t("attestation.signed")
+                    : t("attestation.invalid")}
+                </span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1 p-2">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Issue Date</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("labels.issueDate")}</span>
                 <span className="text-sm font-medium text-foreground">{issueDates.local}</span>
                 <span className="text-[10px] text-muted-foreground">{issueDates.utc}</span>
               </div>
               <div className="flex flex-col gap-1 p-2">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Due Date</span>
+                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t("labels.dueDate")}</span>
                 <span className="text-sm font-medium text-foreground">{dueDates.local}</span>
                 <span className="text-[10px] text-muted-foreground">{dueDates.utc}</span>
               </div>
@@ -249,24 +299,24 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
       {/* Expanded Metadata Sections */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Detailed Information</CardTitle>
+          <CardTitle className="text-base">{tDetailed("title")}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
                <Building className="h-4 w-4 text-muted-foreground mt-0.5" />
                <div className="flex flex-col gap-0.5 overflow-hidden">
-                 <span className="text-[10px] font-medium uppercase text-muted-foreground">Issuer Address</span>
+                 <span className="text-[10px] font-medium uppercase text-muted-foreground">{t("labels.issuerAddress")}</span>
                  <span className="truncate text-xs text-foreground" title={metadata.issuerAddress}>{metadata.issuerAddress}</span>
                </div>
              </div>
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                <div className="flex flex-col gap-0.5 overflow-hidden">
-                 <span className="text-[10px] font-medium uppercase text-muted-foreground">Debtor Address</span>
+                 <span className="text-[10px] font-medium uppercase text-muted-foreground">{t("labels.debtorAddress")}</span>
                  {isAnonymized || isPartial ? (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground italic">
-                      <Lock className="h-3 w-3" /> Address hidden
+                      <Lock className="h-3 w-3" /> {t("addressHidden")}
                     </span>
                  ) : (
                     <span className="truncate text-xs text-foreground" title={metadata.debtorAddress}>{metadata.debtorAddress}</span>
@@ -276,22 +326,22 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
                <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
                <div className="flex flex-col gap-0.5 overflow-hidden">
-                 <span className="text-[10px] font-medium uppercase text-muted-foreground">Jurisdiction</span>
+                 <span className="text-[10px] font-medium uppercase text-muted-foreground">{t("labels.jurisdiction")}</span>
                  <span className="text-xs text-foreground">{metadata.jurisdiction}</span>
                </div>
              </div>
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
                <Tag className="h-4 w-4 text-muted-foreground mt-0.5" />
                <div className="flex flex-col gap-0.5 overflow-hidden">
-                 <span className="text-[10px] font-medium uppercase text-muted-foreground">Category</span>
+                 <span className="text-[10px] font-medium uppercase text-muted-foreground">{t("labels.category")}</span>
                  <span className="text-xs text-foreground capitalize">{metadata.category}</span>
                </div>
              </div>
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3 sm:col-span-2">
                <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
                <div className="flex flex-col gap-0.5 overflow-hidden">
-                 <span className="text-[10px] font-medium uppercase text-muted-foreground">Description</span>
-                 <p className="text-xs text-foreground leading-relaxed">{metadata.description || "No description provided."}</p>
+                 <span className="text-[10px] font-medium uppercase text-muted-foreground">{t("labels.description")}</span>
+                 <p className="text-xs text-foreground leading-relaxed">{metadata.description || t("noDescription")}</p>
                </div>
              </div>
           </div>
@@ -308,7 +358,7 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
         >
           <span className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            View Raw Metadata JSON
+            {t("viewRaw")}
           </span>
           {showRaw
             ? <ChevronUp className="h-4 w-4" aria-hidden="true" />

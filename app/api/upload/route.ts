@@ -103,6 +103,21 @@ function checkRateLimit(wallet: string) {
   return true;
 }
 
+export async function GET() {
+  if (!PINATA_JWT) {
+    return NextResponse.json({ healthy: false }, { status: 500 });
+  }
+  try {
+    const response = await fetch(`${PINATA_BASE}/data/testAuthentication`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${PINATA_JWT}` },
+    });
+    return NextResponse.json({ healthy: response.ok }, { status: response.ok ? 200 : 503 });
+  } catch (error) {
+    return NextResponse.json({ healthy: false }, { status: 503 });
+  }
+}
+
 export async function POST(req: Request) {
   const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
   try {

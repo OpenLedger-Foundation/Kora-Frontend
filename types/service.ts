@@ -42,7 +42,8 @@ export interface IInvoiceService {
   createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    signAttestation?: (message: string) => Promise<string>
   ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>>;
 
   fundInvoice(

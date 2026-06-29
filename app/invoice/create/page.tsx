@@ -12,6 +12,7 @@ import {
   ArrowRight,
   ArrowLeft,
   AlertCircle,
+  ServerOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, NumberInput, DatePicker, FileInput, Select } from "@/components/ui";
@@ -34,6 +35,8 @@ import {
 import { cn, isValidStellarAddress } from "@/lib/utils";
 import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { useTranslations } from "next-intl";
+import { isPinataHealthy } from "@/lib/ipfs";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -70,14 +73,29 @@ const PRIVACY_OPTIONS = [
 ];
 
 export default function CreateInvoicePage() {
+  const t = useTranslations("createInvoice");
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
-  const { isConnected, address } = useWallet();
+  const [isPinataAvailable, setIsPinataAvailable] = useState(true);
+  const [checkingHealth, setCheckingHealth] = useState(false);
+  const { isConnected, address, signMessage } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { createDraft, setCreateDraft, clearCreateDraft } = useInvoiceStore();
   const { execute, status: txStatus, error: txError, reset: resetTxState } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
+
+  // Check Pinata health when page loads or step changes
+  useEffect(() => {
+    const checkHealth = async () => {
+      setCheckingHealth(true);
+      const healthy = await isPinataHealthy();
+      setIsPinataAvailable(healthy);
+      setCheckingHealth(false);
+    };
+
+    checkHealth();
+  }, []);
 
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -240,7 +258,8 @@ export default function CreateInvoicePage() {
         const result = await prepareCreateInvoice(
           { ...data, document: file, description: "" },
           address!,
-          (progress) => setUploadProgress(progress)
+          (progress) => setUploadProgress(progress),
+          signMessage
         );
         tempMetadataCid = result.metadataCid;
         return result.unsignedXdr;
@@ -740,102 +759,114 @@ export default function CreateInvoicePage() {
               className="space-y-4"
             >
               <GlassCard className="space-y-4 p-6">
-                <div>
-                  <p className="mb-2 text-sm font-medium text-zinc-300">Invoice Document</p>
-                  
-                  {isUploading ? (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-8 text-center space-y-4">
-                      <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
-                        <span className="flex items-center gap-1.5 font-medium text-kora-400">
-                          <span className="h-1.5 w-1.5 animate-ping rounded-full bg-kora-500" />
-                          Uploading invoice to IPFS...
-                        </span>
-                        <span className="font-mono font-semibold text-zinc-300">{uploadProgress}%</span>
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-950">
-                        <motion.div
-                          className="bg-gradient-to-r from-kora-500 to-emerald-400 h-full rounded-full"
-                          initial={{ width: "0%" }}
-                          animate={{ width: `${uploadProgress}%` }}
-                          transition={{ duration: 0.2 }}
+                {!isPinataAvailable ? (
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6 text-center space-y-3">
+                    <ServerOff className="h-12 w-12 text-red-500 mx-auto" />
+                    <h4 className="text-red-400 font-semibold">Service Unavailable</h4>
+                    <p className="text-sm text-zinc-300">{t("ipfsUnavailable")}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-zinc-300">Invoice Document</p>
+                      
+                      {isUploading ? (
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-8 text-center space-y-4">
+                          <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
+                            <span className="flex items-center gap-1.5 font-medium text-kora-400">
+                              <span className="h-1.5 w-1.5 animate-ping rounded-full bg-kora-500" />
+                              Uploading invoice to IPFS...
+                            </span>
+                            <span className="font-mono font-semibold text-zinc-300">{uploadProgress}%</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-950">
+                            <motion.div
+                              className="bg-gradient-to-r from-kora-500 to-emerald-400 h-full rounded-full"
+                              initial={{ width: "0%" }}
+                              animate={{ width: `${uploadProgress}%` }}
+                              transition={{ duration: 0.2 }}
+                            />
+                          </div>
+                          <p className="text-xs text-zinc-500 leading-normal">
+                            Your invoice is being pinned to IPFS. This is a necessary first step to anchor the document hash on-chain.
+                          </p>
+                        </div>
+                      ) : (
+                        <FileInput
+                          value={file}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                            setFile(e.target.files?.[0] ?? null);
+                            setFileError(null);
+                          }}
+                          error={fileError || undefined}
+                          disabled={isUploading}
                         />
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {isPinataAvailable && (
+                  <div className="space-y-3 rounded-lg border border-zinc-800/60 bg-zinc-900/40 p-5 text-sm">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">
+                      Summary
+                    </p>
+
+                    <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
+                      <div>
+                        <span className="block text-xs text-zinc-500">Invoice Number</span>
+                        <span className="font-medium text-zinc-200">{watch("invoiceNumber")}</span>
                       </div>
-                      <p className="text-xs text-zinc-500 leading-normal">
-                        Your invoice is being pinned to IPFS. This is a necessary first step to anchor the document hash on-chain.
-                      </p>
+                      <div>
+                        <span className="block text-xs text-zinc-500">Debtor Company</span>
+                        <span className="font-medium text-zinc-200">{watch("debtorName")}</span>
+                      </div>
                     </div>
-                  ) : (
-                    <FileInput
-                      value={file}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                        setFile(e.target.files?.[0] ?? null);
-                        setFileError(null);
-                      }}
-                      error={fileError || undefined}
-                      disabled={isUploading}
-                    />
-                  )}
-                </div>
 
-                <div className="space-y-3 rounded-lg border border-zinc-800/60 bg-zinc-900/40 p-5 text-sm">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">
-                    Summary
-                  </p>
-
-                  <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
-                    <div>
-                      <span className="block text-xs text-zinc-500">Invoice Number</span>
-                      <span className="font-medium text-zinc-200">{watch("invoiceNumber")}</span>
+                    <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
+                      <div>
+                        <span className="block text-xs text-zinc-500">Invoice Amount</span>
+                        <span className="font-semibold text-zinc-200">
+                          ${amountVal.toLocaleString()} {watch("currency")}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-zinc-500">Financing Capital</span>
+                        <span className="text-kora-400 font-semibold">
+                          ${financingAmount.toLocaleString()} {watch("currency")}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <span className="block text-xs text-zinc-500">Debtor Company</span>
-                      <span className="font-medium text-zinc-200">{watch("debtorName")}</span>
+
+                    <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
+                      <div>
+                        <span className="block text-xs text-zinc-500">Discount Rate</span>
+                        <span className="font-semibold text-emerald-400">{discountRateVal}%</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-zinc-500">Minimum Investment</span>
+                        <span className="font-medium text-zinc-200">
+                          ${minInvestmentVal.toLocaleString()} {watch("currency")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-zinc-400">
+                      <div>
+                        <span className="block text-xs text-zinc-500">Listing Expiry Date</span>
+                        <span className="font-medium text-zinc-200">
+                          {watch("listingExpiryDate") || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-zinc-500">Effective APR</span>
+                        <span className="text-kora-400 font-semibold">
+                          {effectiveAPR > 0 ? `${effectiveAPR.toFixed(2)}%` : "N/A"}
+                        </span>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
-                    <div>
-                      <span className="block text-xs text-zinc-500">Invoice Amount</span>
-                      <span className="font-semibold text-zinc-200">
-                        ${amountVal.toLocaleString()} {watch("currency")}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-xs text-zinc-500">Financing Capital</span>
-                      <span className="text-kora-400 font-semibold">
-                        ${financingAmount.toLocaleString()} {watch("currency")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
-                    <div>
-                      <span className="block text-xs text-zinc-500">Discount Rate</span>
-                      <span className="font-semibold text-emerald-400">{discountRateVal}%</span>
-                    </div>
-                    <div>
-                      <span className="block text-xs text-zinc-500">Minimum Investment</span>
-                      <span className="font-medium text-zinc-200">
-                        ${minInvestmentVal.toLocaleString()} {watch("currency")}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-zinc-400">
-                    <div>
-                      <span className="block text-xs text-zinc-500">Listing Expiry Date</span>
-                      <span className="font-medium text-zinc-200">
-                        {watch("listingExpiryDate") || "N/A"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="block text-xs text-zinc-500">Effective APR</span>
-                      <span className="text-kora-400 font-semibold">
-                        {effectiveAPR > 0 ? `${effectiveAPR.toFixed(2)}%` : "N/A"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                )}
               </GlassCard>
             </motion.div>
           )}
@@ -861,7 +892,7 @@ export default function CreateInvoicePage() {
           ) : (
             <Button
               type="submit"
-              disabled={!file || !isConnected || isUploading || txStatus === "signing" || txStatus === "submitting" || txStatus === "polling"}
+              disabled={!file || !isConnected || isUploading || txStatus === "signing" || txStatus === "submitting" || txStatus === "polling" || !isPinataAvailable}
               onClick={!isConnected ? () => setWalletModalOpen(true) : undefined}
             >
               {!isConnected ? "Connect Wallet" : "Mint Invoice NFT"}

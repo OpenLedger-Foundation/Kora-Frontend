@@ -10,6 +10,7 @@
  */
 
 import { z } from "zod";
+import * as StellarSdk from "@stellar/stellar-sdk";
 import { env } from "@/lib/env";
 import { isValidCID } from "./ipfs";
 
@@ -182,6 +183,21 @@ export const invoiceMetadataV1Schema = z.object({
       })
     )
     .optional(),
+
+  /**
+   * Cryptographic attestation proving metadata was created by the issuer.
+   * Optional for backward compatibility.
+   */
+  attestation: z
+    .object({
+      signer: z
+        .string()
+        .min(1)
+        .regex(/^G[A-Z2-7]{55}$/, "attestation.signer must be a valid Stellar public key"),
+      signature: z.string().min(1),
+      timestamp: z.number().int().positive(),
+    })
+    .optional(),
 });
 
 // ─── Derived Types ────────────────────────────────────────────────────────────
@@ -286,6 +302,74 @@ function canonicalizeMetadata(value: unknown): string {
       .join(",")}}`;
   }
   return JSON.stringify(value);
+}
+
+/**
+ * Canonicalizes metadata without the attestation field (so we can sign it).
+ */
+function canonicalizeMetadataForSigning(metadata: InvoiceMetadataV1): string {
+  const { attestation, ...metadataWithoutAttestation } = metadata;
+  return canonicalizeMetadata(metadataWithoutAttestation);
+}
+
+/**
+ * Generates a human-readable signing message from metadata.
+ */
+export function generateMetadataSigningMessage(
+  metadata: InvoiceMetadataV1,
+  timestamp: number
+): string {
+  const canonical = canonicalizeMetadataForSigning(metadata);
+  return `Kora Protocol Invoice Attestation\nInvoice: ${metadata.invoice_number}\nTimestamp: ${timestamp}\nMetadata: ${canonical}`;
+}
+
+/**
+ * Verifies that the metadata attestation is valid.
+ * Returns true if valid, false otherwise (or if no attestation exists).
+ */
+export function verifyMetadataAttestation(metadata: InvoiceMetadataV1): boolean {
+  if (!metadata.attestation) {
+    return false;
+  }
+
+  try {
+    const { signer, signature, timestamp } = metadata.attestation;
+    const message = generateMetadataSigningMessage(metadata, timestamp);
+    const keypair = StellarSdk.Keypair.fromPublicKey(signer);
+    return keypair.verify(
+      Buffer.from(message, "utf-8"),
+      Buffer.from(signature, "base64")
+    );
+  } catch (error) {
+    console.warn("Metadata attestation verification failed:", error);
+    return false;
+  }
+}
+
+/**
+ * Attaches a cryptographic attestation to the metadata.
+ *
+ * The caller provides a `sign` function that takes a UTF-8 message string and
+ * returns the base64-encoded signature produced by the wallet. This keeps the
+ * signing mechanics decoupled from the metadata library.
+ *
+ * @param metadata  - Validated InvoiceMetadataV1 object (without attestation).
+ * @param signer    - Stellar public key (G...) of the signing wallet.
+ * @param sign      - Async function that signs the message and returns base64 sig.
+ * @returns A new InvoiceMetadataV1 with the attestation field populated.
+ */
+export async function attachMetadataAttestation(
+  metadata: InvoiceMetadataV1,
+  signer: string,
+  sign: (message: string) => Promise<string>
+): Promise<InvoiceMetadataV1> {
+  const timestamp = Date.now();
+  const message = generateMetadataSigningMessage(metadata, timestamp);
+  const signature = await sign(message);
+  return {
+    ...metadata,
+    attestation: { signer, signature, timestamp },
+  };
 }
 
 export async function verifyMetadataIntegrity(

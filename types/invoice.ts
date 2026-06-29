@@ -56,6 +56,12 @@ export interface InvoiceMetadata {
   category: InvoiceCategory;
   documentHash: string; // IPFS CID of the PDF
   documentUrl: string;
+  /** Cryptographic attestation added at mint time. Optional for backward compatibility. */
+  attestation?: {
+    signer: string;    // Stellar public key (G...)
+    signature: string; // base64-encoded signature
+    timestamp: number; // Unix ms when the attestation was created
+  };
 }
 
 export interface InvoiceFinancingTerms {

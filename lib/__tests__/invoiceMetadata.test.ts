@@ -14,12 +14,16 @@
  */
 
 import { describe, it, expect } from "vitest";
+import * as StellarSdk from "@stellar/stellar-sdk";
 import {
   invoiceMetadataV1Schema,
   validateInvoiceMetadata,
   parseInvoiceMetadata,
   buildInvoiceMetadata,
   METADATA_VERSION,
+  verifyMetadataAttestation,
+  attachMetadataAttestation,
+  generateMetadataSigningMessage,
   type InvoiceMetadataV1,
   type InvoiceMetadataV1Input,
 } from "../invoiceMetadata";
@@ -680,3 +684,197 @@ describe("XSS Payload Sanitization", () => {
   });
 });
 
+
+// ─── 9. Attestation ──────────────────────────────────────────────────────────
+
+describe("generateMetadataSigningMessage", () => {
+  it("includes the invoice number and timestamp in the message", () => {
+    const ts = 1700000000000;
+    const msg = generateMetadataSigningMessage(VALID_METADATA, ts);
+    expect(msg).toContain("INV-2024-0001");
+    expect(msg).toContain(String(ts));
+    expect(msg).toContain("Kora Protocol Invoice Attestation");
+  });
+
+  it("produces different messages for different timestamps", () => {
+    const msg1 = generateMetadataSigningMessage(VALID_METADATA, 1000);
+    const msg2 = generateMetadataSigningMessage(VALID_METADATA, 2000);
+    expect(msg1).not.toBe(msg2);
+  });
+
+  it("excludes the attestation field from the signing message", () => {
+    const withAttestation: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      attestation: { signer: VALID_METADATA.issuer.address, signature: "abc", timestamp: 999 },
+    };
+    const ts = 1700000000000;
+    // Signing message should be identical regardless of attestation field
+    expect(generateMetadataSigningMessage(withAttestation, ts)).toBe(
+      generateMetadataSigningMessage(VALID_METADATA, ts)
+    );
+  });
+});
+
+describe("verifyMetadataAttestation", () => {
+  it("returns false when attestation is absent", () => {
+    expect(verifyMetadataAttestation(VALID_METADATA)).toBe(false);
+  });
+
+  it("returns false for a tampered signature", () => {
+    const withBadAttestation: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      attestation: {
+        signer: VALID_METADATA.issuer.address,
+        signature: Buffer.from("invalid-signature").toString("base64"),
+        timestamp: Date.now(),
+      },
+    };
+    expect(verifyMetadataAttestation(withBadAttestation)).toBe(false);
+  });
+
+  it("returns false for an invalid signer public key", () => {
+    // Craft a structurally-valid-looking attestation but with a bad signer
+    const withBadSigner: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      attestation: {
+        signer: "GBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", // wrong key
+        signature: Buffer.from("sig").toString("base64"),
+        timestamp: Date.now(),
+      },
+    };
+    expect(verifyMetadataAttestation(withBadSigner)).toBe(false);
+  });
+
+  it("returns true for a valid keypair-signed attestation", () => {
+    // Generate a fresh Stellar keypair for deterministic signing in tests
+    const keypair = StellarSdk.Keypair.random();
+    const ts = Date.now();
+    const metadataForSigning: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      issuer: { address: keypair.publicKey(), name: "Test Issuer" },
+    };
+    const message = generateMetadataSigningMessage(metadataForSigning, ts);
+    const signatureBytes = keypair.sign(Buffer.from(message, "utf-8"));
+    const signature = signatureBytes.toString("base64");
+
+    const signedMetadata: InvoiceMetadataV1 = {
+      ...metadataForSigning,
+      attestation: { signer: keypair.publicKey(), signature, timestamp: ts },
+    };
+
+    expect(verifyMetadataAttestation(signedMetadata)).toBe(true);
+  });
+
+  it("returns false when metadata fields have been tampered after signing", () => {
+    const keypair = StellarSdk.Keypair.random();
+    const ts = Date.now();
+    const original: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      issuer: { address: keypair.publicKey() },
+    };
+    const message = generateMetadataSigningMessage(original, ts);
+    const signature = keypair.sign(Buffer.from(message, "utf-8")).toString("base64");
+
+    // Tamper with amount after signing
+    const tampered: InvoiceMetadataV1 = {
+      ...original,
+      amount: 999999,
+      attestation: { signer: keypair.publicKey(), signature, timestamp: ts },
+    };
+    expect(verifyMetadataAttestation(tampered)).toBe(false);
+  });
+});
+
+describe("attachMetadataAttestation", () => {
+  it("attaches a valid attestation using a provided sign function", async () => {
+    const keypair = StellarSdk.Keypair.random();
+    const metadataForSigning: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      issuer: { address: keypair.publicKey() },
+    };
+
+    const sign = async (message: string): Promise<string> =>
+      keypair.sign(Buffer.from(message, "utf-8")).toString("base64");
+
+    const attested = await attachMetadataAttestation(
+      metadataForSigning,
+      keypair.publicKey(),
+      sign
+    );
+
+    expect(attested.attestation).toBeDefined();
+    expect(attested.attestation!.signer).toBe(keypair.publicKey());
+    expect(typeof attested.attestation!.signature).toBe("string");
+    expect(attested.attestation!.timestamp).toBeGreaterThan(0);
+    // Verify the produced attestation is genuine
+    expect(verifyMetadataAttestation(attested)).toBe(true);
+  });
+
+  it("does not mutate the original metadata object", async () => {
+    const keypair = StellarSdk.Keypair.random();
+    const original: InvoiceMetadataV1 = {
+      ...VALID_METADATA,
+      issuer: { address: keypair.publicKey() },
+    };
+    const sign = async (msg: string) =>
+      keypair.sign(Buffer.from(msg, "utf-8")).toString("base64");
+
+    await attachMetadataAttestation(original, keypair.publicKey(), sign);
+    expect(original.attestation).toBeUndefined();
+  });
+
+  it("propagates errors thrown by the sign function", async () => {
+    const sign = async (_msg: string): Promise<string> => {
+      throw new Error("Wallet rejected signing");
+    };
+    await expect(
+      attachMetadataAttestation(VALID_METADATA, VALID_METADATA.issuer.address, sign)
+    ).rejects.toThrow("Wallet rejected signing");
+  });
+});
+
+// ─── 10. Attestation schema validation ───────────────────────────────────────
+
+describe("invoiceMetadataV1Schema — attestation field", () => {
+  it("accepts metadata with a valid attestation field", () => {
+    const result = invoiceMetadataV1Schema.safeParse({
+      ...VALID_METADATA,
+      attestation: {
+        signer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+        signature: Buffer.from("test-sig").toString("base64"),
+        timestamp: 1700000000000,
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts metadata without an attestation field (backward compat)", () => {
+    const { ...rest } = VALID_METADATA;
+    const result = invoiceMetadataV1Schema.safeParse(rest);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects attestation with an invalid Stellar public key for signer", () => {
+    const result = invoiceMetadataV1Schema.safeParse({
+      ...VALID_METADATA,
+      attestation: {
+        signer: "not-a-stellar-key",
+        signature: "c2ln",
+        timestamp: 1700000000000,
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects attestation with a non-positive timestamp", () => {
+    const result = invoiceMetadataV1Schema.safeParse({
+      ...VALID_METADATA,
+      attestation: {
+        signer: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+        signature: "c2ln",
+        timestamp: -1,
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});

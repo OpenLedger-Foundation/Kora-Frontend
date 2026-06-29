@@ -8,6 +8,7 @@ import {
   ReactNode,
   useEffect,
 } from "react";
+import { useTranslations } from "next-intl";
 import { useWallet } from "@/hooks/useWallet";
 import { VerificationModal } from "./VerificationModal";
 
@@ -20,6 +21,7 @@ interface VerificationContextType {
 const VerificationContext = createContext<VerificationContextType | null>(null);
 
 export function VerificationProvider({ children }: { children: ReactNode }) {
+  const t = useTranslations("wallet.verification");
   const wallet = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,20 +62,20 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
       setVerificationPromise(null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Verification failed. Please try again.";
+        err instanceof Error ? err.message : t("failed");
       setError(message);
       verificationPromise?.reject(new Error(message));
       setVerificationPromise(null);
     } finally {
       setIsLoading(false);
     }
-  }, [wallet, verificationPromise]);
+  }, [wallet, verificationPromise, t]);
 
   const handleCancel = useCallback(() => {
     setIsOpen(false);
-    verificationPromise?.reject(new Error("Verification cancelled"));
+    verificationPromise?.reject(new Error(t("cancelled")));
     setVerificationPromise(null);
-  }, [verificationPromise]);
+  }, [verificationPromise, t]);
 
   // Clear verification state if wallet is disconnected
   useEffect(() => {
