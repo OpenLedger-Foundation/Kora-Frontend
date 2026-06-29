@@ -233,6 +233,20 @@ Closes #235
 - [x] npm run lint
 ```
 
+## Pre-commit Hooks
+
+This project uses [Husky](https://typicode.github.io/husky/) and [lint-staged](https://github.com/lint-staged/lint-staged) to run `eslint --fix` and `tsc --noEmit` on staged `.ts`/`.tsx` files before every commit. The hook must complete cleanly for the commit to succeed.
+
+If the hook fails, fix the reported errors before committing. Lint errors are printed directly in the terminal output.
+
+Emergency bypass (use sparingly — CI will still catch errors):
+
+```bash
+git commit --no-verify -m "chore: emergency fix"
+```
+
+Never use `--no-verify` for normal development. It skips all pre-commit checks and should only be used when the hook itself is broken or you are committing a work-in-progress branch that will not be merged.
+
 ## Code Style
 
 ### TypeScript

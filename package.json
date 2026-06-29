@@ -92,7 +92,18 @@
     "@semantic-release/github": "11.0.6",
     "@semantic-release/npm": "13.1.5",
     "semantic-release": "24.2.1",
-    "bundlesize": "0.18.2"
+    "bundlesize": "0.18.2",
+    "husky": "9.1.7",
+    "lint-staged": "15.2.10"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0",
+      "tsc --noEmit --skipLibCheck"
+    ],
+    "*.{js,jsx,cjs,mjs}": [
+      "eslint --fix --max-warnings=0"
+    ]
   },
   "bundlesize": [
     {

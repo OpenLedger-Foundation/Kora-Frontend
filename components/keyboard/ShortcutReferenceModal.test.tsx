@@ -71,3 +71,38 @@ describe("question-mark shortcut", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("Ctrl+Shift+V — Web Vitals toggle shortcut", () => {
+  it("dispatches kora:toggle-webvitals when devtools are enabled", () => {
+    // Simulate NEXT_PUBLIC_ENABLE_DEVTOOLS=true at runtime
+    const originalEnv = process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS;
+    process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS = "true";
+
+    const listener = vi.fn();
+    window.addEventListener("kora:toggle-webvitals", listener);
+
+    render(<KeyboardShortcutsProvider />);
+
+    fireEvent.keyDown(document, { key: "v", ctrlKey: true, shiftKey: true });
+    expect(listener).toHaveBeenCalledOnce();
+
+    window.removeEventListener("kora:toggle-webvitals", listener);
+    process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS = originalEnv;
+  });
+
+  it("does NOT dispatch kora:toggle-webvitals when devtools are disabled", () => {
+    const originalEnv = process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS;
+    process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS = undefined as unknown as string;
+
+    const listener = vi.fn();
+    window.addEventListener("kora:toggle-webvitals", listener);
+
+    render(<KeyboardShortcutsProvider />);
+
+    fireEvent.keyDown(document, { key: "v", ctrlKey: true, shiftKey: true });
+    expect(listener).not.toHaveBeenCalled();
+
+    window.removeEventListener("kora:toggle-webvitals", listener);
+    process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS = originalEnv;
+  });
+});
