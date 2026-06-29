@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, useCallback, memo } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
@@ -74,6 +74,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= 3 && !isInComparison;
+  const reduced = useReducedMotion();
   
   // Hover popover state
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -146,10 +147,10 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background flex flex-col h-full justify-between",
           isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
         )}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={!isExpired ? { y: -6 } : {}}
-        transition={{ duration: 0.3, delay: index * 0.05 }}
+        initial={reduced ? false : { opacity: 0, y: 16 }}
+        animate={reduced ? {} : { opacity: 1, y: 0 }}
+        whileHover={(!isExpired && !reduced) ? { y: -6 } : {}}
+        transition={reduced ? { duration: 0 } : { duration: 0.3, delay: index * 0.05 }}
       >
         <div>
           {/* Header */}
