@@ -1,26 +1,204 @@
-import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
+"use client";
 
-export default function ActiveFilterChips({ filters = [], onRemove, onClear }: any) {
+/**
+ * ActiveFilterChips — renders a dismissible chip for each active filter.
+ *
+ * Constraints:
+ *  - × button removes only that specific filter from invoiceStore immediately
+ *  - "Clear all" removes all active filters at once
+ *  - Must NOT cause full-page re-render — only the grid updates via store subscription
+ *  - Chip removals are announced to screen readers via aria-live="polite"
+ */
+
+import React, { useId } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
+import { useInvoiceStore } from "@/store/invoiceStore";
+import { cn } from "@/lib/utils";
+
+export interface FilterChip {
+  /** Stable unique key, e.g. "category:technology" */
+  key: string;
+  /** Human-readable label, e.g. "Technology" */
+  label: string;
+  /** Which store filter key this chip belongs to */
+  filterKey: keyof import("@/store/invoiceStore").FilterState;
+  /** The value to remove from the filter array (undefined for boolean filters) */
+  value?: string;
+}
+
+interface ActiveFilterChipsProps {
+  /** Chips derived from the current filter state — passed in so the parent
+   *  controls label formatting, but removal is handled by the store directly. */
+  chips?: FilterChip[];
+  /** Additional className for the wrapper */
+  className?: string;
+}
+
+/**
+ * Derives chips from the Zustand filter state.
+ * Exported so consumers can reuse without duplicating logic.
+ */
+export function deriveChips(
+  filters: import("@/store/invoiceStore").FilterState
+): FilterChip[] {
+  const chips: FilterChip[] = [];
+
+  for (const cat of filters.categories) {
+    chips.push({
+      key: `category:${cat}`,
+      label: cat.charAt(0).toUpperCase() + cat.slice(1),
+      filterKey: "categories",
+      value: cat,
+    });
+  }
+
+  for (const jur of filters.jurisdictions) {
+    chips.push({
+      key: `jurisdiction:${jur}`,
+      label: jur,
+      filterKey: "jurisdictions",
+      value: jur,
+    });
+  }
+
+  for (const tier of filters.riskTiers) {
+    chips.push({
+      key: `riskTier:${tier}`,
+      label: `Risk: ${tier}`,
+      filterKey: "riskTiers",
+      value: tier,
+    });
+  }
+
+  if (filters.aprRange[0] > 0 || filters.aprRange[1] < 50) {
+    chips.push({
+      key: "aprRange",
+      label: `APR: ${filters.aprRange[0]}%–${filters.aprRange[1]}%`,
+      filterKey: "aprRange",
+    });
+  }
+
+  if (filters.activeOnly) {
+    chips.push({
+      key: "activeOnly",
+      label: "Active Only",
+      filterKey: "activeOnly",
+    });
+  }
+
+  return chips;
+}
+
+export default function ActiveFilterChips({
+  chips: externalChips,
+  className,
+}: ActiveFilterChipsProps) {
+  const { filters, updateSingleFilter, resetFilters } = useInvoiceStore();
+  const announcerId = useId();
+
+  // Derive chips from store if not provided externally
+  const chips = externalChips ?? deriveChips(filters);
+
+  const handleRemove = (chip: FilterChip) => {
+    const key = chip.filterKey;
+
+    if (key === "categories" || key === "jurisdictions" || key === "riskTiers") {
+      const current = filters[key] as string[];
+      updateSingleFilter(key, current.filter((v) => v !== chip.value));
+      return;
+    }
+
+    if (key === "aprRange") {
+      updateSingleFilter("aprRange", [0, 50]);
+      return;
+    }
+
+    if (key === "activeOnly") {
+      updateSingleFilter("activeOnly", false);
+      return;
+    }
+
+    if (key === "showExpired") {
+      updateSingleFilter("showExpired", false);
+    }
+  };
+
+  if (chips.length === 0) return null;
+
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
-      <AnimatePresence>
-        {filters.map((f: any) => (
-          <motion.div
-            key={f.key}
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="inline-flex items-center gap-2 rounded-full bg-muted/50 px-3 py-1 text-sm"
-          >
-            <span className="font-medium">{f.label}</span>
-            <button type="button" onClick={() => onRemove(f.key)} className="text-muted-foreground">×</button>
-          </motion.div>
-        ))}
-      </AnimatePresence>
-      {filters.length > 0 && (
-        <button type="button" onClick={onClear} className="ml-2 rounded-md px-3 py-1 text-sm bg-destructive/10 text-destructive">Clear All</button>
-      )}
-    </div>
+    <>
+      {/* Screen-reader live region — announces filter removals without page reload */}
+      <div
+        id={announcerId}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="filter-chips-announcer"
+      />
+
+      <div
+        className={cn("mt-3 flex flex-wrap items-center gap-2", className)}
+        role="group"
+        aria-label="Active filters"
+        data-testid="active-filter-chips"
+      >
+        <AnimatePresence initial={false}>
+          {chips.map((chip) => (
+            <motion.div
+              key={chip.key}
+              initial={{ opacity: 0, scale: 0.9, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -4 }}
+              transition={{ duration: 0.15 }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+            >
+              <span>{chip.label}</span>
+              <button
+                type="button"
+                aria-label={`Remove filter: ${chip.label}`}
+                onClick={() => {
+                  handleRemove(chip);
+                  // Announce to screen readers via the live region
+                  const el = document.getElementById(announcerId);
+                  if (el) el.textContent = `Filter "${chip.label}" removed`;
+                }}
+                className={cn(
+                  "flex h-4 w-4 items-center justify-center rounded-full",
+                  "text-primary/70 transition-colors",
+                  "hover:bg-primary/20 hover:text-primary",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                )}
+                data-testid={`remove-chip-${chip.key}`}
+              >
+                <X className="h-2.5 w-2.5" aria-hidden="true" />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        {/* Clear all */}
+        <motion.button
+          layout
+          type="button"
+          onClick={() => {
+            resetFilters();
+            const el = document.getElementById(announcerId);
+            if (el) el.textContent = "All filters cleared";
+          }}
+          className={cn(
+            "rounded-md px-3 py-1 text-xs font-medium",
+            "bg-destructive/10 text-destructive",
+            "hover:bg-destructive/20 transition-colors",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
+          )}
+          aria-label="Clear all active filters"
+          data-testid="clear-all-filters"
+        >
+          Clear all
+        </motion.button>
+      </div>
+    </>
   );
 }

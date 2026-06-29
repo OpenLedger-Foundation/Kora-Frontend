@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { WrongNetworkBanner } from "@/components/wallet/WrongNetworkBanner";
 import { PageTransition } from "@/components/layout/PageTransition";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { env } from "@/lib/env";
 import { websiteSchema, organizationSchema, serializeSchema } from "@/lib/structuredData";
 import { handleWebVital } from "@/lib/webVitals";
@@ -224,6 +225,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <PageTransition>{children}</PageTransition>
           </main>
           <WebVitalsPanel />
+          <InstallPrompt />
           <Footer />
         </Providers>
       </body>
