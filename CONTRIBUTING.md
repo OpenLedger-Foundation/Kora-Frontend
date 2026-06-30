@@ -135,6 +135,30 @@ npm run build-storybook
 
 Use Storybook for components in `components/ui`, invoice cards, empty states, loading states, dialogs, drawers, and other reusable UI pieces.
 
+### Storybook Snapshot Tests
+
+We use Vitest to run automated HTML snapshot tests for all Storybook stories. This ensures that any changes to component rendering are explicitly tracked and reviewed.
+
+To run the snapshot tests:
+
+```bash
+npm run test -- __tests__/stories.snapshot.test.tsx
+```
+
+If you make intentional changes to a component's markup, you must update the snapshot files by running:
+
+```bash
+npm run test -- __tests__/stories.snapshot.test.tsx -u
+```
+
+Or using the full `--updateSnapshot` flag:
+
+```bash
+npx vitest run __tests__/stories.snapshot.test.tsx --updateSnapshot
+```
+
+The generated snapshots are stored in `__tests__/__snapshots__/` and must be committed to the repository.
+
 ## Your First Issue
 
 Start with small issues that have clear files, acceptance criteria, and tests. The best search is:

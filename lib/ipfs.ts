@@ -98,6 +98,15 @@ export function validateCid(cid: string): void {
   }
 }
 
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+export class FileSizeError extends Error {
+  constructor(size: number) {
+    super(`File size ${size} bytes exceeds the 10MB limit.`);
+    this.name = "FileSizeError";
+  }
+}
+
 /** Upload a file via XHR so we get real progress events. */
 function xhrUpload(
   url: string,
@@ -138,6 +147,10 @@ export async function uploadInvoicePDF(
   walletAddress: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
+  if (file.size > MAX_FILE_SIZE) {
+    throw new FileSizeError(file.size);
+  }
+
   const form = new FormData();
   form.append("file", file);
   form.append("walletAddress", walletAddress);

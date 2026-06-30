@@ -399,3 +399,120 @@ describe("truncateAddress", () => {
     expect(truncateAddress(undefined as any)).toBe("");
   });
 });
+
+// ─── 13. withRetry ────────────────────────────────────────────────────────────
+
+describe("withRetry", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("succeeds on first attempt", async () => {
+    const fn = vi.fn().mockResolvedValue("success");
+    const result = await withRetry(fn);
+    expect(result).toBe("success");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries on 5xx error and succeeds", async () => {
+    const fn = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("500 Internal Server Error"))
+      .mockRejectedValueOnce(new Error("503 Service Unavailable"))
+      .mockResolvedValueOnce("success");
+
+    const promise = withRetry(fn, 3, 100);
+    
+    // Fast-forward timers for retries
+    await vi.runAllTimersAsync();
+    
+    const result = await promise;
+    expect(result).toBe("success");
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("fails permanently when max attempts are exhausted", async () => {
+    const fn = vi.fn().mockRejectedValue(new Error("500 Internal Server Error"));
+    const promise = withRetry(fn, 3, 100);
+
+    await vi.runAllTimersAsync();
+
+    await expect(promise).rejects.toThrow("500 Internal Server Error");
+    expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry on non-5xx errors", async () => {
+    const fn = vi.fn().mockRejectedValue(new Error("400 Bad Request"));
+    const promise = withRetry(fn, 3, 100);
+
+    await expect(promise).rejects.toThrow("400 Bad Request");
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── 14. exportCsv ────────────────────────────────────────────────────────────
+
+describe("exportCsv", () => {
+  let mockClick: any;
+  let mockElement: any;
+
+  beforeEach(() => {
+    mockClick = vi.fn();
+    mockElement = {
+      href: "",
+      download: "",
+      click: mockClick,
+    };
+
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:mock-url"),
+      revokeObjectURL: vi.fn(),
+    });
+
+    vi.stubGlobal("document", {
+      createElement: vi.fn(() => mockElement),
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does nothing for empty rows", () => {
+    exportCsv([]);
+    expect(document.createElement).not.toHaveBeenCalled();
+  });
+
+  it("converts rows to CSV and triggers download", () => {
+    const rows = [
+      { name: "Alice", age: 30 },
+      { name: "Bob", age: 25 },
+    ];
+
+    exportCsv(rows, "test.csv");
+
+    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(document.createElement).toHaveBeenCalledWith("a");
+    expect(mockElement.download).toBe("test.csv");
+    expect(mockElement.href).toBe("blob:mock-url");
+    expect(mockClick).toHaveBeenCalled();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+  });
+
+  it("escapes values containing commas, quotes, and newlines", () => {
+    const rows = [
+      { text: 'hello, "world"' },
+      { text: "line1\nline2" },
+    ];
+
+    exportCsv(rows, "escape.csv");
+
+    // Retrieve the blob created
+    const blobCall = vi.mocked(URL.createObjectURL).mock.calls[0][0] as Blob;
+    expect(blobCall).toBeInstanceOf(Blob);
+  });
+});
