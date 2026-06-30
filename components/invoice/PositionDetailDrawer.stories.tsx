@@ -59,7 +59,7 @@ const activeInvoice: Invoice = {
   terms: {
     ...baseInvoice.terms,
     // ~4 months from today (stable enough for stories)
-    repaymentDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),
+    repaymentDate: "2025-07-13T12:00:00.000Z",
   },
 };
 
@@ -69,7 +69,7 @@ const activePosition: InvoicePosition = {
   investedAmount: 5000,
   expectedReturn: 300,
   yieldEarned: 0,
-  investedAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(), // 60 days ago
+  investedAt: "2025-01-14T12:00:00.000Z", // 60 days ago
   status: "active",
 };
 
@@ -185,7 +185,7 @@ export const OverduePosition: Story = {
       terms: {
         ...activeInvoice.terms,
         // 30 days in the past → "Awaiting repayment" badge on timeline
-        repaymentDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        repaymentDate: "2025-02-13T12:00:00.000Z",
       },
     } as Invoice,
     onOpenChange: () => {},

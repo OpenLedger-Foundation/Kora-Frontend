@@ -409,6 +409,22 @@ export const MOCK_INVOICES: Invoice[] = [
     updatedAt: "2024-11-19T13:30:00Z",
     ownerAddress: "GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
   },
+  ...generateMockInvoices(45, 999).map((inv, idx) => {
+    const num = idx + 6;
+    return {
+      ...inv,
+      id: `inv_${String(num).padStart(3, "0")}`,
+      tokenId: String(num),
+      metadata: {
+        ...inv.metadata,
+        invoiceNumber: `INV-2025-${1000 + num}`,
+        issuerName: `SME ${num}`,
+        issuerAddress: `ADDR_${num}`,
+        debtorName: `Debtor ${num}`,
+        debtorAddress: `Debtor Address ${num}`,
+      },
+    };
+  }),
 ];
 export const MOCK_SMES = generateSMEProfiles(10, MOCK_INVOICES, 222);
 export const MOCK_INVESTORS = generateInvestorProfiles(10, MOCK_INVOICES, 333);
