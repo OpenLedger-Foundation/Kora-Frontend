@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Download, FileText, Calendar, TrendingUp, AlertCircle } from "lucide-react";
+import { Download, FileText, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import {
   Drawer,
@@ -11,16 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate, formatPercentage, daysUntil, cn } from "@/lib/utils";
+import { formatCurrency, formatDate, daysUntil, cn } from "@/lib/utils";
 import CountdownTimer from "@/components/ui/CountdownTimer";
+import { RepaymentTimeline } from "@/components/invoice/RepaymentTimeline";
 import type { InvoicePosition, Invoice } from "@/types";
-
-interface YieldTimelineEvent {
-  date: string;
-  label: string;
-  amount?: number;
-  type: "funding" | "maturity" | "claim" | "repaid";
-}
 
 interface PositionDetailDrawerProps {
   position: InvoicePosition | null;
@@ -28,86 +22,6 @@ interface PositionDetailDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   loading?: boolean;
-}
-
-/**
- * Build a yield timeline from position and invoice data.
- */
-function buildYieldTimeline(position: InvoicePosition, invoice: Invoice): YieldTimelineEvent[] {
-  const events: YieldTimelineEvent[] = [];
-
-  // Funding event
-  events.push({
-    date: position.investedAt,
-    label: "Investment",
-    amount: position.investedAmount,
-    type: "funding",
-  });
-
-  // Maturity event
-  events.push({
-    date: invoice.terms.repaymentDate,
-    label: "Expected Maturity",
-    type: "maturity",
-  });
-
-  // Expected return event (on maturity date)
-  if (position.expectedReturn > 0) {
-    events.push({
-      date: invoice.terms.repaymentDate,
-      label: "Expected Yield",
-      amount: position.expectedReturn,
-      type: "claim",
-    });
-  }
-
-  // If position is repaid, add repaid event
-  if (position.status === "repaid") {
-    events.push({
-      date: invoice.updatedAt,
-      label: "Repaid",
-      amount: position.investedAmount + position.expectedReturn,
-      type: "repaid",
-    });
-  }
-
-  return events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-}
-
-/**
- * Get color for timeline event.
- */
-function getTimelineEventColor(type: YieldTimelineEvent["type"]): string {
-  switch (type) {
-    case "funding":
-      return "bg-primary text-primary-foreground";
-    case "maturity":
-      return "bg-blue-500 text-white";
-    case "claim":
-      return "bg-emerald-500 text-white";
-    case "repaid":
-      return "bg-emerald-600 text-white";
-    default:
-      return "bg-muted text-muted-foreground";
-  }
-}
-
-/**
- * Get icon for timeline event.
- */
-function getTimelineEventIcon(type: YieldTimelineEvent["type"]): React.ReactNode {
-  switch (type) {
-    case "funding":
-      return <Calendar className="w-4 h-4" />;
-    case "maturity":
-      return <Calendar className="w-4 h-4" />;
-    case "claim":
-      return <TrendingUp className="w-4 h-4" />;
-    case "repaid":
-      return <TrendingUp className="w-4 h-4" />;
-    default:
-      return null;
-  }
 }
 
 /**
@@ -139,7 +53,6 @@ export function PositionDetailDrawer({
     );
   }
 
-  const timeline = buildYieldTimeline(position, invoice);
   const daysRemaining = daysUntil(invoice.terms.repaymentDate);
   const roi = position.investedAmount > 0 
     ? ((position.expectedReturn / position.investedAmount) * 100)
@@ -302,44 +215,22 @@ export function PositionDetailDrawer({
           </div>
         </DrawerSection>
 
-        {/* Yield Timeline */}
+        {/* Repayment Timeline */}
         <DrawerSection
-          title="Yield Accrual Timeline"
-          description="Key milestones in your investment lifecycle"
+          title="Repayment Timeline"
+          description="Lifecycle progress from funding to repayment"
         >
-          <div className="space-y-4">
-            {timeline.map((event, idx) => (
-              <div key={idx} className="flex gap-4">
-                {/* Timeline line and dot */}
-                <div className="flex flex-col items-center">
-                  <div
-                    className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0",
-                      getTimelineEventColor(event.type)
-                    )}
-                  >
-                    {getTimelineEventIcon(event.type)}
-                  </div>
-                  {idx < timeline.length - 1 && (
-                    <div className="w-0.5 h-12 bg-border mt-2" />
-                  )}
-                </div>
-
-                {/* Event details */}
-                <div className="pt-1 pb-4">
-                  <p className="font-semibold text-foreground">{event.label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {formatDate(event.date)}
-                  </p>
-                  {event.amount && (
-                    <p className="text-sm font-medium text-primary mt-1">
-                      {formatCurrency(event.amount, invoice.metadata.currency)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <RepaymentTimeline
+            fundedAt={position.investedAt}
+            maturityDate={invoice.terms.repaymentDate}
+            isRepaid={position.status === "repaid"}
+            repaidAt={position.status === "repaid" ? invoice.updatedAt : undefined}
+            yieldReceived={
+              position.status === "repaid" && position.yieldEarned > 0
+                ? formatCurrency(position.yieldEarned, invoice.metadata.currency)
+                : undefined
+            }
+          />
         </DrawerSection>
 
         {/* Related Invoice */}
