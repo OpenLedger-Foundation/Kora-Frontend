@@ -5,6 +5,7 @@ import {
   getLocaleCookieOptions,
   resolveLocaleFromRequest,
 } from "@/i18n/locale";
+import { locales, defaultLocale } from "@/i18n/config";
 
 const PROTECTED = ["/invoice/create"];
 
@@ -42,7 +43,7 @@ export function middleware(req: NextRequest) {
   response.headers.set("x-request-id", requestId);
 
   if (!cookieValue || cookieValue !== locale) {
-    response.cookies.set(LOCALE_COOKIE_NAME, locale, getLocaleCookieOptions(isProduction));
+    response.cookies.set(LOCALE_COOKIE_NAME, locale, getLocaleCookieOptions(process.env.NODE_ENV === "production"));
   }
 
   // ── Protected route guard ─────────────────────────────────────────────────
@@ -59,7 +60,7 @@ export function middleware(req: NextRequest) {
         redirect.cookies.set(
           LOCALE_COOKIE_NAME,
           locale,
-          getLocaleCookieOptions(isProduction)
+          getLocaleCookieOptions(process.env.NODE_ENV === "production")
         );
       }
       return redirect;

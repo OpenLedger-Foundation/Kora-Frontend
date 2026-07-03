@@ -42,12 +42,14 @@ import { isEnabled } from "@/lib/featureFlags";
 import enMessages from "@/messages/en.json";
 import esMessages from "@/messages/es.json";
 import arMessages from "@/messages/ar.json";
+import ptBRMessages from "@/messages/pt-BR.json";
 import type { Locale } from "@/i18n/config";
 
 const ALL_MESSAGES: Record<Locale, Record<string, unknown>> = {
   en: enMessages as Record<string, unknown>,
   es: esMessages as Record<string, unknown>,
   ar: arMessages as Record<string, unknown>,
+  "pt-BR": ptBRMessages as Record<string, unknown>,
 };
 const FeedbackWidget = dynamic(
   () => import("@/components/feedback/FeedbackWidget").then((m) => m.FeedbackWidget),
