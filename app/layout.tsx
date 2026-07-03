@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { NextWebVitalsMetric } from "next/app";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -73,6 +73,7 @@ function localeToOgLocale(locale: Locale): string {
     en: "en_US",
     es: "es_ES",
     ar: "ar_SA",
+    "pt-BR": "pt_BR",
   };
   return localeMap[locale] || "en_US";
 }
@@ -159,10 +160,6 @@ export const metadata: Metadata = {
 
   // App manifest / theme
   manifest: "/manifest.json",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
-  ],
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -171,6 +168,13 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
 };
 
 // Security: static compile-time string, zero user input — safe for dangerouslySetInnerHTML.
