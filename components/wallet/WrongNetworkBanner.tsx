@@ -14,14 +14,15 @@ export function WrongNetworkBanner() {
   const { isConnected } = useWallet();
   const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
   const [dismissed, setDismissed] = useState(false);
-  
-  // Reset dismissal when navigating or network state changes
-  useEffect(() => {
-    setDismissed(false);
-  }, [isConnected, isWrongNetwork(), hasPassphraseMismatch()]);
 
   const networkMismatch = isWrongNetwork();
   const passphraseMismatch = hasPassphraseMismatch();
+
+  // Reset dismissal when navigating or network state changes
+  useEffect(() => {
+    setDismissed(false);
+  }, [isConnected, networkMismatch, passphraseMismatch]);
+
   const isWrongNetworkState = (networkMismatch || passphraseMismatch) && !dismissed;
 
   if (!isWrongNetworkState) return null;

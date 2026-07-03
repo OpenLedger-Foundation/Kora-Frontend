@@ -100,7 +100,7 @@ export function FeedbackWidget() {
     const reader = new FileReader();
     reader.onload = (ev) => setScreenshot(ev.target?.result as string);
     reader.readAsDataURL(file);
-  }, []);
+  }, [t]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = useCallback(

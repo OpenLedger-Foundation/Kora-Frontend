@@ -64,7 +64,7 @@ export function CommandPalette() {
 
   // Fetch invoices for search (only when palette is open)
   const { data: invoiceData } = useInvoices();
-  const invoices = invoiceData?.data ?? [];
+  const invoices = React.useMemo(() => invoiceData?.data ?? [], [invoiceData?.data]);
 
   // Reset query on close
   React.useEffect(() => {

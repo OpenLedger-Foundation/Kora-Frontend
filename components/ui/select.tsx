@@ -207,7 +207,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       }
     };
 
-    const removeValue = (valToRemove: string, e?: React.MouseEvent) => {
+    const removeValue = React.useCallback((valToRemove: string, e?: React.MouseEvent) => {
       if (e) {
         e.stopPropagation();
         e.preventDefault();
@@ -237,7 +237,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           onChange(finalValue);
         }
       }
-    };
+    }, [selectedValues, onChange, name]);
 
     const isSelected = (val: string) => {
       if (isMulti) {
@@ -277,7 +277,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           </span>
         );
       });
-    }, [selectedValues, activeOptions, isMulti, disabled]);
+    }, [selectedValues, activeOptions, isMulti, disabled, removeValue]);
 
     return (
       <div className="flex flex-col gap-1.5 w-full">
@@ -315,9 +315,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
             <button
               type="button"
               disabled={disabled}
-              aria-invalid={!!error}
               aria-describedby={ariaDescribedBy || undefined}
-              aria-required={props["aria-required"]}
               className={cn(
                 "flex min-h-10 w-full items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-1.5 text-sm text-foreground transition-all hover:border-zinc-700 hover:bg-zinc-900/60 focus:border-kora-500 focus:outline-none focus:ring-1 focus:ring-kora-500/50 disabled:cursor-not-allowed disabled:opacity-50",
                 isOpen && "border-kora-500 ring-1 ring-kora-500/50",

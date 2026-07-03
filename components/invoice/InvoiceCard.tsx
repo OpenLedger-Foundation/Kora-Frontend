@@ -103,7 +103,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
       hoverTimeoutRef.current = null;
     }
     setPopoverOpen(false);
-  }, []);
+  }, [cancelPrefetch]);
 
   const handleFocus = useCallback(() => {
     if (!isExpired) {

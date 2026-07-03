@@ -446,9 +446,13 @@ function MarketplaceContent() {
   }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, page, pageSize]);
 
   // Use infinite query data when available, fall back to paginated data
-  const allInvoices = infinite.data
-    ? infinite.data.pages.flatMap((p: any) => p.data)
-    : data?.data ?? [];
+  const allInvoices = useMemo(
+    () =>
+      infinite.data
+        ? infinite.data.pages.flatMap((p: any) => p.data)
+        : data?.data ?? [],
+    [infinite.data, data?.data]
+  );
 
   // Client-side Search filter
   const filteredInvoices = useMemo(() => {
