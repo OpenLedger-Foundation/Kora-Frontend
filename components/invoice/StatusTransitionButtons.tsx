@@ -91,9 +91,9 @@ export function StatusTransitionButtons({
             </DialogHeader>
             <p className="text-sm text-muted-foreground">
               {t("confirmBody", {
-                invoiceNumber: <span key="inv" className="font-medium text-foreground">{confirm.invoice.metadata.invoiceNumber}</span>,
-                from: <span key="from" className="font-medium text-foreground capitalize">{confirm.invoice.status.replace(/_/g, " ")}</span>,
-                to: <span key="to" className="font-medium text-foreground capitalize">{confirm.transition.to.replace(/_/g, " ")}</span>,
+                invoiceNumber: confirm.invoice.metadata.invoiceNumber,
+                from: confirm.invoice.status.replace(/_/g, " "),
+                to: confirm.transition.to.replace(/_/g, " "),
               })}
             </p>
             <p className="text-xs text-muted-foreground">{t("onChainWarning")}</p>

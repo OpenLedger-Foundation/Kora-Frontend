@@ -136,10 +136,8 @@ export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModal
             </div>
 
             <p className="mt-5 text-center text-xs text-muted-foreground">
-              {t("hint", {
-                key: <KbdBadge key="kbd">{t("hintKey")}</KbdBadge>,
-                settings: <span key="settings" className="text-foreground">{t("hintSettings")}</span>,
-              })}
+              Press <KbdBadge>{t("hintKey")}</KbdBadge> anytime to open this reference. Shortcuts can be disabled in{" "}
+              <span className="text-foreground">{t("hintSettings")}</span>.
             </p>
           </motion.div>
         </>

@@ -723,7 +723,8 @@
     "linkCopiedToast": "Enlace copiado",
     "unableToCopy": "No se pudo copiar el enlace",
     "sharedSuccessfully": "Compartido exitosamente"
-  }
+  },
+  "language": {
     "label": "Idioma",
     "en": "English",
     "es": "Español",

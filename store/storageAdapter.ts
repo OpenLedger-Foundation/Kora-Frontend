@@ -69,7 +69,9 @@ function resolveStorage(): StateStorage {
 
 export function safeStorageGetItem(key: string): string | null {
   try {
-    return resolveStorage().getItem(key);
+    const result = resolveStorage().getItem(key);
+    if (result instanceof Promise) return null;
+    return result;
   } catch {
     return null;
   }

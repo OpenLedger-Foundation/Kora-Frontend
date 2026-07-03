@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
 import { loadEnvConfig } from "@next/env";
+import { transformWithEsbuild } from "vite";
 
 loadEnvConfig(process.cwd());
 

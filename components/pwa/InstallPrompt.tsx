@@ -23,6 +23,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { X, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 
 // ─── LocalStorage keys ────────────────────────────────────────────────────────
 
