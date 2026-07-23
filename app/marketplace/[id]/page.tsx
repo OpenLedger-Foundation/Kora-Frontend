@@ -1,67 +1,22 @@
-import type { Metadata } from "next";
 import { fetchInvoiceById } from "@/services/invoiceService";
-import { formatCurrency, formatApr } from "@/lib/utils";
 import { validateRouteId } from "@/lib/security";
 import { notFound } from "next/navigation";
 import InvoiceDetailClient from "./InvoiceDetailClient";
+import {
+  invoiceFinancialProductSchema,
+  breadcrumbSchema,
+  serializeSchema,
+} from "@/lib/structuredData";
+import {
+  buildPublicInvoiceSeo,
+  fetchIpfsMetadataForSeo,
+} from "@/lib/invoiceSeo";
+
+export { generateMetadata, revalidate } from "./metadata";
 
 type Props = {
   params: Promise<{ id: string }>;
 };
-
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { id } = await params;
-  const safeId = validateRouteId(id);
-  if (!safeId) {
-    return {
-      title: "Invalid Invoice | Kora Protocol",
-    };
-  }
-
-  try {
-    const invoice = await fetchInvoiceById(safeId);
-    if (!invoice) {
-      return {
-        title: "Invoice Not Found | Kora Protocol",
-      };
-    }
-
-    const debtorName = invoice.metadata.debtorName || "Unknown Debtor";
-    const apr = formatApr(invoice.terms.apr);
-    const faceValue = formatCurrency(invoice.metadata.amount);
-    
-    const title = `${debtorName} Invoice (${faceValue}) — APR ${apr} | Kora`;
-    const description = `Invoice NFT marketplace opportunity: ${debtorName} invoice of ${faceValue} at ${apr} APR on Stellar Soroban.`;
-
-    return {
-      title,
-      description,
-      openGraph: {
-        title,
-        description,
-        type: "website",
-        images: [
-          {
-            url: "/og-image.png",
-            width: 1200,
-            height: 630,
-            alt: `Kora Protocol Invoice: ${debtorName} - ${faceValue}`,
-          },
-        ],
-      },
-      twitter: {
-        card: "summary_large_image",
-        title,
-        description,
-        images: ["/og-image.png"],
-      },
-    };
-  } catch (error) {
-    return {
-      title: "Invoice Details | Kora Protocol",
-    };
-  }
-}
 
 export default async function Page({ params }: Props) {
   const { id } = await params;
@@ -70,5 +25,61 @@ export default async function Page({ params }: Props) {
     return notFound();
   }
 
-  return <InvoiceDetailClient id={safeId} />;
+  // Prefetch on the server for JSON-LD (works in mock + live modes).
+  // Failures fall back to client-rendered page without structured data.
+  let jsonLd: string | null = null;
+  let breadcrumbLd: string | null = null;
+
+  try {
+    const invoice = await fetchInvoiceById(safeId);
+    if (invoice) {
+      const ipfsMeta = await fetchIpfsMetadataForSeo(invoice.ipfsCid);
+      const seo = buildPublicInvoiceSeo(invoice, ipfsMeta);
+
+      jsonLd = serializeSchema(
+        invoiceFinancialProductSchema({
+          id: seo.id,
+          invoiceNumber: seo.invoiceNumber,
+          debtorName: seo.debtorLabel,
+          amount: seo.amount,
+          currency: seo.currency,
+          apr: seo.apr,
+          dueDate: seo.dueDate,
+          jurisdiction: seo.jurisdiction,
+          category: seo.category,
+          riskTier: seo.riskTier,
+        }),
+      );
+
+      breadcrumbLd = serializeSchema(
+        breadcrumbSchema([
+          { name: "Home", url: "/" },
+          { name: "Marketplace", url: "/marketplace" },
+          { name: seo.invoiceNumber, url: `/marketplace/${seo.id}` },
+        ]),
+      );
+    }
+  } catch {
+    // Structured data is best-effort; page still renders.
+  }
+
+  return (
+    <>
+      {jsonLd ? (
+        <script
+          id="ld-invoice"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
+      ) : null}
+      {breadcrumbLd ? (
+        <script
+          id="ld-breadcrumb-invoice"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: breadcrumbLd }}
+        />
+      ) : null}
+      <InvoiceDetailClient id={safeId} />
+    </>
+  );
 }
