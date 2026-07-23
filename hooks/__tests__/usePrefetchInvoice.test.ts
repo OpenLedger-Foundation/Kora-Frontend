@@ -6,40 +6,54 @@ import {
   MAX_CONCURRENT_PREFETCHES,
   PREFETCH_DELAY_MS,
   usePrefetchInvoice,
-} from "../useInvoices";
-import { queryKeys } from "@/lib/queryKeys";
+  __resetPrefetchStateForTests,
+} from "../usePrefetchInvoice";
+import { getInvoiceDataSource, queryKeys } from "@/lib/queryKeys";
 
-const mockFetchInvoiceById = vi.fn(async (id: string) => ({ id, metadata: {}, terms: {}, funding: {} }));
+const mockFetchInvoiceById = vi.fn(async (id: string) => ({
+  id,
+  metadata: {},
+  terms: {},
+  funding: {},
+}));
 
 vi.mock("@/services/invoiceService", () => ({
   fetchInvoiceById: (id: string) => mockFetchInvoiceById(id),
 }));
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
+function createWrapper(client?: QueryClient) {
+  const queryClient =
+    client ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
   return ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
+}
+
+function mockFinePointer(matches = true) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation(() => ({
+      matches,
+      media: "(pointer: fine)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  });
 }
 
 describe("usePrefetchInvoice", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockFetchInvoiceById.mockClear();
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: vi.fn().mockImplementation(() => ({
-        matches: true,
-        media: "(pointer: fine)",
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    });
+    __resetPrefetchStateForTests();
+    mockFinePointer(true);
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    __resetPrefetchStateForTests();
   });
 
   it("prefetches after 200ms hover on fine-pointer devices", async () => {
@@ -62,12 +76,7 @@ describe("usePrefetchInvoice", () => {
   });
 
   it("does not prefetch on touch devices", async () => {
-    vi.mocked(window.matchMedia).mockImplementation(() => ({
-      matches: false,
-      media: "(pointer: fine)",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    } as MediaQueryList));
+    mockFinePointer(false);
 
     const { result } = renderHook(() => usePrefetchInvoice(), {
       wrapper: createWrapper(),
@@ -83,12 +92,13 @@ describe("usePrefetchInvoice", () => {
 
   it("skips prefetch when data is already cached", async () => {
     const queryClient = new QueryClient();
-    queryClient.setQueryData(queryKeys.invoices.detail("inv_cached"), { id: "inv_cached" });
+    queryClient.setQueryData(queryKeys.invoices.detail("inv_cached"), {
+      id: "inv_cached",
+    });
 
-    const wrapper = ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: queryClient }, children);
-
-    const { result } = renderHook(() => usePrefetchInvoice(), { wrapper });
+    const { result } = renderHook(() => usePrefetchInvoice(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     act(() => {
       result.current.prefetch("inv_cached");
@@ -140,5 +150,78 @@ describe("usePrefetchInvoice", () => {
       resolveFetch!();
       await Promise.resolve();
     });
+  });
+
+  it("does not duplicate in-flight fetches for the same invoice id", async () => {
+    let resolveFetch: () => void;
+    const fetchGate = new Promise<void>((resolve) => {
+      resolveFetch = resolve;
+    });
+    mockFetchInvoiceById.mockImplementation(async (id: string) => {
+      await fetchGate;
+      return { id };
+    });
+
+    const wrapper = createWrapper();
+    const first = renderHook(() => usePrefetchInvoice(), { wrapper });
+    const second = renderHook(() => usePrefetchInvoice(), { wrapper });
+
+    act(() => {
+      first.result.current.prefetch("inv_dup");
+      vi.advanceTimersByTime(PREFETCH_DELAY_MS);
+    });
+
+    expect(mockFetchInvoiceById).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      second.result.current.prefetch("inv_dup");
+      vi.advanceTimersByTime(PREFETCH_DELAY_MS);
+    });
+
+    expect(mockFetchInvoiceById).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFetch!();
+      await Promise.resolve();
+    });
+  });
+
+  it("uses mock- and live-namespaced detail query keys", async () => {
+    const original = process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
+
+    process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA = "true";
+    expect(getInvoiceDataSource()).toBe("mock");
+    expect(queryKeys.invoices.detail("inv_001")).toEqual([
+      "invoices",
+      "detail",
+      "mock",
+      "inv_001",
+    ]);
+
+    process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA = "false";
+    expect(getInvoiceDataSource()).toBe("live");
+    expect(queryKeys.invoices.detail("inv_001")).toEqual([
+      "invoices",
+      "detail",
+      "live",
+      "inv_001",
+    ]);
+
+    const { result } = renderHook(() => usePrefetchInvoice(), {
+      wrapper: createWrapper(),
+    });
+
+    act(() => {
+      result.current.prefetch("inv_live");
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(PREFETCH_DELAY_MS);
+      await Promise.resolve();
+    });
+
+    expect(mockFetchInvoiceById).toHaveBeenCalledWith("inv_live");
+
+    process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA = original;
   });
 });
