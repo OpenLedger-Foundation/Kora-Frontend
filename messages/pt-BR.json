@@ -28,6 +28,12 @@
     "fundingTestnet": "Financiando conta testnet...",
     "fundSuccess": "Conta testnet financiada com 10.000 XLM",
     "fundFailed": "Falha no financiamento",
+    "getTestnetUsdc": "Obter USDC de testnet",
+    "mintingUsdc": "Cunhando USDC de testnet…",
+    "mintingUsdcShort": "Cunhando USDC…",
+    "mintUsdcSuccess": "USDC de testnet cunhado — saldo atualizado",
+    "mintUsdcFailed": "Falha ao cunhar USDC de testnet",
+    "faucetHint": "Precisa de USDC para financiar? Cunhe USDC de testnet grátis para continuar.",
     "cancel": "Cancelar",
     "popular": "Popular",
     "notInstalled": "Não instalado",
@@ -185,7 +191,8 @@
     },
     "errors": {
       "minInvestment": "O investimento mínimo é {amount}",
-      "exceedsCapacity": "O valor excede a capacidade restante de {amount}"
+      "exceedsCapacity": "O valor excede a capacidade restante de {amount}",
+      "insufficientBalance": "Saldo USDC insuficiente. Disponível: {amount}"
     },
     "hint": {
       "minRemaining": "Mín: ${min} · Capacidade Restante: ${remaining}"
