@@ -223,7 +223,7 @@ html {
   nav,
   header,
   footer,
-  .print\\:hidden,
+  .print\:hidden,
   [data-print="hidden"],
   button:not([data-print="show"]),
   .no-print {

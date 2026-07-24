@@ -40,8 +40,10 @@
   "exclude": [
     "node_modules",
     "types/@types",
+    "e2e",
     "**/__tests__/**",
     "**/*.test.ts",
-    "**/*.test.tsx"
+    "**/*.test.tsx",
+    "e2e"
   ]
 }

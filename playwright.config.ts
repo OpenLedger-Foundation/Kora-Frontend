@@ -63,13 +63,37 @@ export default defineConfig({
     },
   ],
 
-  /* Start the Next.js dev server before running tests */
+  /* Start Next.js before tests. Prefer production server in CI (after npm run build). */
   webServer: {
-    command: "npm run dev",
+    command: process.env.CI ? "npm run start" : "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
     stdout: "pipe",
     stderr: "pipe",
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_ENABLE_MOCK_DATA: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA ?? "true",
+      NEXT_PUBLIC_STELLAR_NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? "testnet",
+      NEXT_PUBLIC_STELLAR_RPC_URL:
+        process.env.NEXT_PUBLIC_STELLAR_RPC_URL ?? "https://soroban-testnet.stellar.org",
+      NEXT_PUBLIC_STELLAR_HORIZON_URL:
+        process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL ?? "https://horizon-testnet.stellar.org",
+      NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE:
+        process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE ??
+        "Test SDF Network ; September 2015",
+      NEXT_PUBLIC_INVOICE_CONTRACT_ID:
+        process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ??
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID:
+        process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID ??
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      NEXT_PUBLIC_TOKEN_CONTRACT_ID:
+        process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ID ??
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+      NEXT_PUBLIC_IPFS_GATEWAY:
+        process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs",
+      PINATA_JWT: process.env.PINATA_JWT ?? "ci_dummy_pinata_jwt",
+    },
   },
 });
