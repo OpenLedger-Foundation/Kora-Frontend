@@ -8,20 +8,17 @@ const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCh
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
-import { TrendingUp, DollarSign, BarChart3, Shield, Download } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
-import { AnalyticsControls } from "@/components/analytics/AnalyticsControls";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
-import { useUIStore } from "@/store";
+import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
 import { Button } from "@/components/ui/button";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
 import { formatCurrency } from "@/lib/utils";
 import { exportCsv, exportPdf } from "@/lib/export";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { cn } from "@/lib/utils";
 import {
   AnalyticsFilterBar,
   DEFAULT_FILTERS,
@@ -31,23 +28,40 @@ import {
   type CategoryFilter,
 } from "@/components/analytics/AnalyticsFilterBar";
 import type { PresetRange } from "@/components/analytics/DateRangePicker";
-import type { RiskTier } from "@/types/invoice";
+import {
+  aggregatePositions,
+  marketplacePathForAllocation,
+  allocationToMarketplaceFilters,
+} from "@/lib/portfolioAllocation";
 
-// ─── Risk tier colors ──────────────────────────────────────────────────────
-const RISK_TIER_COLORS: Record<RiskTier, string> = {
-  AAA: "#34d399",
-  AA: "#14b8a6",
-  A: "#22d3ee",
-  BBB: "#fbbf24",
-  BB: "#f97316",
-  B: "#ef4444",
-  CCC: "#dc2626",
-};
+// ── Mock analytics data (time-series history; risk uses live positions) ───────
 
-// Helper to get month short name
-function getMonthShortName(date: Date): string {
-  return date.toLocaleString("default", { month: "short" });
-}
+const PORTFOLIO_HISTORY = [
+  { month: "Jun", value: 0 },
+  { month: "Jul", value: 25000 },
+  { month: "Aug", value: 48000 },
+  { month: "Sep", value: 72000 },
+  { month: "Oct", value: 115000 },
+  { month: "Nov", value: 170000 },
+];
+
+const YIELD_HISTORY = [
+  { month: "Jun", yield: 0 },
+  { month: "Jul", yield: 420 },
+  { month: "Aug", yield: 890 },
+  { month: "Sep", yield: 1540 },
+  { month: "Oct", yield: 2800 },
+  { month: "Nov", yield: 4200 },
+];
+
+const MONTHLY_RETURNS = [
+  { month: "Jun", return: 0 },
+  { month: "Jul", return: 1.68 },
+  { month: "Aug", return: 1.85 },
+  { month: "Sep", return: 2.14 },
+  { month: "Oct", return: 2.43 },
+  { month: "Nov", return: 2.47 },
+];
 
 const toCsvRows = <T extends object>(rows: T[]): Record<string, unknown>[] =>
   rows.map((row) => Object.fromEntries(Object.entries(row)));
@@ -84,10 +98,12 @@ function sliceByRange<T>(data: T[], range: PresetRange | "custom"): T[] {
 function PortfolioAnalyticsInner() {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const { setFilters, resetFilters } = useInvoiceStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
+  const positionsQuery = usePositions(address ?? undefined);
 
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
@@ -100,153 +116,37 @@ function PortfolioAnalyticsInner() {
     [router]
   );
 
-  const positions = positionsQuery.data ?? [];
-
-  // Calculate aggregated data
-  const { portfolio, yieldData, risk, monthly, stats } = useMemo(() => {
-    // Filter positions based on selected filters
-    let filteredPositions = positions;
-    
-    if (filters.riskTier !== "all") {
-      filteredPositions = filteredPositions.filter(p => p.invoice?.riskTier === filters.riskTier);
-    }
-    if (filters.jurisdiction !== "all") {
-      filteredPositions = filteredPositions.filter(p => p.invoice?.metadata.jurisdiction === filters.jurisdiction);
-    }
-    if (filters.category !== "all") {
-      filteredPositions = filteredPositions.filter(p => p.invoice?.metadata.category === filters.category);
-    }
-
-    // Calculate risk distribution
-    const riskByTier: Record<RiskTier, number> = {
-      AAA: 0, AA: 0, A: 0, BBB: 0, BB: 0, B: 0, CCC: 0
-    };
-    let totalInvestedForRisk = 0;
-    filteredPositions.forEach(pos => {
-      const tier = pos.invoice?.riskTier || "A";
-      riskByTier[tier] += pos.investedAmount;
-      totalInvestedForRisk += pos.investedAmount;
-    });
-    const riskDistribution = Object.entries(riskByTier)
-      .filter(([_, value]) => value > 0)
-      .map(([name, value]) => ({
-        name,
-        value: totalInvestedForRisk > 0 ? parseFloat(((value / totalInvestedForRisk) * 100).toFixed(1)) : 0,
-        color: RISK_TIER_COLORS[name as RiskTier]
-      }));
-
-    // Calculate portfolio history by month
-    const portfolioByMonth: Record<string, number> = {};
-    const yieldByMonth: Record<string, number> = {};
-    const monthlyInvested: Record<string, number> = {};
-
-    filteredPositions.forEach(pos => {
-      const investedDate = new Date(pos.investedAt);
-      const monthKey = `${investedDate.getFullYear()}-${investedDate.getMonth()}`;
-      const monthName = getMonthShortName(investedDate);
-      
-      if (!portfolioByMonth[monthKey]) {
-        portfolioByMonth[monthKey] = 0;
-        yieldByMonth[monthKey] = 0;
-        monthlyInvested[monthKey] = 0;
-      }
-      
-      portfolioByMonth[monthKey] += pos.investedAmount;
-      monthlyInvested[monthKey] += pos.investedAmount;
-      
-      if (pos.status === "repaid") {
-        yieldByMonth[monthKey] += pos.yieldEarned;
-      }
-    });
-
-    // Generate sorted portfolio history
-    const sortedMonths = Object.keys(portfolioByMonth).sort();
-    let cumulativeValue = 0;
-    const portfolioHistory = sortedMonths.map(monthKey => {
-      cumulativeValue += portfolioByMonth[monthKey];
-      const [year, month] = monthKey.split("-");
-      const date = new Date(parseInt(year), parseInt(month));
-      return {
-        month: getMonthShortName(date),
-        value: cumulativeValue
+  const handleRiskSegmentClick = useCallback(
+    (riskTier: string) => {
+      const allocationFilter = {
+        dimension: "riskTier" as const,
+        value: riskTier,
       };
-    });
+      resetFilters();
+      setFilters({
+        ...MARKETPLACE_DEFAULT_FILTERS,
+        ...allocationToMarketplaceFilters(allocationFilter),
+      });
+      router.push(marketplacePathForAllocation(allocationFilter));
+    },
+    [resetFilters, setFilters, router]
+  );
 
-    // Generate yield history
-    const yieldHistory = sortedMonths.map(monthKey => {
-      const [year, month] = monthKey.split("-");
-      const date = new Date(parseInt(year), parseInt(month));
-      return {
-        month: getMonthShortName(date),
-        yield: yieldByMonth[monthKey]
-      };
-    });
-
-    // Generate monthly returns
-    const monthlyReturns = sortedMonths.map(monthKey => {
-      const [year, month] = monthKey.split("-");
-      const date = new Date(parseInt(year), parseInt(month));
-      const invested = monthlyInvested[monthKey];
-      const yieldAmount = yieldByMonth[monthKey];
-      const returnPct = invested > 0 ? parseFloat(((yieldAmount / invested) * 100).toFixed(2)) : 0;
-      return {
-        month: getMonthShortName(date),
-        return: returnPct
-      };
-    });
-
-    // Calculate stats
-    const totalDeployed = filteredPositions.reduce((sum, p) => sum + p.investedAmount, 0);
-    const totalYieldEarned = filteredPositions.reduce((sum, p) => sum + p.yieldEarned, 0);
-    const defaultedCount = filteredPositions.filter(p => p.status === "defaulted").length;
-    const totalPositions = filteredPositions.length;
-    const defaultRate = totalPositions > 0 ? parseFloat(((defaultedCount / totalPositions) * 100).toFixed(1)) : 0;
-    const avgApr = totalPositions > 0 
-      ? parseFloat((filteredPositions.reduce((sum, p) => sum + (p.invoice?.terms.apr || 0), 0) / totalPositions).toFixed(1))
-      : 0;
-
-    const stats = [
-      {
-        label: "Total Deployed",
-        value: formatCurrency(totalDeployed, "USDC", true),
-        valueRaw: totalDeployed,
-        change: `${totalPositions} positions`,
-        changePositive: true,
-        icon: <DollarSign className="h-4 w-4" />,
-      },
-      {
-        label: "Total Yield Earned",
-        value: formatCurrency(totalYieldEarned, "USDC", true),
-        valueRaw: totalYieldEarned,
-        change: `${avgApr}% avg APR`,
-        changePositive: true,
-        icon: <TrendingUp className="h-4 w-4" />,
-      },
-      {
-        label: "Annualised Return",
-        value: `${avgApr}%`,
-        change: "Average APR",
-        changePositive: true,
-        icon: <BarChart3 className="h-4 w-4" />,
-      },
-      {
-        label: "Default Rate",
-        value: `${defaultRate}%`,
-        valueRaw: defaultRate,
-        change: `${defaultedCount} defaulted`,
-        changePositive: defaultRate === 0,
-        icon: <Shield className="h-4 w-4" />,
-      },
-    ];
-
-    return {
-      portfolio: portfolioHistory,
-      yieldData: yieldHistory,
-      risk: riskDistribution,
-      monthly: monthlyReturns,
-      stats
-    };
-  }, [positions, filters]);
+  // Slice data based on active filters
+  const portfolio = useMemo(() => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange), [filters.dateRange]);
+  const yieldData = useMemo(() => sliceByRange(YIELD_HISTORY, filters.dateRange), [filters.dateRange]);
+  const risk = useMemo(() => {
+    const slices = aggregatePositions(positionsQuery.data ?? [], "riskTier").map(
+      (s) => ({
+        name: s.name,
+        value: Math.round(s.percent * 10) / 10,
+        color: s.color,
+      })
+    );
+    if (filters.riskTier === "all") return slices;
+    return slices.filter((d) => d.name === filters.riskTier);
+  }, [positionsQuery.data, filters.riskTier]);
+  const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
 
   const handleExport = useCallback((type: "portfolio" | "yield" | "risk" | "monthly") => {
     let data, filename;
@@ -366,6 +266,7 @@ function PortfolioAnalyticsInner() {
             monthly={monthly}
             risk={risk}
             isLoading={positionsQuery.isLoading}
+            onRiskSegmentClick={handleRiskSegmentClick}
           />
         </div>
       </PrintLayout>

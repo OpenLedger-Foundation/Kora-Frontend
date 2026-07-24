@@ -409,7 +409,7 @@ export const MOCK_INVOICES: Invoice[] = [
     updatedAt: "2024-11-19T13:30:00Z",
     ownerAddress: "GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
   },
-  ...generateMockInvoices(45, 999).map((inv, idx) => {
+  ...generateMockInvoices(95, 999).map((inv, idx) => {
     const num = idx + 6;
     return {
       ...inv,

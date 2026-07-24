@@ -1,61 +1,55 @@
+/**
+ * Invoice detail page metadata — server-side SEO with IPFS hydration.
+ *
+ * Used by `page.tsx` via `generateMetadata`. Fetches the invoice (mock or live),
+ * optionally hydrates from IPFS metadata, and emits privacy-safe OG / Twitter tags.
+ *
+ * Closes #375
+ */
+
 import type { Metadata } from "next";
 import { fetchInvoiceById } from "@/services/invoiceService";
-import { isValidCID } from "@/lib/ipfs";
+import { validateRouteId } from "@/lib/security";
 import {
-  invoiceFinancialProductSchema,
-  breadcrumbSchema,
-  serializeSchema,
-} from "@/lib/structuredData";
+  buildInvoicePageMetadata,
+  buildPublicInvoiceSeo,
+  fetchIpfsMetadataForSeo,
+} from "@/lib/invoiceSeo";
 
-export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
-  const id = params.id;
-  const invoice = await fetchInvoiceById(id);
-  if (!invoice) return {};
+/** ISR: revalidate invoice SEO every hour so OG tags stay fresh. */
+export const revalidate = 3600;
 
-  const metaTitle = `${invoice.metadata.invoiceNumber} — ${invoice.metadata.debtorName}`;
-  const metaDescription =
-    invoice.metadata.description ||
-    `Invoice listed on Kora — ${invoice.metadata.issuerName}. ${invoice.terms.apr.toFixed(2)}% APR, due ${invoice.metadata.dueDate}.`;
-  const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "";
-  const pageUrl = siteUrl ? `${siteUrl}/marketplace/${id}` : `/marketplace/${id}`;
+type Props = {
+  params: Promise<{ id: string }>;
+};
 
-  const image =
-    invoice.metadata.documentUrl ||
-    (invoice.metadata.documentHash && isValidCID(invoice.metadata.documentHash)
-      ? `${process.env.NEXT_PUBLIC_IPFS_GATEWAY}/${invoice.metadata.documentHash}`
-      : undefined);
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  const safeId = validateRouteId(id);
 
-  const metadata: Metadata = {
-    title: metaTitle,
-    description: metaDescription,
-    keywords: [
-      invoice.metadata.invoiceNumber,
-      invoice.metadata.debtorName,
-      invoice.metadata.category,
-      invoice.metadata.jurisdiction,
-      "invoice NFT",
-      "DeFi yield",
-      "Stellar Soroban",
-    ],
-    openGraph: {
-      title: metaTitle,
-      description: metaDescription,
-      url: pageUrl,
-      images: image
-        ? [{ url: image, width: 1200, height: 630, alt: metaTitle }]
-        : [{ url: "/og-image.png", width: 1200, height: 630, alt: "Kora Protocol" }],
-      siteName: process.env.NEXT_PUBLIC_APP_NAME || "Kora",
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: metaTitle,
-      description: metaDescription,
-      images: image ? [image] : ["/og-image.png"],
-    },
-    alternates: { canonical: `/marketplace/${id}` },
-    robots: { index: true, follow: true },
-  };
+  if (!safeId) {
+    return {
+      title: "Invalid Invoice | Kora Protocol",
+      robots: { index: false, follow: false },
+    };
+  }
 
-  return metadata;
+  try {
+    const invoice = await fetchInvoiceById(safeId);
+    if (!invoice) {
+      return {
+        title: "Invoice Not Found | Kora Protocol",
+        robots: { index: false, follow: false },
+      };
+    }
+
+    const ipfsMeta = await fetchIpfsMetadataForSeo(invoice.ipfsCid);
+    const seo = buildPublicInvoiceSeo(invoice, ipfsMeta);
+    return buildInvoicePageMetadata(seo);
+  } catch {
+    return {
+      title: "Invoice Details | Kora Protocol",
+      robots: { index: true, follow: true },
+    };
+  }
 }
