@@ -7,14 +7,33 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { DataTableProps } from "@/types/table";
+import type { PortfolioDonutProps, DonutFilter } from "@/components/dashboard/PortfolioDonut";
+
 const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
   {
     ssr: false,
     loading: () => <div className="h-48 rounded bg-zinc-900/40" />,
   },
+);
+
+const PortfolioDonut = dynamic<PortfolioDonutProps>(
+  () => import("@/components/dashboard/PortfolioDonut").then((m) => m.PortfolioDonut),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" />,
+  }
+);
+
+const YieldProjectionCalculator = dynamic(
+  () => import("@/components/dashboard/YieldProjectionCalculator").then((m) => m.YieldProjectionCalculator),
+  {
+    ssr: false,
+    loading: () => <div className="h-96 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" />,
+  }
 );
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
@@ -33,6 +52,7 @@ import type { InvestorPosition } from "@/types/invoice";
 import type { ColumnDef } from "@/types/table";
 
 export default function InvestorDashboardPage() {
+  const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
   const { isConnected } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { address } = useWallet();
@@ -347,6 +367,15 @@ export default function InvestorDashboardPage() {
             ))}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-8 space-y-8">
+        <PortfolioDonut
+          positions={positionsData as any}
+          activeFilter={donutFilter}
+          onSegmentClick={setDonutFilter}
+        />
+        <YieldProjectionCalculator />
       </div>
     </div>
   );

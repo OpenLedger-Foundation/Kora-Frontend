@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const createNextIntlPlugin = require("next-intl/plugin");
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
+});
 
 const withPWA = require("next-pwa")({
   dest: "public",
@@ -20,7 +23,7 @@ const withPWA = require("next-pwa")({
       urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
       handler: "StaleWhileRevalidate",
       options: {
-        cacheName: "google-fonts-stylesheets",
+        cacheName: "google-fonts-stylesheets-v1",
         expiration: { maxEntries: 4, maxAgeSeconds: 7 * 24 * 60 * 60 },
       },
     },
@@ -29,7 +32,7 @@ const withPWA = require("next-pwa")({
       urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
       handler: "CacheFirst",
       options: {
-        cacheName: "google-fonts-webfonts",
+        cacheName: "google-fonts-webfonts-v1",
         expiration: { maxEntries: 20, maxAgeSeconds: 365 * 24 * 60 * 60 },
         cacheableResponse: { statuses: [0, 200] },
       },
@@ -39,7 +42,7 @@ const withPWA = require("next-pwa")({
       urlPattern: /^\/_next\/static\/.*/i,
       handler: "CacheFirst",
       options: {
-        cacheName: "next-static-assets",
+        cacheName: "next-static-assets-v1",
         expiration: { maxEntries: 200, maxAgeSeconds: 365 * 24 * 60 * 60 },
         cacheableResponse: { statuses: [0, 200] },
       },
@@ -49,17 +52,17 @@ const withPWA = require("next-pwa")({
       urlPattern: /^\/_next\/image\?.*/i,
       handler: "StaleWhileRevalidate",
       options: {
-        cacheName: "next-image-cache",
+        cacheName: "next-image-cache-v1",
         expiration: { maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 },
       },
     },
-    // 5. Public static files (icons, manifest, og-image) — cache-first
+    // 5. Public static files (wallets, icons, fonts, manifest, og-image) — cache-first
     {
-      urlPattern: /^\/(?:icons|og-image|manifest\.json).*/i,
+      urlPattern: /^\/(?:icons|wallets|fonts|og-image\.png|manifest\.json|favicon\.ico).*/i,
       handler: "CacheFirst",
       options: {
-        cacheName: "static-public",
-        expiration: { maxEntries: 32, maxAgeSeconds: 30 * 24 * 60 * 60 },
+        cacheName: "static-public-v1",
+        expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60 },
         cacheableResponse: { statuses: [0, 200] },
       },
     },
@@ -284,4 +287,4 @@ const nextConfig = {
   },
 };
 
-module.exports = withNextIntl(withPWA(nextConfig));
+module.exports = withBundleAnalyzer(withNextIntl(withPWA(nextConfig)));

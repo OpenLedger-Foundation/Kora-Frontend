@@ -11,10 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
 import { DashboardSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-  BatchActionToolbar,
-  BatchResultSummary
-} from "@/components/dashboard/BatchActionToolbar";
+import { BatchResultSummary } from "@/components/dashboard/BatchActionToolbar";
 import {
   prepareCancelInvoice,
   submitAndConfirm,
@@ -23,6 +20,12 @@ import {
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import type { DataTableProps } from "@/types/table";
+
+const BatchActionToolbar = dynamic(
+  () => import("@/components/dashboard/BatchActionToolbar").then((m) => m.BatchActionToolbar),
+  { ssr: false, loading: () => <div className="h-14 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" /> }
+);
+
 const DataTable = dynamic<DataTableProps<Invoice>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
   { ssr: false, loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={8} /> }
