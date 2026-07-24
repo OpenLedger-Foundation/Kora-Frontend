@@ -42,7 +42,12 @@
     "termsPrefix": "By connecting, you agree to our",
     "termsLink": "Terms of Service",
     "connectGuardTitle": "Connect your wallet to continue",
-    "connectGuardDesc": "This page requires a connected wallet."
+    "connectGuardDesc": "This page requires a connected wallet.",
+    "sessionExpiredTitle": "Wallet session inactive",
+    "sessionExpiredDesc": "Unlock your wallet extension or reconnect to continue.",
+    "reconnect": "Reconnect Wallet",
+    "reconnecting": "Reconnecting...",
+    "restoringSession": "Restoring wallet session..."
   },
   "landing": {
     "headline": "Invoice Financing, On-Chain",
