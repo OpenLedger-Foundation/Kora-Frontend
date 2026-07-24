@@ -176,6 +176,26 @@ The app ships with mock data enabled by default (`NEXT_PUBLIC_ENABLE_MOCK_DATA=t
 
 To test wallet interactions, install [Freighter](https://freighter.app), switch it to **Testnet**, and fund your account via [Stellar Friendbot](https://friendbot.stellar.org).
 
+### Seeding Testnet Data
+
+Once you have real contract IDs deployed to testnet (`NEXT_PUBLIC_ENABLE_MOCK_DATA=false`), `scripts/seed-testnet.ts` sets up a wallet with sample data to develop against:
+
+```bash
+npm run seed:testnet
+```
+
+This generates a new keypair, funds it via Friendbot, mints it testnet USDC, mints 5 sample invoices, partially funds 2 of them, and prints the wallet's public/secret key and the minted token IDs to the console — save the secret key if you want to reuse that wallet (e.g. to import it into Freighter).
+
+Validate the script against your configured contracts without writing any invoice or funding state on-chain:
+
+```bash
+npm run seed:testnet -- --dry-run
+```
+
+`--dry-run` still generates and funds a keypair (a real, funded account is required to simulate contract calls at all) and builds + simulates every mint call, but never signs or submits a mint or fund transaction.
+
+The script refuses to run unless `NEXT_PUBLIC_STELLAR_NETWORK=testnet` — it will never touch mainnet. It reuses `lib/stellar/contracts.ts` and `@stellar/stellar-sdk` directly (no extra tooling needed) via [Node's built-in TypeScript support](https://nodejs.org/api/typescript.html), so it requires **Node.js 22.6+**.
+
 ---
 
 ## Project Structure
@@ -267,19 +287,24 @@ NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
 NEXT_PUBLIC_STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 
-# Contract Addresses (deploy your own or use testnet deployments)
-NEXT_PUBLIC_INVOICE_CONTRACT_ID=C...
-NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID=C...
-NEXT_PUBLIC_TOKEN_CONTRACT_ID=C...
+# Contract Addresses — v0.2 testnet deployments (replace with your own if needed)
+NEXT_PUBLIC_INVOICE_CONTRACT_ID=CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA
+NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID=CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4
+NEXT_PUBLIC_TOKEN_CONTRACT_ID=CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
 
 # IPFS (Pinata)
 NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs
 PINATA_JWT=your_pinata_jwt_token
 
 # Feature Flags
-NEXT_PUBLIC_ENABLE_MOCK_DATA=true   # Set to false for live data
+NEXT_PUBLIC_ENABLE_MOCK_DATA=true   # Set to false for live on-chain calls
 NEXT_PUBLIC_ENABLE_DEVTOOLS=true
+NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
+NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
+NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 ```
+
+> **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
 
 ---
 
@@ -320,6 +345,77 @@ NEXT_PUBLIC_ENABLE_DEVTOOLS=true
 ## Smart Contract Integration
 
 The frontend interacts with two Soroban contracts:
+
+### v0.2 Testnet Deployments
+
+| Contract | Address | Explorer |
+|----------|---------|---------|
+| Invoice NFT | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | [View](https://stellar.expert/explorer/testnet/contract/CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA) |
+| Marketplace | `CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4` | [View](https://stellar.expert/explorer/testnet/contract/CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4) |
+| USDC Token | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | [View](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
+
+### Smart Contract Deployment
+
+To deploy your own contracts to testnet:
+
+#### Prerequisites
+
+- [Stellar CLI](https://developers.stellar.org/docs/tools/developer-tools/cli/install-stellar-cli) v21+
+- Funded testnet account — get XLM from [Friendbot](https://friendbot.stellar.org)
+
+#### Steps
+
+```bash
+# 1. Install Stellar CLI
+cargo install --locked stellar-cli --features opt
+
+# 2. Generate or import a deployer keypair
+stellar keys generate --global deployer --network testnet
+stellar keys fund deployer --network testnet   # fund via Friendbot
+
+# 3. Build contract WASM (from the contracts repo)
+stellar contract build
+
+# 4. Deploy the Invoice NFT contract
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/invoice_nft.wasm \
+  --source deployer \
+  --network testnet
+# → Outputs: CONTRACT_ID  (copy this to NEXT_PUBLIC_INVOICE_CONTRACT_ID)
+
+# 5. Deploy the Marketplace contract
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/marketplace.wasm \
+  --source deployer \
+  --network testnet
+# → Outputs: CONTRACT_ID  (copy this to NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID)
+
+# 6. Deploy or note the USDC token contract
+#    On testnet you can use the Stellar Lab USDC contract or deploy a test token.
+#    Copy its contract ID to NEXT_PUBLIC_TOKEN_CONTRACT_ID.
+
+# 7. Update .env.local with the three contract IDs, then:
+NEXT_PUBLIC_ENABLE_MOCK_DATA=false npm run dev
+```
+
+> **Note**: The v0.2 testnet addresses in `.env.example` are the canonical deployments.
+> Override them only if you need a private deployment for development/testing.
+
+### Network-aware Contract Switching
+
+`lib/stellar/contracts.ts` maintains a `NETWORK_CONTRACTS` registry keyed by network name.
+When `NEXT_PUBLIC_STELLAR_NETWORK` changes (e.g. `testnet` → `mainnet`), the correct
+addresses are picked automatically — no code changes needed, only env vars.
+
+To add mainnet addresses when ready, extend the registry:
+
+```typescript
+// lib/stellar/contracts.ts
+const NETWORK_CONTRACTS = {
+  testnet: { invoice: "CBIELTK...", marketplace: "CBWOAOZ...", token: "CDLZFC3..." },
+  mainnet: { invoice: "C...",       marketplace: "C...",       token: "C..."       },
+};
+```
 
 ### Invoice Contract (`lib/stellar/contracts.ts`)
 

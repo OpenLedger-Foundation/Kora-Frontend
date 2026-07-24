@@ -28,6 +28,12 @@
     "fundingTestnet": "Funding testnet account...",
     "fundSuccess": "Testnet account funded with 10,000 XLM",
     "fundFailed": "Funding failed",
+    "getTestnetUsdc": "Get testnet USDC",
+    "mintingUsdc": "Minting testnet USDC…",
+    "mintingUsdcShort": "Minting USDC…",
+    "mintUsdcSuccess": "Testnet USDC minted — balance updated",
+    "mintUsdcFailed": "Failed to mint testnet USDC",
+    "faucetHint": "Need USDC for funding? Mint free testnet USDC to continue onboarding.",
     "cancel": "Cancel",
     "popular": "Popular",
     "notInstalled": "Not installed",
@@ -36,7 +42,12 @@
     "termsPrefix": "By connecting, you agree to our",
     "termsLink": "Terms of Service",
     "connectGuardTitle": "Connect your wallet to continue",
-    "connectGuardDesc": "This page requires a connected wallet."
+    "connectGuardDesc": "This page requires a connected wallet.",
+    "sessionExpiredTitle": "Wallet session inactive",
+    "sessionExpiredDesc": "Unlock your wallet extension or reconnect to continue.",
+    "reconnect": "Reconnect Wallet",
+    "reconnecting": "Reconnecting...",
+    "restoringSession": "Restoring wallet session..."
   },
   "landing": {
     "headline": "Invoice Financing, On-Chain",
@@ -185,7 +196,8 @@
     },
     "errors": {
       "minInvestment": "Minimum investment is {amount}",
-      "exceedsCapacity": "Amount exceeds remaining capacity of {amount}"
+      "exceedsCapacity": "Amount exceeds remaining capacity of {amount}",
+      "insufficientBalance": "Insufficient USDC balance. Available: {amount}"
     },
     "hint": {
       "minRemaining": "Min: ${min} · Remaining Capacity: ${remaining}"

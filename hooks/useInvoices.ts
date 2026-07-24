@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import {
   useQuery,
+  useInfiniteQuery,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -20,25 +21,41 @@ import {
 } from "@/services/invoiceService";
 import type { CreateInvoiceFormData, InvoiceStatus, MarketplaceSortKey } from "@/types";
 
+// Re-export marketplace prefetch helpers for existing import sites.
+export {
+  usePrefetchInvoice,
+  PREFETCH_DELAY_MS,
+  MAX_CONCURRENT_PREFETCHES,
+} from "./usePrefetchInvoice";
+
 const STALE_30S = 30_000;
 const GC_5MIN = 5 * 60 * 1000;
 const POLL_INTERVAL_MS = 30_000;
-export const PREFETCH_DELAY_MS = 200;
-export const MAX_CONCURRENT_PREFETCHES = 5;
-
-const activePrefetches = new Set<string>();
-
-function isFinePointerDevice(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(pointer: fine)").matches;
-}
 
 const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
   apr: "apr",
   amount: "amount",
   dueDate: "duration",
+  duration: "duration",
+  due: "duration",
   listed: "createdAt",
+  newest: "createdAt",
+  createdAt: "createdAt",
 };
+
+function resolveMarketplaceSort(sortBy: string): {
+  key: MarketplaceSortKey;
+  direction: "asc" | "desc";
+} {
+  const rawKey = sortBy?.split("_")[0] ?? "apr";
+  const key = SORT_KEY_MAP[rawKey] ?? "apr";
+  // due_soonest / newest style keys
+  if (sortBy === "due_soonest") return { key: "duration", direction: "asc" };
+  if (sortBy === "due_latest") return { key: "duration", direction: "desc" };
+  if (sortBy === "newest") return { key: "createdAt", direction: "desc" };
+  const direction = sortBy?.endsWith("asc") ? "asc" : "desc";
+  return { key, direction };
+}
 
 // ─── List ─────────────────────────────────────────────────────────────────────
 
@@ -64,6 +81,46 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
   });
 }
 
+/** Default page size for marketplace infinite scroll. */
+export const MARKETPLACE_PAGE_SIZE = 12;
+
+/**
+ * Cursor/page-based infinite invoice list for the marketplace.
+ * Initial load fetches page 1 only; call fetchNextPage as the sentinel intersects.
+ * Filter/sort changes reset pagination via the query key.
+ */
+export function useInfiniteInvoices(options?: {
+  pageSize?: number;
+  enabled?: boolean;
+}) {
+  const pageSize = options?.pageSize ?? MARKETPLACE_PAGE_SIZE;
+  const enabled = options?.enabled ?? true;
+  const filters = useInvoiceStore((s) => s.filters);
+  const sortBy = useInvoiceStore((s) => s.sortBy);
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.invoices.infinite(filters, sortBy, pageSize),
+    queryFn: ({ pageParam }) =>
+      fetchInvoices(
+        {
+          categories: filters.categories,
+          jurisdictions: filters.jurisdictions,
+          riskTiers: filters.riskTiers,
+          aprRange: filters.aprRange,
+          activeOnly: filters.activeOnly,
+        },
+        resolveMarketplaceSort(sortBy),
+        pageParam,
+        pageSize
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    enabled,
+    staleTime: STALE_30S,
+    gcTime: GC_5MIN,
+  });
+}
+
 // ─── Detail ───────────────────────────────────────────────────────────────────
 
 const ACTIVE_STATUSES = new Set(["listed", "partially_funded"]);
@@ -84,53 +141,6 @@ export function useInvoice(id: string, walletAddress?: string) {
     },
     refetchIntervalInBackground: false,
   });
-}
-
-/** Prefetch invoice detail on desktop hover (>200ms) with a max of 5 in flight. */
-export function usePrefetchInvoice() {
-  const queryClient = useQueryClient();
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduledIdRef = useRef<string | null>(null);
-
-  const cancelPrefetch = useCallback(() => {
-    if (hoverTimerRef.current !== null) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-    scheduledIdRef.current = null;
-  }, []);
-
-  const prefetch = useCallback(
-    (id: string) => {
-      cancelPrefetch();
-      if (!isFinePointerDevice()) return;
-
-      scheduledIdRef.current = id;
-      hoverTimerRef.current = setTimeout(() => {
-        if (scheduledIdRef.current !== id) return;
-
-        const queryKey = queryKeys.invoices.detail(id);
-        if (queryClient.getQueryData(queryKey)) return;
-        if (activePrefetches.size >= MAX_CONCURRENT_PREFETCHES) return;
-
-        activePrefetches.add(id);
-        void queryClient
-          .prefetchQuery({
-            queryKey,
-            queryFn: () => fetchInvoiceById(id),
-            staleTime: STALE_30S,
-          })
-          .finally(() => {
-            activePrefetches.delete(id);
-          });
-      }, PREFETCH_DELAY_MS);
-    },
-    [queryClient, cancelPrefetch]
-  );
-
-  useEffect(() => () => cancelPrefetch(), [cancelPrefetch]);
-
-  return { prefetch, cancelPrefetch };
 }
 
 // ─── SME invoices ─────────────────────────────────────────────────────────────

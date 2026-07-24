@@ -8,12 +8,14 @@ import { useWallet } from "@/hooks/useWallet";
 import { useWalletStore } from "@/store";
 import { env } from "@/lib/env";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export function WrongNetworkBanner() {
   const t = useTranslations("wrongNetwork");
-  const { isConnected } = useWallet();
+  const { isConnected, switchNetwork } = useWallet();
   const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
   const [dismissed, setDismissed] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
 
   const networkMismatch = isWrongNetwork();
   const passphraseMismatch = hasPassphraseMismatch();
@@ -35,6 +37,17 @@ export function WrongNetworkBanner() {
 
   const expectedNetwork = (env.NEXT_PUBLIC_STELLAR_NETWORK as typeof network) || "testnet";
 
+  const handleSwitchNetwork = async () => {
+    setIsSwitching(true);
+    try {
+      await switchNetwork();
+    } catch {
+      // ignore errors
+    } finally {
+      setIsSwitching(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       <motion.div
@@ -54,14 +67,24 @@ export function WrongNetworkBanner() {
             })}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => setDismissed(true)}
-          aria-label={t("dismiss")}
-          className="shrink-0 rounded-md p-1 hover:bg-destructive/20 transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={handleSwitchNetwork}
+            isLoading={isSwitching}
+          >
+            Switch Network
+          </Button>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            aria-label={t("dismiss")}
+            className="shrink-0 rounded-md p-1 hover:bg-destructive/20 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </motion.div>
     </AnimatePresence>
   );

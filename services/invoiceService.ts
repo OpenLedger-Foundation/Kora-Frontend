@@ -341,10 +341,15 @@ class LiveInvoiceService implements IInvoiceService {
 
   async getPositions(investorAddress: string): Promise<Result<InvoicePosition[]>> {
     try {
-      // TODO: Replace with on-chain fetch
-      throw new Error("Live positions fetch not yet implemented");
+      const positions = await marketplaceContract.getPositions(
+        investorAddress,
+        investorAddress
+      );
+      return success(positions);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live positions fetching is not yet implemented");
+      return failure("FETCH_ERROR", "Failed to fetch live positions", {
+        cause: String(error),
+      });
     }
   }
 
