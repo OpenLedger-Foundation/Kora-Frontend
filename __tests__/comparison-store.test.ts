@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useInvoiceStore } from "../store/invoiceStore";
+import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 
 function resetStore() {
   useInvoiceStore.setState({ comparisonList: [] });
@@ -19,22 +20,33 @@ describe("invoiceStore — comparison list", () => {
     expect(useInvoiceStore.getState().comparisonList).not.toContain("inv_001");
   });
 
-  it("allows up to 3 invoices", () => {
-    useInvoiceStore.getState().toggleComparison("inv_001");
-    useInvoiceStore.getState().toggleComparison("inv_002");
-    useInvoiceStore.getState().toggleComparison("inv_003");
-    expect(useInvoiceStore.getState().comparisonList).toHaveLength(3);
-  });
-
-  it("replaces the oldest when a 4th is added", () => {
+  it("allows up to 4 invoices", () => {
     useInvoiceStore.getState().toggleComparison("inv_001");
     useInvoiceStore.getState().toggleComparison("inv_002");
     useInvoiceStore.getState().toggleComparison("inv_003");
     useInvoiceStore.getState().toggleComparison("inv_004");
+    expect(useInvoiceStore.getState().comparisonList).toHaveLength(
+      MAX_COMPARISON_INVOICES
+    );
+  });
+
+  it("replaces the oldest when a 5th is added", () => {
+    useInvoiceStore.getState().toggleComparison("inv_001");
+    useInvoiceStore.getState().toggleComparison("inv_002");
+    useInvoiceStore.getState().toggleComparison("inv_003");
+    useInvoiceStore.getState().toggleComparison("inv_004");
+    useInvoiceStore.getState().toggleComparison("inv_005");
     const list = useInvoiceStore.getState().comparisonList;
-    expect(list).toHaveLength(3);
+    expect(list).toHaveLength(4);
     expect(list).not.toContain("inv_001"); // oldest replaced
-    expect(list).toContain("inv_004");
+    expect(list).toContain("inv_005");
+  });
+
+  it("setComparisonList restores a shareable URL selection (capped at 4)", () => {
+    useInvoiceStore
+      .getState()
+      .setComparisonList(["a", "b", "c", "d", "e", "a"]);
+    expect(useInvoiceStore.getState().comparisonList).toEqual(["a", "b", "c", "d"]);
   });
 
   it("removeFromComparison removes a single invoice", () => {

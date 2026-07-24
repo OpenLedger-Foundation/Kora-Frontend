@@ -279,7 +279,12 @@ PINATA_JWT=your_pinata_jwt_token
 # Feature Flags
 NEXT_PUBLIC_ENABLE_MOCK_DATA=true   # Set to false for live data
 NEXT_PUBLIC_ENABLE_DEVTOOLS=true
+NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
+NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
+NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 ```
+
+> **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
 
 ---
 
