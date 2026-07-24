@@ -279,18 +279,12 @@ PINATA_JWT=your_pinata_jwt_token
 # Feature Flags
 NEXT_PUBLIC_ENABLE_MOCK_DATA=true   # Set to false for live on-chain calls
 NEXT_PUBLIC_ENABLE_DEVTOOLS=true
+NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
+NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
+NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 ```
 
-### Contract ID Format
-
-All three contract IDs must be valid **Soroban C-strkeys**:
-- Exactly **56 characters** long
-- Starts with the letter **`C`**
-- Base-32 alphabet (A–Z, 2–7)
-- Example: `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`
-
-The app validates these at startup. Setting `NEXT_PUBLIC_ENABLE_MOCK_DATA=false` with the
-zero-address placeholder (`CAAAA...ABSC4`) causes a fatal error with a clear message — by design.
+> **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
 
 ---
 

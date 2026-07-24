@@ -2,9 +2,10 @@
  * JSON-LD structured data helpers for Lighthouse SEO ≥ 95.
  *
  * Generates schema.org structured data for each major page type.
- * Inject via <script type="application/ld+json"> in page <head>.
+ * Inject via <script type="application/ld+json"> in page <head> (prefer
+ * server components so crawlers see structured data without JS).
  *
- * Closes #125
+ * Closes #125 / #375
  */
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://kora.finance";
