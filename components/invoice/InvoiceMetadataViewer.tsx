@@ -17,7 +17,11 @@ import {
   Globe,
   Lock
 } from "lucide-react";
-import { verifyMetadataIntegrity } from "@/lib/invoiceMetadata";
+import {
+  verifyMetadataIntegrity,
+  metadataVersionBadge,
+  METADATA_VERSION,
+} from "@/lib/invoiceMetadata";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -62,6 +66,9 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
       cancelled = true;
     };
   }, [ipfsCid, metadata]);
+
+  const schemaVersion = metadata.metadataVersion ?? METADATA_VERSION;
+  const versionBadge = metadataVersionBadge(schemaVersion);
 
   const isVerified = verificationState === "verified";
   const verificationLabel =
@@ -207,8 +214,23 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
         {/* IPFS Metadata */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-4 w-4 text-primary" /> IPFS Content Metadata
+            <CardTitle className="flex items-center justify-between gap-2 text-base">
+              <span className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-primary" /> IPFS Content Metadata
+              </span>
+              <Badge
+                variant={
+                  versionBadge.tone === "success"
+                    ? "success"
+                    : versionBadge.tone === "warning"
+                    ? "warning"
+                    : "info"
+                }
+                className="h-fit"
+                title={versionBadge.description}
+              >
+                {versionBadge.label}
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-2">

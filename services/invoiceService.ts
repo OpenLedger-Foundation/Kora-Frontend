@@ -16,7 +16,14 @@ import type {
   InvoiceStatus,
 } from "@/types";
 import { MOCK_INVOICES } from "./mockData";
-import { uploadFileToPinata, uploadInvoiceMetadata, isValidCID } from "@/lib/ipfs";
+import {
+  uploadFileToPinata,
+  uploadInvoiceMetadata,
+  isValidCID,
+  fetchIpfsJsonWithFallback,
+  IpfsTamperError,
+  IpfsUnavailableError,
+} from "@/lib/ipfs";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
@@ -51,6 +58,40 @@ function mapContractError(error: unknown): ServiceError {
     return { code: "ALREADY_REPAID", message: "This invoice has already been repaid" };
   }
   return { code: "CONTRACT_ERROR", message: `Contract error: ${message}` };
+}
+
+/**
+ * Fetch, verify, and sanitize invoice metadata from IPFS.
+ *
+ * Uses multi-gateway fallback with per-gateway timeout/retry (#393): if the
+ * configured gateway is down we rotate to public gateways. The content hash is
+ * verified against the CID where possible, and tampered content is surfaced as
+ * a distinct IPFS_TAMPERED error so the UI can warn the user.
+ */
+async function fetchAndSanitizeIpfsMetadata(
+  cid: string
+): Promise<Result<Record<string, unknown>>> {
+  if (!isValidCID(cid)) {
+    return failure("INVALID_CID", "Invalid IPFS CID format");
+  }
+  try {
+    const { data } = await fetchIpfsJsonWithFallback<unknown>(cid, {
+      timeoutMs: 10_000,
+      // In mock mode the CID is synthetic and won't hash-match — skip verification.
+      skipIntegrity: env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
+    });
+    return success(sanitizeIpfsMetadata(data));
+  } catch (error) {
+    if (error instanceof IpfsTamperError) {
+      return failure("IPFS_TAMPERED", error.message, { cid });
+    }
+    if (error instanceof IpfsUnavailableError) {
+      return failure("IPFS_ERROR", error.message, { cid });
+    }
+    return failure("IPFS_ERROR", "Failed to fetch IPFS metadata", {
+      cause: String(error),
+    });
+  }
 }
 
 // ─── Mock Invoice Service ─────────────────────────────────────────────────
@@ -179,21 +220,7 @@ class MockInvoiceService implements IInvoiceService {
   }
 
   async getIpfsMetadata(cid: string): Promise<Result<Record<string, unknown>>> {
-    try {
-      const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY;
-      if (!isValidCID(cid)) {
-        return failure("INVALID_CID", "Invalid IPFS CID format");
-      }
-      const res = await fetch(`${gateway}/${cid}`, { signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) {
-        return failure("IPFS_ERROR", `IPFS fetch failed with status ${res.status}`);
-      }
-      const raw: unknown = await res.json();
-      const sanitized = sanitizeIpfsMetadata(raw);
-      return success(sanitized);
-    } catch (error) {
-      return failure("IPFS_ERROR", "Failed to fetch IPFS metadata", { cause: String(error) });
-    }
+    return fetchAndSanitizeIpfsMetadata(cid);
   }
 
   async createInvoice(
@@ -354,21 +381,7 @@ class LiveInvoiceService implements IInvoiceService {
   }
 
   async getIpfsMetadata(cid: string): Promise<Result<Record<string, unknown>>> {
-    try {
-      const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY;
-      if (!isValidCID(cid)) {
-        return failure("INVALID_CID", "Invalid IPFS CID format");
-      }
-      const res = await fetch(`${gateway}/${cid}`, { signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) {
-        return failure("IPFS_ERROR", `IPFS fetch failed with status ${res.status}`);
-      }
-      const raw: unknown = await res.json();
-      const sanitized = sanitizeIpfsMetadata(raw);
-      return success(sanitized);
-    } catch (error) {
-      return failure("IPFS_ERROR", "Failed to fetch IPFS metadata", { cause: String(error) });
-    }
+    return fetchAndSanitizeIpfsMetadata(cid);
   }
 
   async createInvoice(
