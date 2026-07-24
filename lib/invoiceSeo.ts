@@ -10,13 +10,15 @@
 
 import type { Metadata } from "next";
 import type { Invoice, InvoiceCategory, InvoiceJurisdiction } from "@/types";
-import { isValidCID } from "@/lib/ipfs";
-import {
-  validateInvoiceMetadata,
-  type InvoiceMetadataV1,
-} from "@/lib/invoiceMetadata";
+import type { InvoiceMetadataV1 } from "@/lib/invoiceMetadata";
 import { formatApr, formatCurrency } from "@/lib/utils";
 import { safeIpfsUrl } from "@/lib/security";
+
+/** Local CID check — avoids importing `@/lib/ipfs` (pulls `@/lib/env` at module load). */
+const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
+function isValidCID(cid: string): boolean {
+  return CID_REGEX.test(cid);
+}
 
 const APP_URL = () =>
   process.env.NEXT_PUBLIC_APP_URL || "https://kora.finance";
@@ -225,6 +227,8 @@ export async function fetchIpfsMetadataForSeo(
     });
     if (!res.ok) return null;
     const raw: unknown = await res.json();
+    // Dynamic import keeps Zod/env out of modules that only need OG helpers.
+    const { validateInvoiceMetadata } = await import("@/lib/invoiceMetadata");
     const parsed = validateInvoiceMetadata(raw);
     if (!parsed.success) return null;
     return parsed.data;

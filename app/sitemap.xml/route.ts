@@ -1,12 +1,13 @@
 /**
  * sitemap.xml — Issues #305 / #375
  *
- * Generates a sitemap with all public pages plus marketplace invoice URLs
- * (mock or live listing). Dashboard and API routes are excluded.
+ * Generates a sitemap with all public pages plus marketplace invoice URLs.
+ * Uses mock data (and optional live fetch) without importing `@/lib/env` at
+ * module scope so `next build` succeeds in CI with partial env.
  */
 
-import { fetchInvoices } from "@/services/invoiceService";
-import { buildInvoiceSitemapEntries } from "@/lib/invoiceSeo";
+import { MOCK_INVOICES } from "@/services/mockData";
+import type { Invoice } from "@/types";
 
 const STATIC_PAGES = [
   { path: "/", changefreq: "daily", priority: "1.0" },
@@ -15,6 +16,14 @@ const STATIC_PAGES = [
   { path: "/transactions", changefreq: "daily", priority: "0.5" },
   { path: "/invoice/create", changefreq: "weekly", priority: "0.7" },
 ];
+
+const PUBLIC_STATUSES = new Set([
+  "listed",
+  "partially_funded",
+  "fully_funded",
+  "active",
+  "repaid",
+]);
 
 function escapeXml(str: string) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -35,6 +44,37 @@ function urlEntry(
   </url>`;
 }
 
+/** Sitemap entry pattern for invoice detail pages (Issue #375). */
+function invoiceSitemapEntries(
+  invoices: Pick<Invoice, "id" | "status" | "updatedAt">[]
+) {
+  return invoices
+    .filter((inv) => PUBLIC_STATUSES.has(inv.status))
+    .map((inv) => ({
+      path: `/marketplace/${inv.id}`,
+      lastmod: (inv.updatedAt || new Date().toISOString()).slice(0, 10),
+      changefreq: "daily" as const,
+      priority: "0.8",
+    }));
+}
+
+async function loadInvoicesForSitemap(): Promise<
+  Pick<Invoice, "id" | "status" | "updatedAt">[]
+> {
+  // Prefer mock data when enabled (CI / local default) — no env module needed.
+  if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA !== "false") {
+    return MOCK_INVOICES;
+  }
+
+  try {
+    const { fetchInvoices } = await import("@/services/invoiceService");
+    const page = await fetchInvoices(undefined, undefined, 1, 100);
+    return page.data ?? [];
+  } catch {
+    return MOCK_INVOICES;
+  }
+}
+
 export async function GET() {
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL || "https://kora.finance";
@@ -44,16 +84,14 @@ export async function GET() {
     urlEntry(baseUrl, page.path, now, page.changefreq, page.priority)
   );
 
-  // Dynamic invoice detail entries (mock + live via invoice service)
   let invoiceEntries: string[] = [];
   try {
-    const page = await fetchInvoices(undefined, undefined, 1, 100);
-    const entries = buildInvoiceSitemapEntries(page.data ?? []);
-    invoiceEntries = entries.map((e) =>
+    const invoices = await loadInvoicesForSitemap();
+    invoiceEntries = invoiceSitemapEntries(invoices).map((e) =>
       urlEntry(baseUrl, e.path, e.lastmod || now, e.changefreq, e.priority)
     );
   } catch {
-    // Sitemap still returns static pages if invoice fetch fails
+    // Sitemap still returns static pages if invoice listing fails
   }
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
