@@ -18,6 +18,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report",
     "test:mutation": "stryker run",
+    "seed:testnet": "node --experimental-strip-types scripts/seed-testnet.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "release:dry": "semantic-release --dry-run",

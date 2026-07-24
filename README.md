@@ -176,6 +176,26 @@ The app ships with mock data enabled by default (`NEXT_PUBLIC_ENABLE_MOCK_DATA=t
 
 To test wallet interactions, install [Freighter](https://freighter.app), switch it to **Testnet**, and fund your account via [Stellar Friendbot](https://friendbot.stellar.org).
 
+### Seeding Testnet Data
+
+Once you have real contract IDs deployed to testnet (`NEXT_PUBLIC_ENABLE_MOCK_DATA=false`), `scripts/seed-testnet.ts` sets up a wallet with sample data to develop against:
+
+```bash
+npm run seed:testnet
+```
+
+This generates a new keypair, funds it via Friendbot, mints it testnet USDC, mints 5 sample invoices, partially funds 2 of them, and prints the wallet's public/secret key and the minted token IDs to the console — save the secret key if you want to reuse that wallet (e.g. to import it into Freighter).
+
+Validate the script against your configured contracts without writing any invoice or funding state on-chain:
+
+```bash
+npm run seed:testnet -- --dry-run
+```
+
+`--dry-run` still generates and funds a keypair (a real, funded account is required to simulate contract calls at all) and builds + simulates every mint call, but never signs or submits a mint or fund transaction.
+
+The script refuses to run unless `NEXT_PUBLIC_STELLAR_NETWORK=testnet` — it will never touch mainnet. It reuses `lib/stellar/contracts.ts` and `@stellar/stellar-sdk` directly (no extra tooling needed) via [Node's built-in TypeScript support](https://nodejs.org/api/typescript.html), so it requires **Node.js 22.6+**.
+
 ---
 
 ## Project Structure
