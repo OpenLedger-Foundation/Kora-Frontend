@@ -68,13 +68,7 @@ import {
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
 import { env } from "@/lib/env";
-import Script from "next/script";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
-import {
-  invoiceFinancialProductSchema,
-  breadcrumbSchema,
-  serializeSchema,
-} from "@/lib/structuredData";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
@@ -337,42 +331,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
 
   return (
     <ErrorBoundary>
-      {/* Structured data for SEO ≥ 95 */}
-      <Script
-        id="ld-invoice"
-        type="application/ld+json"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: serializeSchema(
-            invoiceFinancialProductSchema({
-              id,
-              invoiceNumber: metadata.invoiceNumber,
-              debtorName: metadata.debtorName,
-              amount: metadata.amount,
-              currency: metadata.currency,
-              apr: terms.apr,
-              dueDate: metadata.dueDate,
-              jurisdiction: metadata.jurisdiction,
-              category: metadata.category,
-              riskTier,
-            }),
-          ),
-        }}
-      />
-      <Script
-        id="ld-breadcrumb-invoice"
-        type="application/ld+json"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: serializeSchema(
-            breadcrumbSchema([
-              { name: "Home", url: "/" },
-              { name: "Marketplace", url: "/marketplace" },
-              { name: metadata.invoiceNumber, url: `/marketplace/${id}` },
-            ]),
-          ),
-        }}
-      />
+      {/* JSON-LD is rendered server-side in page.tsx for crawler-friendly SEO */}
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <Link
