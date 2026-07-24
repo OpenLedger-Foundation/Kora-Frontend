@@ -27,9 +27,9 @@ import type { MintInvoiceParams, FundInvoiceParams, RepayInvoiceParams } from "@
 // Mock environment variables
 vi.mock("@/lib/env", () => ({
   env: {
-    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHIR4",
-    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUD",
+    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
     NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
     NEXT_PUBLIC_STELLAR_RPC_URL: "https://soroban-testnet.stellar.org",
   },
@@ -37,12 +37,13 @@ vi.mock("@/lib/env", () => ({
 
 // Mock the RPC client
 vi.mock("../client", () => {
+  const mockAccount = new StellarSdk.Account(
+    "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+    "1000"
+  );
+
   const mockRpc = {
-    getAccount: vi.fn().mockResolvedValue({
-      sequenceNumber: () => "1000",
-      accountId: () => "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
-      incrementSequenceNumber: vi.fn(),
-    }),
+    getAccount: vi.fn().mockResolvedValue(mockAccount),
     simulateTransaction: vi.fn(),
     getTransaction: vi.fn(),
   };
@@ -56,6 +57,12 @@ vi.mock("../client", () => {
       rpcUrl: "https://soroban-testnet.stellar.org",
     },
     submitTransaction: vi.fn(),
+    sequenceManager: {
+      nextAccount: vi.fn().mockImplementation(async (address: string) => {
+        return new StellarSdk.Account(address, "1000");
+      }),
+      reset: vi.fn(),
+    },
   };
 });
 
@@ -63,6 +70,25 @@ vi.mock("../client", () => {
 const VALID_ADDRESS_1 = "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI";
 const VALID_ADDRESS_2 = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
 const INVALID_ADDRESS = "INVALID_STELLAR_ADDRESS";
+
+beforeEach(() => {
+  // assembleTransaction requires a full RPC simulation payload; unit tests
+  // only assert XDR shape, so short-circuit assembly to the pre-sim tx.
+  vi.spyOn(StellarSdk.rpc, "assembleTransaction").mockImplementation(
+    (tx: StellarSdk.Transaction) =>
+      ({
+        build: () => tx,
+      }) as unknown as ReturnType<typeof StellarSdk.rpc.assembleTransaction>
+  );
+  vi.spyOn(StellarSdk.rpc.Api, "isSimulationError").mockImplementation(
+    (result: unknown) =>
+      Boolean(result && typeof result === "object" && "error" in (result as object))
+  );
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("InvoiceContract", () => {
   beforeEach(() => {
