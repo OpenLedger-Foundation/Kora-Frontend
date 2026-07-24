@@ -16,7 +16,16 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: vi.fn(() => ({
-    prefetchQuery: vi.fn(),
+    prefetchQuery: vi.fn().mockResolvedValue(undefined),
+    getQueryData: vi.fn(),
+    getQueryState: vi.fn(),
+  })),
+}));
+
+vi.mock("@/hooks/usePrefetchInvoice", () => ({
+  usePrefetchInvoice: vi.fn(() => ({
+    prefetch: vi.fn(),
+    cancelPrefetch: vi.fn(),
   })),
 }));
 
