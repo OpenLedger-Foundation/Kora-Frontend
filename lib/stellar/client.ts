@@ -544,6 +544,189 @@ export async function getContractEvents(
   return { events, latestLedger };
 }
 
+// ─── Contract event streaming ─────────────────────────────────────────────────
+
+/** Preferred near-realtime cadence when using the stream loop (≤2s). */
+export const EVENT_STREAM_INTERVAL_MS = 1_500;
+/** Fallback polling cadence after stream failure. */
+export const EVENT_POLL_FALLBACK_INTERVAL_MS = 5_000;
+/** Consecutive stream failures before switching to polling fallback. */
+export const EVENT_STREAM_FAILURE_THRESHOLD = 3;
+
+export type EventSubscriptionMode = "stream" | "polling";
+
+export interface SubscribeContractEventsParams extends GetContractEventsParams {
+  /** Optional indexer/SSE endpoint. When set, EventSource is preferred. */
+  streamUrl?: string;
+  /** Interval for the RPC stream loop (default 1500ms). */
+  streamIntervalMs?: number;
+  /** Interval for polling fallback (default 5000ms). */
+  pollIntervalMs?: number;
+}
+
+export interface ContractEventSubscription {
+  /** Tear down SSE / timers. */
+  unsubscribe: () => void;
+  /** Current transport mode. */
+  getMode: () => EventSubscriptionMode;
+}
+
+export interface ContractEventSubscriptionHandlers {
+  onEvents: (result: GetContractEventsResult) => void;
+  onModeChange?: (mode: EventSubscriptionMode) => void;
+  onError?: (error: unknown) => void;
+}
+
+/**
+ * Subscribe to contract events via indexer SSE when available, otherwise a
+ * near-realtime RPC stream loop. Falls back to slower polling after repeated
+ * stream failures so marketplace funding progress stays resilient.
+ */
+export function subscribeContractEvents(
+  params: SubscribeContractEventsParams,
+  handlers: ContractEventSubscriptionHandlers
+): ContractEventSubscription {
+  const {
+    streamUrl = typeof process !== "undefined"
+      ? process.env.NEXT_PUBLIC_EVENTS_STREAM_URL
+      : undefined,
+    streamIntervalMs = EVENT_STREAM_INTERVAL_MS,
+    pollIntervalMs = EVENT_POLL_FALLBACK_INTERVAL_MS,
+  } = params;
+
+  let mode: EventSubscriptionMode = "stream";
+  let stopped = false;
+  let startLedger = params.startLedger;
+  let failureCount = 0;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let eventSource: EventSource | null = null;
+
+  const setMode = (next: EventSubscriptionMode) => {
+    if (mode === next) return;
+    mode = next;
+    handlers.onModeChange?.(next);
+  };
+
+  const clearTimer = () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  };
+
+  const closeEventSource = () => {
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+  };
+
+  const handleResult = (result: GetContractEventsResult) => {
+    if (result.latestLedger > startLedger) {
+      startLedger = result.latestLedger;
+    }
+    failureCount = 0;
+    handlers.onEvents(result);
+  };
+
+  const pollOnce = async () => {
+    if (stopped) return;
+    try {
+      const result = await getContractEvents({
+        contractId: params.contractId,
+        eventTypes: params.eventTypes,
+        startLedger,
+      });
+      handleResult(result);
+    } catch (err) {
+      failureCount += 1;
+      handlers.onError?.(err);
+      if (mode === "stream" && failureCount >= EVENT_STREAM_FAILURE_THRESHOLD) {
+        startPollingFallback();
+      }
+    }
+  };
+
+  const startPollingFallback = () => {
+    if (stopped) return;
+    closeEventSource();
+    clearTimer();
+    setMode("polling");
+    failureCount = 0;
+    void pollOnce();
+    timer = setInterval(() => {
+      void pollOnce();
+    }, pollIntervalMs);
+  };
+
+  const startRpcStreamLoop = () => {
+    if (stopped) return;
+    closeEventSource();
+    clearTimer();
+    setMode("stream");
+    void pollOnce();
+    timer = setInterval(() => {
+      void pollOnce();
+    }, streamIntervalMs);
+  };
+
+  const startSse = (url: string) => {
+    if (typeof EventSource === "undefined") {
+      startRpcStreamLoop();
+      return;
+    }
+
+    try {
+      const qs = new URL(url);
+      qs.searchParams.set("contractId", params.contractId);
+      qs.searchParams.set("eventTypes", params.eventTypes.join(","));
+      if (startLedger > 0) qs.searchParams.set("startLedger", String(startLedger));
+
+      eventSource = new EventSource(qs.toString());
+      setMode("stream");
+
+      eventSource.onmessage = (msg) => {
+        try {
+          const parsed = JSON.parse(msg.data) as GetContractEventsResult;
+          handleResult(parsed);
+        } catch (err) {
+          failureCount += 1;
+          handlers.onError?.(err);
+          if (failureCount >= EVENT_STREAM_FAILURE_THRESHOLD) {
+            startPollingFallback();
+          }
+        }
+      };
+
+      eventSource.onerror = (err) => {
+        failureCount += 1;
+        handlers.onError?.(err);
+        if (failureCount >= EVENT_STREAM_FAILURE_THRESHOLD) {
+          startPollingFallback();
+        }
+      };
+    } catch (err) {
+      handlers.onError?.(err);
+      startRpcStreamLoop();
+    }
+  };
+
+  if (streamUrl) {
+    startSse(streamUrl);
+  } else {
+    startRpcStreamLoop();
+  }
+
+  return {
+    unsubscribe: () => {
+      stopped = true;
+      clearTimer();
+      closeEventSource();
+    },
+    getMode: () => mode,
+  };
+}
+
 // ─── Transaction submission ───────────────────────────────────────────────────
 
 /** Error thrown when the network rejects a transaction due to a bad sequence number. */
