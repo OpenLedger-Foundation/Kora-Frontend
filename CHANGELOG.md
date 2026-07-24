@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.0.0...v1.1.0) (2026-07-24)
+
+
+### Features
+
+* **ipfs:** resilient IPFS layer — gateway fallback, CID integrity, metadata versioning, Pinata degradation UX ([b08a796](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/b08a796cf5f49772c33a7887dd550960e443474d)), closes [#392](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/392) [#393](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/393) [#393](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/393) [#392](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/392) [#394](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/394)
+
 # 1.0.0 (2026-07-24)
 
 
