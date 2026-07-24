@@ -8,6 +8,7 @@ interface PerformanceData {
   timeToFirstCardMs: number;
   timeToFilterResponseMs: number;
   timeToLoad50InvoicesMs: number;
+  timeToLoad100InvoicesMs: number;
 }
 
 test.describe("Marketplace Performance Load Testing", () => {
@@ -19,35 +20,44 @@ test.describe("Marketplace Performance Load Testing", () => {
     });
   });
 
-  test("measures marketplace page load, rendering, and filtering performance", async ({ page }, testInfo) => {
-    // 1. Navigate to marketplace with pageSize=50 to load all 50 invoices on the page
+  test("measures marketplace infinite scroll and filtering performance", async ({ page }, testInfo) => {
+    // Initial load uses default page size (first page only)
     const startTime = Date.now();
-    await page.goto("/marketplace?pageSize=50");
+    await page.goto("/marketplace");
 
-    // Wait for the first invoice card to be visible in the DOM
     const firstCard = page.locator("a[href^='/marketplace/']").first();
     await firstCard.waitFor({ state: "visible", timeout: 20_000 });
     const timeToFirstCardMs = Date.now() - startTime;
 
-    // Wait for the 50th invoice card to be visible in the DOM
-    const fiftiethCard = page.locator("a[href^='/marketplace/']").nth(49);
-    await fiftiethCard.waitFor({ state: "visible", timeout: 20_000 });
+    // Scroll the infinite sentinel into view repeatedly until 50 cards load
+    const cardLocator = page.locator("a[href^='/marketplace/']");
+    const scrollUntilCount = async (target: number, timeoutMs: number) => {
+      const deadline = Date.now() + timeoutMs;
+      while ((await cardLocator.count()) < target && Date.now() < deadline) {
+        await page.locator("#infinite-sentinel").scrollIntoViewIfNeeded().catch(() => undefined);
+        await page.mouse.wheel(0, 2400);
+        await page.waitForTimeout(250);
+      }
+    };
+
+    await scrollUntilCount(50, 25_000);
+    await expect(cardLocator.nth(49)).toBeVisible({ timeout: 20_000 });
     const timeToLoad50InvoicesMs = Date.now() - startTime;
 
-    // 2. Measure Time to Filter Response (Search for a specific card)
+    await scrollUntilCount(100, 30_000);
+    await expect(cardLocator.nth(99)).toBeVisible({ timeout: 20_000 });
+    const timeToLoad100InvoicesMs = Date.now() - startTime;
+
+    // Filter response — search for a generated SME
     const searchInput = page.getByPlaceholder(/Search by debtor, invoice number, or jurisdiction/i);
     await searchInput.waitFor({ state: "visible" });
 
     const filterStartTime = Date.now();
-    // Search for "SME 50" which will filter the list down to exactly one card
     await searchInput.fill("SME 50");
-
-    // Wait until the second card is detached (i.e. only 1 card remains) and "SME 50" is visible
     await page.locator("a[href^='/marketplace/']").nth(1).waitFor({ state: "detached", timeout: 10_000 });
     await page.getByText("SME 50").first().waitFor({ state: "visible", timeout: 10_000 });
     const timeToFilterResponseMs = Date.now() - filterStartTime;
 
-    // 3. Extract Playwright's Page Metrics and performance.timing
     const pageMetrics = await page.metrics();
     const timing = await page.evaluate(() => {
       const t = window.performance.timing;
@@ -68,23 +78,24 @@ test.describe("Marketplace Performance Load Testing", () => {
       timeToFirstCardMs,
       timeToFilterResponseMs,
       timeToLoad50InvoicesMs,
+      timeToLoad100InvoicesMs,
     };
 
     console.log("=== Measured Performance Results ===");
     console.log(JSON.stringify(currentData, null, 2));
 
-    // 4. Load baseline and compare
     if (fs.existsSync(baselinePath)) {
-      const baseline: PerformanceData = JSON.parse(fs.readFileSync(baselinePath, "utf-8"));
+      const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as Partial<PerformanceData>;
       console.log("=== Baseline Performance ===");
       console.log(JSON.stringify(baseline, null, 2));
 
-      const thresholdPercentage = 1.2; // 20% degradation threshold
+      const thresholdPercentage = 1.2;
       const warnings: string[] = [];
 
       (Object.keys(currentData) as Array<keyof PerformanceData>).forEach((key) => {
         const current = currentData[key];
         const base = baseline[key];
+        if (typeof base !== "number") return;
         const limit = base * thresholdPercentage;
 
         if (current > limit) {
@@ -102,7 +113,6 @@ test.describe("Marketplace Performance Load Testing", () => {
       }
     }
 
-    // 5. Update baseline if requested via environment variable
     if (process.env.UPDATE_PERF_BASELINE === "true") {
       fs.writeFileSync(baselinePath, JSON.stringify(currentData, null, 2));
       console.log(`\n💾  Performance baseline updated successfully at ${baselinePath}\n`);
