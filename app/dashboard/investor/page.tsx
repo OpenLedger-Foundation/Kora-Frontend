@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Store, TrendingUp, DollarSign, BarChart3, Clock } from "lucide-react";
+import { Store, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -14,7 +14,7 @@ const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
   {
     ssr: false,
-    loading: () => <div className="h-48 rounded bg-zinc-900/40" />,
+    loading: () => <div className="h-48 rounded bg-zinc-900/40" aria-busy="true" />,
   },
 );
 import { useWallet } from "@/hooks/useWallet";
@@ -38,11 +38,35 @@ import {
   RISK_TIER_COLORS,
   cn,
 } from "@/lib/utils";
-import type { InvestorPosition } from "@/types/invoice";
+import type { InvestorPosition, InvoicePosition } from "@/types/invoice";
 import type { ColumnDef } from "@/types/table";
+import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
+import {
+  PortfolioDonut,
+  type DonutFilter,
+} from "@/components/dashboard/PortfolioDonut";
+
+/** Loading must resolve within 30s or we surface an error state. */
+export const INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS = 30_000;
+
+function toInvoicePositions(positions: InvestorPosition[]): InvoicePosition[] {
+  return positions
+    .filter((p): p is InvestorPosition & { invoice: NonNullable<InvestorPosition["invoice"]> } =>
+      Boolean(p.invoice),
+    )
+    .map((p) => ({
+      invoiceId: p.invoiceId,
+      invoice: p.invoice,
+      investedAmount: p.investedAmount,
+      expectedReturn: p.expectedReturn,
+      yieldEarned: Math.max(0, p.expectedReturn - p.investedAmount),
+      investedAt: p.invoice.createdAt,
+      status: p.status,
+    }));
+}
 
 export default function InvestorDashboardPage() {
-  const { isConnected } = useWallet();
+  const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { address } = useWallet();
   const router = useRouter();
@@ -53,13 +77,39 @@ export default function InvestorDashboardPage() {
   const { execute } = useTransaction();
   const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
 
-  const handleClaim = async (pos: InvestorPosition) => {
-    if (!address) return;
-    await execute(() => prepareClaimPosition(pos.id, address), {
-      successMessage: "Claim submitted",
-      onSuccess: () => positionsQuery.refetch(),
-    });
-  };
+  if (loadTimedOut || positionsQuery.isError) {
+    return (
+      <div
+        className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center"
+        role="alert"
+        aria-live="assertive"
+      >
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+        </div>
+        <h2 className="text-xl font-semibold text-foreground">
+          Unable to load portfolio
+        </h2>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {loadTimedOut
+            ? "Loading took longer than 30 seconds. Check your connection and try again."
+            : "Something went wrong while fetching your positions."}
+        </p>
+        <Button
+          onClick={() => {
+            setLoadTimedOut(false);
+            void positionsQuery.refetch();
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (isInitialLoading) {
+    return <InvestorDashboardSkeleton />;
+  }
 
   const positionsData = useMemo<InvestorPosition[]>(
     () => positionsQuery.data ?? [],
@@ -271,7 +321,7 @@ export default function InvestorDashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6" aria-busy="false">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
@@ -336,7 +386,7 @@ export default function InvestorDashboardPage() {
           <DataTable
             data={filteredPositions}
             columns={POSITION_COLUMNS as any}
-            isLoading={positionsQuery.isLoading}
+            isLoading={false}
             pageSize={5}
             emptyState={{
               title: donutFilter ? "No matching positions" : "No positions",
