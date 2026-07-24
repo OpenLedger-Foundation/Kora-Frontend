@@ -65,7 +65,10 @@ export default function InvestorDashboardPage() {
   const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
 
-  const positionsData: InvestorPosition[] = positionsQuery.data ?? [];
+  const positionsData = useMemo(
+    () => positionsQuery.data ?? [],
+    [positionsQuery.data],
+  );
   const isInitialLoading =
     positionsQuery.isLoading || (positionsQuery.isFetching && !positionsQuery.data);
 
