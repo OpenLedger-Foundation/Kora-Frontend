@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   StellarWalletsKit,
   WalletNetwork,
@@ -48,6 +48,19 @@ function getKit(): StellarWalletsKit {
   return kit;
 }
 
+/**
+ * Attempts a silent re-establishment of the wallet kit session by calling
+ * getPublicKey() on the previously used provider.  Resolves to the recovered
+ * public key on success, or throws if the extension is locked / unavailable.
+ */
+async function silentReconnect(provider: WalletProvider): Promise<string> {
+  const walletKit = getKit();
+  walletKit.setWallet(provider);
+  // getPublicKey() will throw if the extension is locked or not installed.
+  const publicKey = await walletKit.getPublicKey();
+  return publicKey;
+}
+
 export function useWallet() {
   const {
     address,
@@ -57,6 +70,7 @@ export function useWallet() {
     balance,
     isVerified,
     verifiedAt,
+    kitSessionActive,
     connect,
     disconnect,
     setBalance,
@@ -65,12 +79,121 @@ export function useWallet() {
     isVerificationExpired,
     updateActivity,
     isSessionExpired,
+    setKitSessionActive,
   } = useWalletStore();
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
 
-  // Debounced activity tracker — updates lastActivityAt at most once per 5s.
+  // Local UI state for the reconnect prompt (stale-session banner in WalletButton)
+  const [showReconnectPrompt, setShowReconnectPrompt] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // ── Silent reconnect on mount ──────────────────────────────────────────────
+  // After a page refresh the zustand store rehydrates from localStorage and
+  // reports isConnected=true, but the in-memory kit singleton is gone.  We
+  // attempt a silent getPublicKey() call to restore the kit session without
+  // requiring user interaction.  If the wallet extension is locked or missing
+  // we surface the reconnect prompt instead.
+  const silentReconnectAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    // Only attempt once per mount, and only when the store says connected but
+    // the kit session has not yet been established.
+    if (!isConnected || kitSessionActive !== false) return;
+    if (silentReconnectAttemptedRef.current) return;
+    silentReconnectAttemptedRef.current = true;
+
+    // Skip during mock / SSR contexts.
+    if (typeof window === "undefined") return;
+    if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+      setKitSessionActive(true);
+      return;
+    }
+
+    // Mark as pending so UI shows a spinner rather than the stale badge.
+    setKitSessionActive(null);
+
+    const attemptSilentReconnect = async () => {
+      if (!provider) {
+        // No provider persisted — cannot reconnect silently, surface prompt.
+        setKitSessionActive(false);
+        setShowReconnectPrompt(true);
+        return;
+      }
+
+      try {
+        const recoveredKey = await silentReconnect(provider);
+        // Verify the recovered key matches the persisted one.
+        if (recoveredKey !== address) {
+          // Address changed (user switched accounts) — treat as disconnected.
+          useWalletStore.getState().disconnect();
+          window.dispatchEvent(new CustomEvent("kora:session-expired"));
+          return;
+        }
+        setKitSessionActive(true);
+        setShowReconnectPrompt(false);
+        // Refresh balance in the background — don't block the session restore.
+        try {
+          const raw = await getAccountBalances(recoveredKey);
+          useWalletStore.getState().setBalance({
+            xlm: raw.xlm,
+            usdc: raw.usdc,
+            eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
+          });
+        } catch {
+          // Non-critical — silently ignore balance fetch failures.
+        }
+      } catch {
+        // Extension is locked or unavailable — show reconnect prompt.
+        setKitSessionActive(false);
+        setShowReconnectPrompt(true);
+      }
+    };
+
+    attemptSilentReconnect();
+  }, [isConnected, kitSessionActive, provider, address, setKitSessionActive]);
+
+  // ── Manual reconnect (triggered from the reconnect prompt UI) ────────────
+  const manualReconnect = useCallback(async (): Promise<void> => {
+    if (!provider || !address) {
+      // No persisted session — open the full connect modal.
+      useUIStore.getState().setWalletModalOpen(true);
+      return;
+    }
+    setIsReconnecting(true);
+    setKitSessionActive(null);
+    try {
+      const recoveredKey = await silentReconnect(provider);
+      if (recoveredKey !== address) {
+        // Account changed — full disconnect + modal.
+        useWalletStore.getState().disconnect();
+        useUIStore.getState().setWalletModalOpen(true);
+        return;
+      }
+      setKitSessionActive(true);
+      setShowReconnectPrompt(false);
+      // Refresh balance after manual reconnect.
+      try {
+        const raw = await getAccountBalances(recoveredKey);
+        useWalletStore.getState().setBalance({
+          xlm: raw.xlm,
+          usdc: raw.usdc,
+          eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
+        });
+      } catch {
+        // Non-critical.
+      }
+    } catch {
+      // Still locked — keep the prompt visible; user needs to unlock.
+      setKitSessionActive(false);
+      setShowReconnectPrompt(true);
+    } finally {
+      setIsReconnecting(false);
+    }
+  }, [provider, address, setKitSessionActive]);
+
+  // ── Debounced activity tracker ────────────────────────────────────────────
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleActivity = useCallback(() => {
     if (activityTimerRef.current) return;
@@ -93,13 +216,11 @@ export function useWallet() {
   }, [isConnected, handleActivity]);
 
   // Check session expiry on page focus and on route change.
-  // Does not disconnect mid-transaction — the signTransaction guard handles that.
   useEffect(() => {
     if (!isConnected) return;
     const checkExpiry = () => {
       if (isSessionExpired()) {
         useWalletStore.getState().disconnect();
-        // Inform the user via a custom event; the UI layer can listen and show a toast.
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("kora:session-expired"));
         }
@@ -109,6 +230,15 @@ export function useWallet() {
     window.addEventListener("focus", checkExpiry);
     return () => window.removeEventListener("focus", checkExpiry);
   }, [isConnected, pathname, isSessionExpired]);
+
+  // Clear the reconnect prompt state when the user fully disconnects.
+  useEffect(() => {
+    if (!isConnected) {
+      setShowReconnectPrompt(false);
+      setIsReconnecting(false);
+      silentReconnectAttemptedRef.current = false;
+    }
+  }, [isConnected]);
 
   const connectWallet = useCallback(
     async (walletId: string = FREIGHTER_ID) => {
@@ -129,17 +259,19 @@ export function useWallet() {
         // Account may not be funded yet on testnet
       }
 
-      // Get the wallet's network passphrase for validation
       let walletPassphrase: string | undefined;
       try {
         const networkInfo = await (walletKit as any).getNetworkDetails?.();
         walletPassphrase = networkInfo?.networkPassphrase;
       } catch {
-        // Some wallet implementations may not support getNetworkDetails; fallback to null
+        // Some wallet implementations may not support getNetworkDetails
       }
 
       connect(walletId as WalletProvider, addr, addr, walletPassphrase);
       if (bal) setBalance(bal);
+      // Kit session is live immediately after a fresh connect.
+      setKitSessionActive(true);
+      setShowReconnectPrompt(false);
       try {
         const intended = useUIStore.getState().intendedDestination;
         if (intended) {
@@ -147,10 +279,10 @@ export function useWallet() {
           router.push(intended);
         }
       } catch {
-        // best-effort redirect; ignore failures
+        // best-effort redirect
       }
     },
-    [connect, setBalance],
+    [connect, setBalance, setKitSessionActive, router],
   );
 
   const disconnectWallet = useCallback(async () => {
@@ -176,7 +308,6 @@ export function useWallet() {
       router.push("/marketplace");
     }
 
-    // Best-effort refresh after teardown for any address-bound views.
     if (walletAddress) {
       await queryClient.invalidateQueries({
         predicate: (q) => JSON.stringify(q.queryKey).includes(walletAddress),
@@ -184,16 +315,47 @@ export function useWallet() {
     }
   }, [address, disconnect, pathname, queryClient, router]);
 
+  /**
+   * Signs an XDR transaction.  If the kit session is stale (kitSessionActive
+   * is false), this method attempts a silent reconnect before signing.  If the
+   * silent reconnect fails (extension locked), it surfaces the reconnect prompt
+   * and throws `RECONNECT_REQUIRED` so the caller can gate the transaction.
+   */
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
       if (!isConnected) throw new Error("Wallet not connected");
-      // Do not block a transaction already in-flight — session expiry is checked
-      // on focus and route change, not during active signing.
       updateActivity();
+
       if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA || xdr.startsWith("mock_")) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         return `${xdr}_signed`;
       }
+
+      // If the kit session is stale, try to re-establish it transparently
+      // before attempting to sign.
+      const currentKitActive = useWalletStore.getState().kitSessionActive;
+      if (!currentKitActive) {
+        if (!provider) {
+          setShowReconnectPrompt(true);
+          throw new Error("RECONNECT_REQUIRED");
+        }
+        try {
+          const recoveredKey = await silentReconnect(provider);
+          if (recoveredKey !== address) {
+            useWalletStore.getState().disconnect();
+            throw new Error("Wallet account changed since last session");
+          }
+          setKitSessionActive(true);
+          setShowReconnectPrompt(false);
+        } catch (err: any) {
+          if (err.message !== "Wallet account changed since last session") {
+            setKitSessionActive(false);
+            setShowReconnectPrompt(true);
+          }
+          throw new Error("RECONNECT_REQUIRED");
+        }
+      }
+
       const walletKit = getKit();
       const { result } = await walletKit.signTx({
         xdr,
@@ -202,7 +364,7 @@ export function useWallet() {
       });
       return result;
     },
-    [isConnected, address],
+    [isConnected, address, provider, setKitSessionActive, updateActivity],
   );
 
   const refreshBalance = useCallback(async () => {
@@ -258,26 +420,17 @@ export function useWallet() {
     }
 
     try {
-      // Request a challenge from the server
       const challenge = await requestChallenge();
-
-      // Sign the challenge with the wallet
       const walletKit = getKit();
-      // signMessage may not exist on all wallet kit versions — cast to any
       const { result: signature } = await (walletKit as any).signMessage({
         message: challenge,
         publicKey: publicKey,
       });
 
-      // Send signature to server for verification
       const verifyRes = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          challenge,
-          signature,
-          publicKey,
-        }),
+        body: JSON.stringify({ challenge, signature, publicKey }),
       });
 
       if (!verifyRes.ok) throw new Error("Verification request failed");
@@ -296,14 +449,7 @@ export function useWallet() {
       clearVerification();
       throw error;
     }
-  }, [
-    isConnected,
-    address,
-    publicKey,
-    requestChallenge,
-    setVerified,
-    clearVerification,
-  ]);
+  }, [isConnected, address, publicKey, requestChallenge, setVerified, clearVerification]);
 
   const checkVerification = useCallback((): boolean => {
     if (!isConnected) return false;
@@ -331,8 +477,15 @@ export function useWallet() {
     balance,
     isVerified: verificationValid,
     verifiedAt,
+    /** Whether the in-memory kit session is established (null = reconnect pending). */
+    kitSessionActive,
+    /** Whether to show the "reconnect your wallet" prompt in the UI. */
+    showReconnectPrompt,
+    /** Whether a manual reconnect attempt is currently in progress. */
+    isReconnecting,
     connectWallet,
     disconnectWallet,
+    manualReconnect,
     fundWalletOnTestnet,
     signTransaction,
     refreshBalance,
