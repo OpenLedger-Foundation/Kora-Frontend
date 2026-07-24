@@ -56,6 +56,7 @@ export type ServiceErrorCode =
   | "FETCH_ERROR"
   | "INVALID_CID"
   | "IPFS_ERROR"
+  | "IPFS_TAMPERED"
   | "CONTRACT_ERROR"
   | "SUBMISSION_ERROR"
   | "CONFIRMATION_ERROR"

@@ -84,7 +84,7 @@ const withPWA = require("next-pwa")({
     // 8. IPFS gateway images — stale-while-revalidate
     {
       urlPattern:
-        /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io|cloudflare-ipfs\.com)\/.*/i,
+        /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io|cloudflare-ipfs\.com|dweb\.link|[a-z0-9]+\.ipfs\.dweb\.link)\/.*/i,
       handler: "StaleWhileRevalidate",
       options: {
         cacheName: "ipfs-assets",
@@ -123,6 +123,7 @@ const CSP_DIRECTIVES = {
     "https://ipfs.io",
     "https://gateway.pinata.cloud",
     "https://cloudflare-ipfs.com",
+    "https://dweb.link",
     "https://nftstorage.link",
     "https://*.ipfs.dweb.link",
     // Wallet provider icons
@@ -141,6 +142,8 @@ const CSP_DIRECTIVES = {
     "https://gateway.pinata.cloud",
     "https://ipfs.io",
     "https://cloudflare-ipfs.com",
+    "https://dweb.link",
+    "https://*.ipfs.dweb.link",
     "wss:",
   ],
   "frame-src": ["'none'"],
@@ -258,6 +261,7 @@ const nextConfig = {
       { protocol: "https", hostname: "ipfs.io" },
       { protocol: "https", hostname: "gateway.pinata.cloud" },
       { protocol: "https", hostname: "cloudflare-ipfs.com" },
+      { protocol: "https", hostname: "dweb.link" },
       { protocol: "https", hostname: "nftstorage.link" },
       { protocol: "https", hostname: "*.ipfs.dweb.link" },
 

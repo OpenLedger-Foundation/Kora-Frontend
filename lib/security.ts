@@ -219,6 +219,9 @@ const ALLOWED_STRING_KEYS = new Set([
   "name", "description", "image", "invoiceNumber", "issuerAddress",
   "debtorName", "debtorAddress", "currency", "issueDate", "dueDate",
   "jurisdiction", "category", "documentHash", "documentUrl",
+  // Schema versioning (#392) — preserve the version marker through sanitization
+  // so downstream consumers can detect legacy vs. versioned metadata.
+  "metadata_version", "metadataVersion",
 ]);
 
 const ALLOWED_NUMBER_KEYS = new Set(["amount", "apr"]);
