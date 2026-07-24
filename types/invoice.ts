@@ -122,6 +122,8 @@ export interface InvestorPosition {
   invoice?: Invoice;
   investedAmount: number;
   expectedReturn: number;
+  yieldEarned: number;
+  investedAt: string;
   status: "active" | "repaid" | "defaulted";
 }
 

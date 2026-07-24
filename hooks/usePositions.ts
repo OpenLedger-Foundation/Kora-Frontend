@@ -36,6 +36,8 @@ export function usePositions(
         invoice: p.invoice,
         investedAmount: p.investedAmount,
         expectedReturn: p.expectedReturn,
+        yieldEarned: p.yieldEarned,
+        investedAt: p.investedAt,
         status: p.status,
       }));
     },

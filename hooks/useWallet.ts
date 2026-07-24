@@ -12,6 +12,7 @@ import {
 } from "@creit.tech/stellar-wallets-kit";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useWalletStore, useUIStore } from "@/store";
+import { getConfiguredNetwork } from "@/store/walletStore";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -269,14 +270,24 @@ export function useWallet() {
       }
 
       let walletPassphrase: string | undefined;
+      let walletNetwork: "testnet" | "mainnet" | "futurenet" = getConfiguredNetwork();
       try {
         const networkInfo = await (walletKit as any).getNetworkDetails?.();
         walletPassphrase = networkInfo?.networkPassphrase;
+        const currentNetwork = (walletKit as any).network;
+        if (currentNetwork === WalletNetwork.PUBLIC) {
+          walletNetwork = "mainnet";
+        } else if (currentNetwork === WalletNetwork.FUTURENET) {
+          walletNetwork = "futurenet";
+        } else {
+          walletNetwork = "testnet";
+        }
       } catch {
         // Some wallet implementations may not support getNetworkDetails
       }
 
       connect(walletId as WalletProvider, addr, addr, walletPassphrase);
+      setNetwork(walletNetwork, walletPassphrase);
       if (bal) setBalance(bal);
       // Kit session is live immediately after a fresh connect.
       setKitSessionActive(true);
@@ -539,6 +550,51 @@ export function useWallet() {
     return isVerified;
   }, [isConnected, isVerified, isVerificationExpired, clearVerification]);
 
+  const refreshNetwork = useCallback(async () => {
+    if (!isConnected || !provider) return;
+    try {
+      const walletKit = getKit();
+      // Try to get network details
+      let walletPassphrase: string | undefined;
+      try {
+        const networkInfo = await (walletKit as any).getNetworkDetails?.();
+        walletPassphrase = networkInfo?.networkPassphrase;
+      } catch {
+        // ignore
+      }
+      // Map WalletNetwork to our WalletNetwork type
+      const currentNetwork = (walletKit as any).network;
+      let mappedNetwork: "testnet" | "mainnet" | "futurenet";
+      if (currentNetwork === WalletNetwork.PUBLIC) {
+        mappedNetwork = "mainnet";
+      } else if (currentNetwork === WalletNetwork.FUTURENET) {
+        mappedNetwork = "futurenet";
+      } else {
+        mappedNetwork = "testnet";
+      }
+      setNetwork(mappedNetwork, walletPassphrase);
+    } catch {
+      // ignore errors
+    }
+  }, [isConnected, provider, setNetwork]);
+
+  const switchNetwork = useCallback(async () => {
+    if (!isConnected || !provider) {
+      throw new Error("Wallet not connected");
+    }
+    const walletKit = getKit();
+    // Try to set network on the wallet kit
+    try {
+      await (walletKit as any).setNetwork?.(WALLET_NETWORK);
+    } catch {
+      // If setNetwork fails, just proceed to refresh
+    }
+    // Refresh the network state
+    await refreshNetwork();
+    // Also refresh balance to make sure we're on the right network
+    await refreshBalance();
+  }, [isConnected, provider, refreshNetwork, refreshBalance]);
+
   const requireVerification = useCallback(async (): Promise<void> => {
     if (!checkVerification()) {
       throw new Error("VERIFICATION_REQUIRED");
@@ -569,6 +625,8 @@ export function useWallet() {
     mintTestnetUsdc,
     signTransaction,
     refreshBalance,
+    refreshNetwork,
+    switchNetwork,
     requestChallenge,
     verifyOwnership,
     checkVerification,

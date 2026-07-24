@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
+import { useNetworkValidation } from "./useNetworkValidation";
 import { rpc, submitTransaction, BadSequenceError, sequenceManager } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
@@ -124,6 +125,7 @@ export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
   const { signTransaction, publicKey } = useWallet();
+  const { isNetworkMismatch, errorMessage } = useNetworkValidation();
   const toast = useToast();
   const t = useTranslations("transaction");
   const setTxState = useUIStore((s) => s.setTxState);
@@ -171,6 +173,11 @@ export function useTransaction() {
       }
     ): Promise<string | null> => {
       try {
+        // Check network first
+        if (isNetworkMismatch) {
+          throw new Error(errorMessage);
+        }
+        
         // 1. Build
         setStage("building");
         const unsignedXdr = await buildFn();
@@ -308,7 +315,7 @@ export function useTransaction() {
         return null;
       }
     },
-    [signTransaction, setStage, setTxState, addTransaction, updateTransactionStatus, t, toast, state.txHash]
+    [signTransaction, setStage, setTxState, addTransaction, updateTransactionStatus, t, toast, state.txHash, isNetworkMismatch, errorMessage]
   );
 
   const reset = useCallback(() => {

@@ -66,40 +66,6 @@ const MONTHLY_RETURNS = [
 const toCsvRows = <T extends object>(rows: T[]): Record<string, unknown>[] =>
   rows.map((row) => Object.fromEntries(Object.entries(row)));
 
-const STATS = [
-  {
-    label: "Total Deployed",
-    value: formatCurrency(170000, "USDC", true),
-    valueRaw: 170000,
-    change: "↑ $55K this month",
-    changePositive: true,
-    icon: <DollarSign className="h-4 w-4" />,
-  },
-  {
-    label: "Total Yield Earned",
-    value: formatCurrency(4200, "USDC", true),
-    valueRaw: 4200,
-    change: "2.47% avg monthly",
-    changePositive: true,
-    icon: <TrendingUp className="h-4 w-4" />,
-  },
-  {
-    label: "Annualised Return",
-    value: "29.6%",
-    change: "vs 4.2% T-bill",
-    changePositive: true,
-    icon: <BarChart3 className="h-4 w-4" />,
-  },
-  {
-    label: "Default Rate",
-    value: "0.0%",
-    valueRaw: 0,
-    change: "All-time",
-    changePositive: true,
-    icon: <Shield className="h-4 w-4" />,
-  },
-];
-
 // ── URL ↔ filter helpers ───────────────────────────────────────────────────────
 
 function filtersFromParams(params: URLSearchParams): AnalyticsFilters {
@@ -135,6 +101,7 @@ function PortfolioAnalyticsInner() {
   const { setFilters, resetFilters } = useInvoiceStore();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
   const positionsQuery = usePositions(address ?? undefined);
 
@@ -280,7 +247,7 @@ function PortfolioAnalyticsInner() {
 
           {/* Stats */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {STATS.map((stat, i) => (
+            {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 12 }}
