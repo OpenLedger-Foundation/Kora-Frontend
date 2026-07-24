@@ -24,25 +24,27 @@ import {
 } from "../contracts";
 import type { MintInvoiceParams, FundInvoiceParams, RepayInvoiceParams } from "@/types/contract";
 
-// Mock environment variables
+// Mock environment variables — use StrKey-valid contract IDs
 vi.mock("@/lib/env", () => ({
   env: {
-    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHIR4",
-    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUD",
+    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
     NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
     NEXT_PUBLIC_STELLAR_RPC_URL: "https://soroban-testnet.stellar.org",
   },
 }));
 
-// Mock the RPC client
+// Mock the RPC client + sequence manager used by buildCall/readCall
 vi.mock("../client", () => {
+  const mockAccount = {
+    sequenceNumber: () => "1000",
+    accountId: () => "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+    incrementSequenceNumber: vi.fn(),
+  };
+
   const mockRpc = {
-    getAccount: vi.fn().mockResolvedValue({
-      sequenceNumber: () => "1000",
-      accountId: () => "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
-      incrementSequenceNumber: vi.fn(),
-    }),
+    getAccount: vi.fn().mockResolvedValue(mockAccount),
     simulateTransaction: vi.fn(),
     getTransaction: vi.fn(),
   };
@@ -56,6 +58,10 @@ vi.mock("../client", () => {
       rpcUrl: "https://soroban-testnet.stellar.org",
     },
     submitTransaction: vi.fn(),
+    sequenceManager: {
+      nextAccount: vi.fn().mockResolvedValue(mockAccount),
+      reset: vi.fn().mockResolvedValue(undefined),
+    },
   };
 });
 
