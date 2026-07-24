@@ -24,7 +24,7 @@ import {
 } from "../contracts";
 import type { MintInvoiceParams, FundInvoiceParams, RepayInvoiceParams } from "@/types/contract";
 
-// Mock environment variables — use StrKey-valid contract IDs
+// Mock environment variables
 vi.mock("@/lib/env", () => ({
   env: {
     NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
@@ -35,13 +35,12 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-// Mock the RPC client + sequence manager used by buildCall/readCall
+// Mock the RPC client
 vi.mock("../client", () => {
-  const mockAccount = {
-    sequenceNumber: () => "1000",
-    accountId: () => "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
-    incrementSequenceNumber: vi.fn(),
-  };
+  const mockAccount = new StellarSdk.Account(
+    "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+    "1000"
+  );
 
   const mockRpc = {
     getAccount: vi.fn().mockResolvedValue(mockAccount),
@@ -59,8 +58,10 @@ vi.mock("../client", () => {
     },
     submitTransaction: vi.fn(),
     sequenceManager: {
-      nextAccount: vi.fn().mockResolvedValue(mockAccount),
-      reset: vi.fn().mockResolvedValue(undefined),
+      nextAccount: vi.fn().mockImplementation(async (address: string) => {
+        return new StellarSdk.Account(address, "1000");
+      }),
+      reset: vi.fn(),
     },
   };
 });
@@ -69,6 +70,25 @@ vi.mock("../client", () => {
 const VALID_ADDRESS_1 = "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI";
 const VALID_ADDRESS_2 = "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
 const INVALID_ADDRESS = "INVALID_STELLAR_ADDRESS";
+
+beforeEach(() => {
+  // assembleTransaction requires a full RPC simulation payload; unit tests
+  // only assert XDR shape, so short-circuit assembly to the pre-sim tx.
+  vi.spyOn(StellarSdk.rpc, "assembleTransaction").mockImplementation(
+    (tx: StellarSdk.Transaction) =>
+      ({
+        build: () => tx,
+      }) as unknown as ReturnType<typeof StellarSdk.rpc.assembleTransaction>
+  );
+  vi.spyOn(StellarSdk.rpc.Api, "isSimulationError").mockImplementation(
+    (result: unknown) =>
+      Boolean(result && typeof result === "object" && "error" in (result as object))
+  );
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("InvoiceContract", () => {
   beforeEach(() => {

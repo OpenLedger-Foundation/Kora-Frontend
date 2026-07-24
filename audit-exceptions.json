@@ -19,48 +19,77 @@
       "reason": "Vite server.fs.deny bypass only affects dev servers running on Windows platforms. Our production runtime is deployed under Linux container environments running Next.js."
     },
     {
-      "package": "axios",
-      "reason": "Axios is used for client-side Pinata/IPFS helpers against trusted endpoints. Remaining advisories are SSRF/prototype-pollution vectors that require attacker-controlled absolute URLs or config merges we do not expose. Tracked for upgrade in a dedicated dependency PR."
-    },
-    {
-      "package": "@stryker-mutator/util",
-      "reason": "Dev-only mutation testing tooling; not shipped in production bundles."
-    },
-    {
       "package": "brace-expansion",
-      "reason": "Transitive build/test dependency; DoS requires crafting pathological globs in local tooling, not user-facing request paths."
+      "url": "https://github.com/advisories/GHSA-3jxr-9vmj-r5cp",
+      "reason": "DoS via brace-expansion is a transitive tooling dependency (lint/test). Not reachable from production request paths."
     },
     {
       "package": "glob",
-      "reason": "CLI command-injection vector requires invoking the glob CLI with -c/--cmd; we do not invoke the glob CLI in production or CI scripts."
+      "url": "https://github.com/advisories/GHSA-5j98-mcp5-4vw2",
+      "reason": "glob CLI command injection requires invoking the glob CLI with -c/--cmd. App does not shell out to glob CLI in production."
     },
     {
       "package": "next",
-      "reason": "Remaining Next.js advisories are mitigated by App Router deployment on Vercel/Node without custom servers and without attacker-controlled rewrite destinations. Bumped to latest 15.5.x patch; residual advisories pending upstream."
+      "url": "https://github.com/advisories/GHSA-m99w-x7hq-7vfj",
+      "reason": "Tracked Next.js App Router DoS advisory; mitigated by staying on the maintained 15.5.x line and not exposing untrusted Server Action payloads publicly. Upgrade planned with next patch train."
+    },
+    {
+      "package": "next",
+      "url": "https://github.com/advisories/GHSA-89xv-2m56-2m9x",
+      "reason": "Server Actions SSRF on custom servers; Kora is deployed on standard Next hosting without custom server Action proxying."
+    },
+    {
+      "package": "next",
+      "url": "https://github.com/advisories/GHSA-p9j2-gv94-2wf4",
+      "reason": "Rewrite SSRF requires attacker-controlled rewrite destinations; our next.config rewrites are static."
     },
     {
       "package": "picomatch",
-      "reason": "Transitive build tooling ReDoS; not exposed to untrusted user input at runtime."
+      "url": "https://github.com/advisories/GHSA-c2c7-rcm5-vvqj",
+      "reason": "ReDoS in picomatch affects build/dev tooling (vite/webpack); not exposed on production request paths."
     },
     {
       "package": "postcss",
-      "reason": "Build-time CSS processing only; sourceMappingURL is not accepted from end-user uploads."
+      "url": "https://github.com/advisories/GHSA-6g55-p6wh-862q",
+      "reason": "PostCSS sourceMappingURL issue is a build-time CSS tooling concern; production serves compiled CSS without processing attacker CSS comments."
     },
     {
       "package": "sharp",
-      "reason": "Image processing is constrained to trusted build/runtime assets; libvips CVEs do not map to an unauthenticated user input path in this app."
+      "url": "https://github.com/advisories/GHSA-f88m-g3jw-g9cj",
+      "reason": "sharp/libvips CVEs are transitive via Next image optimization; no untrusted image pipelines beyond configured remotePatterns."
     },
     {
       "package": "sigstore",
-      "reason": "Dev/CI signing tooling transitive dependency; not used in the production request path."
+      "url": "https://github.com/advisories/GHSA-52v5-jr5w-gjxr",
+      "reason": "sigstore is a release/CI signing transitive dependency, not used in the runtime app bundle."
     },
     {
       "package": "tar",
-      "reason": "Transitive install/build dependency; we do not unpack untrusted tar archives at runtime."
+      "url": "https://github.com/advisories/GHSA-23hp-3jrh-7fpw",
+      "reason": "tar DoS is a transitive install/build dependency; production does not unpack untrusted tar archives."
+    },
+    {
+      "package": "tar",
+      "url": "https://github.com/advisories/GHSA-8x88-c5mf-7j5w",
+      "reason": "tar infinite-loop advisory is a transitive install/build dependency; production does not unpack untrusted tar archives."
     },
     {
       "package": "tmp",
-      "reason": "Dev/test temporary file helper; path traversal requires controlling prefix/postfix in local tooling only."
+      "url": "https://github.com/advisories/GHSA-ph9p-34f9-6g65",
+      "reason": "tmp path traversal is a transitive tooling dependency; not used with attacker-controlled prefixes in production."
+    },
+    {
+      "package": "axios",
+      "url": "https://github.com/advisories/GHSA-8w2h-qw4j-3x6q",
+      "reason": "Axios advisories are accepted transitively; Pinata/HTTP calls use trusted gateways and do not pass attacker-controlled absolute URLs or proxy config."
+    },
+    {
+      "package": "axios",
+      "reason": "Bundle axios high/critical advisories as a known transitive risk pending upgrade; app uses axios only against configured Pinata/API endpoints."
+    },
+    {
+      "package": "@stryker-mutator/util",
+      "reason": "Stryker is a CI-only mutation testing dependency and is not shipped in the production bundle."
     }
   ]
 }
