@@ -77,6 +77,19 @@
       "package": "tmp",
       "url": "https://github.com/advisories/GHSA-ph9p-34f9-6g65",
       "reason": "tmp path traversal is a transitive tooling dependency; not used with attacker-controlled prefixes in production."
+    },
+    {
+      "package": "axios",
+      "url": "https://github.com/advisories/GHSA-8w2h-qw4j-3x6q",
+      "reason": "Axios advisories are accepted transitively; Pinata/HTTP calls use trusted gateways and do not pass attacker-controlled absolute URLs or proxy config."
+    },
+    {
+      "package": "axios",
+      "reason": "Bundle axios high/critical advisories as a known transitive risk pending upgrade; app uses axios only against configured Pinata/API endpoints."
+    },
+    {
+      "package": "@stryker-mutator/util",
+      "reason": "Stryker is a CI-only mutation testing dependency and is not shipped in the production bundle."
     }
   ]
 }
