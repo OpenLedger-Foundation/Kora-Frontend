@@ -16,6 +16,8 @@ export function usePositions(investorAddress?: string, opts?: { refetchInterval?
         invoice: p.invoice,
         investedAmount: p.investedAmount,
         expectedReturn: p.expectedReturn,
+        yieldEarned: p.yieldEarned,
+        investedAt: p.investedAt,
         status: p.status,
       }));
     },

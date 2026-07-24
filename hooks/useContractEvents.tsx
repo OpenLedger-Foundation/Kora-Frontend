@@ -24,8 +24,10 @@ import { useWalletStore } from "@/store/walletStore";
 import { useUIStore } from "@/store/uiStore";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useThrottle } from "@/hooks/useThrottle";
+import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
 import { formatCurrency, truncateAddress } from "@/lib/utils";
+import type { Invoice } from "@/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -89,17 +91,107 @@ function showEventToast(event: ContractEvent, walletAddress: string) {
 
 // ─── Cache invalidation ───────────────────────────────────────────────────────
 
-function invalidateCachesForEvent(
+function updateCachesForEvent(
   event: ContractEvent,
-  queryClient: ReturnType<typeof useQueryClient>
+  queryClient: ReturnType<typeof useQueryClient>,
+  updateInvoiceFunding: (id: string, newAmount: number) => void
 ) {
+  const { invoicesByTokenId } = useInvoiceStore.getState();
+  const invoice = Object.values(invoicesByTokenId).find(i => i.tokenId === event.tokenId) ||
+    useInvoiceStore.getState().invoices.find(i => i.tokenId === event.tokenId);
+
+  if (!invoice) {
+    // Fallback to invalidation if we don't have the invoice in store
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.invoices.detail(event.tokenId),
+    });
+    queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+    return;
+  }
+
   switch (event.type) {
-    case "invoice_funded":
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.invoices.detail(event.tokenId),
-      });
-      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+    case "invoice_funded": {
+      const newTotalRaised = invoice.funding.totalRaised + event.amount;
+      const totalRaised = Math.min(newTotalRaised, invoice.funding.targetAmount);
+      const isFull = totalRaised >= invoice.funding.targetAmount;
+
+      // Update the invoice store
+      updateInvoiceFunding(invoice.id, newTotalRaised);
+
+      // Update query cache for detail
+      queryClient.setQueryData<Invoice>(
+        queryKeys.invoices.detail(event.tokenId),
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            status: isFull ? "fully_funded" : old.status,
+            funding: {
+              ...old.funding,
+              totalRaised,
+              fundingProgress: totalRaised / old.funding.targetAmount,
+              remainingCapacity: old.funding.targetAmount - totalRaised,
+              investorCount: old.funding.investorCount + 1,
+            },
+          };
+        }
+      );
+
+      // Update any list queries (all invoices, filtered lists, etc.)
+      queryClient.setQueriesData<{ invoices: Invoice[] }>(
+        {
+          queryKey: queryKeys.invoices.all,
+          predicate: (query) => {
+            // Match any invoice list query
+            return Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "invoices";
+          },
+        },
+        (old) => {
+          if (!old) return old;
+          // Check structure (could be array or object with invoices array)
+          if (Array.isArray(old)) {
+            return old.map((i) =>
+              i.tokenId === event.tokenId
+                ? {
+                    ...i,
+                    status: isFull ? "fully_funded" : i.status,
+                    funding: {
+                      ...i.funding,
+                      totalRaised,
+                      fundingProgress: totalRaised / i.funding.targetAmount,
+                      remainingCapacity: i.funding.targetAmount - totalRaised,
+                      investorCount: i.funding.investorCount + 1,
+                    },
+                  }
+                : i
+            );
+          }
+          if ("invoices" in old && Array.isArray(old.invoices)) {
+            return {
+              ...old,
+              invoices: old.invoices.map((i) =>
+                i.tokenId === event.tokenId
+                  ? {
+                      ...i,
+                      status: isFull ? "fully_funded" : i.status,
+                      funding: {
+                        ...i.funding,
+                        totalRaised,
+                        fundingProgress: totalRaised / i.funding.targetAmount,
+                        remainingCapacity: i.funding.targetAmount - totalRaised,
+                        investorCount: i.funding.investorCount + 1,
+                      },
+                    }
+                  : i
+              ),
+            };
+          }
+          return old;
+        }
+      );
       break;
+    }
 
     case "invoice_repaid":
       queryClient.invalidateQueries({
@@ -183,6 +275,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
   const { address: walletAddress } = useWalletStore();
   const notificationPreferences = useUIStore((s) => s.notificationPreferences);
   const { health } = useNetworkStatus();
+  const { updateInvoiceFunding } = useInvoiceStore();
 
   // Derive offline state — pause polling when network is down
   const isOffline = health.overall === "down";
@@ -224,7 +317,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
 
       for (const event of newEvents) {
         processedEventIds.current.add(event.id);
-        invalidateCachesForEvent(event, queryClient);
+        updateCachesForEvent(event, queryClient, updateInvoiceFunding);
 
         if (walletAddress && notificationPreferences.invoiceFunded) {
           showEventToast(event, walletAddress);
@@ -240,7 +333,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
         console.warn("[useContractEvents] Poll error:", err);
       }
     }
-  }, [contractId, queryClient, walletAddress, notificationPreferences.invoiceFunded]);
+  }, [contractId, queryClient, walletAddress, notificationPreferences.invoiceFunded, updateInvoiceFunding]);
 
   // Advance the tick on a native interval — this is the only place setInterval
   // is used; the actual poll is driven by useThrottle so poll rate is respected

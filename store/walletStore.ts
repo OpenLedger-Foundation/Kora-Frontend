@@ -13,7 +13,7 @@ const EMPTY_BALANCE: WalletBalance = {
 /** Session expires after 24 hours of inactivity. Change this constant to adjust. */
 export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
-function getConfiguredNetwork(): WalletNetwork {
+export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
 
@@ -46,6 +46,7 @@ type WalletStoreActions = {
   addAddressBookEntry: (address: string, label?: string) => void;
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
   removeAddressBookEntry: (id: string) => void;
+  setNetwork: (network: WalletNetwork, walletPassphrase?: string) => void;
 };
 
 type WalletStore = WalletStoreState & WalletStoreActions;
@@ -144,6 +145,12 @@ export const useWalletStore = create<WalletStore>()(
 
       removeAddressBookEntry: (id) =>
         set((s) => ({ addressBook: s.addressBook.filter((e) => e.id !== id) })),
+        
+      setNetwork: (network, walletPassphrase) =>
+        set((s) => ({
+          network,
+          walletPassphrase: walletPassphrase ?? s.walletPassphrase,
+        })),
     }),
     {
       name: "kora-wallet",
