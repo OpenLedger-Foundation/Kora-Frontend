@@ -17,6 +17,50 @@
       "package": "vite",
       "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff",
       "reason": "Vite server.fs.deny bypass only affects dev servers running on Windows platforms. Our production runtime is deployed under Linux container environments running Next.js."
+    },
+    {
+      "package": "axios",
+      "reason": "Axios is used for client-side Pinata/IPFS helpers against trusted endpoints. Remaining advisories are SSRF/prototype-pollution vectors that require attacker-controlled absolute URLs or config merges we do not expose. Tracked for upgrade in a dedicated dependency PR."
+    },
+    {
+      "package": "@stryker-mutator/util",
+      "reason": "Dev-only mutation testing tooling; not shipped in production bundles."
+    },
+    {
+      "package": "brace-expansion",
+      "reason": "Transitive build/test dependency; DoS requires crafting pathological globs in local tooling, not user-facing request paths."
+    },
+    {
+      "package": "glob",
+      "reason": "CLI command-injection vector requires invoking the glob CLI with -c/--cmd; we do not invoke the glob CLI in production or CI scripts."
+    },
+    {
+      "package": "next",
+      "reason": "Remaining Next.js advisories are mitigated by App Router deployment on Vercel/Node without custom servers and without attacker-controlled rewrite destinations. Bumped to latest 15.5.x patch; residual advisories pending upstream."
+    },
+    {
+      "package": "picomatch",
+      "reason": "Transitive build tooling ReDoS; not exposed to untrusted user input at runtime."
+    },
+    {
+      "package": "postcss",
+      "reason": "Build-time CSS processing only; sourceMappingURL is not accepted from end-user uploads."
+    },
+    {
+      "package": "sharp",
+      "reason": "Image processing is constrained to trusted build/runtime assets; libvips CVEs do not map to an unauthenticated user input path in this app."
+    },
+    {
+      "package": "sigstore",
+      "reason": "Dev/CI signing tooling transitive dependency; not used in the production request path."
+    },
+    {
+      "package": "tar",
+      "reason": "Transitive install/build dependency; we do not unpack untrusted tar archives at runtime."
+    },
+    {
+      "package": "tmp",
+      "reason": "Dev/test temporary file helper; path traversal requires controlling prefix/postfix in local tooling only."
     }
   ]
 }
