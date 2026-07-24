@@ -192,6 +192,48 @@ function InvoiceDetailSkeleton() {
   );
 }
 
+// ─── PortfolioDonutSkeleton ───────────────────────────────────────────────────
+// Matches PortfolioDonut: section header + 3 donut chart panels
+
+function PortfolioDonutSkeleton() {
+  return (
+    <div
+      className="space-y-4"
+      aria-busy="true"
+      aria-label="Loading portfolio composition"
+    >
+      <div className="space-y-2">
+        <Skeleton className="h-5 w-48" />
+        <Skeleton className="h-3 w-72" />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-xl border border-border bg-card/60 p-5 space-y-4"
+          >
+            <Skeleton className="h-4 w-28" />
+            <div className="flex items-center justify-center py-2">
+              <Skeleton className="h-[144px] w-[144px] rounded-full" />
+            </div>
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, j) => (
+                <div key={j} className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                  <Skeleton className="h-3 w-12" />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── DashboardSkeleton ────────────────────────────────────────────────────────
 // Matches the 4-stat grid + table layout used in both dashboards
 
@@ -201,7 +243,12 @@ function DashboardSkeleton({ statCount = 4, tableRows = 5, tableCols = 6 }: {
   tableCols?: number;
 }) {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div
+      className="mx-auto max-w-7xl px-4 py-10 sm:px-6"
+      aria-busy="true"
+      aria-live="polite"
+      aria-label="Loading dashboard"
+    >
       {/* Page header */}
       <div className="mb-8 flex items-center justify-between">
         <div className="space-y-2">
@@ -212,7 +259,7 @@ function DashboardSkeleton({ statCount = 4, tableRows = 5, tableCols = 6 }: {
       </div>
 
       {/* Stat cards */}
-      <div className={`mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-${statCount}`}>
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: statCount }).map((_, i) => (
           <StatCardSkeleton key={i} />
         ))}
@@ -222,6 +269,54 @@ function DashboardSkeleton({ statCount = 4, tableRows = 5, tableCols = 6 }: {
       <div className="rounded-xl border border-border bg-card/60">
         <div className="border-b border-border px-6 py-4">
           <Skeleton className="h-5 w-32" />
+        </div>
+        <div className="p-4 sm:p-6">
+          <TableSkeleton rows={tableRows} cols={tableCols} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── InvestorDashboardSkeleton ────────────────────────────────────────────────
+// Matches investor dashboard: stats + PortfolioDonut + positions table
+
+function InvestorDashboardSkeleton({
+  tableRows = 5,
+  tableCols = 8,
+}: {
+  tableRows?: number;
+  tableCols?: number;
+}) {
+  return (
+    <div
+      className="mx-auto max-w-7xl px-4 py-10 sm:px-6"
+      aria-busy="true"
+      aria-live="polite"
+      aria-label="Loading investor dashboard"
+      role="status"
+    >
+      <div className="mb-8 flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-7 w-52" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <Skeleton className="h-9 w-40 rounded-lg" />
+      </div>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <StatCardSkeleton key={i} />
+        ))}
+      </div>
+
+      <div className="mb-8">
+        <PortfolioDonutSkeleton />
+      </div>
+
+      <div className="rounded-xl border border-border bg-card/60">
+        <div className="border-b border-border px-6 py-4">
+          <Skeleton className="h-5 w-36" />
         </div>
         <div className="p-4 sm:p-6">
           <TableSkeleton rows={tableRows} cols={tableCols} />
@@ -281,6 +376,8 @@ export {
   ChartSkeleton,
   InvoiceDetailSkeleton,
   DashboardSkeleton,
+  InvestorDashboardSkeleton,
+  PortfolioDonutSkeleton,
   AnalyticsSkeleton,
   // legacy aliases
   StatCardSkeleton as CardSkeleton,
