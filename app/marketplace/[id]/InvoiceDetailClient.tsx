@@ -73,8 +73,8 @@ import {
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
-  const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address, balance } = useWallet();
+  const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id, address);
   const toast = useToast();
   const { data: positions } = usePositions(address ?? undefined);
   const { setWalletModalOpen } = useUIStore();
