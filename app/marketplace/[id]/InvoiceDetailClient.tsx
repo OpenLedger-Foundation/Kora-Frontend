@@ -62,6 +62,11 @@ import {
 } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { FundingYieldCalculator } from "@/components/invoice/FundingYieldCalculator";
+import { TestnetUsdcFaucet } from "@/components/wallet/TestnetUsdcFaucet";
+import {
+  isTestnetUsdcFaucetEnabled,
+  useUsdcBalance,
+} from "@/hooks/useUsdcBalance";
 import { env } from "@/lib/env";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 
@@ -69,6 +74,8 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
   const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address, balance } = useWallet();
+  const { data: queriedUsdcBalance, refetch: refetchUsdcBalance } =
+    useUsdcBalance(address ?? undefined);
   const toast = useToast();
   const { data: positions } = usePositions(address ?? undefined);
   const { setWalletModalOpen } = useUIStore();
@@ -109,7 +116,18 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
     !isSmeOwner;
 
   const amountNum = parseFloat(amount) || 0;
-  const usdcBalance = balance?.usdc ? Number(balance.usdc) : null;
+  // Prefer live USDC query; fall back to wallet store balance.
+  const usdcBalance =
+    typeof queriedUsdcBalance === "number"
+      ? queriedUsdcBalance
+      : balance?.usdc
+        ? Number(balance.usdc)
+        : null;
+  const showTestnetFaucet =
+    isTestnetUsdcFaucetEnabled() &&
+    isConnected &&
+    usdcBalance !== null &&
+    (usdcBalance <= 0 || (amountNum > 0 && amountNum > usdcBalance));
 
   // Precise holding period Expected Return Calculator
   const expectedReturn =
@@ -190,7 +208,9 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   }
   const insufficientBalanceMessage =
     isConnected && usdcBalance !== null && amountNum > usdcBalance
-      ? `Insufficient USDC balance. Available: ${formatCurrency(usdcBalance, "USDC")}`
+      ? t("errors.insufficientBalance", {
+          amount: formatCurrency(usdcBalance, "USDC"),
+        })
       : "";
 
   const handleFund = async () => {
@@ -811,6 +831,15 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       )}
                     </div>
 
+                    {showTestnetFaucet && (
+                      <TestnetUsdcFaucet
+                        compact
+                        onSuccess={async () => {
+                          await refetchUsdcBalance();
+                        }}
+                      />
+                    )}
+
                     {/* FundingYieldCalculator — debounced, uses same APR formula */}
                     {!inputError && (
                       <FundingYieldCalculator
@@ -827,7 +856,12 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       size="lg"
                       onClick={handleFund}
                       loading={funding}
-                      disabled={!canFund || !!inputError || !amountNum}
+                      disabled={
+                        !canFund ||
+                        !!inputError ||
+                        !!insufficientBalanceMessage ||
+                        !amountNum
+                      }
                     >
                       Fund Invoice
                     </Button>
