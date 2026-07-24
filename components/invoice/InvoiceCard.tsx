@@ -21,6 +21,8 @@ import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { DebtorDisplay } from "./DebtorDisplay";
 import { InvoiceCardHoverPopover } from "./InvoiceCardHoverPopover";
 import { useInvoiceStore } from "@/store/invoiceStore";
+import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
+import { isEnabled } from "@/lib/featureFlags";
 import type { Invoice } from "@/types";
 
 interface InvoiceCardProps {
@@ -73,7 +75,8 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const { prefetch: prefetchInvoice, cancelPrefetch } = usePrefetchInvoice();
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
-  const comparisonFull = comparisonList.length >= 3 && !isInComparison;
+  const comparisonFull = comparisonList.length >= MAX_COMPARISON_INVOICES && !isInComparison;
+  const comparisonEnabled = isEnabled("comparison");
   const reduced = useReducedMotion();
   
   // Hover popover state
@@ -256,6 +259,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           ) : null}
 
           {/* Compare toggle button */}
+          {comparisonEnabled && (
           <button
             onClick={handleCompareToggle}
             disabled={comparisonFull}
@@ -271,14 +275,15 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               isInComparison
                 ? `Remove ${metadata.debtorName} from comparison`
                 : comparisonFull
-                  ? "Comparison list is full (max 3)"
+                  ? `Comparison list is full (max ${MAX_COMPARISON_INVOICES})`
                   : `Add ${metadata.debtorName} to comparison`
             }
             aria-pressed={isInComparison}
           >
             <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
             {isInComparison ? "Remove from Compare" : "Add to Compare"}
-          </button>        </div>
+          </button>
+          )}        </div>
 
         {/* Hover overlay CTA */}
         <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex items-center justify-center pointer-events-none">

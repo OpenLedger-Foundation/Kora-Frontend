@@ -311,6 +311,7 @@ function MarketplaceContent() {
     setSortBy,
     setSearchQuery,
     clearSearchHistory,
+    setInvoices,
   } = useInvoiceStore();
 
   const { data, isLoading, dataUpdatedAt } = useInvoices();
@@ -453,6 +454,13 @@ function MarketplaceContent() {
         : data?.data ?? [],
     [infinite.data, data?.data]
   );
+
+  // Keep store invoices in sync so comparison UI works with live indexer data
+  useEffect(() => {
+    if (allInvoices.length > 0) {
+      setInvoices(allInvoices);
+    }
+  }, [allInvoices, setInvoices]);
 
   // Client-side Search filter
   const filteredInvoices = useMemo(() => {
