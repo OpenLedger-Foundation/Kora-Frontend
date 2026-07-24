@@ -67,6 +67,7 @@ vi.mock("@/lib/ipfs", () => ({
     "QmMockPdfCid1234567890abcdefghijklmnopqrstuvwxyz12"
   ),
   validateCid: vi.fn(),
+  checkPinataHealth: vi.fn().mockResolvedValue(true),
   ipfsUrl: vi.fn((cid: string) => `https://gateway.pinata.cloud/ipfs/${cid}`),
 }));
 

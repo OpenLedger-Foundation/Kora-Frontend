@@ -50,6 +50,10 @@ vi.mock("../client", () => {
 
   return {
     rpc: mockRpc,
+    sequenceManager: {
+      nextAccount: vi.fn().mockResolvedValue(mockAccount),
+      reset: vi.fn(),
+    },
     networkConfig: {
       networkPassphrase: "Test SDF Network ; September 2015",
       network: "testnet",
@@ -65,6 +69,35 @@ vi.mock("../client", () => {
     },
   };
 });
+
+// Avoid parsing fake simulation XDR in assembleTransaction during unit tests.
+function restoreAssembleMocks() {
+  const assemble = vi.fn((tx: StellarSdk.Transaction) => ({
+    build: () => tx,
+  }));
+  Object.defineProperty(StellarSdk.rpc, "assembleTransaction", {
+    configurable: true,
+    writable: true,
+    value: assemble,
+  });
+
+  const isError = vi.fn(
+    (sim: unknown) =>
+      Boolean(
+        sim &&
+          typeof sim === "object" &&
+          "error" in (sim as Record<string, unknown>) &&
+          (sim as { error?: unknown }).error,
+      ),
+  );
+  Object.defineProperty(StellarSdk.rpc.Api, "isSimulationError", {
+    configurable: true,
+    writable: true,
+    value: isError,
+  });
+}
+
+restoreAssembleMocks();
 
 // Valid test addresses
 const VALID_ADDRESS_1 = "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI";
@@ -93,6 +126,7 @@ afterEach(() => {
 describe("InvoiceContract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    restoreAssembleMocks();
   });
 
   describe("mintInvoice", () => {
@@ -390,6 +424,7 @@ describe("InvoiceContract", () => {
 describe("MarketplaceContract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    restoreAssembleMocks();
   });
 
   describe("fundInvoice", () => {
@@ -579,6 +614,7 @@ describe("MarketplaceContract", () => {
 describe("Utility Functions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    restoreAssembleMocks();
   });
 
   describe("buildTestnetUsdcMintTx", () => {
@@ -658,6 +694,10 @@ describe("Utility Functions", () => {
 });
 
 describe("Error Handling", () => {
+  beforeEach(() => {
+    restoreAssembleMocks();
+  });
+
   it("parses Soroban error codes correctly", async () => {
     const { rpc } = await import("../client");
     

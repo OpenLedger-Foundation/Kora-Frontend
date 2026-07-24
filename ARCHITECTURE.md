@@ -247,13 +247,13 @@ The on-chain NFT stores only the IPFS CID. The full metadata is always retrievab
 |------|----------|--------|
 | `/` (Landing) | Static + Client hydration | SEO, animations |
 | `/marketplace` | Client | Dynamic filters, wallet state |
-| `/marketplace/[id]` | Client | Wallet-gated fund panel |
+| `/marketplace/[id]` | SSR/ISR + Client | Server `generateMetadata` + JSON-LD/OG from IPFS; client fund panel |
 | `/invoice/create` | Client | Form, file upload, wallet |
 | `/dashboard/sme` | Client | Wallet-gated |
 | `/dashboard/investor` | Client | Wallet-gated |
 | `/analytics` | Client | Charts, wallet-gated |
 
-Most pages are client-rendered because they require wallet state. Future versions may add a server-side indexer for SEO-friendly invoice pages.
+Most interactive pages are client-rendered because they require wallet state. Invoice detail pages use SSR/ISR for SEO: `generateMetadata` hydrates OG tags from invoice + IPFS metadata, server-rendered JSON-LD, SVG Open Graph previews, and sitemap entries for `/marketplace/[id]`.
 
 ---
 

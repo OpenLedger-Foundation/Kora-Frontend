@@ -38,3 +38,5 @@ public/fallback-*.js
 public/fallback-*.js.map
 
 issues.md
+
+*.log

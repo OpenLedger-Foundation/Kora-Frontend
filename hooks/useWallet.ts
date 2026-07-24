@@ -17,13 +17,22 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getAccountBalances,
   fundTestnetAccount,
+  checkAccountExists,
   submitTransaction,
   waitForTransaction,
 } from "@/lib/stellar/client";
 import { buildTestnetUsdcMintTx } from "@/lib/stellar/contracts";
+import {
+  isTestnetUsdcFaucetEnabled,
+  pollUsdcBalanceAfterMint,
+} from "@/hooks/useUsdcBalance";
+import { queryKeys } from "@/lib/queryKeys";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
+
+/** Default testnet USDC mint amount in stroops (7 decimals): 10,000 USDC. */
+export const TESTNET_USDC_MINT_AMOUNT = BigInt("100000000000");
 
 let kit: StellarWalletsKit | null = null;
 
@@ -219,26 +228,96 @@ export function useWallet() {
     }
   }, [address, setBalance]);
 
+  /**
+   * One-click testnet USDC faucet for investor onboarding.
+   * Gates on testnet only, mints via `buildTestnetUsdcMintTx`, then polls
+   * until the Horizon USDC balance reflects the mint.
+   */
+  const mintTestnetUsdc = useCallback(
+    async (amount: bigint = TESTNET_USDC_MINT_AMOUNT): Promise<number> => {
+      if (!address) throw new Error("Wallet not connected");
+      if (!isTestnetUsdcFaucetEnabled()) {
+        throw new Error("USDC faucet is only available on testnet");
+      }
+
+      const previousBalance = balance?.usdc
+        ? parseFloat(balance.usdc)
+        : 0;
+
+      // Ensure the account exists (Friendbot) before minting — ignore if already funded.
+      try {
+        const exists = await checkAccountExists(address);
+        if (!exists) {
+          await fundTestnetAccount(address);
+        }
+      } catch {
+        // Best-effort; mint may still succeed if the account already exists.
+      }
+
+      if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+        const mockBalance = previousBalance + 10_000;
+        setBalance({
+          xlm: balance?.xlm ?? "10000",
+          usdc: String(mockBalance),
+          eurc: balance?.eurc ?? "0",
+        });
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.account.usdcBalance(address),
+        });
+        return mockBalance;
+      }
+
+      const usdcMintXdr = await buildTestnetUsdcMintTx(
+        address,
+        address,
+        amount,
+      );
+      const signedUsdcMintXdr = await signTransaction(usdcMintXdr);
+      const submit = await submitTransaction(signedUsdcMintXdr);
+      if (submit.status === "ERROR") {
+        throw new Error("USDC faucet transaction submission failed");
+      }
+      if (submit.hash) {
+        await waitForTransaction(submit.hash);
+      }
+
+      const newBalance = await pollUsdcBalanceAfterMint(address, {
+        previousBalance,
+        minIncrease: 0,
+      });
+
+      setBalance({
+        xlm: balance?.xlm ?? "0",
+        usdc: String(newBalance),
+        eurc: balance?.eurc ?? "0",
+      });
+      await refreshBalance();
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.account.usdcBalance(address),
+      });
+
+      return newBalance;
+    },
+    [address, balance, queryClient, refreshBalance, setBalance, signTransaction],
+  );
+
   const fundWalletOnTestnet = useCallback(async () => {
     if (!address) throw new Error("Wallet not connected");
-    if (env.NEXT_PUBLIC_STELLAR_NETWORK !== "testnet") {
+    if (!isTestnetUsdcFaucetEnabled()) {
       throw new Error("Testnet funding is only available on testnet");
     }
 
-    await fundTestnetAccount(address);
-
-    const usdcMintXdr = await buildTestnetUsdcMintTx(address, address);
-    const signedUsdcMintXdr = await signTransaction(usdcMintXdr);
-    const submit = await submitTransaction(signedUsdcMintXdr);
-    if (submit.status === "ERROR") {
-      throw new Error("USDC faucet transaction submission failed");
-    }
-    if (submit.hash) {
-      await waitForTransaction(submit.hash);
+    try {
+      const exists = await checkAccountExists(address);
+      if (!exists) {
+        await fundTestnetAccount(address);
+      }
+    } catch {
+      // Account may already be funded via Friendbot.
     }
 
-    await refreshBalance();
-  }, [address, refreshBalance, signTransaction]);
+    await mintTestnetUsdc();
+  }, [address, mintTestnetUsdc]);
 
   const requestChallenge = useCallback(async (): Promise<string> => {
     try {
@@ -334,6 +413,7 @@ export function useWallet() {
     connectWallet,
     disconnectWallet,
     fundWalletOnTestnet,
+    mintTestnetUsdc,
     signTransaction,
     refreshBalance,
     requestChallenge,

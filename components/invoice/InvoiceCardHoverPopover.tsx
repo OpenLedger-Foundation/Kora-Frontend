@@ -11,6 +11,8 @@ interface InvoiceCardHoverPopoverProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   triggerRef: React.RefObject<HTMLElement>;
+  /** Optional: fired when the popover opens so callers can prefetch detail data. */
+  onPrefetch?: (invoiceId: string) => void;
 }
 
 const JURISDICTION_NAMES: Record<string, string> = {
@@ -45,6 +47,7 @@ export function InvoiceCardHoverPopover({
   isOpen,
   onOpenChange,
   triggerRef,
+  onPrefetch,
 }: InvoiceCardHoverPopoverProps) {
   const { terms, funding, riskTier, metadata } = invoice;
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -63,6 +66,13 @@ export function InvoiceCardHoverPopover({
     };
     setIsTouchDevice(isTouchSupported());
   }, []);
+
+  // Notify parent when popover opens so marketplace can prefetch detail data
+  useEffect(() => {
+    if (isOpen && !isTouchDevice) {
+      onPrefetch?.(invoice.id);
+    }
+  }, [isOpen, isTouchDevice, invoice.id, onPrefetch]);
 
   // Close popover on Escape key
   useEffect(() => {
