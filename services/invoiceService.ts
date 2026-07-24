@@ -298,12 +298,35 @@ class LiveInvoiceService implements IInvoiceService {
     }
   }
 
-  async getInvoice(id: string): Promise<Result<Invoice | null>> {
+  async getInvoice(id: string, sourcePublicKey?: string): Promise<Result<Invoice | null>> {
     try {
-      // TODO: Replace with on-chain fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      // Extract token ID from route id (supports both "inv_123" and "123" formats)
+      const tokenIdStr = id.replace(/^inv_/, "");
+      const tokenId = BigInt(tokenIdStr);
+
+      // Require a source public key for RPC read simulations
+      if (!sourcePublicKey) {
+        return failure("INVALID_INPUT", "Wallet address required for on-chain reads");
+      }
+
+      // Fetch on-chain invoice state
+      const { invoiceContract } = await import("@/lib/stellar/contracts");
+      const onChain = await invoiceContract.getInvoice(tokenId, sourcePublicKey);
+
+      // Fetch IPFS metadata in parallel with on-chain data
+      const [ipfsResult] = await Promise.allSettled([
+        this.getIpfsMetadata(onChain.ipfs_cid),
+      ]);
+
+      // Build invoice from on-chain data + IPFS metadata
+      const invoice = mapOnChainToInvoiceLive(id, onChain, ipfsResult);
+      return success(invoice);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("Invoice not found") || message.includes("#1")) {
+        return success(null);
+      }
+      return failure("FETCH_ERROR", "Failed to fetch invoice from chain", { cause: message });
     }
   }
 
@@ -370,7 +393,7 @@ class LiveInvoiceService implements IInvoiceService {
       const daysToMaturity = Math.ceil(
         (new Date(formData.dueDate).getTime() -
           new Date(formData.listingExpiryDate).getTime()) /
-          (1000 * 60 * 60 * 24)
+        (1000 * 60 * 60 * 24)
       );
       const effectiveAPR =
         daysToMaturity > 0 && formData.discountRate > 0 && formData.discountRate < 1
@@ -539,8 +562,8 @@ export async function fetchInvoices(
   return result.value;
 }
 
-export async function fetchInvoiceById(id: string): Promise<Invoice | null> {
-  const result = await service.getInvoice(id);
+export async function fetchInvoiceById(id: string, _sourcePublicKey?: string): Promise<Invoice | null> {
+  const result = await service.getInvoice(id, _sourcePublicKey);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }
@@ -603,7 +626,7 @@ export async function fetchInvoicesByTokenIds(
             Math.max(
               0,
               (Number(onChain.financing_amount) - Number(onChain.funded_amount)) /
-                1_000_000
+              1_000_000
             ),
         },
         status: ON_CHAIN_STATUS_MAP[onChain.status] ?? "listed",
@@ -622,6 +645,82 @@ const ON_CHAIN_STATUS_MAP: Record<number, import("@/types").InvoiceStatus> = {
   6: "defaulted",
   7: "cancelled",
 };
+
+/**
+ * Map on-chain invoice data to the full Invoice shape, merging with IPFS metadata.
+ * Falls back to safe defaults when IPFS metadata is missing or stale.
+ */
+function mapOnChainToInvoiceLive(
+  id: string,
+  onChain: import("@/types/contract").OnChainInvoice,
+  ipfsResult: PromiseSettledResult<Result<Record<string, unknown>>>
+): Invoice {
+  const ipfsMetadata = ipfsResult.status === "fulfilled" && ipfsResult.value.ok
+    ? ipfsResult.value.value
+    : null;
+
+  const dueDate = new Date(Number(onChain.due_date) * 1000).toISOString();
+  const amount = Number(onChain.amount) / 1_000_000;
+  const financingAmount = Number(onChain.financing_amount) / 1_000_000;
+  const fundedAmount = Number(onChain.funded_amount) / 1_000_000;
+  const discountRate = onChain.discount_rate / 10_000;
+  const fundingProgress = financingAmount > 0 ? Math.min(fundedAmount / financingAmount, 1) : 0;
+
+  // Extract metadata from IPFS, with safe fallbacks
+  const metadata = {
+    invoiceNumber: (ipfsMetadata?.invoiceNumber as string) || `INV-${onChain.token_id}`,
+    issuerName: (ipfsMetadata?.issuerName as string) || "",
+    issuerAddress: (ipfsMetadata?.issuerAddress as string) || onChain.owner,
+    debtorName: (ipfsMetadata?.debtorName as string) || "",
+    debtorAddress: (ipfsMetadata?.debtorAddress as string) || "",
+    amount: (ipfsMetadata?.amount as number) || amount,
+    currency: (ipfsMetadata?.currency as string) || "USDC",
+    issueDate: (ipfsMetadata?.issueDate as string) || new Date().toISOString(),
+    dueDate: (ipfsMetadata?.dueDate as string) || dueDate,
+    description: (ipfsMetadata?.description as string) || "",
+    jurisdiction: (ipfsMetadata?.jurisdiction as string) || "OTHER",
+    category: (ipfsMetadata?.category as string) || "other",
+    documentHash: (ipfsMetadata?.documentHash as string) || onChain.ipfs_cid,
+    documentUrl: (ipfsMetadata?.documentUrl as string) || `${env.NEXT_PUBLIC_IPFS_GATEWAY}/${onChain.ipfs_cid}`,
+  };
+
+  // Determine status from on-chain enum
+  const status = ON_CHAIN_STATUS_MAP[onChain.status] ?? "listed";
+
+  // Calculate APR from discount rate and tenor (if available from IPFS)
+  const tenorDays = ipfsMetadata?.tenor ? Number(ipfsMetadata.tenor) : 90;
+  const apr = discountRate * (365 / tenorDays) * 100;
+
+  return {
+    id,
+    tokenId: onChain.token_id.toString(),
+    contractAddress: env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
+    ipfsCid: onChain.ipfs_cid,
+    metadata,
+    terms: {
+      discountRate,
+      apr,
+      financingAmount,
+      minInvestment: 0,
+      maxInvestment: financingAmount,
+      tenor: tenorDays,
+      repaymentDate: dueDate,
+    },
+    funding: {
+      totalRaised: fundedAmount,
+      targetAmount: financingAmount,
+      fundingProgress,
+      investorCount: 0,
+      remainingCapacity: Math.max(0, financingAmount - fundedAmount),
+    },
+    riskTier: "A",
+    riskScore: 0,
+    status,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ownerAddress: onChain.owner,
+  } as Invoice;
+}
 
 export async function fetchPositions(investorAddress: string) {
   const result = await service.getPositions(investorAddress);
@@ -749,7 +848,7 @@ function mapOnChainToInvoice(tokenId: string, onChain: any): Invoice {
   return {
     id: `inv_${tokenId}`,
     tokenId,
-    contractAddress: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
+    contractAddress: env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
     ipfsCid: onChain.ipfs_cid,
     metadata: {
       invoiceNumber: `INV-${tokenId}`,
@@ -765,7 +864,7 @@ function mapOnChainToInvoice(tokenId: string, onChain: any): Invoice {
       jurisdiction: "OTHER",
       category: "other",
       documentHash: onChain.ipfs_cid,
-      documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs"}/${onChain.ipfs_cid}`,
+      documentUrl: `${env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs"}/${onChain.ipfs_cid}`,
     },
     terms: {
       discountRate,

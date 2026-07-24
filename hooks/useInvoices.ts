@@ -125,10 +125,10 @@ export function useInfiniteInvoices(options?: {
 
 const ACTIVE_STATUSES = new Set(["listed", "partially_funded"]);
 
-export function useInvoice(id: string) {
+export function useInvoice(id: string, walletAddress?: string) {
   return useQuery({
     queryKey: queryKeys.invoices.detail(id),
-    queryFn: () => fetchInvoiceById(id),
+    queryFn: () => fetchInvoiceById(id, walletAddress),
     enabled: !!id,
     staleTime: STALE_30S,
     gcTime: GC_5MIN,

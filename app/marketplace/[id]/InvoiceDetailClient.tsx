@@ -72,7 +72,6 @@ import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
-  const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address, balance } = useWallet();
   const { data: queriedUsdcBalance, refetch: refetchUsdcBalance } =
     useUsdcBalance(address ?? undefined);
