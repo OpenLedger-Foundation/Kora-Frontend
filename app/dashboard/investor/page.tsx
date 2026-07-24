@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Store, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,10 +18,19 @@ const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   },
 );
 import { useWallet } from "@/hooks/useWallet";
-import { useUIStore } from "@/store";
+import { useUIStore, useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { prepareClaimPosition } from "@/services/invoiceService";
+import {
+  PortfolioDonut,
+  type DonutFilter,
+} from "@/components/dashboard/PortfolioDonut";
+import {
+  filterPositionsByAllocation,
+  marketplacePathForAllocation,
+  allocationToMarketplaceFilters,
+} from "@/lib/portfolioAllocation";
 import {
   formatCurrency,
   formatDate,
@@ -58,83 +68,14 @@ function toInvoicePositions(positions: InvestorPosition[]): InvoicePosition[] {
 export default function InvestorDashboardPage() {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const { address } = useWallet();
+  const router = useRouter();
+  const { setFilters, resetFilters } = useInvoiceStore();
   const positionsQuery = usePositions(address ?? undefined, {
     refetchInterval: 30_000,
   });
   const { execute } = useTransaction();
   const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
-  const [loadTimedOut, setLoadTimedOut] = useState(false);
-
-  const positionsData = useMemo(
-    () => positionsQuery.data ?? [],
-    [positionsQuery.data],
-  );
-  const isInitialLoading =
-    positionsQuery.isLoading || (positionsQuery.isFetching && !positionsQuery.data);
-
-  const donutPositions = useMemo(
-    () => toInvoicePositions(positionsData),
-    [positionsData],
-  );
-
-  const filteredPositions = useMemo(() => {
-    if (!donutFilter) return positionsData;
-    return positionsData.filter((pos) => {
-      const inv = pos.invoice;
-      if (!inv) return false;
-      switch (donutFilter.dimension) {
-        case "riskTier":
-          return inv.riskTier === donutFilter.value;
-        case "jurisdiction":
-          return inv.metadata.jurisdiction === donutFilter.value;
-        case "category":
-          return inv.metadata.category === donutFilter.value;
-        default:
-          return true;
-      }
-    });
-  }, [positionsData, donutFilter]);
-
-  useEffect(() => {
-    if (!isConnected || !isInitialLoading || loadTimedOut) return;
-
-    const id = window.setTimeout(() => {
-      setLoadTimedOut(true);
-    }, INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS);
-
-    return () => window.clearTimeout(id);
-  }, [isConnected, isInitialLoading, loadTimedOut]);
-
-  useEffect(() => {
-    if (positionsQuery.isSuccess || positionsQuery.isError) {
-      setLoadTimedOut(false);
-    }
-  }, [positionsQuery.isSuccess, positionsQuery.isError]);
-
-  const handleClaim = async (pos: InvestorPosition) => {
-    if (!address) return;
-    await execute(() => prepareClaimPosition(pos.id, address), {
-      successMessage: "Claim submitted",
-      onSuccess: () => positionsQuery.refetch(),
-    });
-  };
-
-  if (!isConnected) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-          <BarChart3 className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h2 className="text-xl font-semibold text-foreground">
-          Connect your wallet
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          Connect to view your investment portfolio
-        </p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
-      </div>
-    );
-  }
 
   if (loadTimedOut || positionsQuery.isError) {
     return (
@@ -170,6 +111,15 @@ export default function InvestorDashboardPage() {
     return <InvestorDashboardSkeleton />;
   }
 
+  const positionsData = useMemo<InvestorPosition[]>(
+    () => positionsQuery.data ?? [],
+    [positionsQuery.data],
+  );
+  const filteredPositions = useMemo(
+    () => filterPositionsByAllocation(positionsData, donutFilter),
+    [positionsData, donutFilter],
+  );
+
   const totalInvested = positionsData.reduce(
     (sum, position) => sum + position.investedAmount,
     0,
@@ -185,6 +135,40 @@ export default function InvestorDashboardPage() {
         0,
       ) / positionsData.length
     : 0;
+
+  const handleSegmentClick = useCallback(
+    (filter: DonutFilter | null) => {
+      setDonutFilter(filter);
+      if (!filter) {
+        resetFilters();
+        return;
+      }
+      resetFilters();
+      setFilters({
+        ...DEFAULT_FILTERS,
+        ...allocationToMarketplaceFilters(filter),
+      });
+      router.push(marketplacePathForAllocation(filter));
+    },
+    [resetFilters, setFilters, router],
+  );
+
+  if (!isConnected) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+          <BarChart3 className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h2 className="text-xl font-semibold text-foreground">
+          Connect your wallet
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Connect to view your investment portfolio
+        </p>
+        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
+      </div>
+    );
+  }
 
   const STATS = [
     {
@@ -367,17 +351,36 @@ export default function InvestorDashboardPage() {
         ))}
       </div>
 
-      <div className="mb-8">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28 }}
+        className="mb-8"
+      >
         <PortfolioDonut
-          positions={donutPositions}
+          positions={positionsData}
           activeFilter={donutFilter}
-          onSegmentClick={setDonutFilter}
+          onSegmentClick={handleSegmentClick}
         />
-      </div>
+      </motion.div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Active Positions</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardTitle>
+            {donutFilter
+              ? `Positions — ${donutFilter.value}`
+              : "Active Positions"}
+          </CardTitle>
+          {donutFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground"
+              onClick={() => setDonutFilter(null)}
+            >
+              Clear filter ×
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
           <DataTable
@@ -386,9 +389,10 @@ export default function InvestorDashboardPage() {
             isLoading={false}
             pageSize={5}
             emptyState={{
-              title: "No positions",
-              message:
-                "Fund invoices on the marketplace to build your portfolio.",
+              title: donutFilter ? "No matching positions" : "No positions",
+              message: donutFilter
+                ? `No positions match the selected filter (${donutFilter.value}).`
+                : "Fund invoices on the marketplace to build your portfolio.",
               illustration: (
                 <BarChart3 className="h-10 w-10 text-muted-foreground" />
               ),

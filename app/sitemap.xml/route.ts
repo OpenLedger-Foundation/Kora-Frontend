@@ -1,10 +1,13 @@
 /**
- * sitemap.xml — Issue #305
+ * sitemap.xml — Issues #305 / #375
  *
- * Generates a sitemap with all public pages. Marketplace invoice URLs
- * can be extended dynamically when a data source is available.
- * Dashboard and API routes are excluded.
+ * Generates a sitemap with all public pages plus marketplace invoice URLs.
+ * Uses mock data (and optional live fetch) without importing `@/lib/env` at
+ * module scope so `next build` succeeds in CI with partial env.
  */
+
+import { MOCK_INVOICES } from "@/services/mockData";
+import type { Invoice } from "@/types";
 
 const STATIC_PAGES = [
   { path: "/", changefreq: "daily", priority: "1.0" },
@@ -14,8 +17,62 @@ const STATIC_PAGES = [
   { path: "/invoice/create", changefreq: "weekly", priority: "0.7" },
 ];
 
+const PUBLIC_STATUSES = new Set([
+  "listed",
+  "partially_funded",
+  "fully_funded",
+  "active",
+  "repaid",
+]);
+
 function escapeXml(str: string) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function urlEntry(
+  baseUrl: string,
+  path: string,
+  lastmod: string,
+  changefreq: string,
+  priority: string
+) {
+  return `  <url>
+    <loc>${escapeXml(`${baseUrl}${path}`)}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>${changefreq}</changefreq>
+    <priority>${priority}</priority>
+  </url>`;
+}
+
+/** Sitemap entry pattern for invoice detail pages (Issue #375). */
+function invoiceSitemapEntries(
+  invoices: Pick<Invoice, "id" | "status" | "updatedAt">[]
+) {
+  return invoices
+    .filter((inv) => PUBLIC_STATUSES.has(inv.status))
+    .map((inv) => ({
+      path: `/marketplace/${inv.id}`,
+      lastmod: (inv.updatedAt || new Date().toISOString()).slice(0, 10),
+      changefreq: "daily" as const,
+      priority: "0.8",
+    }));
+}
+
+async function loadInvoicesForSitemap(): Promise<
+  Pick<Invoice, "id" | "status" | "updatedAt">[]
+> {
+  // Prefer mock data when enabled (CI / local default) — no env module needed.
+  if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA !== "false") {
+    return MOCK_INVOICES;
+  }
+
+  try {
+    const { fetchInvoices } = await import("@/services/invoiceService");
+    const page = await fetchInvoices(undefined, undefined, 1, 100);
+    return page.data ?? [];
+  } catch {
+    return MOCK_INVOICES;
+  }
 }
 
 export async function GET() {
@@ -23,23 +80,23 @@ export async function GET() {
     process.env.NEXT_PUBLIC_APP_URL || "https://kora.finance";
   const now = new Date().toISOString().split("T")[0];
 
-  // Build static page entries
-  const staticEntries = STATIC_PAGES.map(
-    (page) => `  <url>
-    <loc>${escapeXml(`${baseUrl}${page.path}`)}</loc>
-    <lastmod>${now}</lastmod>
-    <changefreq>${page.changefreq}</changefreq>
-    <priority>${page.priority}</priority>
-  </url>`
+  const staticEntries = STATIC_PAGES.map((page) =>
+    urlEntry(baseUrl, page.path, now, page.changefreq, page.priority)
   );
 
-  // TODO: When an invoice listing API is available, fetch invoice IDs
-  // and add dynamic entries:
-  //   /marketplace/[id] for each published invoice
+  let invoiceEntries: string[] = [];
+  try {
+    const invoices = await loadInvoicesForSitemap();
+    invoiceEntries = invoiceSitemapEntries(invoices).map((e) =>
+      urlEntry(baseUrl, e.path, e.lastmod || now, e.changefreq, e.priority)
+    );
+  } catch {
+    // Sitemap still returns static pages if invoice listing fails
+  }
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${staticEntries.join("\n")}
+${[...staticEntries, ...invoiceEntries].join("\n")}
 </urlset>`;
 
   return new Response(xml, {

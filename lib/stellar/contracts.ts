@@ -479,11 +479,18 @@ export const marketplaceContract = new MarketplaceContractClient();
 
 /**
  * Build an unsigned transaction to mint testnet USDC to a wallet.
+ *
+ * Used by the investor onboarding faucet (`mintTestnetUsdc` / fund panel CTA).
+ * Callers must gate this behind a testnet-only check — never invoke on mainnet.
+ *
+ * @param recipient       Address that receives the minted USDC
+ * @param sourcePublicKey Account that signs / pays fees
+ * @param amount          Amount in token base units (7 decimals). Default = 10,000 USDC.
  */
 export async function buildTestnetUsdcMintTx(
   recipient: string,
   sourcePublicKey: string,
-  amount: bigint = BigInt("10000000000")
+  amount: bigint = BigInt("100000000000")
 ): Promise<string> {
   return buildCall(
     TOKEN_CONTRACT_ID,

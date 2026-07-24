@@ -28,6 +28,12 @@
     "fundingTestnet": "Funding testnet account...",
     "fundSuccess": "Testnet account funded with 10,000 XLM",
     "fundFailed": "Funding failed",
+    "getTestnetUsdc": "Get testnet USDC",
+    "mintingUsdc": "Minting testnet USDC…",
+    "mintingUsdcShort": "Minting USDC…",
+    "mintUsdcSuccess": "Testnet USDC minted — balance updated",
+    "mintUsdcFailed": "Failed to mint testnet USDC",
+    "faucetHint": "Need USDC for funding? Mint free testnet USDC to continue onboarding.",
     "cancel": "Cancel",
     "popular": "Popular",
     "notInstalled": "Not installed",
@@ -185,7 +191,8 @@
     },
     "errors": {
       "minInvestment": "Minimum investment is {amount}",
-      "exceedsCapacity": "Amount exceeds remaining capacity of {amount}"
+      "exceedsCapacity": "Amount exceeds remaining capacity of {amount}",
+      "insufficientBalance": "Insufficient USDC balance. Available: {amount}"
     },
     "hint": {
       "minRemaining": "Min: ${min} · Remaining Capacity: ${remaining}"

@@ -8,7 +8,7 @@ import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { usePrefetchInvoice } from "@/hooks/useInvoices";
+import { usePrefetchInvoice } from "@/hooks/usePrefetchInvoice";
 import {
   formatCurrency,
   formatApr,
@@ -106,14 +106,16 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   }, [cancelPrefetch]);
 
   const handleFocus = useCallback(() => {
+    prefetchInvoice(invoice.id);
     if (!isExpired) {
       setPopoverOpen(true);
     }
-  }, [isExpired]);
+  }, [prefetchInvoice, invoice.id, isExpired]);
 
   const handleBlur = useCallback(() => {
+    cancelPrefetch();
     setPopoverOpen(false);
-  }, []);
+  }, [cancelPrefetch]);
 
   // Cleanup on unmount
   const handleUnmount = useCallback(() => {
@@ -292,6 +294,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           isOpen={popoverOpen}
           onOpenChange={setPopoverOpen}
           triggerRef={cardRef}
+          onPrefetch={prefetchInvoice}
         />
       </motion.div>
     </Link>

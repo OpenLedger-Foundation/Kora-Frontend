@@ -8,19 +8,17 @@ const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCh
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
-import { TrendingUp, DollarSign, BarChart3, Shield, Download } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
-import { AnalyticsControls } from "@/components/analytics/AnalyticsControls";
 import { useWallet } from "@/hooks/useWallet";
-import { useUIStore } from "@/store";
+import { usePositions } from "@/hooks/usePositions";
+import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
 import { Button } from "@/components/ui/button";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
 import { formatCurrency } from "@/lib/utils";
 import { exportCsv, exportPdf } from "@/lib/export";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { cn } from "@/lib/utils";
 import {
   AnalyticsFilterBar,
   DEFAULT_FILTERS,
@@ -30,8 +28,13 @@ import {
   type CategoryFilter,
 } from "@/components/analytics/AnalyticsFilterBar";
 import type { PresetRange } from "@/components/analytics/DateRangePicker";
+import {
+  aggregatePositions,
+  marketplacePathForAllocation,
+  allocationToMarketplaceFilters,
+} from "@/lib/portfolioAllocation";
 
-// ── Mock analytics data ────────────────────────────────────────────────────────
+// ── Mock analytics data (time-series history; risk uses live positions) ───────
 
 const PORTFOLIO_HISTORY = [
   { month: "Jun", value: 0 },
@@ -49,13 +52,6 @@ const YIELD_HISTORY = [
   { month: "Sep", yield: 1540 },
   { month: "Oct", yield: 2800 },
   { month: "Nov", yield: 4200 },
-];
-
-const RISK_DISTRIBUTION = [
-  { name: "AAA", value: 30, color: "#34d399" },
-  { name: "AA", value: 45, color: "#14b8a6" },
-  { name: "A", value: 20, color: "#22d3ee" },
-  { name: "BBB", value: 5, color: "#fbbf24" },
 ];
 
 const MONTHLY_RETURNS = [
@@ -134,12 +130,13 @@ function sliceByRange<T>(data: T[], range: PresetRange | "custom"): T[] {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function PortfolioAnalyticsInner() {
-  const { isConnected } = useWallet();
+  const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const { setFilters, resetFilters } = useInvoiceStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
-  const [isLoading, setIsLoading] = useState(false);
+  const positionsQuery = usePositions(address ?? undefined);
 
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
@@ -152,13 +149,36 @@ function PortfolioAnalyticsInner() {
     [router]
   );
 
+  const handleRiskSegmentClick = useCallback(
+    (riskTier: string) => {
+      const allocationFilter = {
+        dimension: "riskTier" as const,
+        value: riskTier,
+      };
+      resetFilters();
+      setFilters({
+        ...MARKETPLACE_DEFAULT_FILTERS,
+        ...allocationToMarketplaceFilters(allocationFilter),
+      });
+      router.push(marketplacePathForAllocation(allocationFilter));
+    },
+    [resetFilters, setFilters, router]
+  );
+
   // Slice data based on active filters
   const portfolio = useMemo(() => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange), [filters.dateRange]);
   const yieldData = useMemo(() => sliceByRange(YIELD_HISTORY, filters.dateRange), [filters.dateRange]);
   const risk = useMemo(() => {
-    if (filters.riskTier === "all") return RISK_DISTRIBUTION;
-    return RISK_DISTRIBUTION.filter((d) => d.name === filters.riskTier);
-  }, [filters.riskTier]);
+    const slices = aggregatePositions(positionsQuery.data ?? [], "riskTier").map(
+      (s) => ({
+        name: s.name,
+        value: Math.round(s.percent * 10) / 10,
+        color: s.color,
+      })
+    );
+    if (filters.riskTier === "all") return slices;
+    return slices.filter((d) => d.name === filters.riskTier);
+  }, [positionsQuery.data, filters.riskTier]);
   const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
 
   const handleExport = useCallback((type: "portfolio" | "yield" | "risk" | "monthly") => {
@@ -278,6 +298,8 @@ function PortfolioAnalyticsInner() {
             yieldData={yieldData}
             monthly={monthly}
             risk={risk}
+            isLoading={positionsQuery.isLoading}
+            onRiskSegmentClick={handleRiskSegmentClick}
           />
         </div>
       </PrintLayout>
