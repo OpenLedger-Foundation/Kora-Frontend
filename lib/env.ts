@@ -16,6 +16,35 @@
  */
 import { z } from "zod";
 
+// ─── Soroban C-strkey validation ──────────────────────────────────────────────
+// A valid Soroban contract address is a 56-character Stellar C-strkey:
+//   • Starts with the letter 'C'
+//   • Uses base-32 alphabet (A-Z, 2-7)
+//   • Exactly 56 characters total
+//
+// The all-zeros placeholder (CAAAA...ABSC4) is the Soroban zero-address and is
+// never a real deployed contract — we reject it in live mode.
+
+const SOROBAN_CONTRACT_REGEX = /^C[A-Z2-7]{55}$/;
+const SOROBAN_ZERO_ADDRESS =
+  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
+
+/**
+ * Zod refinement: validates that a string is a well-formed Soroban C-strkey.
+ * Does NOT reject the zero-address here — that is done separately in live-mode
+ * validation so the error message is actionable.
+ */
+const sorobanContractId = z
+  .string()
+  .min(1, "Contract ID is required")
+  .refine(
+    (v) => SOROBAN_CONTRACT_REGEX.test(v),
+    (v) =>
+      ({
+        message: `Invalid Soroban contract ID "${v}". Expected a 56-character C-strkey starting with 'C' (e.g. CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA).`,
+      }) as { message: string },
+  );
+
 // ─── Client-safe schema (NEXT_PUBLIC_*) ──────────────────────────────────────
 // These vars are embedded into the client bundle by Next.js at build time.
 // Never put secrets here.
@@ -35,14 +64,23 @@ const clientSchema = z.object({
   /** Stellar network passphrase used to sign transactions. Required. */
   NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: z.string().min(1),
 
-  /** Soroban contract ID for the Invoice NFT contract. Required. */
-  NEXT_PUBLIC_INVOICE_CONTRACT_ID: z.string().min(1),
+  /**
+   * Soroban contract ID for the Invoice NFT contract.
+   * Must be a valid 56-char Soroban C-strkey.
+   */
+  NEXT_PUBLIC_INVOICE_CONTRACT_ID: sorobanContractId,
 
-  /** Soroban contract ID for the Marketplace contract. Required. */
-  NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: z.string().min(1),
+  /**
+   * Soroban contract ID for the Marketplace contract.
+   * Must be a valid 56-char Soroban C-strkey.
+   */
+  NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: sorobanContractId,
 
-  /** Soroban contract ID for the USDC/token contract. Required. */
-  NEXT_PUBLIC_TOKEN_CONTRACT_ID: z.string().min(1),
+  /**
+   * Soroban contract ID for the USDC/token contract.
+   * Must be a valid 56-char Soroban C-strkey.
+   */
+  NEXT_PUBLIC_TOKEN_CONTRACT_ID: sorobanContractId,
 
   /** IPFS gateway base URL for resolving CIDs. Required. */
   NEXT_PUBLIC_IPFS_GATEWAY: z.string().url(),
@@ -119,6 +157,35 @@ function parseEnv() {
       .map((i) => `  ${i.path.join(".")}: ${i.message}`)
       .join("\n");
     throw new Error(`❌ Invalid environment variables:\n${msg}`);
+  }
+
+  // ── Live-mode contract ID guard ──────────────────────────────────────────
+  // When mock data is disabled the app makes real Soroban RPC calls.  Fail
+  // fast here rather than silently sending transactions to the zero-address
+  // contract, which would produce opaque on-chain errors.
+  const mockEnabled = clientResult.data.NEXT_PUBLIC_ENABLE_MOCK_DATA;
+  if (!mockEnabled) {
+    const CONTRACT_VARS = [
+      "NEXT_PUBLIC_INVOICE_CONTRACT_ID",
+      "NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID",
+      "NEXT_PUBLIC_TOKEN_CONTRACT_ID",
+    ] as const;
+
+    const zeroAddressVars = CONTRACT_VARS.filter(
+      (key) => clientResult.data[key] === SOROBAN_ZERO_ADDRESS,
+    );
+
+    if (zeroAddressVars.length > 0) {
+      throw new Error(
+        `❌ Live mode is enabled (NEXT_PUBLIC_ENABLE_MOCK_DATA=false) but the ` +
+          `following contract IDs are still set to the Soroban zero-address ` +
+          `placeholder:\n` +
+          zeroAddressVars.map((k) => `  ${k}`).join("\n") +
+          `\n\nDeploy your contracts to ${clientResult.data.NEXT_PUBLIC_STELLAR_NETWORK} ` +
+          `and set the real addresses in your .env.local file.\n` +
+          `See README.md → "Smart Contract Deployment" for instructions.`,
+      );
+    }
   }
 
   if (!isServer) {
