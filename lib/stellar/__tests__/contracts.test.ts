@@ -27,9 +27,9 @@ import type { MintInvoiceParams, FundInvoiceParams, RepayInvoiceParams } from "@
 // Mock environment variables
 vi.mock("@/lib/env", () => ({
   env: {
-    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
-    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHIR4",
-    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAUD",
+    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
     NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
     NEXT_PUBLIC_STELLAR_RPC_URL: "https://soroban-testnet.stellar.org",
   },
@@ -37,18 +37,24 @@ vi.mock("@/lib/env", () => ({
 
 // Mock the RPC client
 vi.mock("../client", () => {
+  const mockAccount = {
+    sequenceNumber: () => "1000",
+    accountId: () => "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
+    incrementSequenceNumber: vi.fn(),
+  };
+
   const mockRpc = {
-    getAccount: vi.fn().mockResolvedValue({
-      sequenceNumber: () => "1000",
-      accountId: () => "GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI",
-      incrementSequenceNumber: vi.fn(),
-    }),
+    getAccount: vi.fn().mockResolvedValue(mockAccount),
     simulateTransaction: vi.fn(),
     getTransaction: vi.fn(),
   };
 
   return {
     rpc: mockRpc,
+    sequenceManager: {
+      nextAccount: vi.fn().mockResolvedValue(mockAccount),
+      reset: vi.fn(),
+    },
     networkConfig: {
       networkPassphrase: "Test SDF Network ; September 2015",
       network: "testnet",

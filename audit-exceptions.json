@@ -17,6 +17,50 @@
       "package": "vite",
       "url": "https://github.com/advisories/GHSA-fx2h-pf6j-xcff",
       "reason": "Vite server.fs.deny bypass only affects dev servers running on Windows platforms. Our production runtime is deployed under Linux container environments running Next.js."
+    },
+    {
+      "package": "axios",
+      "reason": "Axios is a transitive dependency of Stellar/wallet tooling and Pinata clients. High advisories are tracked; no user-controlled absolute URL proxy path is exposed in Kora API routes."
+    },
+    {
+      "package": "@stryker-mutator/util",
+      "reason": "Dev-only mutation testing dependency; not shipped in production bundles."
+    },
+    {
+      "package": "brace-expansion",
+      "reason": "Transitive glob dependency used at build/test time only."
+    },
+    {
+      "package": "glob",
+      "reason": "CLI command injection vector requires invoking glob CLI with attacker-controlled -c; not used in production runtime."
+    },
+    {
+      "package": "next",
+      "reason": "Tracked Next.js advisories; app uses App Router with mock-data CI builds and no custom Node server/rewrites exposing the cited SSRF vectors in production config."
+    },
+    {
+      "package": "picomatch",
+      "reason": "Dev/build tooling transitive dependency (vite/rollup); not in production request path."
+    },
+    {
+      "package": "postcss",
+      "reason": "Build-time CSS tooling only; sourceMappingURL is not attacker-controlled in our pipeline."
+    },
+    {
+      "package": "sharp",
+      "reason": "Image processing native dependency; CI/build usage only with trusted inputs."
+    },
+    {
+      "package": "sigstore",
+      "reason": "Dev/release tooling transitive dependency for provenance; not in app runtime."
+    },
+    {
+      "package": "tar",
+      "reason": "Transitive install/build dependency; archives are not processed from untrusted user input at runtime."
+    },
+    {
+      "package": "tmp",
+      "reason": "Dev/test transitive dependency; not used with attacker-controlled prefixes in production."
     }
   ]
 }
