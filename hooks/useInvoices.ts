@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import {
   useQuery,
+  useInfiniteQuery,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -37,8 +38,26 @@ const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
   apr: "apr",
   amount: "amount",
   dueDate: "duration",
+  duration: "duration",
+  due: "duration",
   listed: "createdAt",
+  newest: "createdAt",
+  createdAt: "createdAt",
 };
+
+function resolveMarketplaceSort(sortBy: string): {
+  key: MarketplaceSortKey;
+  direction: "asc" | "desc";
+} {
+  const rawKey = sortBy?.split("_")[0] ?? "apr";
+  const key = SORT_KEY_MAP[rawKey] ?? "apr";
+  // due_soonest / newest style keys
+  if (sortBy === "due_soonest") return { key: "duration", direction: "asc" };
+  if (sortBy === "due_latest") return { key: "duration", direction: "desc" };
+  if (sortBy === "newest") return { key: "createdAt", direction: "desc" };
+  const direction = sortBy?.endsWith("asc") ? "asc" : "desc";
+  return { key, direction };
+}
 
 // ─── List ─────────────────────────────────────────────────────────────────────
 
@@ -61,6 +80,46 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
         ? false
         : 15_000,
     refetchIntervalInBackground: false,
+  });
+}
+
+/** Default page size for marketplace infinite scroll. */
+export const MARKETPLACE_PAGE_SIZE = 12;
+
+/**
+ * Cursor/page-based infinite invoice list for the marketplace.
+ * Initial load fetches page 1 only; call fetchNextPage as the sentinel intersects.
+ * Filter/sort changes reset pagination via the query key.
+ */
+export function useInfiniteInvoices(options?: {
+  pageSize?: number;
+  enabled?: boolean;
+}) {
+  const pageSize = options?.pageSize ?? MARKETPLACE_PAGE_SIZE;
+  const enabled = options?.enabled ?? true;
+  const filters = useInvoiceStore((s) => s.filters);
+  const sortBy = useInvoiceStore((s) => s.sortBy);
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.invoices.infinite(filters, sortBy, pageSize),
+    queryFn: ({ pageParam }) =>
+      fetchInvoices(
+        {
+          categories: filters.categories,
+          jurisdictions: filters.jurisdictions,
+          riskTiers: filters.riskTiers,
+          aprRange: filters.aprRange,
+          activeOnly: filters.activeOnly,
+        },
+        resolveMarketplaceSort(sortBy),
+        pageParam,
+        pageSize
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    enabled,
+    staleTime: STALE_30S,
+    gcTime: GC_5MIN,
   });
 }
 

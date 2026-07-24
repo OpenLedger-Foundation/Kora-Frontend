@@ -5,6 +5,8 @@ export const queryKeys = {
     all: ["invoices"] as const,
     list: (filters: FilterState, sort: SortState, page: number) =>
       ["invoices", "list", filters, sort, page] as const,
+    infinite: (filters: FilterState, sortBy: string, pageSize: number) =>
+      ["invoices", "infinite", filters, sortBy, pageSize] as const,
     detail: (id: string) => ["invoices", "detail", id] as const,
     byOwner: (address: string) => ["invoices", "owner", address] as const,
     positions: (address: string) => ["invoices", "positions", address] as const,

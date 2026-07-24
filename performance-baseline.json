@@ -1,5 +1,6 @@
 {
   "timeToFirstCardMs": 500,
   "timeToFilterResponseMs": 800,
-  "timeToLoad50InvoicesMs": 1200
+  "timeToLoad50InvoicesMs": 1200,
+  "timeToLoad100InvoicesMs": 2500
 }
