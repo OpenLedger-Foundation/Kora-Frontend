@@ -27,8 +27,10 @@ function createWrapper(client?: QueryClient) {
     new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-  return ({ children }: { children: React.ReactNode }) =>
+  const Wrapper = ({ children }: { children: React.ReactNode }) =>
     React.createElement(QueryClientProvider, { client: queryClient }, children);
+  Wrapper.displayName = "TestQueryWrapper";
+  return Wrapper;
 }
 
 function mockFinePointer(matches = true) {

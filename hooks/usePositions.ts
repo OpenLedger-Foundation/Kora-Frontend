@@ -25,6 +25,8 @@ export function usePositions(
           invoice: p.invoice,
           investedAmount: p.investedAmount,
           expectedReturn: p.expectedReturn,
+          yieldEarned: p.yieldEarned ?? Math.max(0, p.expectedReturn - p.investedAmount),
+          investedAt: p.investedAt ?? p.invoice.createdAt,
           status: p.status,
         }));
       }

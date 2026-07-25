@@ -17,6 +17,8 @@ export const queryKeys = {
     all: ["invoices"] as const,
     list: (filters: FilterState, sort: SortState, page: number) =>
       ["invoices", "list", filters, sort, page] as const,
+    infinite: (filters: FilterState, sort: string | SortState, pageSize: number) =>
+      ["invoices", "infinite", filters, sort, pageSize] as const,
     /**
      * Detail keys are namespaced by data source so mock and live indexer
      * responses never collide in the TanStack Query cache.

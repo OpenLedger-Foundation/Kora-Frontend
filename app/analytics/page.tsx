@@ -103,7 +103,6 @@ function PortfolioAnalyticsInner() {
   const searchParams = useSearchParams();
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
-  const positionsQuery = usePositions(address ?? undefined);
 
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
@@ -147,6 +146,43 @@ function PortfolioAnalyticsInner() {
     return slices.filter((d) => d.name === filters.riskTier);
   }, [positionsQuery.data, filters.riskTier]);
   const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
+
+  const positionsData = positionsQuery.data ?? [];
+  const totalInvested = positionsData.reduce((sum, position) => sum + position.investedAmount, 0);
+  const totalExpected = positionsData.reduce((sum, position) => sum + position.expectedReturn, 0);
+  const totalYield = totalExpected - totalInvested;
+  const averageApr = positionsData.length
+    ? positionsData.reduce((sum, position) => sum + (position.invoice?.terms.apr ?? 0), 0) / positionsData.length
+    : 0;
+
+  const stats = [
+    {
+      label: "Portfolio Value",
+      value: formatCurrency(totalInvested, "USDC", true),
+      change: `${positionsData.length} ${positionsData.length === 1 ? "position" : "positions"}`,
+      changePositive: true,
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      label: "Expected Yield",
+      value: formatCurrency(totalYield, "USDC", true),
+      change: totalInvested > 0 ? `${((totalYield / totalInvested) * 100).toFixed(1)}% return` : "0.0% return",
+      changePositive: true,
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Active Positions",
+      value: positionsData.length.toString(),
+      icon: <BarChart3 className="h-4 w-4" />,
+    },
+    {
+      label: "Avg. APR",
+      value: `${averageApr.toFixed(1)}%`,
+      change: "Across all positions",
+      changePositive: true,
+      icon: <Shield className="h-4 w-4" />,
+    },
+  ];
 
   const handleExport = useCallback((type: "portfolio" | "yield" | "risk" | "monthly") => {
     let data, filename;

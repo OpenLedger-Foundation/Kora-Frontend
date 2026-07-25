@@ -90,6 +90,7 @@ export function useWallet() {
     updateActivity,
     isSessionExpired,
     setKitSessionActive,
+    setNetwork,
   } = useWalletStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -302,7 +303,7 @@ export function useWallet() {
         // best-effort redirect
       }
     },
-    [connect, setBalance, setKitSessionActive, router],
+    [connect, setBalance, setKitSessionActive, setNetwork, router],
   );
 
   const disconnectWallet = useCallback(async () => {

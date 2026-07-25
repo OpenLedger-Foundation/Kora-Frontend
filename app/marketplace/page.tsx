@@ -22,7 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInfiniteInvoices, MARKETPLACE_PAGE_SIZE } from "@/hooks/useInvoices";
-import { useInvoiceStore } from "@/store";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
 import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
@@ -448,6 +449,38 @@ function MarketplaceContent() {
     );
   }, [allInvoices, debouncedSearchQuery]);
 
+  // Responsive grid column count detection for virtual scroller
+  const [columns, setColumns] = useState(3);
+  useEffect(() => {
+    const updateColumns = () => {
+      if (typeof window === "undefined") return;
+      const w = window.innerWidth;
+      if (w < 640) setColumns(1);
+      else if (w < 1024) setColumns(2);
+      else setColumns(3);
+    };
+    updateColumns();
+    window.addEventListener("resize", updateColumns);
+    return () => window.removeEventListener("resize", updateColumns);
+  }, []);
+
+  // Chunk filtered invoices into grid rows for virtual scrolling
+  const virtualRows = useMemo(() => {
+    const rows: Invoice[][] = [];
+    for (let i = 0; i < filteredInvoices.length; i += columns) {
+      rows.push(filteredInvoices.slice(i, i + columns));
+    }
+    return rows;
+  }, [filteredInvoices, columns]);
+
+  const virtualListRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useWindowVirtualizer({
+    count: virtualRows.length,
+    estimateSize: () => 450,
+    overscan: 2,
+    scrollMargin: virtualListRef.current?.offsetTop ?? 0,
+  });
   // Active filters count for clearing badge
   const activeFiltersCount =
     (filters.categories?.length || 0) +
@@ -718,10 +751,37 @@ function MarketplaceContent() {
               />
             ) : (
               <>
-                <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredInvoices.map((invoice: Invoice, i: number) => (
-                    <InvoiceCard key={invoice.id} invoice={invoice} index={i} updatedAt={dataUpdatedAt} />
-                  ))}
+                <div
+                  ref={virtualListRef}
+                  className="relative w-full"
+                  style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                  data-testid="virtual-invoice-list"
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const rowInvoices = virtualRows[virtualRow.index];
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        ref={rowVirtualizer.measureElement}
+                        data-index={virtualRow.index}
+                        className="absolute top-0 left-0 w-full"
+                        style={{
+                          transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
+                        }}
+                      >
+                        <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 mb-5">
+                          {rowInvoices.map((invoice: Invoice, i: number) => (
+                            <InvoiceCard
+                              key={invoice.id}
+                              invoice={invoice}
+                              index={virtualRow.index * columns + i}
+                              updatedAt={dataUpdatedAt}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div>
                   <div

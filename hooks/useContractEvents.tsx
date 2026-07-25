@@ -24,10 +24,12 @@ import {
 } from "@/lib/stellar/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { useWalletStore } from "@/store/walletStore";
+import { useInvoiceStore } from "@/store/invoiceStore";
 import { useUIStore } from "@/store/uiStore";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { env } from "@/lib/env";
 import { formatCurrency } from "@/lib/utils";
+import type { Invoice } from "@/types/invoice";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -116,9 +118,9 @@ export function invalidateCachesForEvent(
       updateInvoiceFunding(invoice.id, newTotalRaised);
 
       // Update query cache for detail
-      queryClient.setQueryData<Invoice>(
+      queryClient.setQueryData<any>(
         queryKeys.invoices.detail(event.tokenId),
-        (old) => {
+        (old: any) => {
           if (!old) return old;
           return {
             ...old,
@@ -135,7 +137,7 @@ export function invalidateCachesForEvent(
       );
 
       // Update any list queries (all invoices, filtered lists, etc.)
-      queryClient.setQueriesData<{ invoices: Invoice[] }>(
+      queryClient.setQueriesData<any>(
         {
           queryKey: queryKeys.invoices.all,
           predicate: (query) => {
@@ -144,11 +146,11 @@ export function invalidateCachesForEvent(
               query.queryKey[0] === "invoices";
           },
         },
-        (old) => {
+        (old: any) => {
           if (!old) return old;
           // Check structure (could be array or object with invoices array)
           if (Array.isArray(old)) {
-            return old.map((i) =>
+            return old.map((i: any) =>
               i.tokenId === event.tokenId
                 ? {
                     ...i,
@@ -167,7 +169,7 @@ export function invalidateCachesForEvent(
           if ("invoices" in old && Array.isArray(old.invoices)) {
             return {
               ...old,
-              invoices: old.invoices.map((i) =>
+              invoices: old.invoices.map((i: any) =>
                 i.tokenId === event.tokenId
                   ? {
                       ...i,
@@ -298,7 +300,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
 
       for (const event of newEvents) {
         processedEventIds.current.add(event.id);
-        updateCachesForEvent(event, queryClient, updateInvoiceFunding);
+        invalidateCachesForEvent(event, queryClient, updateInvoiceFunding);
 
         if (walletAddress && notificationPreferences.invoiceFunded) {
           showEventToast(event, walletAddress);
@@ -310,7 +312,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
         processedEventIds.current = new Set(arr.slice(-250));
       }
     },
-    [queryClient, walletAddress, notificationPreferences.invoiceFunded]
+    [queryClient, walletAddress, notificationPreferences.invoiceFunded, updateInvoiceFunding]
   );
 
   const fetchOnce = useCallback(async () => {
