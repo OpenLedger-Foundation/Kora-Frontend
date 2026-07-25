@@ -56,6 +56,17 @@ export interface InvoiceMetadata {
   category: InvoiceCategory;
   documentHash: string; // IPFS CID of the PDF
   documentUrl: string;
+  /**
+   * NFT-standard preview image URI — `ipfs://CID` or `https://…`.
+   *
+   * Points at the rasterised marketplace thumbnail when one was generated at
+   * upload time, otherwise the full invoice SVG. Optional: invoices minted
+   * before thumbnails existed have no image, and the marketplace card falls
+   * back to a generated placeholder. Resolve it with `resolveThumbnailSrc()`
+   * from `lib/invoiceSvg` rather than reading it directly, so `ipfs://` URIs
+   * become gateway URLs that match next.config's `remotePatterns`.
+   */
+  image?: string;
   /** Detected IPFS metadata schema version ("1.0" | "legacy"). Optional. */
   metadataVersion?: "1.0" | "legacy";
 }

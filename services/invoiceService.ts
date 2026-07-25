@@ -695,6 +695,11 @@ function mapOnChainToInvoiceLive(
     category: (ipfsMetadata?.category as string) || "other",
     documentHash: (ipfsMetadata?.documentHash as string) || onChain.ipfs_cid,
     documentUrl: (ipfsMetadata?.documentUrl as string) || `${env.NEXT_PUBLIC_IPFS_GATEWAY}/${onChain.ipfs_cid}`,
+    // NFT-standard preview image (Issue #438). Carried through so the
+    // marketplace card can render a thumbnail via next/image; left undefined
+    // for invoices minted before thumbnails existed, which fall back to the
+    // generated placeholder.
+    image: ipfsMetadata?.image as string | undefined,
   };
 
   // Determine status from on-chain enum

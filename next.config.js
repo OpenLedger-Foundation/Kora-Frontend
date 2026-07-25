@@ -260,6 +260,24 @@ const nextConfig = {
     minimumCacheTTL: 604800,
 
     remotePatterns: [
+      // The gateway this deployment actually uses. Derived from
+      // NEXT_PUBLIC_IPFS_GATEWAY so a self-hosted or paid gateway still gets
+      // optimised instead of failing next/image's allowlist at runtime; the
+      // literal entries below stay as fallbacks for the public gateways that
+      // lib/ipfs.ts rotates through. Spread-and-filter so a malformed or
+      // missing env var degrades to the static list rather than throwing at
+      // build time.
+      ...(() => {
+        try {
+          const { hostname } = new URL(
+            process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.io/ipfs",
+          );
+          return [{ protocol: "https", hostname }];
+        } catch {
+          return [];
+        }
+      })(),
+
       // IPFS gateways (invoice document thumbnails / metadata images)
       { protocol: "https", hostname: "ipfs.io" },
       { protocol: "https", hostname: "gateway.pinata.cloud" },
