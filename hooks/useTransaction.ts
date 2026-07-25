@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
@@ -11,7 +11,7 @@ import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
-import type { ServiceError } from "@/types";
+import type { ServiceError, TxState } from "@/types";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -332,4 +332,79 @@ export function useTransaction() {
     error: state.error,
     simulationPreview,
   };
+}
+
+const TX_ANNOUNCEMENT_MESSAGES: Record<Exclude<TxState["status"], "idle">, string> = {
+  building: "Building transaction…",
+  simulating: "Simulating transaction…",
+  signing: "Waiting for wallet signature…",
+  submitting: "Submitting transaction…",
+  polling: "Waiting for confirmation on the network…",
+  confirmed: "Transaction confirmed successfully.",
+  failed: "Transaction failed.",
+  timeout: "Transaction timed out. You can retry.",
+};
+
+/**
+ * Screen-reader announcements for the transaction lifecycle (#441).
+ *
+ * Sonner toasts are visual-first: role/aria-live attributes on individual
+ * toast contents aren't a reliable substitute for a dedicated, persistent
+ * live region, since toast DOM nodes are transient and timing varies by
+ * animation/portal library. This mirrors the "announce + dedupe +
+ * auto-clear" pattern already used by useCountdown's `announce` field, but
+ * reads from the global tx state (useUIStore) so it's a single source of
+ * truth no matter which screen/button started the transaction — covering
+ * funding, repayment, claims, and any other flow that goes through
+ * useTransaction().execute().
+ *
+ * Two independent regions are returned so failures interrupt (`assertive`)
+ * while everything else waits its turn (`polite`), and each region only
+ * updates when its message actually changes, so re-renders don't spam
+ * assistive tech with repeat announcements.
+ */
+export function useTxAnnouncement() {
+  const txState = useUIStore((s) => s.txState);
+  const [polite, setPolite] = useState<string | null>(null);
+  const [assertive, setAssertive] = useState<string | null>(null);
+  const lastAnnounced = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (txState.status === "idle") {
+      // Reset so the next transaction cycle announces even if it produces
+      // the same text as the last one (e.g. two "confirmed" in a row).
+      lastAnnounced.current = null;
+      return;
+    }
+
+    const message =
+      txState.status === "failed"
+        ? `Transaction failed: ${txState.error.message}`
+        : TX_ANNOUNCEMENT_MESSAGES[txState.status];
+
+    if (!message || message === lastAnnounced.current) return;
+    lastAnnounced.current = message;
+
+    if (txState.status === "failed") {
+      setAssertive(message);
+    } else {
+      setPolite(message);
+    }
+  }, [txState]);
+
+  // Clear each region a short time after announcing so assistive tech
+  // doesn't re-read stale text if the same status recurs later.
+  useEffect(() => {
+    if (!polite) return;
+    const timer = setTimeout(() => setPolite(null), 5000);
+    return () => clearTimeout(timer);
+  }, [polite]);
+
+  useEffect(() => {
+    if (!assertive) return;
+    const timer = setTimeout(() => setAssertive(null), 5000);
+    return () => clearTimeout(timer);
+  }, [assertive]);
+
+  return { polite, assertive };
 }

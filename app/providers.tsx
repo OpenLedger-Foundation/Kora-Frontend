@@ -30,6 +30,10 @@ const InProgressOverlay = dynamic(
   () => import("@/components/transactions").then((m) => m.InProgressOverlay),
   { ssr: false, loading: () => null }
 );
+const TransactionAnnouncer = dynamic(
+  () => import("@/components/transactions").then((m) => m.TransactionAnnouncer),
+  { ssr: false, loading: () => null }
+);
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
@@ -99,6 +103,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           {isEnabled("onboarding-tour") && <OnboardingTour />}
           <WalletConnectModal />
           <InProgressOverlay />
+          <TransactionAnnouncer />
           <InstallPrompt />
           <FeedbackWidget />
           <KeyboardShortcutsProvider />
