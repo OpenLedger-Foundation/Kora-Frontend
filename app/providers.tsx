@@ -32,6 +32,7 @@ const InProgressOverlay = dynamic(
 );
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { VerificationProvider } from "@/components/wallet/VerificationProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
@@ -95,19 +96,21 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <LocaleProvider allMessages={ALL_MESSAGES}>
         <ThemeProvider>
-          {children}
-          {isEnabled("onboarding-tour") && <OnboardingTour />}
-          <WalletConnectModal />
-          <InProgressOverlay />
-          <InstallPrompt />
-          <FeedbackWidget />
-          <KeyboardShortcutsProvider />
-          <CommandPalette />
-          <ChangelogModal />
-          <ThemedToaster />
-          {isEnabled("devtools") && (
-            <ReactQueryDevtools initialIsOpen={false} />
-          )}
+          <VerificationProvider>
+            {children}
+            {isEnabled("onboarding-tour") && <OnboardingTour />}
+            <WalletConnectModal />
+            <InProgressOverlay />
+            <InstallPrompt />
+            <FeedbackWidget />
+            <KeyboardShortcutsProvider />
+            <CommandPalette />
+            <ChangelogModal />
+            <ThemedToaster />
+            {isEnabled("devtools") && (
+              <ReactQueryDevtools initialIsOpen={false} />
+            )}
+          </VerificationProvider>
         </ThemeProvider>
       </LocaleProvider>
     </QueryClientProvider>
