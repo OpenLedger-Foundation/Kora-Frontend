@@ -6,6 +6,7 @@ import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
 import { useNetworkValidation } from "./useNetworkValidation";
+import { useTxSimulation } from "./useTxSimulation";
 import { rpc, submitTransaction, BadSequenceError, sequenceManager } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
@@ -331,5 +332,58 @@ export function useTransaction() {
     txHash: state.txHash,
     error: state.error,
     simulationPreview,
+  };
+}
+
+/**
+ * P2P position transfer flow (#443) — combines useTransaction + the
+ * simulation-preview gate (see hooks/useTxSimulation.ts) so callers get the
+ * same "build → simulate → preview → sign → submit → poll" pipeline as
+ * fund/claim/cancel, without re-wiring it per screen.
+ *
+ * `acceptTransfer` is a stub: it surfaces
+ * `prepareAcceptPositionTransfer`'s NOT_IMPLEMENTED error through the normal
+ * error/toast path until the buyer-acceptance contract ABI is confirmed
+ * (see the doc comment on that function in services/invoiceService.ts).
+ */
+export function useTransferPositionFlow() {
+  const tx = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
+
+  const transferPosition = useCallback(
+    async (positionId: string, toAddress: string, sellerAddress: string) => {
+      const { prepareTransferPosition } = await import(
+        "@/services/invoiceService"
+      );
+      return tx.execute(
+        () => prepareTransferPosition(positionId, toAddress, sellerAddress),
+        {
+          onSimulationPreview,
+          successMessage: "Position transferred successfully!",
+          txType: "transfer",
+        }
+      );
+    },
+    [tx, onSimulationPreview]
+  );
+
+  const acceptTransfer = useCallback(
+    async (positionId: string, buyerAddress: string) => {
+      const { prepareAcceptPositionTransfer } = await import(
+        "@/services/invoiceService"
+      );
+      return tx.execute(
+        () => prepareAcceptPositionTransfer(positionId, buyerAddress),
+        { onSimulationPreview, txType: "transfer" }
+      );
+    },
+    [tx, onSimulationPreview]
+  );
+
+  return {
+    ...tx,
+    transferPosition,
+    acceptTransfer,
+    simulationDialogProps,
   };
 }
