@@ -3,6 +3,7 @@
  * and Stellar wallet-based upload request signing (Issue #275).
  */
 import { isValidCID } from "./ipfs";
+import { isWalletVerified } from "./verifiedSessions";
 
 // ─── Upload Request Signing (#275) ────────────────────────────────────────────
 
@@ -89,6 +90,13 @@ export function verifyUploadToken(
 
     if (!keypair.verify(msgBuffer, sigBuffer)) {
       return { ok: false, error: "Invalid signature" };
+    }
+
+    // Bind to the challenge flow: the signature alone proves the caller
+    // holds the key, but pinning must only be authorized for a wallet that
+    // has also completed /api/auth/challenge -> /api/auth/verify.
+    if (!isWalletVerified(walletAddress)) {
+      return { ok: false, error: "Wallet has not completed challenge verification" };
     }
 
     return { ok: true, walletAddress };
