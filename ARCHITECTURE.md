@@ -163,6 +163,43 @@ We use **two separate state systems** for different concerns:
 - Automatic background refetching, caching, deduplication
 - Cache keys: `["invoices", filters, sort]`, `["invoice", id]`
 
+#### Query tuning per network mode
+
+Stale times and refetch intervals are **not fixed** — they are resolved per
+network mode from the `QUERY_TUNING` table in [`lib/featureFlags.ts`](lib/featureFlags.ts)
+via `getQueryTuning()`. The two modes have fundamentally different freshness
+characteristics:
+
+| | `live` | `mock` |
+|---|---|---|
+| Data source | Soroban RPC / indexer | static `MOCK_INVOICES` fixture |
+| Freshness driver | **contract events** (`useContractEvents`) | nothing — data is immutable |
+| `staleTime` | 5 s | 5 min |
+| `gcTime` | 5 min | 5 min |
+| Refetch timers | 2 min (backstop only) | disabled (`false`) |
+
+**Live mode is event-driven.** `useContractEvents` streams `invoice_funded` /
+`invoice_repaid` / `invoice_cancelled` and invalidates the affected query keys
+as they arrive, so timers are a safety net for a degraded stream rather than the
+primary freshness mechanism. The short 5 s `staleTime` exists so that an
+event-invalidated query refetches promptly instead of serving a stale entry.
+
+Pushing the timers out to 2 min is what removes the duplicate requests: the
+previous fixed 15 s / 30 s polls raced the event stream, refetching keys the
+stream had already invalidated seconds earlier.
+
+**Mock mode disables polling entirely.** The fixture cannot change, so every
+refetch returned a byte-identical result. Mutations still invalidate explicitly,
+so optimistic updates and the invoice wizard are unaffected.
+
+All timers are additionally gated on tab visibility (`whenVisible()` in
+`hooks/useInvoices.ts`); a hidden tab refreshes on `visibilitychange` instead.
+
+**Changing the timings:** edit `QUERY_TUNING` in `lib/featureFlags.ts` — that
+table is the single source of truth. `getNetworkMode()` there also backs
+`getInvoiceDataSource()` in `lib/queryKeys.ts`, so cache-key namespacing and
+query tuning can never disagree about which mode is active.
+
 ### Client State — Zustand
 
 - **walletStore**: Persisted to `localStorage` via `zustand/middleware/persist`. Survives page refresh.

@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { getQueryTuning } from "@/lib/featureFlags";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import {
   fetchInvoices,
@@ -28,9 +29,20 @@ export {
   MAX_CONCURRENT_PREFETCHES,
 } from "./usePrefetchInvoice";
 
-const STALE_30S = 30_000;
-const GC_5MIN = 5 * 60 * 1000;
-const POLL_INTERVAL_MS = 30_000;
+/**
+ * Gate a tuned refetch interval on tab visibility.
+ *
+ * Returns `false` (no polling) when the interval is disabled for the active
+ * network mode, or when the tab is hidden — a backgrounded tab is refreshed on
+ * `visibilitychange` instead, so there is nothing to gain from polling it.
+ */
+function whenVisible(interval: number | false): number | false {
+  if (interval === false) return false;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return false;
+  }
+  return interval;
+}
 
 const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
   apr: "apr",
@@ -63,6 +75,7 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
   const page = typeof pageOrOpts === "number" ? pageOrOpts : 1;
   const refetchInterval = typeof pageOrOpts === "object" ? pageOrOpts?.refetchInterval : opts?.refetchInterval;
   const { filters, sort } = useInvoiceStore();
+  const tuning = getQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.list(filters, sort, page),
     queryFn: () =>
@@ -71,12 +84,11 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
         { key: SORT_KEY_MAP[sort.sortBy] ?? "apr", direction: sort.sortDir },
         page
       ),
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    refetchInterval: () =>
-      typeof document !== "undefined" && document.visibilityState === "hidden"
-        ? false
-        : 15_000,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
+    // An explicit caller-supplied interval wins over the mode default; before
+    // this it was computed and then silently ignored by a hard-coded 15 s.
+    refetchInterval: () => whenVisible(refetchInterval ?? tuning.listRefetchInterval),
     refetchIntervalInBackground: false,
   });
 }
@@ -97,6 +109,7 @@ export function useInfiniteInvoices(options?: {
   const enabled = options?.enabled ?? true;
   const filters = useInvoiceStore((s) => s.filters);
   const sortBy = useInvoiceStore((s) => s.sortBy);
+  const tuning = getQueryTuning();
 
   return useInfiniteQuery({
     queryKey: queryKeys.invoices.infinite(filters, sortBy, pageSize),
@@ -116,8 +129,8 @@ export function useInfiniteInvoices(options?: {
     initialPageParam: 1,
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     enabled,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
   });
 }
 
@@ -126,18 +139,21 @@ export function useInfiniteInvoices(options?: {
 const ACTIVE_STATUSES = new Set(["listed", "partially_funded"]);
 
 export function useInvoice(id: string, walletAddress?: string) {
+  const tuning = getQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.detail(id),
     queryFn: () => fetchInvoiceById(id, walletAddress),
     enabled: !!id,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
     refetchInterval: (query) => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
+      // Only invoices that can still change are worth polling at all: a
+      // settled or fully-funded invoice is terminal until an event says
+      // otherwise, and events invalidate this key directly.
       const status = query.state.data?.status;
       if (!status || !ACTIVE_STATUSES.has(status)) return false;
       if ((query.state.data?.funding.fundingProgress ?? 0) >= 1) return false;
-      return ACTIVE_STATUSES.has(status) ? 15_000 : 60_000;
+      return whenVisible(tuning.detailRefetchInterval);
     },
     refetchIntervalInBackground: false,
   });
@@ -146,17 +162,15 @@ export function useInvoice(id: string, walletAddress?: string) {
 // ─── SME invoices ─────────────────────────────────────────────────────────────
 
 export function useSMEInvoices(address: string | undefined) {
+  const tuning = getQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.byOwner(address ?? ""),
     queryFn: () => fetchInvoicesByOwner(address!),
     enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    // Visibility-based polling: refetch every 30s only when the tab is visible
-    refetchInterval: () =>
-      typeof document !== "undefined" && document.visibilityState === "hidden"
-        ? false
-        : POLL_INTERVAL_MS,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
+    // Backstop poll, gated on tab visibility. Disabled entirely in mock mode.
+    refetchInterval: () => whenVisible(tuning.ownerRefetchInterval),
     refetchIntervalInBackground: false,
   });
 }
@@ -185,6 +199,7 @@ export function useBatchInvoicePolling(
 ) {
   const queryClient = useQueryClient();
   const { mergeInvoicesBatch } = useInvoiceStore();
+  const tuning = getQueryTuning();
 
   // Track intersection visibility via a ref so the refetchInterval closure
   // always reads the latest value without causing re-renders.
@@ -215,18 +230,15 @@ export function useBatchInvoicePolling(
       return invoices;
     },
     enabled,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
     refetchInterval: () => {
-      // Pause when the tab is hidden
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return false;
-      }
-      // Pause when the sentinel element has scrolled out of view
+      // Pause when the sentinel element has scrolled out of view. Tab
+      // visibility and the mode default are handled by whenVisible().
       if (!isVisibleRef.current) {
         return false;
       }
-      return POLL_INTERVAL_MS;
+      return whenVisible(tuning.batchRefetchInterval);
     },
     refetchIntervalInBackground: false,
   });
@@ -256,12 +268,13 @@ export function useBatchInvoicePolling(
 // ─── Investor positions ───────────────────────────────────────────────────────
 
 export function useInvestorPositions(address: string | undefined) {
+  const tuning = getQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.positions(address ?? ""),
     queryFn: () => fetchInvestorPositions(address!),
     enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
   });
 }
 
