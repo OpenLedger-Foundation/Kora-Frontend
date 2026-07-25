@@ -34,6 +34,7 @@ import type { Invoice } from "@/types/invoice";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const EVENT_TYPES: KoraEventType[] = [
+  "mint_invoice",
   "invoice_funded",
   "invoice_repaid",
   "invoice_cancelled",
@@ -109,6 +110,15 @@ export function invalidateCachesForEvent(
   }
 
   switch (event.type) {
+    case "mint_invoice":
+      queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+      if (event.tokenId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.invoices.detail(event.tokenId),
+        });
+      }
+      break;
+
     case "invoice_funded": {
       const newTotalRaised = invoice.funding.totalRaised + event.amount;
       const totalRaised = Math.min(newTotalRaised, invoice.funding.targetAmount);

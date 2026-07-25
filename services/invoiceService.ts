@@ -28,6 +28,7 @@ import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
 import { env } from "@/lib/env";
+import { indexerClient } from "@/lib/stellar/indexerClient";
 
 // ─── Helper: Create successful result ──────────────────────────────────────
 function success<T>(value: T): Result<T> {
@@ -318,10 +319,11 @@ class LiveInvoiceService implements IInvoiceService {
     pageSize = 12
   ): Promise<Result<PaginatedResponse<Invoice>>> {
     try {
-      // TODO: Replace with on-chain / indexer fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      const response = await indexerClient.getInvoices(filters, sort, page, pageSize);
+      return success(response);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      const message = error instanceof Error ? error.message : String(error);
+      return failure("FETCH_ERROR", `Failed to fetch live invoices: ${message}`, { cause: message });
     }
   }
 
@@ -359,10 +361,11 @@ class LiveInvoiceService implements IInvoiceService {
 
   async getInvoicesByOwner(ownerAddress: string): Promise<Result<Invoice[]>> {
     try {
-      // TODO: Replace with on-chain fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      const invoices = await indexerClient.getInvoicesByOwner(ownerAddress);
+      return success(invoices);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      const message = error instanceof Error ? error.message : String(error);
+      return failure("FETCH_ERROR", `Failed to fetch live invoices by owner: ${message}`, { cause: message });
     }
   }
 
