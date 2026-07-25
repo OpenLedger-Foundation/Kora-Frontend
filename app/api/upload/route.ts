@@ -261,3 +261,35 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
+  try {
+    const authHeader = req.headers.get("authorization") ?? "";
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!bearerToken) {
+      return NextResponse.json({ error: "Unauthorized: missing token", requestId }, { status: 401 });
+    }
+    const authResult = verifyUploadToken(bearerToken);
+    if (!authResult.ok) {
+      return NextResponse.json({ error: `Unauthorized: ${authResult.error}`, requestId }, { status: 401 });
+    }
+
+    const { cid } = await req.json();
+    if (!cid) {
+      return NextResponse.json({ error: "cid is required", requestId }, { status: 400 });
+    }
+
+    if (PINATA_JWT) {
+      await fetch(`${PINATA_BASE}/pinning/unpin/${cid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${PINATA_JWT}` },
+      });
+    }
+
+    return NextResponse.json({ ok: true, cid });
+  } catch (err) {
+    logger.error("[pinata-proxy] unpin error", { requestId, route: "/api/upload", error: err });
+    return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
+  }
+}
