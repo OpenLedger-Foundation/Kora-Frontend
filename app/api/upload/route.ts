@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
 import { verifyUploadToken } from "@/lib/security";
 import { logger } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 const PINATA_BASE = "https://api.pinata.cloud";
 const PINATA_JWT = process.env.PINATA_JWT ?? "";
@@ -138,8 +139,11 @@ function checkRateLimit(wallet: string) {
   return true;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
+
+  const csrfError = verifyCsrf(req);
+  if (csrfError) return csrfError;
 
   // 1. IP rate limiting (10 req/min)
   const forwardedFor = req.headers.get("x-forwarded-for");
