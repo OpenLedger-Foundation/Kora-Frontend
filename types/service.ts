@@ -27,7 +27,7 @@ export interface IInvoiceService {
     pageSize?: number
   ): Promise<Result<PaginatedResponse<Invoice>>>;
 
-  getInvoice(id: string): Promise<Result<Invoice | null>>;
+  getInvoice(id: string, sourcePublicKey?: string): Promise<Result<Invoice | null>>;
 
   getInvoicesByOwner(ownerAddress: string): Promise<Result<Invoice[]>>;
 

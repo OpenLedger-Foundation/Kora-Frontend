@@ -18,10 +18,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store/uiStore";
 import { formatCurrency } from "@/lib/utils";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 // ─── Highlight matching characters ───────────────────────────────────────────
 
@@ -73,18 +76,25 @@ export function CommandPalette() {
 
   const recent = React.useMemo(() => getRecent(), [open, getRecent]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fuzzy-filter invoices by ID or debtor name
+  // Debounce the search query before filtering so fast typing doesn't
+  // re-filter the (potentially large) invoice list on every keystroke.
+  const debouncedQuery = useDebounce(query, SEARCH_DEBOUNCE_MS);
+
+  // Filter invoices by debtor name, invoice number, on-chain token ID, or face value.
   const filteredInvoices = React.useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
+    const trimmed = debouncedQuery.trim();
+    if (!trimmed) return [];
+    const q = trimmed.toLowerCase();
     return invoices
       .filter(
         (inv) =>
           inv.metadata.invoiceNumber.toLowerCase().includes(q) ||
-          inv.metadata.debtorName.toLowerCase().includes(q)
+          inv.metadata.debtorName.toLowerCase().includes(q) ||
+          inv.tokenId.toLowerCase().includes(q) ||
+          String(inv.metadata.amount).includes(q)
       )
       .slice(0, 6);
-  }, [invoices, query]);
+  }, [invoices, debouncedQuery]);
 
   function navigate(href: string, label: string, type: "page" | "invoice") {
     pushRecent({ id: href, label, href, type });
@@ -218,7 +228,7 @@ export function CommandPalette() {
                       key={inv.id}
                       icon={<FileText className="h-4 w-4" />}
                       label={inv.metadata.invoiceNumber}
-                      sublabel={`${inv.metadata.debtorName} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)}`}
+                      sublabel={`${inv.metadata.debtorName} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)} · ${Math.round(inv.funding.fundingProgress * 100)}% funded`}
                       query={query}
                       badge={inv.status}
                       onSelect={() =>

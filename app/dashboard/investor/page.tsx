@@ -1,22 +1,40 @@
 "use client";
 
+import { useCallback, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Store, TrendingUp, DollarSign, BarChart3, Clock } from "lucide-react";
+import { Store, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
-import { Progress } from "@/components/ui/progress";
-import { useState } from "react";
-import dynamic from "next/dynamic";
-import type { DataTableProps } from "@/types/table";
+import { useWallet } from "@/hooks/useWallet";
+import { useUIStore, useInvoiceStore, DEFAULT_FILTERS } from "@/store";
+import { usePositions } from "@/hooks/usePositions";
+import { useTransaction } from "@/hooks/useTransaction";
+import { prepareClaimPosition } from "@/services/invoiceService";
 import type { PortfolioDonutProps, DonutFilter } from "@/components/dashboard/PortfolioDonut";
+import {
+  marketplacePathForAllocation,
+  allocationToMarketplaceFilters,
+} from "@/lib/portfolioAllocation";
+import {
+  formatCurrency,
+  formatDate,
+  formatApr,
+  RISK_TIER_COLORS,
+  cn,
+} from "@/lib/utils";
+import type { InvestorPosition, InvoicePosition } from "@/types/invoice";
+import type { ColumnDef, DataTableProps } from "@/types/table";
+import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
 
 const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
   {
     ssr: false,
-    loading: () => <div className="h-48 rounded bg-zinc-900/40" />,
+    loading: () => <div className="h-48 rounded bg-zinc-900/40" aria-busy="true" />,
   },
 );
 
@@ -25,41 +43,110 @@ const PortfolioDonut = dynamic<PortfolioDonutProps>(
   {
     ssr: false,
     loading: () => <div className="h-64 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" />,
-  }
+  },
 );
 
-const YieldProjectionCalculator = dynamic(
-  () => import("@/components/dashboard/YieldProjectionCalculator").then((m) => m.YieldProjectionCalculator),
-  {
-    ssr: false,
-    loading: () => <div className="h-96 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" />,
-  }
-);
-import { useWallet } from "@/hooks/useWallet";
-import { useUIStore } from "@/store";
-import { usePositions } from "@/hooks/usePositions";
-import { useTransaction } from "@/hooks/useTransaction";
-import { prepareClaimPosition } from "@/services/invoiceService";
-import { RiskBadge } from "@/components/ui/badge";
-import {
-  formatCurrency,
-  formatDate,
-  formatApr,
-  RISK_TIER_COLORS,
-  cn,
-} from "@/lib/utils";
-import type { InvestorPosition } from "@/types/invoice";
-import type { ColumnDef } from "@/types/table";
+/** Loading must resolve within 30s or we surface an error state. */
+export const INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS = 30_000;
+
+function toInvoicePositions(positions: InvestorPosition[]): InvoicePosition[] {
+  return positions
+    .filter((p): p is InvestorPosition & { invoice: NonNullable<InvestorPosition["invoice"]> } =>
+      Boolean(p.invoice),
+    )
+    .map((p) => ({
+      invoiceId: p.invoiceId,
+      invoice: p.invoice,
+      investedAmount: p.investedAmount,
+      expectedReturn: p.expectedReturn,
+      yieldEarned: Math.max(0, p.expectedReturn - p.investedAmount),
+      investedAt: p.invoice.createdAt,
+      status: p.status,
+    }));
+}
 
 export default function InvestorDashboardPage() {
-  const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
-  const { isConnected } = useWallet();
+  const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
-  const { address } = useWallet();
+  const router = useRouter();
+  const { setFilters, resetFilters } = useInvoiceStore();
   const positionsQuery = usePositions(address ?? undefined, {
     refetchInterval: 30_000,
   });
   const { execute } = useTransaction();
+  const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
+
+  const positionsData: InvestorPosition[] = useMemo(
+    () => positionsQuery.data ?? [],
+    [positionsQuery.data],
+  );
+  const isInitialLoading =
+    positionsQuery.isLoading || (positionsQuery.isFetching && !positionsQuery.data);
+
+  const donutPositions = useMemo(
+    () => toInvoicePositions(positionsData),
+    [positionsData],
+  );
+
+  const filteredPositions = useMemo(() => {
+    if (!donutFilter) return positionsData;
+    return positionsData.filter((pos) => {
+      const inv = pos.invoice;
+      if (!inv) return false;
+      switch (donutFilter.dimension) {
+        case "riskTier":
+          return inv.riskTier === donutFilter.value;
+        case "jurisdiction":
+          return inv.metadata.jurisdiction === donutFilter.value;
+        case "category":
+          return inv.metadata.category === donutFilter.value;
+        default:
+          return true;
+      }
+    });
+  }, [positionsData, donutFilter]);
+
+  const handleSegmentClick = useCallback(
+    (filter: DonutFilter | null) => {
+      setDonutFilter(filter);
+      if (!filter) {
+        resetFilters();
+        return;
+      }
+      resetFilters();
+      setFilters({
+        ...DEFAULT_FILTERS,
+        ...allocationToMarketplaceFilters(filter),
+      });
+      router.push(marketplacePathForAllocation(filter));
+    },
+    [resetFilters, setFilters, router],
+  );
+
+  useEffect(() => {
+    if (!isConnected || !isInitialLoading || loadTimedOut) return;
+
+    const id = window.setTimeout(() => {
+      setLoadTimedOut(true);
+    }, INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS);
+
+    return () => window.clearTimeout(id);
+  }, [isConnected, isInitialLoading, loadTimedOut]);
+
+  useEffect(() => {
+    if (positionsQuery.isSuccess || positionsQuery.isError) {
+      setLoadTimedOut(false);
+    }
+  }, [positionsQuery.isSuccess, positionsQuery.isError]);
+
+  const handleClaim = async (pos: InvestorPosition) => {
+    if (!address) return;
+    await execute(() => prepareClaimPosition(pos.id, address), {
+      successMessage: "Claim submitted",
+      onSuccess: () => positionsQuery.refetch(),
+    });
+  };
 
   if (!isConnected) {
     return (
@@ -78,15 +165,40 @@ export default function InvestorDashboardPage() {
     );
   }
 
-  const handleClaim = async (pos: InvestorPosition) => {
-    if (!address) return;
-    await execute(() => prepareClaimPosition(pos.id, address), {
-      successMessage: "Claim submitted",
-      onSuccess: () => positionsQuery.refetch(),
-    });
-  };
+  if (loadTimedOut || positionsQuery.isError) {
+    return (
+      <div
+        className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center"
+        role="alert"
+        aria-live="assertive"
+      >
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-destructive/10">
+          <AlertTriangle className="h-6 w-6 text-destructive" />
+        </div>
+        <h2 className="text-xl font-semibold text-foreground">
+          Unable to load portfolio
+        </h2>
+        <p className="max-w-md text-sm text-muted-foreground">
+          {loadTimedOut
+            ? "Loading took longer than 30 seconds. Check your connection and try again."
+            : "Something went wrong while fetching your positions."}
+        </p>
+        <Button
+          onClick={() => {
+            setLoadTimedOut(false);
+            void positionsQuery.refetch();
+          }}
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
-  const positionsData: InvestorPosition[] = positionsQuery.data ?? [];
+  if (isInitialLoading) {
+    return <InvestorDashboardSkeleton />;
+  }
+
   const totalInvested = positionsData.reduce(
     (sum, position) => sum + position.investedAmount,
     0,
@@ -102,6 +214,7 @@ export default function InvestorDashboardPage() {
         0,
       ) / positionsData.length
     : 0;
+
 
   const STATS = [
     {
@@ -254,7 +367,7 @@ export default function InvestorDashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6" aria-busy="false">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
@@ -284,20 +397,48 @@ export default function InvestorDashboardPage() {
         ))}
       </div>
 
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28 }}
+        className="mb-8"
+      >
+        <PortfolioDonut
+          positions={donutPositions}
+          activeFilter={donutFilter}
+          onSegmentClick={handleSegmentClick}
+        />
+      </motion.div>
+
       <Card>
-        <CardHeader>
-          <CardTitle>Active Positions</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <CardTitle>
+            {donutFilter
+              ? `Positions — ${donutFilter.value}`
+              : "Active Positions"}
+          </CardTitle>
+          {donutFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs text-muted-foreground"
+              onClick={() => setDonutFilter(null)}
+            >
+              Clear filter ×
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-4 sm:p-6">
           <DataTable
-            data={positionsData}
+            data={filteredPositions}
             columns={POSITION_COLUMNS as any}
-            isLoading={positionsQuery.isLoading}
+            isLoading={false}
             pageSize={5}
             emptyState={{
-              title: "No positions",
-              message:
-                "Fund invoices on the marketplace to build your portfolio.",
+              title: donutFilter ? "No matching positions" : "No positions",
+              message: donutFilter
+                ? `No positions match the selected filter (${donutFilter.value}).`
+                : "Fund invoices on the marketplace to build your portfolio.",
               illustration: (
                 <BarChart3 className="h-10 w-10 text-muted-foreground" />
               ),
@@ -305,78 +446,6 @@ export default function InvestorDashboardPage() {
           />
         </CardContent>
       </Card>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Allocation by Risk Tier</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(
-              positionsData.reduce<Record<string, number>>((acc, position) => {
-                const tier = position.invoice?.riskTier ?? "AAA";
-                acc[tier] = (acc[tier] || 0) + position.investedAmount;
-                return acc;
-              }, {}),
-            ).map(([tier, amount]) => (
-              <div key={tier} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <RiskBadge
-                    tier={tier as import("@/components/ui/badge").AnyRiskTier}
-                  />
-                  <span className="text-muted-foreground">
-                    {formatCurrency(amount, "USDC", true)}
-                  </span>
-                </div>
-                <Progress
-                  value={(amount / totalInvested) * 100}
-                  className="h-1.5"
-                />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Allocation by Jurisdiction</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {Object.entries(
-              positionsData.reduce<Record<string, number>>((acc, position) => {
-                const jurisdiction =
-                  position.invoice?.metadata.jurisdiction ?? "OTHER";
-                acc[jurisdiction] =
-                  (acc[jurisdiction] || 0) + position.investedAmount;
-                return acc;
-              }, {}),
-            ).map(([jurisdiction, amount]) => (
-              <div key={jurisdiction} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="text-foreground">{jurisdiction}</span>
-                  <span className="text-muted-foreground">
-                    {formatCurrency(amount, "USDC", true)}
-                  </span>
-                </div>
-                <Progress
-                  value={(amount / totalInvested) * 100}
-                  className="h-1.5"
-                  indicatorClassName="bg-info"
-                />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="mt-8 space-y-8">
-        <PortfolioDonut
-          positions={positionsData as any}
-          activeFilter={donutFilter}
-          onSegmentClick={setDonutFilter}
-        />
-        <YieldProjectionCalculator />
-      </div>
     </div>
   );
 }

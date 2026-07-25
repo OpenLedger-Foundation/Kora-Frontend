@@ -12,28 +12,32 @@
  */
 
 import { test, expect } from "@playwright/test";
-import AxeBuilder from "axe-playwright";
+import { injectAxe, getViolations } from "axe-playwright";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
 /**
  * Run axe against the current page and assert no critical/serious violations.
- * Returns the full results so individual tests can add extra assertions.
+ * Returns the full violation list so individual tests can add extra assertions.
  */
 async function auditPage(
-  page: Parameters<typeof AxeBuilder>[0],
+  page: Parameters<typeof injectAxe>[0],
   options?: { disableRules?: string[] }
 ) {
-  const builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]);
+  await injectAxe(page);
 
-  if (options?.disableRules?.length) {
-    builder.disableRules(options.disableRules);
-  }
-
-  const results = await builder.analyze();
+  const violations = await getViolations(page, undefined, {
+    runOnly: {
+      type: "tag",
+      values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"],
+    },
+    rules: Object.fromEntries(
+      (options?.disableRules ?? []).map((id) => [id, { enabled: false }])
+    ),
+  });
 
   // Filter to critical and serious only — best-effort automated check
-  const blocking = results.violations.filter((v) =>
+  const blocking = violations.filter((v) =>
     ["critical", "serious"].includes(v.impact ?? "")
   );
 
@@ -44,7 +48,7 @@ async function auditPage(
     expect.soft(blocking, `Axe found critical/serious violations:\n${summary}`).toHaveLength(0);
   }
 
-  return results;
+  return violations;
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────

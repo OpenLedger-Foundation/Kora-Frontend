@@ -19,13 +19,10 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pagination } from "@/components/ui/pagination";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useInvoices } from "@/hooks/useInvoices";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteInvoices, MARKETPLACE_PAGE_SIZE } from "@/hooks/useInvoices";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { fetchInvoices } from "@/services/invoiceService";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
 import { cn } from "@/lib/utils";
@@ -312,42 +309,27 @@ function MarketplaceContent() {
     setSortBy,
     setSearchQuery,
     clearSearchHistory,
+    setInvoices,
   } = useInvoiceStore();
-
-  const { data, isLoading, dataUpdatedAt } = useInvoices();
 
   const [showFilters, setShowFilters] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(MARKETPLACE_PAGE_SIZE);
 
-  // Infinite loader (loads more pages as user scrolls)
-  const infinite = useInfiniteQuery({
-    queryKey: ["invoices", JSON.stringify(filters), sortBy],
-    queryFn: ({ pageParam = 1 }) =>
-      fetchInvoices(
-        {
-          categories: filters.categories,
-          jurisdictions: filters.jurisdictions,
-          riskTiers: filters.riskTiers,
-          aprRange: filters.aprRange,
-          activeOnly: filters.activeOnly,
-        },
-        // translate sortBy into marketplace sort
-        { key: sortBy?.split("_")[0] as any, direction: sortBy?.endsWith("asc") ? "asc" : "desc" },
-        pageParam as number,
-        pageSize
-      ),
-    initialPageParam: 1,
-    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+  // Infinite loader — first page only until sentinel intersects
+  const infinite = useInfiniteInvoices({
+    pageSize,
     enabled: isUrlHydrated,
   });
 
+  const isLoading = infinite.isLoading;
+  const dataUpdatedAt = infinite.dataUpdatedAt;
   const isFetchingNextPage = infinite.isFetchingNextPage;
-  const hasNextPage = infinite.hasNextPage;
+  const hasNextPage = Boolean(infinite.hasNextPage);
   const searchRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Close history dropdown on outside click
   useEffect(() => {
@@ -376,11 +358,13 @@ function MarketplaceContent() {
     const sortByParam = searchParams.get("sortBy") || "apr_desc";
     const qParam = sanitizeQueryParam(searchParams.get("q"));
 
-    const urlPage = Number(searchParams.get("page") || 1);
-    const urlPageSize = Number(searchParams.get("pageSize") || 10);
+    const urlPageSize = Number(searchParams.get("pageSize") || MARKETPLACE_PAGE_SIZE);
 
-    setPage(urlPage);
-    setPageSize(urlPageSize);
+    setPageSize(
+      Number.isFinite(urlPageSize) && urlPageSize > 0
+        ? urlPageSize
+        : MARKETPLACE_PAGE_SIZE
+    );
 
     setFilters({
       categories,
@@ -399,11 +383,7 @@ function MarketplaceContent() {
   const debouncedFilters = useDebounce(filters, 400);
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedFilters, debouncedSearchQuery, sortBy]);
-
-  // 3. Zustand to URL Sync Loop (On Change)
+  // 3. Zustand to URL Sync Loop (On Change) — filters/sort only; pages load via infinite scroll
   /* Serializes active filters and pushes the resulting query string to the browser address bar */
   useEffect(() => {
     if (!isUrlHydrated) return;
@@ -433,10 +413,7 @@ function MarketplaceContent() {
     if (sortBy && sortBy !== "apr_desc") {
       params.set("sortBy", sortBy);
     }
-    if (page > 1) {
-      params.set("page", String(page));
-    }
-    if (pageSize !== 10) {
+    if (pageSize !== MARKETPLACE_PAGE_SIZE) {
       params.set("pageSize", String(pageSize));
     }
 
@@ -444,16 +421,20 @@ function MarketplaceContent() {
     const targetUrl = queryString ? `/marketplace?${queryString}` : "/marketplace";
 
     router.replace(targetUrl, { scroll: false });
-  }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, page, pageSize]);
+  }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, pageSize]);
 
-  // Use infinite query data when available, fall back to paginated data
+  // Use all pages loaded by the infinite query (first page only until scroll)
   const allInvoices = useMemo(
-    () =>
-      infinite.data
-        ? infinite.data.pages.flatMap((p: any) => p.data)
-        : data?.data ?? [],
-    [infinite.data, data?.data]
+    () => infinite.data?.pages.flatMap((p) => p.data) ?? [],
+    [infinite.data]
   );
+
+  // Keep store invoices in sync so comparison UI works with live indexer data
+  useEffect(() => {
+    if (allInvoices.length > 0) {
+      setInvoices(allInvoices);
+    }
+  }, [allInvoices, setInvoices]);
 
   // Client-side Search filter
   const filteredInvoices = useMemo(() => {
@@ -463,7 +444,8 @@ function MarketplaceContent() {
       (inv) =>
         inv.metadata.debtorName.toLowerCase().includes(query) ||
         inv.metadata.invoiceNumber.toLowerCase().includes(query) ||
-        inv.metadata.category.toLowerCase().includes(query)
+        inv.metadata.category.toLowerCase().includes(query) ||
+        inv.metadata.issuerName.toLowerCase().includes(query)
     );
   }, [allInvoices, debouncedSearchQuery]);
 
@@ -499,7 +481,6 @@ function MarketplaceContent() {
     overscan: 2,
     scrollMargin: virtualListRef.current?.offsetTop ?? 0,
   });
-
   // Active filters count for clearing badge
   const activeFiltersCount =
     (filters.categories?.length || 0) +
@@ -571,15 +552,18 @@ function MarketplaceContent() {
 
   // Intersection Observer to load next page
   useEffect(() => {
-    const el = document.getElementById("infinite-sentinel");
+    const el = sentinelRef.current ?? document.getElementById("infinite-sentinel");
     if (!el) return;
-    const obs = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
-          infinite.fetchNextPage();
-        }
-      });
-    });
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+            void infinite.fetchNextPage();
+          }
+        });
+      },
+      { rootMargin: "200px" }
+    );
     obs.observe(el);
     return () => obs.disconnect();
   }, [hasNextPage, isFetchingNextPage, infinite]);
@@ -800,13 +784,16 @@ function MarketplaceContent() {
                   })}
                 </div>
                 <div>
-                  <div>
-                    <div id="infinite-sentinel" />
-                  </div>
+                  <div
+                    id="infinite-sentinel"
+                    ref={sentinelRef}
+                    aria-hidden="true"
+                    className="h-4 w-full"
+                  />
                   {isFetchingNextPage && (
                     <div className="mt-4 text-center text-sm text-muted-foreground">Loading more…</div>
                   )}
-                  {!hasNextPage && (
+                  {!hasNextPage && filteredInvoices.length > 0 && (
                     <div className="mt-4 text-center text-sm text-muted-foreground">All invoices loaded</div>
                   )}
                   <button

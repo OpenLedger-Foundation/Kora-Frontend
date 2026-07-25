@@ -3,7 +3,7 @@
 /**
  * ComparisonTable — side-by-side invoice comparison modal.
  *
- * Displays up to 3 invoices in columns with rows for each key metric.
+ * Displays up to 4 invoices in columns with rows for each key metric.
  * The best value in each row is highlighted in green.
  * Each column has an X button to remove that invoice from the comparison.
  */
@@ -192,7 +192,7 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 40, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="relative z-10 w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-2xl flex flex-col"
+        className="relative z-10 w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-t-2xl sm:rounded-2xl border border-border bg-card shadow-2xl flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">

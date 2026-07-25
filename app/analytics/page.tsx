@@ -8,19 +8,17 @@ const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCh
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
-import { TrendingUp, DollarSign, BarChart3, Shield, Download } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
-import { AnalyticsControls } from "@/components/analytics/AnalyticsControls";
 import { useWallet } from "@/hooks/useWallet";
-import { useUIStore } from "@/store";
+import { usePositions } from "@/hooks/usePositions";
+import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
 import { Button } from "@/components/ui/button";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
 import { formatCurrency } from "@/lib/utils";
 import { exportCsv, exportPdf } from "@/lib/export";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { cn } from "@/lib/utils";
 import {
   AnalyticsFilterBar,
   DEFAULT_FILTERS,
@@ -30,8 +28,13 @@ import {
   type CategoryFilter,
 } from "@/components/analytics/AnalyticsFilterBar";
 import type { PresetRange } from "@/components/analytics/DateRangePicker";
+import {
+  aggregatePositions,
+  marketplacePathForAllocation,
+  allocationToMarketplaceFilters,
+} from "@/lib/portfolioAllocation";
 
-// ── Mock analytics data ────────────────────────────────────────────────────────
+// ── Mock analytics data (time-series history; risk uses live positions) ───────
 
 const PORTFOLIO_HISTORY = [
   { month: "Jun", value: 0 },
@@ -51,13 +54,6 @@ const YIELD_HISTORY = [
   { month: "Nov", yield: 4200 },
 ];
 
-const RISK_DISTRIBUTION = [
-  { name: "AAA", value: 30, color: "#34d399" },
-  { name: "AA", value: 45, color: "#14b8a6" },
-  { name: "A", value: 20, color: "#22d3ee" },
-  { name: "BBB", value: 5, color: "#fbbf24" },
-];
-
 const MONTHLY_RETURNS = [
   { month: "Jun", return: 0 },
   { month: "Jul", return: 1.68 },
@@ -69,40 +65,6 @@ const MONTHLY_RETURNS = [
 
 const toCsvRows = <T extends object>(rows: T[]): Record<string, unknown>[] =>
   rows.map((row) => Object.fromEntries(Object.entries(row)));
-
-const STATS = [
-  {
-    label: "Total Deployed",
-    value: formatCurrency(170000, "USDC", true),
-    valueRaw: 170000,
-    change: "↑ $55K this month",
-    changePositive: true,
-    icon: <DollarSign className="h-4 w-4" />,
-  },
-  {
-    label: "Total Yield Earned",
-    value: formatCurrency(4200, "USDC", true),
-    valueRaw: 4200,
-    change: "2.47% avg monthly",
-    changePositive: true,
-    icon: <TrendingUp className="h-4 w-4" />,
-  },
-  {
-    label: "Annualised Return",
-    value: "29.6%",
-    change: "vs 4.2% T-bill",
-    changePositive: true,
-    icon: <BarChart3 className="h-4 w-4" />,
-  },
-  {
-    label: "Default Rate",
-    value: "0.0%",
-    valueRaw: 0,
-    change: "All-time",
-    changePositive: true,
-    icon: <Shield className="h-4 w-4" />,
-  },
-];
 
 // ── URL ↔ filter helpers ───────────────────────────────────────────────────────
 
@@ -134,12 +96,13 @@ function sliceByRange<T>(data: T[], range: PresetRange | "custom"): T[] {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function PortfolioAnalyticsInner() {
-  const { isConnected } = useWallet();
+  const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const { setFilters, resetFilters } = useInvoiceStore();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
-  const [isLoading, setIsLoading] = useState(false);
 
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
@@ -152,14 +115,74 @@ function PortfolioAnalyticsInner() {
     [router]
   );
 
+  const handleRiskSegmentClick = useCallback(
+    (riskTier: string) => {
+      const allocationFilter = {
+        dimension: "riskTier" as const,
+        value: riskTier,
+      };
+      resetFilters();
+      setFilters({
+        ...MARKETPLACE_DEFAULT_FILTERS,
+        ...allocationToMarketplaceFilters(allocationFilter),
+      });
+      router.push(marketplacePathForAllocation(allocationFilter));
+    },
+    [resetFilters, setFilters, router]
+  );
+
   // Slice data based on active filters
   const portfolio = useMemo(() => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange), [filters.dateRange]);
   const yieldData = useMemo(() => sliceByRange(YIELD_HISTORY, filters.dateRange), [filters.dateRange]);
   const risk = useMemo(() => {
-    if (filters.riskTier === "all") return RISK_DISTRIBUTION;
-    return RISK_DISTRIBUTION.filter((d) => d.name === filters.riskTier);
-  }, [filters.riskTier]);
+    const slices = aggregatePositions(positionsQuery.data ?? [], "riskTier").map(
+      (s) => ({
+        name: s.name,
+        value: Math.round(s.percent * 10) / 10,
+        color: s.color,
+      })
+    );
+    if (filters.riskTier === "all") return slices;
+    return slices.filter((d) => d.name === filters.riskTier);
+  }, [positionsQuery.data, filters.riskTier]);
   const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
+
+  const positionsData = positionsQuery.data ?? [];
+  const totalInvested = positionsData.reduce((sum, position) => sum + position.investedAmount, 0);
+  const totalExpected = positionsData.reduce((sum, position) => sum + position.expectedReturn, 0);
+  const totalYield = totalExpected - totalInvested;
+  const averageApr = positionsData.length
+    ? positionsData.reduce((sum, position) => sum + (position.invoice?.terms.apr ?? 0), 0) / positionsData.length
+    : 0;
+
+  const stats = [
+    {
+      label: "Portfolio Value",
+      value: formatCurrency(totalInvested, "USDC", true),
+      change: `${positionsData.length} ${positionsData.length === 1 ? "position" : "positions"}`,
+      changePositive: true,
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      label: "Expected Yield",
+      value: formatCurrency(totalYield, "USDC", true),
+      change: totalInvested > 0 ? `${((totalYield / totalInvested) * 100).toFixed(1)}% return` : "0.0% return",
+      changePositive: true,
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Active Positions",
+      value: positionsData.length.toString(),
+      icon: <BarChart3 className="h-4 w-4" />,
+    },
+    {
+      label: "Avg. APR",
+      value: `${averageApr.toFixed(1)}%`,
+      change: "Across all positions",
+      changePositive: true,
+      icon: <Shield className="h-4 w-4" />,
+    },
+  ];
 
   const handleExport = useCallback((type: "portfolio" | "yield" | "risk" | "monthly") => {
     let data, filename;
@@ -260,7 +283,7 @@ function PortfolioAnalyticsInner() {
 
           {/* Stats */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {STATS.map((stat, i) => (
+            {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 12 }}
@@ -278,6 +301,8 @@ function PortfolioAnalyticsInner() {
             yieldData={yieldData}
             monthly={monthly}
             risk={risk}
+            isLoading={positionsQuery.isLoading}
+            onRiskSegmentClick={handleRiskSegmentClick}
           />
         </div>
       </PrintLayout>

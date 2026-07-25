@@ -20,8 +20,27 @@ import { generateInvoiceSvg, svgToFile } from "@/lib/invoiceSvg";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
-// CID v0 (Qm...) or CID v1 (bafy...)
-const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
+/**
+ * Ordered list of IPFS gateway bases used for content resolution.
+ *
+ * The configured gateway is tried first; the public gateways act as
+ * fallbacks so a single gateway outage never blocks content retrieval.
+ * Each entry is a base that resolves a CID via `${base}/${cid}`.
+ */
+export const IPFS_GATEWAYS: string[] = Array.from(
+  new Set(
+    [
+      IPFS_GATEWAY,
+      "https://ipfs.io/ipfs",
+      "https://cloudflare-ipfs.com/ipfs",
+      "https://gateway.pinata.cloud/ipfs",
+      "https://dweb.link/ipfs",
+    ].filter((g): g is string => Boolean(g))
+  )
+);
+
+// CID v0 (Qm...) or CID v1 base32 (bafy… dag-pb, bafk… raw, etc.)
+const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|b[a-z2-7]{55,})$/;
 
 // ─── Pinata Health Check ──────────────────────────────────────────────────────
 
@@ -208,6 +227,286 @@ export async function uploadInvoiceToIPFS(
 export function ipfsUrl(cid: string): string {
   validateCid(cid);
   return `${IPFS_GATEWAY}/${cid}`;
+}
+
+// ─── Multi-Gateway Fallback + CID Integrity Verification (#393) ───────────────
+
+/** Thrown when every gateway returned content that failed CID integrity checks. */
+export class IpfsTamperError extends Error {
+  constructor(cid: string) {
+    super(
+      `IPFS content for CID ${cid} failed integrity verification on all gateways. ` +
+        `The content hash does not match the CID — it may have been tampered with.`
+    );
+    this.name = "IpfsTamperError";
+  }
+}
+
+/** Thrown when no gateway could return the content (all unreachable / errored). */
+export class IpfsUnavailableError extends Error {
+  constructor(cid: string) {
+    super(`Unable to fetch IPFS content for CID ${cid} from any configured gateway.`);
+    this.name = "IpfsUnavailableError";
+  }
+}
+
+/** Result of a per-CID content-hash verification against the CID itself. */
+export type IpfsIntegrity =
+  | "verified" // content hash provably matches the CID
+  | "unverifiable" // CID uses a codec/hash we can't recompute client-side (no failure)
+  | "skipped"; // verification was explicitly disabled
+
+const MULTIHASH_SHA2_256 = 0x12;
+const CODEC_RAW = 0x55;
+
+const B58_ALPHABET =
+  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+const B32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567";
+
+function base58Decode(str: string): Uint8Array | null {
+  const bytes: number[] = [0];
+  for (const ch of str) {
+    const value = B58_ALPHABET.indexOf(ch);
+    if (value === -1) return null;
+    let carry = value;
+    for (let j = 0; j < bytes.length; j++) {
+      carry += bytes[j] * 58;
+      bytes[j] = carry & 0xff;
+      carry >>= 8;
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff);
+      carry >>= 8;
+    }
+  }
+  // Preserve leading zero bytes (encoded as '1').
+  for (let k = 0; k < str.length && str[k] === "1"; k++) bytes.push(0);
+  return Uint8Array.from(bytes.reverse());
+}
+
+function base32Decode(str: string): Uint8Array | null {
+  let bits = 0;
+  let value = 0;
+  const out: number[] = [];
+  for (const ch of str.toLowerCase()) {
+    const idx = B32_ALPHABET.indexOf(ch);
+    if (idx === -1) return null;
+    value = (value << 5) | idx;
+    bits += 5;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push((value >>> bits) & 0xff);
+    }
+  }
+  return Uint8Array.from(out);
+}
+
+/** Minimal unsigned LEB128 varint reader. Returns [value, nextOffset]. */
+function readVarint(bytes: Uint8Array, offset: number): [number, number] {
+  let result = 0;
+  let shift = 0;
+  let pos = offset;
+  for (;;) {
+    const b = bytes[pos++];
+    result |= (b & 0x7f) << shift;
+    if ((b & 0x80) === 0) break;
+    shift += 7;
+  }
+  return [result >>> 0, pos];
+}
+
+interface DecodedCid {
+  version: 0 | 1;
+  codec: number;
+  hashCode: number;
+  digest: Uint8Array;
+}
+
+/**
+ * Decode a CID into its codec + multihash digest.
+ * Supports base58btc CIDv0 (Qm...) and base32 CIDv1 (bafy...).
+ * Returns null for anything we can't parse.
+ */
+export function decodeCid(cid: string): DecodedCid | null {
+  try {
+    if (cid.startsWith("Qm")) {
+      const bytes = base58Decode(cid);
+      if (!bytes || bytes.length < 2) return null;
+      const [hashCode, p1] = readVarint(bytes, 0);
+      const [len, p2] = readVarint(bytes, p1);
+      const digest = bytes.slice(p2, p2 + len);
+      if (digest.length !== len) return null;
+      return { version: 0, codec: 0x70 /* dag-pb */, hashCode, digest };
+    }
+    // CIDv1 multibase: leading char is the base prefix. 'b' => base32.
+    if (cid[0] === "b") {
+      const bytes = base32Decode(cid.slice(1));
+      if (!bytes || bytes.length < 4) return null;
+      const [version, p0] = readVarint(bytes, 0);
+      if (version !== 1) return null;
+      const [codec, p1] = readVarint(bytes, p0);
+      const [hashCode, p2] = readVarint(bytes, p1);
+      const [len, p3] = readVarint(bytes, p2);
+      const digest = bytes.slice(p3, p3 + len);
+      if (digest.length !== len) return null;
+      return { version: 1, codec, hashCode, digest };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function sha256(data: ArrayBuffer | Uint8Array): Promise<Uint8Array> {
+  const view = data instanceof Uint8Array ? data : new Uint8Array(data);
+  // Copy into a fresh ArrayBuffer-backed view to satisfy the BufferSource type.
+  const buf = view.slice();
+  const digest = await crypto.subtle.digest("SHA-256", buf as unknown as BufferSource);
+  return new Uint8Array(digest);
+}
+
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+/**
+ * Verify that fetched content matches the digest embedded in its CID.
+ *
+ * Returns:
+ *  - `true`  — content sha2-256 hash matches the CID digest
+ *  - `false` — content does NOT match (possible tampering)
+ *  - `null`  — the CID uses a codec/hash we cannot recompute from raw bytes
+ *              (e.g. dag-pb wrapped blocks). This is NOT a failure — callers
+ *              should treat it as "unverifiable" rather than "tampered".
+ *
+ * Only sha2-256 `raw` (0x55) CIDs can be verified from the raw content bytes,
+ * which covers the small single-block JSON/SVG payloads Kora pins.
+ */
+export async function verifyCidIntegrity(
+  cid: string,
+  content: ArrayBuffer | Uint8Array
+): Promise<boolean | null> {
+  const decoded = decodeCid(cid);
+  if (!decoded) return null;
+  if (decoded.hashCode !== MULTIHASH_SHA2_256) return null;
+  // dag-pb (0x70, and all CIDv0) hashes a wrapped block, not the raw bytes —
+  // we cannot recompute it here without re-chunking, so treat as unverifiable.
+  if (decoded.codec !== CODEC_RAW) return null;
+  const computed = await sha256(content);
+  return bytesEqual(computed, decoded.digest);
+}
+
+export interface IpfsFetchOptions {
+  /** Per-gateway timeout in ms. Default 8000. */
+  timeoutMs?: number;
+  /** Retries per gateway before rotating to the next. Default 1. */
+  retriesPerGateway?: number;
+  /** Gateway bases to try, in order. Defaults to IPFS_GATEWAYS. */
+  gateways?: string[];
+  /** Skip CID integrity verification (e.g. mock mode). Default false. */
+  skipIntegrity?: boolean;
+}
+
+export interface IpfsFetchResult {
+  bytes: Uint8Array;
+  text: string;
+  /** Gateway base that successfully served the content. */
+  gateway: string;
+  /** Outcome of CID integrity verification for the returned content. */
+  integrity: IpfsIntegrity;
+}
+
+async function fetchOnce(
+  url: string,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal, cache: "no-store" });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Fetch IPFS content with gateway rotation, per-gateway timeout/retry, and
+ * CID integrity verification.
+ *
+ * Gateways are tried in order. A gateway that times out, errors, or returns a
+ * non-2xx response is skipped. If a gateway returns content whose hash does not
+ * match the CID, that gateway is skipped as tampered and the next is tried.
+ *
+ * @throws {InvalidCIDError}     if `cid` is not a valid CID
+ * @throws {IpfsTamperError}     if every gateway that responded failed integrity
+ * @throws {IpfsUnavailableError} if no gateway could return the content
+ */
+export async function fetchFromIpfsWithFallback(
+  cid: string,
+  options: IpfsFetchOptions = {}
+): Promise<IpfsFetchResult> {
+  validateCid(cid);
+  const {
+    timeoutMs = 8_000,
+    retriesPerGateway = 1,
+    gateways = IPFS_GATEWAYS,
+    skipIntegrity = false,
+  } = options;
+
+  let sawTamper = false;
+
+  for (const gateway of gateways) {
+    for (let attempt = 0; attempt <= retriesPerGateway; attempt++) {
+      try {
+        const res = await fetchOnce(`${gateway}/${cid}`, timeoutMs);
+        if (!res.ok) continue;
+
+        const bytes = new Uint8Array(await res.arrayBuffer());
+
+        let integrity: IpfsIntegrity = "skipped";
+        if (!skipIntegrity) {
+          const verified = await verifyCidIntegrity(cid, bytes);
+          if (verified === false) {
+            // Content was altered in transit or at this gateway — reject it.
+            sawTamper = true;
+            break; // stop retrying this gateway; rotate to the next
+          }
+          integrity = verified === true ? "verified" : "unverifiable";
+        }
+
+        return {
+          bytes,
+          text: new TextDecoder().decode(bytes),
+          gateway,
+          integrity,
+        };
+      } catch {
+        // Timeout or network error — fall through to retry / next gateway.
+      }
+    }
+  }
+
+  if (sawTamper) throw new IpfsTamperError(cid);
+  throw new IpfsUnavailableError(cid);
+}
+
+/**
+ * Fetch and JSON-parse IPFS content with gateway fallback + integrity check.
+ * Returns the parsed value plus the gateway used and the integrity outcome.
+ */
+export async function fetchIpfsJsonWithFallback<T = unknown>(
+  cid: string,
+  options: IpfsFetchOptions = {}
+): Promise<{ data: T; gateway: string; integrity: IpfsIntegrity }> {
+  const result = await fetchFromIpfsWithFallback(cid, options);
+  return {
+    data: JSON.parse(result.text) as T,
+    gateway: result.gateway,
+    integrity: result.integrity,
+  };
 }
 
 // ─── Validated V1 Metadata Upload ────────────────────────────────────────────

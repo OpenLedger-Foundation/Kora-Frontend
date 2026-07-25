@@ -56,6 +56,8 @@ export interface InvoiceMetadata {
   category: InvoiceCategory;
   documentHash: string; // IPFS CID of the PDF
   documentUrl: string;
+  /** Detected IPFS metadata schema version ("1.0" | "legacy"). Optional. */
+  metadataVersion?: "1.0" | "legacy";
 }
 
 export interface InvoiceFinancingTerms {
@@ -122,6 +124,8 @@ export interface InvestorPosition {
   invoice?: Invoice;
   investedAmount: number;
   expectedReturn: number;
+  yieldEarned: number;
+  investedAt: string;
   status: "active" | "repaid" | "defaulted";
 }
 

@@ -13,7 +13,7 @@ const EMPTY_BALANCE: WalletBalance = {
 /** Session expires after 24 hours of inactivity. Change this constant to adjust. */
 export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
-function getConfiguredNetwork(): WalletNetwork {
+export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
 
@@ -30,6 +30,19 @@ type WalletStoreState = {
   lastActivityAt: number | null;
   addressBook: { id: string; address: string; label: string }[];
   walletPassphrase: string | null;
+  /**
+   * Tracks whether the in-memory StellarWalletsKit session is active.
+   *
+   * After a page refresh the kit singleton is destroyed and must call
+   * getPublicKey() again before signing works.  This flag starts as `false`
+   * on every page load; `useWallet` sets it to `true` once silent reconnect
+   * succeeds, or `null` when the reconnect attempt is still pending.
+   *
+   * - `null`  → reconnect in-progress (show spinner / loading state)
+   * - `false` → kit session absent (stale — show reconnect prompt)
+   * - `true`  → kit session active (fully operational)
+   */
+  kitSessionActive: boolean | null;
 };
 
 type WalletStoreActions = {
@@ -43,9 +56,12 @@ type WalletStoreActions = {
   hasPassphraseMismatch: () => boolean;
   updateActivity: () => void;
   isSessionExpired: () => boolean;
+  /** Mark the in-memory kit session as active/inactive/pending. */
+  setKitSessionActive: (active: boolean | null) => void;
   addAddressBookEntry: (address: string, label?: string) => void;
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
   removeAddressBookEntry: (id: string) => void;
+  setNetwork: (network: WalletNetwork, walletPassphrase?: string) => void;
 };
 
 type WalletStore = WalletStoreState & WalletStoreActions;
@@ -65,6 +81,7 @@ export const useWalletStore = create<WalletStore>()(
       lastActivityAt: null,
       addressBook: [],
       walletPassphrase: null,
+      kitSessionActive: false,
 
       connect: (provider, address, publicKey, walletPassphrase) =>
         set({
@@ -76,6 +93,9 @@ export const useWalletStore = create<WalletStore>()(
           isConnected: true,
           walletPassphrase: walletPassphrase || null,
           lastActivityAt: Date.now(),
+          // Kit session is presumed active on fresh connect; caller may
+          // override immediately if this is a silent re-establishment.
+          kitSessionActive: true,
         }),
 
       disconnect: () =>
@@ -90,6 +110,7 @@ export const useWalletStore = create<WalletStore>()(
           verifiedAt: null,
           lastActivityAt: null,
           walletPassphrase: null,
+          kitSessionActive: false,
         }),
 
       setBalance: (balance) =>
@@ -129,6 +150,9 @@ export const useWalletStore = create<WalletStore>()(
         return Date.now() - state.lastActivityAt > SESSION_EXPIRY_MS;
       },
 
+      setKitSessionActive: (active) =>
+        set({ kitSessionActive: active }),
+
       addAddressBookEntry: (address, label = "") =>
         set((s) => ({
           addressBook: [
@@ -144,6 +168,12 @@ export const useWalletStore = create<WalletStore>()(
 
       removeAddressBookEntry: (id) =>
         set((s) => ({ addressBook: s.addressBook.filter((e) => e.id !== id) })),
+        
+      setNetwork: (network, walletPassphrase) =>
+        set((s) => ({
+          network,
+          walletPassphrase: walletPassphrase ?? s.walletPassphrase,
+        })),
     }),
     {
       name: "kora-wallet",

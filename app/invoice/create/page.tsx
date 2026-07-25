@@ -91,8 +91,14 @@ export default function CreateInvoicePage() {
     metadataCid: string;
   } | null>(null);
 
-  // Pinata health — checked when the user reaches the Upload step
-  const { isHealthy: pinataHealthy, isChecking: pinataChecking, status: pinataStatus, recheck: recheckPinata } = usePinataHealth();
+  // Pinata health — checked when the user reaches the Upload step.
+  // Auto-retries with exponential backoff so the wizard self-heals on recovery.
+  const {
+    isChecking: pinataChecking,
+    status: pinataStatus,
+    recheck: recheckPinata,
+    retryCount: pinataRetryCount,
+  } = usePinataHealth();
 
   const {
     register,
@@ -773,6 +779,11 @@ export default function CreateInvoicePage() {
                     <p className="mt-0.5 text-xs text-amber-400/80">
                       Your invoice cannot be minted right now. All your form data has been saved — you can try again when the service recovers.
                     </p>
+                    {pinataRetryCount > 0 && (
+                      <p className="mt-1 text-[11px] text-amber-400/70" aria-live="polite">
+                        Automatically re-checking… (attempt {pinataRetryCount})
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"

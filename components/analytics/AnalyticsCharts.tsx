@@ -44,6 +44,8 @@ interface AnalyticsChartsProps {
   isLoading?: boolean;
   compact?: boolean;
   onExport?: (type: "portfolio" | "yield" | "risk" | "monthly") => void;
+  /** Drill-down: open marketplace filtered by the selected risk tier. */
+  onRiskSegmentClick?: (riskTier: string) => void;
 }
 
 function ChartSkeleton({ height = 220 }: { height?: number }) {
@@ -71,6 +73,7 @@ export default function AnalyticsCharts({
   isLoading = false,
   compact = false,
   onExport,
+  onRiskSegmentClick,
 }: AnalyticsChartsProps) {
   const chartHeight = compact ? 180 : 240;
 
@@ -223,6 +226,15 @@ export default function AnalyticsCharts({
                       paddingAngle={2}
                       dataKey="value"
                       isAnimationActive={!isLoading}
+                      style={{
+                        cursor: onRiskSegmentClick ? "pointer" : "default",
+                      }}
+                      onClick={(_, index) => {
+                        const point = risk[index];
+                        if (point && onRiskSegmentClick) {
+                          onRiskSegmentClick(point.name);
+                        }
+                      }}
                     >
                       {risk.map((entry) => (
                         <Cell key={`cell-${entry.name}`} fill={entry.color} />
@@ -236,7 +248,13 @@ export default function AnalyticsCharts({
                 </ResponsiveContainer>
                 <div className="mt-4 space-y-1.5">
                   {risk.map((d) => (
-                    <div key={d.name} className="flex items-center justify-between text-xs">
+                    <button
+                      key={d.name}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-md px-1 py-0.5 text-xs transition-colors hover:bg-muted/60 disabled:cursor-default disabled:hover:bg-transparent"
+                      onClick={() => onRiskSegmentClick?.(d.name)}
+                      disabled={!onRiskSegmentClick}
+                    >
                       <div className="flex items-center gap-2">
                         <div
                           className="h-2.5 w-2.5 rounded-full"
@@ -245,7 +263,7 @@ export default function AnalyticsCharts({
                         <span className="text-muted-foreground">{d.name}</span>
                       </div>
                       <span className="font-medium text-foreground">{d.value}%</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </>

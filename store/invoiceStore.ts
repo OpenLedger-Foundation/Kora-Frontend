@@ -9,6 +9,7 @@ import {
   safeStorageGetItem,
   safeStorageSetItem,
 } from "./storageAdapter";
+import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -231,7 +232,7 @@ interface InvoiceStore {
   selectedInvoice: Invoice | null;
   createDraft: InvoiceCreateDraft;
 
-  /** IDs of invoices selected for side-by-side comparison (max 3) */
+  /** IDs of invoices selected for side-by-side comparison (max 4) */
   comparisonList: string[];
 
   // Actions
@@ -256,8 +257,10 @@ interface InvoiceStore {
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
 
-  /** Toggle an invoice in/out of the comparison list (max 3) */
+  /** Toggle an invoice in/out of the comparison list (max 4) */
   toggleComparison: (id: string) => void;
+  /** Replace the comparison list (capped at max) */
+  setComparisonList: (ids: string[]) => void;
   /** Remove a single invoice from the comparison list */
   removeFromComparison: (id: string) => void;
   /** Clear the entire comparison list */
@@ -423,10 +426,15 @@ export const useInvoiceStore = create<InvoiceStore>()(
             return { comparisonList: list.filter((i) => i !== id) };
           }
           // When at max, replace oldest (first in list)
-          if (list.length >= 3) {
+          if (list.length >= MAX_COMPARISON_INVOICES) {
             return { comparisonList: [...list.slice(1), id] };
           }
           return { comparisonList: [...list, id] };
+        }),
+
+      setComparisonList: (ids) =>
+        set({
+          comparisonList: [...new Set(ids)].slice(0, MAX_COMPARISON_INVOICES),
         }),
 
       removeFromComparison: (id) =>

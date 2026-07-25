@@ -12,6 +12,7 @@ This document describes the technical architecture of the Kora Protocol frontend
 - [State Management](#state-management)
 - [Wallet Integration](#wallet-integration)
 - [Contract Interaction](#contract-interaction)
+- [Transaction Lifecycle Deep Dive](#transaction-lifecycle-deep-dive)
 - [IPFS Storage](#ipfs-storage)
 - [Rendering Strategy](#rendering-strategy)
 - [Security Considerations](#security-considerations)
@@ -221,6 +222,138 @@ This separation means the frontend **never holds private keys**. The wallet exte
 
 ---
 
+## Transaction Lifecycle Deep Dive
+
+Every write operation (mint, fund, repay, claim yield) goes through the same
+hook: `useTransaction`. This section traces a single call through
+`execute()` end to end, and documents the `TxState` machine it drives.
+
+### Actors
+
+| Actor | Role |
+|-------|------|
+| `useTransaction` | Owns the lifecycle. Holds local React state (source of truth for the calling component) and mirrors it into `uiStore`. |
+| `walletStore` | Read-only from the tx lifecycle's perspective. Supplies nothing directly — `useWallet` reads/writes it for connection state, and `useTransaction` only consumes `signTransaction`/`publicKey` from `useWallet`. |
+| `uiStore` | Holds `txState`, a globally-readable mirror of the current stage. Lets UI outside the initiating component (e.g. a persistent status indicator) react without prop drilling. |
+| `transactionHistoryStore` | Records every submitted transaction (`pending` → `confirmed`/`failed`) for the Transaction History page. Written to only after a hash exists, i.e. from `submitting` onward. |
+| Soroban RPC | Simulates, submits, and is polled for confirmation. |
+
+### Sequence: Fund Invoice
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Component (FundPanel)
+    participant TX as useTransaction
+    participant SVC as invoiceService / contracts.ts
+    participant RPC as Soroban RPC
+    participant WK as useWallet (StellarWalletsKit)
+    participant HIST as transactionHistoryStore
+
+    User->>UI: Click "Fund Invoice"
+    UI->>TX: execute(buildFn, options)
+    TX->>TX: setStage("building") → mirrors to uiStore.txState
+    TX->>SVC: buildFn() → prepareFundInvoice()
+    SVC->>SVC: marketplaceContract.fundInvoice()
+    SVC-->>TX: unsigned XDR
+    TX->>TX: setStage("simulating")
+    TX->>RPC: simulateTransaction(tx)
+    RPC-->>TX: SimulationSuccess | SimulationError
+    alt simulation failed
+        TX->>TX: setStage("failed", error)
+        TX-->>UI: toast.error(...)
+    else simulation succeeded
+        opt onSimulationPreview provided
+            TX-->>UI: fee / resource preview
+            UI-->>TX: proceed = true/false
+            alt declined
+                TX->>TX: reset to "idle" — execute() returns null
+            end
+        end
+        TX->>TX: setStage("signing")
+        TX->>WK: signTransaction(unsignedXdr)
+        WK->>User: Wallet extension prompts for signature
+        User-->>WK: Approve
+        WK-->>TX: signedXdr
+        TX->>TX: setStage("submitting")
+        TX->>RPC: sendTransaction(signedXdr)
+        RPC-->>TX: {hash, status}
+        TX->>HIST: addTransaction({hash, status: "pending"})
+        TX->>TX: setStage("polling", txHash)
+        loop exponential backoff, up to 30 attempts / 5 min
+            TX->>RPC: getTransaction(hash)
+            RPC-->>TX: NOT_FOUND | SUCCESS | FAILED
+        end
+        alt confirmed
+            TX->>TX: setStage("confirmed", txHash)
+            TX->>HIST: updateTransactionStatus(hash, "confirmed")
+            TX-->>UI: toast.success(...) → options.onSuccess(hash)
+        else failed or timed out
+            TX->>TX: setStage("failed", error)
+            TX->>HIST: updateTransactionStatus(hash, "failed", message)
+            TX-->>UI: toast.error(...)
+        end
+    end
+```
+
+Every `setStage()` call does two things: it updates `useTransaction`'s local
+`useState` (what the calling component reads to disable buttons / show
+spinners) and calls `uiStore.setTxState()` with the same status, so any
+other part of the tree can observe tx progress. For in-progress stages
+(`building`, `simulating`, `signing`, `submitting`, `polling`) it also
+drives a single loading toast (`TOAST_ID = "kora-tx"`), which is replaced
+in place by the final success/error toast rather than stacking.
+
+### The `TxState` machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> building: execute(buildFn) called
+    building --> simulating: real transaction (not a "mock_" XDR)
+    building --> signing: mock XDR — simulation skipped (demo / test mode)
+    simulating --> failed: simulateTransaction() returns an error
+    simulating --> idle: onSimulationPreview resolves false (caller declines)
+    simulating --> signing: simulation succeeds (preview optionally confirmed by caller)
+    signing --> failed: wallet rejects, or signTransaction() throws
+    signing --> submitting: signedXdr obtained
+    submitting --> failed: sendTransaction() returns status "ERROR"
+    submitting --> polling: hash received; recorded in transactionHistoryStore as "pending"
+    polling --> confirmed: getTransaction() returns "SUCCESS"
+    polling --> failed: getTransaction() returns "FAILED", or the 30-attempt / 5-minute timeout elapses
+    confirmed --> idle: reset() — component starts a new tx or unmounts
+    failed --> idle: reset() — via the error toast's dismiss action, or a new tx attempt
+```
+
+`TxLifecycleStatus` (in `useTransaction.ts`) also defines a `retrying`
+status, reserved for recovering from `BadSequenceError` (thrown by
+`submitTransaction` in `lib/stellar/client.ts` when the network reports
+`tx_bad_seq`). When set, it is mirrored to `uiStore.txState` as
+`"submitting"` rather than a new state, since `TxState` (in
+`types/contract.ts`) doesn't define a `retrying` variant — shared UI that
+only reads `uiStore.txState` doesn't need to special-case it. Note this
+mapping happens in code but nothing in `execute()` currently drives a
+transition into `retrying`; treat it as a documented extension point for
+sequence-number retry handling, not a path exercised by the flow above.
+
+### Store responsibilities at each stage
+
+| Stage | `uiStore.txState` | `transactionHistoryStore` | Toast |
+|-------|--------------------|-----------------------------|-------|
+| `idle` | `{ status: "idle" }` | — | dismissed |
+| `building` / `simulating` / `signing` | mirrors status | — | loading |
+| `submitting` | mirrors status | — | loading |
+| `polling` | `{ status: "polling", txHash }` | `addTransaction({ hash, status: "pending", ... })` | loading |
+| `confirmed` | `{ status: "confirmed", txHash }` | `updateTransactionStatus(hash, "confirmed")` | success |
+| `failed` | `{ status: "failed", error, txHash? }` | `updateTransactionStatus(hash, "failed", message)` if a hash exists | error, with a dismiss action that calls `reset()` |
+
+`walletStore` is never written to by `useTransaction`. It only supplies
+`publicKey` and `signTransaction` (via `useWallet`) for the `signing`
+stage — wallet connection state changes independently, through
+`useWallet`'s own connect/disconnect flow.
+
+---
+
 ## IPFS Storage
 
 Invoice documents and metadata are stored on IPFS via Pinata:
@@ -247,13 +380,13 @@ The on-chain NFT stores only the IPFS CID. The full metadata is always retrievab
 |------|----------|--------|
 | `/` (Landing) | Static + Client hydration | SEO, animations |
 | `/marketplace` | Client | Dynamic filters, wallet state |
-| `/marketplace/[id]` | Client | Wallet-gated fund panel |
+| `/marketplace/[id]` | SSR/ISR + Client | Server `generateMetadata` + JSON-LD/OG from IPFS; client fund panel |
 | `/invoice/create` | Client | Form, file upload, wallet |
 | `/dashboard/sme` | Client | Wallet-gated |
 | `/dashboard/investor` | Client | Wallet-gated |
 | `/analytics` | Client | Charts, wallet-gated |
 
-Most pages are client-rendered because they require wallet state. Future versions may add a server-side indexer for SEO-friendly invoice pages.
+Most interactive pages are client-rendered because they require wallet state. Invoice detail pages use SSR/ISR for SEO: `generateMetadata` hydrates OG tags from invoice + IPFS metadata, server-rendered JSON-LD, SVG Open Graph previews, and sitemap entries for `/marketplace/[id]`.
 
 ---
 
