@@ -18,6 +18,11 @@ const withPWA = require("next-pwa")({
   buildExcludes: [/middleware-manifest\.json$/],
 
   runtimeCaching: [
+    // 0. Sensitive wallet, dashboard, transaction, and auth routes — NetworkOnly (never cache)
+    {
+      urlPattern: /^\/(?:dashboard|transactions|invoice\/create|api).*/i,
+      handler: "NetworkOnly",
+    },
     // 1. Google Fonts stylesheet — stale-while-revalidate
     {
       urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -95,12 +100,6 @@ const withPWA = require("next-pwa")({
         cacheableResponse: { statuses: [0, 200] },
       },
     },
-    // NOTE: The following are intentionally NOT cached (security):
-    //   /dashboard/*       — wallet-connected pages with live position data
-    //   /transactions/*    — on-chain tx history, must be fresh
-    //   /invoice/create/*  — signing flow, must never be stale
-    //   /api/auth/*        — challenge/verify endpoints
-    //   /api/upload/*      — file upload endpoint
   ],
 
   // Offline fallback — shown when a navigation request fails and no cache hit
@@ -197,6 +196,41 @@ const nextConfig = {
       {
         source: "/(.*)",
         headers: SECURITY_HEADERS,
+      },
+      // Sensitive wallet & transaction routes — no-store (security)
+      {
+        source: "/:path(dashboard|transactions|invoice/create|api)/:rest*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Expires",
+            value: "0",
+          },
+        ],
+      },
+      {
+        source: "/:path(dashboard|transactions|invoice/create|api)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Expires",
+            value: "0",
+          },
+        ],
       },
       // Static assets: long-lived cache (content-hashed by Next.js)
       {

@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 
 const WalletConnectModal = dynamic(
@@ -95,6 +95,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+    const handleControllerChange = () => {
+      // Guard: do not reload or interrupt if user is currently signing a transaction
+      const isSigning = useUIStore.getState().isSigning;
+      if (isSigning) {
+        console.warn("[PWA] Service worker update deferred during active wallet signing session.");
+        return;
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
