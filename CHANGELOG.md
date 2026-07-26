@@ -1,3 +1,12 @@
+# [1.5.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.4.0...v1.5.0) (2026-07-26)
+
+
+### Features
+
+* **performance:** add web vitals regression gate in ci ([f8ca527](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/f8ca5276c1e6ef74d2fb9e88d6c2fd703db4d67e))
+* **performance:** optimize ipfs invoice svg previews for lcp ([9bcf251](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9bcf251f84fbe97c49ce23c2eeb1fc80154bbb32))
+* **pwa:** audit pwa cache exclusions for wallet and tx routes ([55eac6f](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/55eac6f0142b28cda68cd2187df93c5c8b65158a))
+
 # [1.4.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.3.0...v1.4.0) (2026-07-26)
 
 
