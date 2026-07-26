@@ -28,6 +28,7 @@ import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
 import { env } from "@/lib/env";
+import { isValidStellarAddress } from "@/lib/utils";
 
 // ─── Helper: Create successful result ──────────────────────────────────────
 function success<T>(value: T): Result<T> {
@@ -58,6 +59,21 @@ function mapContractError(error: unknown): ServiceError {
     return { code: "ALREADY_REPAID", message: "This invoice has already been repaid" };
   }
   return { code: "CONTRACT_ERROR", message: `Contract error: ${message}` };
+}
+
+// ─── Helper: Map contract errors for the transfer_position flow ───────────
+function mapTransferError(error: unknown): ServiceError {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Invoice not found")) {
+    return { code: "NOT_FOUND", message: "Position not found" };
+  }
+  if (message.includes("Unauthorized")) {
+    return {
+      code: "UNAUTHORIZED",
+      message: "Only the current position owner can transfer it",
+    };
+  }
+  return { code: "TRANSFER_ERROR", message: `Transfer failed: ${message}` };
 }
 
 /**
@@ -297,6 +313,27 @@ class MockInvoiceService implements IInvoiceService {
     }
   }
 
+  async transferPosition(
+    positionId: string,
+    toAddress: string,
+    sellerAddress: string
+  ): Promise<Result<string>> {
+    try {
+      if (!isValidStellarAddress(toAddress)) {
+        return failure("INVALID_INPUT", "Recipient address is not a valid Stellar G-address");
+      }
+      if (toAddress === sellerAddress) {
+        return failure("INVALID_INPUT", "Cannot transfer a position to yourself");
+      }
+      await this.delay();
+      return success(
+        `mock_unsigned_xdr_transfer_${positionId}_${toAddress}_${sellerAddress}`
+      );
+    } catch (error) {
+      return failure("TRANSFER_ERROR", "Failed to prepare position transfer", { cause: String(error) });
+    }
+  }
+
   async submitTransaction(signedXdr: string): Promise<Result<string>> {
     try {
       await this.delay();
@@ -318,10 +355,11 @@ class LiveInvoiceService implements IInvoiceService {
     pageSize = 12
   ): Promise<Result<PaginatedResponse<Invoice>>> {
     try {
-      // TODO: Replace with on-chain / indexer fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      const response = await indexerClient.getInvoices(filters, sort, page, pageSize);
+      return success(response);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      const message = error instanceof Error ? error.message : String(error);
+      return failure("FETCH_ERROR", `Failed to fetch live invoices: ${message}`, { cause: message });
     }
   }
 
@@ -359,10 +397,11 @@ class LiveInvoiceService implements IInvoiceService {
 
   async getInvoicesByOwner(ownerAddress: string): Promise<Result<Invoice[]>> {
     try {
-      // TODO: Replace with on-chain fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      const invoices = await indexerClient.getInvoicesByOwner(ownerAddress);
+      return success(invoices);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      const message = error instanceof Error ? error.message : String(error);
+      return failure("FETCH_ERROR", `Failed to fetch live invoices by owner: ${message}`, { cause: message });
     }
   }
 
@@ -532,6 +571,30 @@ class LiveInvoiceService implements IInvoiceService {
       return success(xdr);
     } catch (error) {
       const err = mapContractError(error);
+      return failure(err.code, err.message, err.details);
+    }
+  }
+
+  async transferPosition(
+    positionId: string,
+    toAddress: string,
+    sellerAddress: string
+  ): Promise<Result<string>> {
+    try {
+      if (!isValidStellarAddress(toAddress)) {
+        return failure("INVALID_INPUT", "Recipient address is not a valid Stellar G-address");
+      }
+      if (toAddress === sellerAddress) {
+        return failure("INVALID_INPUT", "Cannot transfer a position to yourself");
+      }
+
+      const xdr = await marketplaceContract.transferPosition(
+        { positionId: BigInt(positionId), toAddress },
+        sellerAddress
+      );
+      return success(xdr);
+    } catch (error) {
+      const err = mapTransferError(error);
       return failure(err.code, err.message, err.details);
     }
   }
@@ -792,6 +855,50 @@ export async function prepareCancelInvoice(
   const result = await service.cancelInvoice(tokenId, ownerAddress);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
+}
+
+/**
+ * Build an unsigned XDR to transfer an investor position to a new owner
+ * (P2P secondary-market sale). Signed by the current position owner.
+ *
+ * See the `TransferPositionParams` doc comment in types/contract.ts for the
+ * assumed single-call contract ABI.
+ */
+export async function prepareTransferPosition(
+  positionId: string,
+  toAddress: string,
+  sellerAddress: string
+): Promise<string> {
+  const result = await service.transferPosition(positionId, toAddress, sellerAddress);
+  if (!result.ok) throw new Error(result.error.message);
+  return result.value;
+}
+
+/**
+ * Buyer acceptance flow — STUB (#443).
+ *
+ * `transferPosition`/`prepareTransferPosition` above assume the deployed
+ * `transfer_position` contract method is a single call authorized only by
+ * the seller (no separate buyer co-signature), matching `claim_position`.
+ * If that assumption doesn't hold once the deployed contract's ABI is
+ * confirmed and a two-step propose/accept pattern is required instead, this
+ * is the intended integration point for the buyer's acceptance transaction:
+ * build the buyer-signed accept call here (e.g. `accept_position_transfer`
+ * or similar) the same way `prepareTransferPosition` builds the seller's.
+ *
+ * Deliberately unimplemented until the contract ABI is confirmed — mirrors
+ * the NOT_IMPLEMENTED pattern already used by `getInvoices`/
+ * `getInvoicesByOwner` in LiveInvoiceService for the same reason.
+ */
+export async function prepareAcceptPositionTransfer(
+  _positionId: string,
+  _buyerAddress: string
+): Promise<never> {
+  throw new Error(
+    "Buyer acceptance for transfer_position is not yet implemented — " +
+      "pending confirmation of the deployed contract's transfer ABI. " +
+      "See prepareAcceptPositionTransfer in services/invoiceService.ts."
+  );
 }
 
 export async function submitAndConfirm(signedXdr: string): Promise<string> {

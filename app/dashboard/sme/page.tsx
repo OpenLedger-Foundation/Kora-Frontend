@@ -31,6 +31,7 @@ const DataTable = dynamic<DataTableProps<Invoice>>(
   { ssr: false, loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={8} /> }
 );
 import { useWallet } from "@/hooks/useWallet";
+import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { useSMEInvoices } from "@/hooks/useInvoices";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
@@ -172,66 +173,73 @@ export default function SMEDashboardPage() {
     );
   }
 
+  const { executeProtectedAction } = useVerifiedAction();
+
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
 
-    const rollback = () => {
-      useInvoiceStore.getState().rollbackInvoiceStatus(inv.id);
-      queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
-        if (!old) return old;
-        if (Array.isArray(old)) {
-          return old.map((invoice: Invoice) =>
-            invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
-          );
-        }
-        if (old?.data) {
-          return {
-            ...old,
-            data: old.data.map((invoice: Invoice) =>
-              invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
-            ),
-          };
-        }
-        return old;
-      });
-    };
-
-    useInvoiceStore.getState().updateInvoiceStatus(inv.id, "repaid");
-    queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
-      if (!old) return old;
-      if (Array.isArray(old)) {
-        return old.map((invoice: Invoice) =>
-          invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
-        );
-      }
-      if (old?.data) {
-        return {
-          ...old,
-          data: old.data.map((invoice: Invoice) =>
-            invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
-          ),
+    await executeProtectedAction(
+      async () => {
+        const rollback = () => {
+          useInvoiceStore.getState().rollbackInvoiceStatus(inv.id);
+          queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
+            if (!old) return old;
+            if (Array.isArray(old)) {
+              return old.map((invoice: Invoice) =>
+                invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
+              );
+            }
+            if (old?.data) {
+              return {
+                ...old,
+                data: old.data.map((invoice: Invoice) =>
+                  invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
+                ),
+              };
+            }
+            return old;
+          });
         };
-      }
-      return old;
-    });
 
-    const txHash = await execute(
-      () => prepareRepayInvoice(inv.tokenId, address, inv.ownerAddress),
-      {
-        successMessage: "Yield distributed to investors",
-        successNotificationType: "yieldAvailable",
-        onSimulationPreview,
-        onError: rollback,
-        onSuccess: () => {
-          invoicesQuery.refetch();
-          setRepayTarget(null);
-        },
-      }
+        useInvoiceStore.getState().updateInvoiceStatus(inv.id, "repaid");
+        queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
+          if (!old) return old;
+          if (Array.isArray(old)) {
+            return old.map((invoice: Invoice) =>
+              invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
+            );
+          }
+          if (old?.data) {
+            return {
+              ...old,
+              data: old.data.map((invoice: Invoice) =>
+                invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
+              ),
+            };
+          }
+          return old;
+        });
+
+        const txHash = await execute(
+          () => prepareRepayInvoice(inv.tokenId, address, inv.ownerAddress),
+          {
+            successMessage: "Yield distributed to investors",
+            successNotificationType: "yieldAvailable",
+            onSimulationPreview,
+            onError: rollback,
+            onSuccess: () => {
+              invoicesQuery.refetch();
+              setRepayTarget(null);
+            },
+          }
+        );
+
+        if (!txHash) {
+          rollback();
+        }
+      },
+      "repayment"
     );
-
-    if (!txHash) {
-      rollback();
-    }
   };
 
   const handleCancel = async (inv: Invoice) => {

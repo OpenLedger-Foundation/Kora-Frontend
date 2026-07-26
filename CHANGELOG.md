@@ -1,3 +1,19 @@
+# [1.3.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.2.0...v1.3.0) (2026-07-26)
+
+
+### Features
+
+* **accessibility:** add screen-reader announcements for transaction toasts ([08b8b78](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/08b8b785f5f1097f92f84cd3aba76059d798990a)), closes [#441](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/441)
+* **accessibility:** implement keyboard-navigable marketplace filter panel ([20ffd68](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/20ffd68a4a017b89f2da0f4f43ec60ce07f1a143)), closes [#440](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/440)
+* add user-facing VirusTotal rejection reason parser for upload flow ([9e2f169](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9e2f169af1b4e52f36eb287dfb7d9159e830aad0))
+* persist TanStack Query invoice cache to IndexedDB with stale/last-sync tracking ([a1da54e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/a1da54e70d06afad20c9d7c9b002264f1a41bc3f))
+* queue signed XDR drafts in IndexedDB for offline resubmission ([9aea95e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9aea95ead2996ce86784a69c8d488d2463dc799a))
+* **secondary-market:** design secondary market listing ui for invoice positions ([1e0777b](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/1e0777b3be38e476321db18b55e1d5b365a73a50)), closes [#442](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/442)
+* **secondary-market:** implement transfer_position soroban contract integration ([aadcdd7](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/aadcdd77d3429355a72b62d34b42efa7057abe2d)), closes [#443](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/443)
+* **soroban:** implement live invoice listing via soroban event indexer ([e9bb445](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/e9bb4450eb9a718530f14395822b860e75bdaf99))
+* track InstallPrompt install/dismiss analytics with SME/investor cohorts ([12cc5e7](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/12cc5e756fe03423d4249ac2acafafdb8279a01b))
+* **wallet:** complete wallet ownership verification challenge flow ([10a5229](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/10a5229040ad30ea2c8eeb531669ffb5b2ea5816))
+
 # [1.2.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.1.0...v1.2.0) (2026-07-25)
 
 

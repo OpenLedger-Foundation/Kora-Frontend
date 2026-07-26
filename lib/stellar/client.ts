@@ -317,6 +317,7 @@ export async function getAccountTransactions(
  * Supported Kora contract event types emitted by the Soroban contracts.
  */
 export type KoraEventType =
+  | "mint_invoice"
   | "invoice_funded"
   | "invoice_repaid"
   | "invoice_cancelled"

@@ -140,6 +140,36 @@ export interface InvestorPosition {
   status: "active" | "repaid" | "defaulted";
 }
 
+// ─── Secondary Market Listings (v0.4) ────────────────────────────────────────
+//
+// UI-only for now (#442): lets an investor mark a position "for sale" with an
+// ask price, and shows it back on the dashboard. The actual on-chain P2P
+// transfer (once a buyer is found) is implemented separately — see
+// prepareTransferPosition in services/invoiceService.ts (#443).
+
+export interface PositionListing {
+  /** InvestorPosition.id (or InvoicePosition.invoiceId when no distinct id exists) */
+  positionId: string;
+  /** Price the seller is asking, in the position's invoice currency */
+  askPrice: number;
+  /**
+   * Discount implied by askPrice vs. the position's expectedReturn, 0–1.
+   * Positive = selling below expected return (a discount for the buyer);
+   * negative = selling at a premium.
+   */
+  impliedDiscount: number;
+  listedAt: string; // ISO 8601
+}
+
+/** Computes the discount (0–1) implied by an ask price vs. expected return. */
+export function computeImpliedDiscount(
+  askPrice: number,
+  expectedReturn: number
+): number {
+  if (expectedReturn <= 0) return 0;
+  return (expectedReturn - askPrice) / expectedReturn;
+}
+
 // ─── Create Invoice Form ──────────────────────────────────────────────────────
 
 export interface CreateInvoiceFormData {
