@@ -1,6 +1,6 @@
 {
   "name": "kora-frontend",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "description": "On-chain Invoice Financing Protocol built on Stellar Soroban",
   "scripts": {

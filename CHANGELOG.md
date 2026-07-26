@@ -1,3 +1,20 @@
+# [1.4.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.3.0...v1.4.0) (2026-07-26)
+
+
+### Bug Fixes
+
+* **security:** bind upload pinning to cryptographically verified wallet session ([29481fc](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/29481fcac4928dbbc7b0abe9b2d79901912581e9))
+* **security:** enforce CSRF verification on upload and vitals mutation routes ([83e8610](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/83e8610f7161ff556da40a6bdee81930eb9e796f))
+* **security:** nonce-based script-src CSP and add mainnet RPC to connect-src ([9ce2149](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9ce2149ff61ee6055e264468a96b7a94bf29dc95))
+* **security:** reject dangerous URL schemes in IPFS metadata sanitization ([69fdf92](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/69fdf92f332b4a1c0cb810731f373935dff39b04))
+
+
+### Features
+
+* **accessibility:** fix axe violations on analytics and transactions routes ([2e712ed](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/2e712ed627fd7586b1b7503deb7c000d10af4c1c))
+* **ipfs:** migrate all pinata uploads to server-side api route ([16d58fd](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/16d58fda0246ed43967255ed88461abf0b7375da))
+* **performance:** tune tanstack query stale times per network mode ([e2d9e62](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/e2d9e625414d44de42f91f8053e1f35456ef8551))
+
 # [1.3.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.2.0...v1.3.0) (2026-07-26)
 
 
