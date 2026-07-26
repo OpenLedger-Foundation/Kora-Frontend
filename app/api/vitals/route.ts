@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logger } from "@/lib/logger";
+import { logger, redact } from "@/lib/logger";
 import { verifyCsrf } from "@/lib/csrf";
 
 /**
@@ -21,6 +21,8 @@ interface VitalPayload {
   url: string;
   userAgent: string;
   timestamp: number;
+  error?: unknown;
+  context?: unknown;
 }
 
 interface VitalsBody {
@@ -55,7 +57,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         startTime: m.startTime ?? 0,
         rating: m.rating ?? "good",
         url: typeof m.url === "string" ? m.url.slice(0, 200) : "/",
+        userAgent: typeof m.userAgent === "string" ? m.userAgent.slice(0, 200) : "",
         timestamp: m.timestamp ?? Date.now(),
+        error: m.error ? redact(m.error) : undefined,
+        context: m.context ? redact(m.context) : undefined,
       }));
 
     if (sanitised.length === 0) {
@@ -72,6 +77,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         metricId: metric.id,
         rating: metric.rating,
         url: metric.url,
+        userAgent: metric.userAgent,
+        error: metric.error,
+        context: metric.context,
       });
     }
 

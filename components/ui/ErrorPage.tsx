@@ -11,6 +11,7 @@ import { useEffect } from "react";
 import { AlertTriangle, Home, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { logger } from "@/lib/logger";
 
 interface ErrorPageProps {
   error: Error & { digest?: string };
@@ -19,32 +20,10 @@ interface ErrorPageProps {
 
 export function ErrorPage({ error, reset }: ErrorPageProps) {
   useEffect(() => {
-    console.error("[ErrorBoundary]", error);
-
-    // Log to /api/vitals for monitoring
-    const payload = {
-      metrics: [
-        {
-          name: "error",
-          value: 1,
-          id: error.digest ?? `error-${Date.now()}`,
-          label: "error-boundary",
-          startTime: Date.now(),
-          rating: "poor" as const,
-          url: typeof window !== "undefined" ? window.location.href : "/",
-          userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
-          timestamp: Date.now(),
-          message: error.message,
-        },
-      ],
-    };
-
-    fetch("/api/vitals", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(() => {
-      // Silently swallow — don't cause another error from the error handler
+    logger.reportClientError(error, {
+      boundary: "ErrorPage",
+      digest: error.digest,
+      route: typeof window !== "undefined" ? window.location.pathname : null,
     });
   }, [error]);
 
