@@ -6,6 +6,7 @@ import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
 import { useWallet } from "./useWallet";
 import { useNetworkValidation } from "./useNetworkValidation";
+import { useTxSimulation } from "./useTxSimulation";
 import { rpc, submitTransaction, BadSequenceError, sequenceManager } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
@@ -334,77 +335,55 @@ export function useTransaction() {
   };
 }
 
-const TX_ANNOUNCEMENT_MESSAGES: Record<Exclude<TxState["status"], "idle">, string> = {
-  building: "Building transaction…",
-  simulating: "Simulating transaction…",
-  signing: "Waiting for wallet signature…",
-  submitting: "Submitting transaction…",
-  polling: "Waiting for confirmation on the network…",
-  confirmed: "Transaction confirmed successfully.",
-  failed: "Transaction failed.",
-  timeout: "Transaction timed out. You can retry.",
-};
-
 /**
- * Screen-reader announcements for the transaction lifecycle (#441).
+ * P2P position transfer flow (#443) — combines useTransaction + the
+ * simulation-preview gate (see hooks/useTxSimulation.ts) so callers get the
+ * same "build → simulate → preview → sign → submit → poll" pipeline as
+ * fund/claim/cancel, without re-wiring it per screen.
  *
- * Sonner toasts are visual-first: role/aria-live attributes on individual
- * toast contents aren't a reliable substitute for a dedicated, persistent
- * live region, since toast DOM nodes are transient and timing varies by
- * animation/portal library. This mirrors the "announce + dedupe +
- * auto-clear" pattern already used by useCountdown's `announce` field, but
- * reads from the global tx state (useUIStore) so it's a single source of
- * truth no matter which screen/button started the transaction — covering
- * funding, repayment, claims, and any other flow that goes through
- * useTransaction().execute().
- *
- * Two independent regions are returned so failures interrupt (`assertive`)
- * while everything else waits its turn (`polite`), and each region only
- * updates when its message actually changes, so re-renders don't spam
- * assistive tech with repeat announcements.
+ * `acceptTransfer` is a stub: it surfaces
+ * `prepareAcceptPositionTransfer`'s NOT_IMPLEMENTED error through the normal
+ * error/toast path until the buyer-acceptance contract ABI is confirmed
+ * (see the doc comment on that function in services/invoiceService.ts).
  */
-export function useTxAnnouncement() {
-  const txState = useUIStore((s) => s.txState);
-  const [polite, setPolite] = useState<string | null>(null);
-  const [assertive, setAssertive] = useState<string | null>(null);
-  const lastAnnounced = useRef<string | null>(null);
+export function useTransferPositionFlow() {
+  const tx = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
 
-  useEffect(() => {
-    if (txState.status === "idle") {
-      // Reset so the next transaction cycle announces even if it produces
-      // the same text as the last one (e.g. two "confirmed" in a row).
-      lastAnnounced.current = null;
-      return;
-    }
+  const transferPosition = useCallback(
+    async (positionId: string, toAddress: string, sellerAddress: string) => {
+      const { prepareTransferPosition } = await import(
+        "@/services/invoiceService"
+      );
+      return tx.execute(
+        () => prepareTransferPosition(positionId, toAddress, sellerAddress),
+        {
+          onSimulationPreview,
+          successMessage: "Position transferred successfully!",
+          txType: "transfer",
+        }
+      );
+    },
+    [tx, onSimulationPreview]
+  );
 
-    const message =
-      txState.status === "failed"
-        ? `Transaction failed: ${txState.error.message}`
-        : TX_ANNOUNCEMENT_MESSAGES[txState.status];
+  const acceptTransfer = useCallback(
+    async (positionId: string, buyerAddress: string) => {
+      const { prepareAcceptPositionTransfer } = await import(
+        "@/services/invoiceService"
+      );
+      return tx.execute(
+        () => prepareAcceptPositionTransfer(positionId, buyerAddress),
+        { onSimulationPreview, txType: "transfer" }
+      );
+    },
+    [tx, onSimulationPreview]
+  );
 
-    if (!message || message === lastAnnounced.current) return;
-    lastAnnounced.current = message;
-
-    if (txState.status === "failed") {
-      setAssertive(message);
-    } else {
-      setPolite(message);
-    }
-  }, [txState]);
-
-  // Clear each region a short time after announcing so assistive tech
-  // doesn't re-read stale text if the same status recurs later.
-  useEffect(() => {
-    if (!polite) return;
-    const timer = setTimeout(() => setPolite(null), 5000);
-    return () => clearTimeout(timer);
-  }, [polite]);
-
-  useEffect(() => {
-    if (!assertive) return;
-    const timer = setTimeout(() => setAssertive(null), 5000);
-    return () => clearTimeout(timer);
-  }, [assertive]);
-
-  return { polite, assertive };
+  return {
+    ...tx,
+    transferPosition,
+    acceptTransfer,
+    simulationDialogProps,
+  };
 }

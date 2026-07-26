@@ -1,0 +1,55 @@
+name: Nightly Testnet E2E
+
+# Opt-in E2E suite that mints, funds, and repays a real invoice against the
+# live Soroban testnet contracts (see e2e/testnet-nightly.spec.ts). Kept
+# separate from test.yml, which only ever runs against mock data, and only
+# ever runs on a schedule or manual dispatch — never on push/PR.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  testnet-e2e:
+    name: Testnet mint / fund / repay
+    runs-on: ubuntu-latest
+    env:
+      RUN_TESTNET_E2E: "true"
+      TESTNET_E2E_SECRET_KEY: ${{ secrets.TESTNET_E2E_SECRET_KEY }}
+      NEXT_PUBLIC_STELLAR_NETWORK: testnet
+      NEXT_PUBLIC_STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+      NEXT_PUBLIC_STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+      NEXT_PUBLIC_INVOICE_CONTRACT_ID: ${{ secrets.TESTNET_INVOICE_CONTRACT_ID }}
+      NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: ${{ secrets.TESTNET_MARKETPLACE_CONTRACT_ID }}
+      NEXT_PUBLIC_TOKEN_CONTRACT_ID: ${{ secrets.TESTNET_TOKEN_CONTRACT_ID }}
+      NEXT_PUBLIC_IPFS_GATEWAY: https://gateway.pinata.cloud/ipfs
+      NEXT_PUBLIC_ENABLE_MOCK_DATA: "false"
+      PINATA_JWT: ${{ secrets.PINATA_JWT }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run nightly testnet E2E (mint, fund, repay)
+        run: npx playwright test e2e/testnet-nightly.spec.ts --project=chromium
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-testnet-nightly-report
+          path: playwright-report/
+          retention-days: 30
