@@ -10,6 +10,8 @@
  *   if (isEnabled("comparison")) { ... }
  */
 
+import { useSyncExternalStore } from "react";
+
 /**
  * Every feature flag supported by the app. Add new flags here.
  *
@@ -28,6 +30,20 @@ export type FeatureFlag =
   | "onboarding-tour"
   | "batch-actions";
 
+export const FEATURE_FLAGS: readonly FeatureFlag[] = [
+  "mock-data",
+  "devtools",
+  "comparison",
+  "onboarding-tour",
+  "batch-actions",
+];
+
+export type FeatureFlagState = Record<FeatureFlag, boolean>;
+export type FeatureFlagOverrides = Partial<Record<FeatureFlag, boolean>>;
+
+const FEATURE_FLAG_OVERRIDE_STORAGE_KEY = "kora:feature-flag-overrides";
+const FEATURE_FLAG_CHANGE_EVENT = "kora:feature-flags-changed";
+
 /** Maps each flag to its NEXT_PUBLIC_* env var name. */
 const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "mock-data": "NEXT_PUBLIC_ENABLE_MOCK_DATA",
@@ -37,6 +53,97 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "batch-actions": "NEXT_PUBLIC_ENABLE_BATCH_ACTIONS",
 };
 
+function readEnvFlag(flag: FeatureFlag): boolean {
+  const envVar = FLAG_ENV_MAP[flag];
+  return process.env[envVar] === "true";
+}
+
+function canUseRuntimeOverrides(): boolean {
+  return typeof window !== "undefined" && process.env.NODE_ENV !== "production";
+}
+
+function parseOverrides(raw: string | null): FeatureFlagOverrides {
+  if (!raw) return {};
+
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const overrides: FeatureFlagOverrides = {};
+
+    for (const flag of FEATURE_FLAGS) {
+      if (typeof parsed[flag] === "boolean") {
+        overrides[flag] = parsed[flag];
+      }
+    }
+
+    return overrides;
+  } catch {
+    return {};
+  }
+}
+
+function readStoredOverrides(): FeatureFlagOverrides {
+  if (!canUseRuntimeOverrides()) return {};
+  return parseOverrides(window.localStorage.getItem(FEATURE_FLAG_OVERRIDE_STORAGE_KEY));
+}
+
+function readFeatureFlagState(): FeatureFlagState {
+  const overrides = readStoredOverrides();
+
+  return FEATURE_FLAGS.reduce<FeatureFlagState>((state, flag) => {
+    state[flag] = overrides[flag] ?? readEnvFlag(flag);
+    return state;
+  }, {} as FeatureFlagState);
+}
+
+function emitFeatureFlagChange(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(FEATURE_FLAG_CHANGE_EVENT));
+}
+
+function subscribeToFeatureFlags(onStoreChange: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const handleChange = () => onStoreChange();
+
+  window.addEventListener(FEATURE_FLAG_CHANGE_EVENT, handleChange);
+  window.addEventListener("storage", handleChange);
+
+  return () => {
+    window.removeEventListener(FEATURE_FLAG_CHANGE_EVENT, handleChange);
+    window.removeEventListener("storage", handleChange);
+  };
+}
+
+function writeOverrides(overrides: FeatureFlagOverrides): void {
+  if (!canUseRuntimeOverrides()) return;
+
+  if (Object.keys(overrides).length === 0) {
+    window.localStorage.removeItem(FEATURE_FLAG_OVERRIDE_STORAGE_KEY);
+  } else {
+    window.localStorage.setItem(
+      FEATURE_FLAG_OVERRIDE_STORAGE_KEY,
+      JSON.stringify(overrides),
+    );
+  }
+
+  emitFeatureFlagChange();
+}
+
+function serializeFeatureFlagState(): string {
+  return JSON.stringify(readFeatureFlagState());
+}
+
+function serializeEnvFeatureFlagState(): string {
+  return JSON.stringify(
+    FEATURE_FLAGS.reduce<FeatureFlagState>((state, flag) => {
+      state[flag] = readEnvFlag(flag);
+      return state;
+    }, {} as FeatureFlagState),
+  );
+}
+
 /**
  * Returns `true` if the given feature flag is enabled.
  *
@@ -44,8 +151,50 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
  * Only the string `"true"` (case-sensitive) enables a flag.
  */
 export function isEnabled(flag: FeatureFlag): boolean {
-  const envVar = FLAG_ENV_MAP[flag];
-  return process.env[envVar] === "true";
+  return readFeatureFlagState()[flag];
+}
+
+export function getFeatureFlagState(): FeatureFlagState {
+  return readFeatureFlagState();
+}
+
+export function getFeatureFlagOverride(
+  flag: FeatureFlag,
+): boolean | undefined {
+  return readStoredOverrides()[flag];
+}
+
+export function setFeatureFlagOverride(
+  flag: FeatureFlag,
+  enabled: boolean | undefined,
+): void {
+  const overrides = readStoredOverrides();
+
+  if (enabled === undefined) {
+    delete overrides[flag];
+  } else {
+    overrides[flag] = enabled;
+  }
+
+  writeOverrides(overrides);
+}
+
+export function resetFeatureFlagOverrides(): void {
+  writeOverrides({});
+}
+
+export function useFeatureFlags(): FeatureFlagState {
+  const snapshot = useSyncExternalStore(
+    subscribeToFeatureFlags,
+    serializeFeatureFlagState,
+    serializeEnvFeatureFlagState,
+  );
+
+  return JSON.parse(snapshot) as FeatureFlagState;
+}
+
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  return useFeatureFlags()[flag];
 }
 
 // ─── Network mode & query tuning — Issue #436 ────────────────────────────────
@@ -76,6 +225,10 @@ export type NetworkMode = "mock" | "live";
 /** Resolve the active network mode from the `mock-data` flag. */
 export function getNetworkMode(): NetworkMode {
   return isEnabled("mock-data") ? "mock" : "live";
+}
+
+export function useNetworkMode(): NetworkMode {
+  return useFeatureFlag("mock-data") ? "mock" : "live";
 }
 
 /** True when cache freshness is driven by the contract event stream. */
@@ -149,4 +302,8 @@ export function getQueryTuning(
   mode: NetworkMode = getNetworkMode(),
 ): QueryTuning {
   return QUERY_TUNING[mode];
+}
+
+export function useQueryTuning(): QueryTuning {
+  return getQueryTuning(useNetworkMode());
 }
