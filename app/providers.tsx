@@ -30,6 +30,10 @@ const InProgressOverlay = dynamic(
   () => import("@/components/transactions").then((m) => m.InProgressOverlay),
   { ssr: false, loading: () => null }
 );
+const TransactionAnnouncer = dynamic(
+  () => import("@/components/transactions").then((m) => m.TransactionAnnouncer),
+  { ssr: false, loading: () => null }
+);
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { VerificationProvider } from "@/components/wallet/VerificationProvider";
@@ -96,21 +100,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <LocaleProvider allMessages={ALL_MESSAGES}>
         <ThemeProvider>
-          <VerificationProvider>
-            {children}
-            {isEnabled("onboarding-tour") && <OnboardingTour />}
-            <WalletConnectModal />
-            <InProgressOverlay />
-            <InstallPrompt />
-            <FeedbackWidget />
-            <KeyboardShortcutsProvider />
-            <CommandPalette />
-            <ChangelogModal />
-            <ThemedToaster />
-            {isEnabled("devtools") && (
-              <ReactQueryDevtools initialIsOpen={false} />
-            )}
-          </VerificationProvider>
+          {children}
+          {isEnabled("onboarding-tour") && <OnboardingTour />}
+          <WalletConnectModal />
+          <InProgressOverlay />
+          <TransactionAnnouncer />
+          <InstallPrompt />
+          <FeedbackWidget />
+          <KeyboardShortcutsProvider />
+          <CommandPalette />
+          <ChangelogModal />
+          <ThemedToaster />
+          {isEnabled("devtools") && (
+            <ReactQueryDevtools initialIsOpen={false} />
+          )}
         </ThemeProvider>
       </LocaleProvider>
     </QueryClientProvider>

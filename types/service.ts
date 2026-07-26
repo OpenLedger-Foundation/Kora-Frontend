@@ -58,5 +58,16 @@ export interface IInvoiceService {
 
   cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>>;
 
+  /**
+   * Transfer an investor position to a new owner (P2P secondary-market
+   * sale). Returns unsigned XDR string, signed by `sellerAddress` (the
+   * current position owner).
+   */
+  transferPosition(
+    positionId: string,
+    toAddress: string,
+    sellerAddress: string
+  ): Promise<Result<string>>;
+
   submitTransaction(signedXdr: string): Promise<Result<string>>;
 }
