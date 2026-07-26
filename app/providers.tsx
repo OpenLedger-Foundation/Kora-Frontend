@@ -36,6 +36,7 @@ const TransactionAnnouncer = dynamic(
 );
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { VerificationProvider } from "@/components/wallet/VerificationProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
