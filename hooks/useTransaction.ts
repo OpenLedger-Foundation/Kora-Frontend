@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useToast } from "./useToast";
 import type { NotificationPreferenceType } from "./useToast";
@@ -12,7 +12,7 @@ import { env } from "@/lib/env";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
-import type { ServiceError } from "@/types";
+import type { ServiceError, TxState } from "@/types";
 
 export type TxLifecycleStatus =
   | "idle"
