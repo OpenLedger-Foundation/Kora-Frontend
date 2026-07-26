@@ -1,3 +1,13 @@
+# [1.6.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.5.0...v1.6.0) (2026-07-26)
+
+
+### Features
+
+* **accessibility:** build shortcutreferencemodal with searchable shortcut list ([be65efe](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/be65efed0adf0b8ab24d41ee3632c08a65c93bc5)), closes [#480](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/480)
+* **documentation:** add contributor quick-start guide for stellar wave participants ([ea85731](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/ea8573163d179099012bcf364ec7591775889e02)), closes [#482](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/482)
+* **marketplace:** implement advanced marketplace filter persistence and deep linking ([4f01b60](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/4f01b604114c6da7244a1a901fb75abd58c717c7)), closes [#483](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/483)
+* **ui:** implement data-table component for sme invoice management ([d0d250e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/d0d250ec48a9ce88551143e51a5695b475bc962a)), closes [#481](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/481)
+
 # [1.5.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.4.0...v1.5.0) (2026-07-26)
 
 
