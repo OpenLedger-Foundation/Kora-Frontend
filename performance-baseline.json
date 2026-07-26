@@ -2,5 +2,11 @@
   "timeToFirstCardMs": 500,
   "timeToFilterResponseMs": 800,
   "timeToLoad50InvoicesMs": 1200,
-  "timeToLoad100InvoicesMs": 2500
+  "timeToLoad100InvoicesMs": 2500,
+  "webVitals": {
+    "LCP": 2500,
+    "CLS": 0.1,
+    "TTFB": 800,
+    "FCP": 1800
+  }
 }

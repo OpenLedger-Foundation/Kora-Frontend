@@ -454,6 +454,49 @@ Most interactive pages are client-rendered because they require wallet state. In
 - **CI:** CI should run `pnpm install --frozen-lockfile`, `pnpm lint`, and `pnpm test` (if tests exist) before publishing artifacts.
 - **Secrets:** Use the hosting provider's secret store for server-only variables (e.g., `PINATA_JWT`, private indexer keys). Do not expose them as `NEXT_PUBLIC_*`.
 
+### Web Vitals regression gate
+
+`e2e/performance.spec.ts` runs two performance checks, and they are gated
+differently on purpose:
+
+| Check | Measures | CI behaviour |
+|---|---|---|
+| Marketplace load test | Wall-clock timings of a scripted scroll | **Warn only** — too noisy on shared runners to block a merge |
+| Web Vitals gate | Browser-reported LCP, CLS, TTFB, FCP for one page load | **Fails the build** |
+
+The gate is **relative, not absolute**. `VITAL_THRESHOLDS` in `lib/webVitals.ts`
+already answers *"is this page fast enough"*, but a PR can double LCP while
+staying comfortably under 2500 ms and nothing would notice until it crosses the
+bar months later. `evaluateVitalsRegression()` instead compares each run against
+the `webVitals` block in [`performance-baseline.json`](performance-baseline.json)
+and fails when a metric grew by more than **10%**.
+
+To keep the false-positive rate survivable on shared CI hardware, a metric must
+breach **both** a proportional and an absolute floor (`REGRESSION_MIN_DELTA`).
+A TTFB moving 8 ms → 9 ms is +12.5% but is indistinguishable from runner noise,
+so it does not fail. Metrics absent from either the run or the baseline are
+skipped rather than failed — but a run where *nothing* could be compared fails
+too, since that means the collector broke rather than that everything passed.
+
+#### Updating the baseline
+
+When a change makes a metric legitimately slower — a deliberate trade-off, a new
+above-the-fold feature — update the baseline rather than loosening the threshold:
+
+```bash
+UPDATE_VITALS_BASELINE=true npx playwright test e2e/performance
+```
+
+Then commit the regenerated `performance-baseline.json` **in the same PR**, and
+say in the description why the regression is acceptable.
+
+> **Never** update the baseline on `main` to turn a red build green. That
+> silently ratchets the budget upward and defeats the point of the gate.
+
+The same spec also POSTs its measurements to `/api/vitals`, so the ingest
+endpoint gets synthetic traffic on every CI run and a broken handler surfaces in
+CI instead of silently dropping real user metrics in production.
+
 ## Appendix / Glossary
 
 - **Soroban:** Stellar's smart contract platform.
