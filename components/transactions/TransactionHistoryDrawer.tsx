@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTransactionDetails } from "@/lib/stellar/client";
@@ -365,6 +366,14 @@ export function TransactionHistoryDrawer({
   const clearHistory = useTransactionHistoryStore((s) => s.clearHistory);
   const [selectedTx, setSelectedTx] = useState<TransactionRecord | null>(null);
 
+  // The drawer declares aria-modal="true" but is a hand-rolled surface, not a
+  // Radix Dialog, so it gets no focus management for free. Without this, Tab
+  // walks straight out of the drawer into the page behind it — a WCAG 2.1.2 /
+  // 2.4.3 failure that axe flags on the transactions route.
+  const drawerRef = useFocusTrap<HTMLDivElement>(open, {
+    onEscape: () => onOpenChange(false),
+  });
+
   const handleExport = () => {
     if (transactions.length === 0) return;
 
@@ -423,11 +432,15 @@ export function TransactionHistoryDrawer({
             exit={{ opacity: 0 }}
             onClick={() => onOpenChange(false)}
             className="fixed inset-0 z-40 bg-black/20"
+            // Decorative click-catcher: the drawer's own close button is the
+            // accessible way out, so keep this out of the a11y tree entirely.
+            aria-hidden="true"
           />
 
           {/* Drawer */}
           <motion.div
             key="drawer"
+            ref={drawerRef}
             initial={{ opacity: 0, x: 384 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 384 }}
