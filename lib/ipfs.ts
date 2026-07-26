@@ -542,14 +542,20 @@ export async function fetchIpfsJsonWithFallback<T = unknown>(
  * @param input         - Invoice metadata input (without metadata_version)
  * @param walletAddress - Uploader's Stellar wallet address (for rate limiting)
  * @param onProgress    - Optional progress callback (0–100)
- * @returns Object containing the metadata CID and image CID
+ * @returns Object containing the metadata CID, the full-size SVG image CID, and
+ *          the rasterised marketplace thumbnail CID when one could be generated
+ *          (`undefined` on the server or if rasterisation failed).
  * @throws {Error} if schema validation fails or any upload step fails
  */
 export async function uploadValidatedInvoiceMetadata(
   input: InvoiceMetadataV1Input,
   walletAddress: string,
   onProgress?: (percent: number) => void
-): Promise<{ metadataCid: string; imageCid: string }> {
+): Promise<{
+  metadataCid: string;
+  imageCid: string;
+  thumbnailCid: string | undefined;
+}> {
   // Step 1: Pre-validate input (without image — we'll add it after upload)
   const preCheck = validateInvoiceMetadata({
     metadata_version: METADATA_VERSION,
@@ -587,10 +593,38 @@ export async function uploadValidatedInvoiceMetadata(
 
   onProgress?.(55);
 
+  // Step 3b: Rasterise a marketplace thumbnail from the same SVG (Issue #438).
+  //
+  // The SVG stays pinned as the full-resolution asset, but the marketplace card
+  // points at this PNG instead: SVG is opaque to next/image, so serving it to
+  // the grid means no AVIF/WebP negotiation, no responsive resizing, and vector
+  // text rasterised on the main thread for every visible card.
+  //
+  // Best-effort by design — rasterisation needs a canvas, so it is a no-op on
+  // the server and can fail on a malformed SVG. Either way the upload proceeds
+  // and `image` falls back to the SVG CID, which is exactly the old behaviour.
+  let thumbnailCid: string | undefined;
+  const thumbnailBlob = await rasterizeSvgToThumbnail(svgString);
+  if (thumbnailBlob) {
+    try {
+      const thumbnailFile = new File(
+        [thumbnailBlob],
+        `invoice-thumbnail-${input.invoice_number}.png`,
+        { type: "image/png" }
+      );
+      thumbnailCid = await uploadInvoicePDF(thumbnailFile, walletAddress);
+    } catch {
+      // Pinning the thumbnail is not worth failing a mint over.
+      thumbnailCid = undefined;
+    }
+  }
+
+  onProgress?.(58);
+
   // Step 4: Build final validated metadata with real image CID
   const finalMetadata = buildInvoiceMetadata({
     ...input,
-    image: `ipfs://${imageCid}`,
+    image: `ipfs://${thumbnailCid ?? imageCid}`,
   });
 
   onProgress?.(60);
@@ -621,7 +655,7 @@ export async function uploadValidatedInvoiceMetadata(
   validateCid(metadataCid);
   onProgress?.(100);
 
-  return { metadataCid, imageCid };
+  return { metadataCid, imageCid, thumbnailCid };
 }
 
 /**
