@@ -58,6 +58,19 @@ import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 
+const STATUS_FILTER_OPTIONS: Array<{ value: InvoiceStatus | "all"; label: string }> = [
+  { value: "all", label: "All statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "pending_mint", label: "Pending mint" },
+  { value: "listed", label: "Listed" },
+  { value: "partially_funded", label: "Partially funded" },
+  { value: "fully_funded", label: "Fully funded" },
+  { value: "active", label: "Active" },
+  { value: "repaid", label: "Repaid" },
+  { value: "defaulted", label: "Defaulted" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
 // ─── Skeleton for stats grid while data loads ─────────────────────────────────
 
 function StatsGridSkeleton() {
@@ -151,14 +164,23 @@ export default function SMEDashboardPage() {
     errors: Array<{ id: string; error: string }>;
   } | null>(null);
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "all">("all");
 
-  const myInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
+  const allMyInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
     (inv: Invoice) => inv.ownerAddress === address
   );
 
+  const myInvoices: Invoice[] =
+    statusFilter === "all"
+      ? allMyInvoices
+      : allMyInvoices.filter((inv) => inv.status === statusFilter);
+
   useMaturityReminder(
-    myInvoices.filter((invoice) => ["listed", "partially_funded", "fully_funded"].includes(invoice.status))
+    allMyInvoices.filter((invoice) => ["listed", "partially_funded", "fully_funded"].includes(invoice.status))
   );
+
+  // Must run before the early return below so hook order stays stable across renders.
+  const { executeProtectedAction } = useVerifiedAction();
 
   if (!isConnected) {
     return (
@@ -172,8 +194,6 @@ export default function SMEDashboardPage() {
       </div>
     );
   }
-
-  const { executeProtectedAction } = useVerifiedAction();
 
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
@@ -263,7 +283,7 @@ export default function SMEDashboardPage() {
     if (!address || selectedIds.length === 0) return;
 
     // Only Active-status invoices may be batch-cancelled per spec constraint
-    const eligible = myInvoices.filter(
+    const eligible = allMyInvoices.filter(
       (inv) =>
         selectedIds.includes(inv.id) &&
         inv.status === "active"
@@ -285,7 +305,7 @@ export default function SMEDashboardPage() {
     if (!address || selectedIds.length === 0) return;
     setCancelConfirmOpen(false);
 
-    const invoicesToCancel = myInvoices.filter(
+    const invoicesToCancel = allMyInvoices.filter(
       (inv) =>
         selectedIds.includes(inv.id) &&
         inv.status === "active"
@@ -326,7 +346,7 @@ export default function SMEDashboardPage() {
   };
 
   const handleBatchExport = () => {
-    const selectedInvoices = myInvoices.filter((inv) => selectedIds.includes(inv.id));
+    const selectedInvoices = allMyInvoices.filter((inv) => selectedIds.includes(inv.id));
     if (selectedInvoices.length === 0) return;
 
     const headers = [
@@ -386,8 +406,29 @@ export default function SMEDashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle>My Invoices</CardTitle>
+              <div className="flex items-center gap-2">
+                <label htmlFor="sme-status-filter" className="text-xs text-muted-foreground">
+                  Status
+                </label>
+                <select
+                  id="sme-status-filter"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as InvoiceStatus | "all");
+                    // Drop selections that the new filter may hide.
+                    setSelectedIds([]);
+                  }}
+                  className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {STATUS_FILTER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </CardHeader>
             <CardContent className="p-4 sm:p-6">
           <DataTable
@@ -497,18 +538,26 @@ export default function SMEDashboardPage() {
               </Button>
             }
             isLoading={invoicesQuery.isLoading}
-            emptyState={{
-              title: "No invoices yet",
-              message: "Create your first invoice to start raising liquidity.",
-              illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
-            }}
+            emptyState={
+              statusFilter === "all"
+                ? {
+                    title: "No invoices yet",
+                    message: "Create your first invoice to start raising liquidity.",
+                    illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
+                  }
+                : {
+                    title: "No matching invoices",
+                    message: "No invoices have this status. Choose “All statuses” to see everything.",
+                    illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
+                  }
+            }
           />
         </CardContent>
           </Card>
         </div>
 
         <div className="space-y-6">
-          {myInvoices.some((i) => i.status === "fully_funded") && (
+          {allMyInvoices.some((i) => i.status === "fully_funded") && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -569,7 +618,7 @@ export default function SMEDashboardPage() {
       {/* Cancel confirmation dialog — shows count of invoices to be cancelled */}
       {(() => {
         const eligibleCount = selectedIds.filter((id) =>
-          myInvoices.find((inv) => inv.id === id && inv.status === "active")
+          allMyInvoices.find((inv) => inv.id === id && inv.status === "active")
         ).length;
         return (
           <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Keyboard, X } from "lucide-react";
+import { Keyboard, Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SHORTCUT_DEFINITIONS } from "@/hooks/useKeyboardShortcuts";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,26 @@ function groupShortcuts() {
 
 const GROUPED = groupShortcuts();
 
+function detectMac() {
+  if (typeof navigator === "undefined") return false;
+  return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+}
+
+/**
+ * `"⌘K / Ctrl+K"` renders as `⌘K` on Apple platforms and `Ctrl+K` everywhere else.
+ *
+ * Only labels shaped as an Apple/non-Apple pair are split — labels that merely contain a slash,
+ * such as `"← → / ↑ ↓"`, are left alone.
+ */
+export function platformLabel(label: string, isMac: boolean): string {
+  const variants = label.split("/").map((part) => part.trim());
+  if (variants.length !== 2) return label;
+  const [apple, other] = variants;
+  const isPlatformPair = /[⌘⌥⌃⇧]/.test(apple) && /ctrl|alt|win/i.test(other);
+  if (!isPlatformPair) return label;
+  return isMac ? apple : other;
+}
+
 function KbdBadge({ children }: { children: React.ReactNode }) {
   return (
     <kbd className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] font-medium text-foreground shadow-sm">
@@ -36,6 +56,31 @@ function KbdBadge({ children }: { children: React.ReactNode }) {
 export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModalProps) {
   const t = useTranslations("shortcuts");
   const panelRef = useRef<HTMLDivElement>(null);
+  const [query, setQuery] = useState("");
+  // Resolved after mount so server and client markup match.
+  const [isMac, setIsMac] = useState(false);
+
+  useEffect(() => setIsMac(detectMac()), []);
+
+  // Start each visit with the full list.
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  const groups = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return CATEGORIES.map((category) => {
+      const items = (GROUPED[category] ?? [])
+        .map((item) => ({ ...item, label: platformLabel(item.label, isMac) }))
+        .filter(
+          (item) =>
+            !needle ||
+            item.description.toLowerCase().includes(needle) ||
+            item.label.toLowerCase().includes(needle),
+        );
+      return { category, items };
+    }).filter((group) => group.items.length > 0);
+  }, [query, isMac]);
 
   useEffect(() => {
     if (!open) return;
@@ -104,35 +149,51 @@ export function ShortcutReferenceModal({ open, onClose }: ShortcutReferenceModal
               </button>
             </div>
 
-            <div className="space-y-5">
-              {CATEGORIES.map((category) => {
-                const items = GROUPED[category];
-                if (!items?.length) return null;
-                return (
-                  <section key={category} aria-labelledby={`shortcut-cat-${category}`}>
-                    <h3
-                      id={`shortcut-cat-${category}`}
-                      className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground"
-                    >
-                      {category}
-                    </h3>
-                    <div className="rounded-xl border border-border overflow-hidden">
-                      {items.map((item, idx) => (
-                        <div
-                          key={item.key}
-                          className={cn(
-                            "flex items-center justify-between px-4 py-2.5 text-sm",
-                            idx !== items.length - 1 && "border-b border-border",
-                          )}
-                        >
-                          <span className="text-foreground">{item.description}</span>
-                          <KbdBadge>{item.label}</KbdBadge>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                );
-              })}
+            <div className="relative mb-5">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search shortcuts"
+                aria-label="Search shortcuts"
+                className="w-full rounded-xl border border-border bg-muted/40 py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            <div className="space-y-5" aria-live="polite">
+              {groups.length === 0 && (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No shortcuts match &ldquo;{query.trim()}&rdquo;.
+                </p>
+              )}
+              {groups.map(({ category, items }) => (
+                <section key={category} aria-labelledby={`shortcut-cat-${category}`}>
+                  <h3
+                    id={`shortcut-cat-${category}`}
+                    className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground"
+                  >
+                    {category}
+                  </h3>
+                  <div className="rounded-xl border border-border overflow-hidden">
+                    {items.map((item, idx) => (
+                      <div
+                        key={item.key}
+                        className={cn(
+                          "flex items-center justify-between px-4 py-2.5 text-sm",
+                          idx !== items.length - 1 && "border-b border-border",
+                        )}
+                      >
+                        <span className="text-foreground">{item.description}</span>
+                        <KbdBadge>{item.label}</KbdBadge>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
 
             <p className="mt-5 text-center text-xs text-muted-foreground">
