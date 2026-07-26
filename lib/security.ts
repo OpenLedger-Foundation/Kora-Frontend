@@ -3,6 +3,7 @@
  * and Stellar wallet-based upload request signing (Issue #275).
  */
 import { isValidCID } from "./ipfs";
+import { isWalletVerified } from "./verifiedSessions";
 
 // ─── Upload Request Signing (#275) ────────────────────────────────────────────
 
@@ -109,6 +110,13 @@ export function verifyUploadToken(
 
     if (!keypair.verify(msgBuffer, sigBuffer)) {
       return { ok: false, error: "Invalid signature" };
+    }
+
+    // Bind to the challenge flow: the signature alone proves the caller
+    // holds the key, but pinning must only be authorized for a wallet that
+    // has also completed /api/auth/challenge -> /api/auth/verify.
+    if (!isWalletVerified(walletAddress)) {
+      return { ok: false, error: "Wallet has not completed challenge verification" };
     }
 
     return { ok: true, walletAddress };
@@ -270,6 +278,22 @@ export function safeStellarAccountUrl(address: string | undefined | null): strin
   return `https://stellar.expert/explorer/${network}/account/${address}`;
 }
 
+// Fields that are rendered as href/src attributes and therefore must be
+// scheme-validated in addition to HTML-tag stripping (XSS audit fix).
+const URL_LIKE_KEYS = new Set(["image", "documentUrl"]);
+
+/**
+ * Rejects javascript:/data:text/html/vbscript: style payloads that could
+ * execute when a sanitized field is later used as an href/src attribute.
+ */
+function isSafeUrlValue(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed.startsWith("javascript:")) return false;
+  if (trimmed.startsWith("vbscript:")) return false;
+  if (trimmed.startsWith("data:") && !trimmed.startsWith("data:image/")) return false;
+  return true;
+}
+
 /**
  * Sanitizes untrusted IPFS metadata to prevent prototype pollution and XSS.
  * Only allows known keys with expected types; strips everything else.
@@ -283,7 +307,10 @@ export function sanitizeIpfsMetadata(raw: unknown): Record<string, unknown> {
   for (const key of ALLOWED_STRING_KEYS) {
     if (key in obj && typeof obj[key] === "string") {
       // Strip HTML tags from string values
-      result[key] = obj[key].replace(/<[^>]*>/g, "").slice(0, 2048);
+      const cleaned = obj[key].replace(/<[^>]*>/g, "").slice(0, 2048);
+      // Reject dangerous URL schemes on fields that are rendered as href/src
+      if (URL_LIKE_KEYS.has(key) && !isSafeUrlValue(cleaned)) continue;
+      result[key] = cleaned;
     }
   }
 

@@ -110,9 +110,12 @@ const withPWA = require("next-pwa")({
 });
 
 // ─── Content Security Policy ──────────────────────────────────────────────────
-const scriptSrc = ["'self'", "'unsafe-inline'"];
+// script-src is nonce-based in production (see middleware.ts, which injects a
+// per-request 'nonce-<value>' and overrides this header). 'unsafe-inline' is
+// kept only as a dev-mode fallback since Next.js dev tooling relies on it.
+const scriptSrc = ["'self'"];
 if (process.env.NODE_ENV === "development") {
-  scriptSrc.push("'unsafe-eval'");
+  scriptSrc.push("'unsafe-inline'", "'unsafe-eval'");
 }
 
 const CSP_DIRECTIVES = {
@@ -140,6 +143,9 @@ const CSP_DIRECTIVES = {
     "'self'",
     "https://soroban-testnet.stellar.org",
     "https://horizon-testnet.stellar.org",
+    // Mainnet RPC/Horizon — previously missing, which broke connect-src for
+    // any mainnet-configured deployment.
+    "https://soroban-rpc.mainnet.stellar.org",
     "https://horizon.stellar.org",
     "https://api.pinata.cloud",
     "https://gateway.pinata.cloud",
