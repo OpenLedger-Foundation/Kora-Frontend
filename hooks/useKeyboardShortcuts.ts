@@ -58,6 +58,16 @@ export const SHORTCUT_DEFINITIONS: Record<string, ShortcutDefinition> = {
     description: "Open shortcut reference",
     category: "Navigation",
   },
+  "arrows-filters": {
+    label: "← → / ↑ ↓",
+    description: "Move between options within a filter group",
+    category: "Marketplace",
+  },
+  "esc-filters": {
+    label: "Esc",
+    description: "Close the filter panel",
+    category: "Marketplace",
+  },
   ...(process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true"
     ? {
         "ctrl+shift+v": {
