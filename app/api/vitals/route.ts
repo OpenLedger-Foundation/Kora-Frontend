@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 /**
  * POST /api/vitals
@@ -27,6 +28,9 @@ interface VitalsBody {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const csrfError = verifyCsrf(request);
+  if (csrfError) return csrfError;
+
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const body: VitalsBody = await request.json();

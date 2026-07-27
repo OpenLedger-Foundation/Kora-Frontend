@@ -2,6 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import { useWallet } from "./useWallet";
+import { useVerification } from "@/components/wallet/VerificationProvider";
 
 export interface VerificationPromptState {
   isOpen: boolean;
@@ -18,6 +19,14 @@ export function useVerifiedAction() {
   const wallet = useWallet();
   const pendingActionRef = useRef<(() => Promise<void>) | null>(null);
 
+  let requireVerificationCtx: ((actionType: string) => Promise<void>) | undefined;
+  try {
+    const ctx = useVerification();
+    requireVerificationCtx = ctx.requireVerification;
+  } catch {
+    // Outside provider context — fallback to manual verifyAndRetry flow
+  }
+
   const executeProtectedAction = useCallback(
     async (
       action: () => Promise<void>,
@@ -29,15 +38,26 @@ export function useVerifiedAction() {
           return { requiresVerification: false, error: "Wallet not connected" };
         }
 
-        // Check if verification is still valid
+        // Store pending action
+        pendingActionRef.current = action;
+
+        // Check if verification is valid
         if (!wallet.checkVerification()) {
-          // Store the pending action and signal that verification is needed
-          pendingActionRef.current = action;
+          if (requireVerificationCtx) {
+            // Trigger prompt via VerificationProvider
+            await requireVerificationCtx(actionType);
+            // After successful verification, execute action
+            await action();
+            pendingActionRef.current = null;
+            return { requiresVerification: false };
+          }
+          // Signal that verification is needed
           return { requiresVerification: true };
         }
 
         // Verification is valid, execute the action
         await action();
+        pendingActionRef.current = null;
         return { requiresVerification: false };
       } catch (error) {
         console.error(`Error during protected action (${actionType}):`, error);
@@ -47,7 +67,7 @@ export function useVerifiedAction() {
         };
       }
     },
-    [wallet]
+    [wallet, requireVerificationCtx]
   );
 
   const verifyAndRetry = useCallback(async (): Promise<boolean> => {

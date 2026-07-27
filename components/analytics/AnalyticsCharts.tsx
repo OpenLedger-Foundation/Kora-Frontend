@@ -56,6 +56,62 @@ function ChartSkeleton({ height = 220 }: { height?: number }) {
   );
 }
 
+// ─── Accessibility (Issue #439) ──────────────────────────────────────────────
+//
+// Recharts renders each chart as an unlabelled <svg>. To a screen reader that
+// is an anonymous graphic: the visible CardTitle sits outside the SVG and is
+// never associated with it, so axe reports the chart as content with no
+// accessible name and a non-sighted user gets nothing at all from it.
+//
+// Each chart is therefore wrapped in a `role="img"` element carrying an
+// aria-label that spells out the underlying numbers. `role="img"` collapses the
+// SVG's internals — hundreds of <path>/<g> nodes that are meaningless read
+// aloud — into a single labelled node, which is the WAI-ARIA recommended
+// pattern for a data graphic with a text alternative.
+
+/** Render a time series as a sentence: title, point count, then every value. */
+function describeSeries(
+  title: string,
+  rows: Array<Record<string, unknown>>,
+  labelKey: string,
+  valueKey: string,
+  format: (value: number) => string,
+): string {
+  if (rows.length === 0) return `${title}. No data available.`;
+  const points = rows
+    .map((row) => `${String(row[labelKey])}: ${format(Number(row[valueKey]))}`)
+    .join("; ");
+  return `${title}. ${rows.length} data points — ${points}.`;
+}
+
+/** Render a proportional breakdown as a sentence. */
+function describeDistribution(
+  title: string,
+  slices: Array<{ name: string; value: number }>,
+): string {
+  if (slices.length === 0) return `${title}. No data available.`;
+  const segments = slices.map((s) => `${s.name}: ${s.value}%`).join("; ");
+  return `${title}. ${slices.length} segments — ${segments}.`;
+}
+
+/**
+ * Wraps a chart in a single labelled node so assistive tech announces the
+ * summary instead of walking the SVG's internals.
+ */
+function ChartFigure({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div role="img" aria-label={label}>
+      {children}
+    </div>
+  );
+}
+
 function EmptyState({ message = "No data available" }: { message?: string }) {
   return (
     <div className="flex h-56 flex-col items-center justify-center gap-2 text-center">
@@ -102,8 +158,21 @@ export default function AnalyticsCharts({
             ) : portfolio.length === 0 ? (
               <EmptyState message="No portfolio data yet" />
             ) : (
+              <ChartFigure
+                label={describeSeries(
+                  "Portfolio growth over time",
+                  portfolio,
+                  "month",
+                  "value",
+                  (v) => `$${v.toLocaleString()}`,
+                )}
+              >
               <ResponsiveContainer width="100%" height={chartHeight}>
-                <AreaChart data={portfolio} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart
+                  data={portfolio}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  accessibilityLayer
+                >
                   <defs>
                     <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
@@ -138,6 +207,7 @@ export default function AnalyticsCharts({
                   />
                 </AreaChart>
               </ResponsiveContainer>
+              </ChartFigure>
             )}
           </CardContent>
         </Card>
@@ -163,8 +233,21 @@ export default function AnalyticsCharts({
             ) : yieldData.length === 0 ? (
               <EmptyState message="No yield data yet" />
             ) : (
+              <ChartFigure
+                label={describeSeries(
+                  "Monthly yield earned",
+                  yieldData,
+                  "month",
+                  "yield",
+                  (v) => `$${v.toLocaleString()}`,
+                )}
+              >
               <ResponsiveContainer width="100%" height={chartHeight}>
-                <BarChart data={yieldData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <BarChart
+                  data={yieldData}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  accessibilityLayer
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="month"
@@ -186,6 +269,7 @@ export default function AnalyticsCharts({
                   <Bar dataKey="yield" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} isAnimationActive={!isLoading} />
                 </BarChart>
               </ResponsiveContainer>
+              </ChartFigure>
             )}
           </CardContent>
         </Card>
@@ -215,6 +299,12 @@ export default function AnalyticsCharts({
               <EmptyState message="No risk data yet" />
             ) : (
               <>
+                <ChartFigure
+                  label={describeDistribution(
+                    "Risk distribution across portfolio",
+                    risk,
+                  )}
+                >
                 <ResponsiveContainer width="100%" height={compact ? 140 : 180}>
                   <PieChart>
                     <Pie
@@ -246,6 +336,9 @@ export default function AnalyticsCharts({
                     />
                   </PieChart>
                 </ResponsiveContainer>
+                </ChartFigure>
+                {/* Keyboard-operable equivalent of the pie segments: the same
+                    drill-down the chart offers via mouse, as real buttons. */}
                 <div className="mt-4 space-y-1.5">
                   {risk.map((d) => (
                     <button
@@ -292,8 +385,21 @@ export default function AnalyticsCharts({
             ) : monthly.length === 0 ? (
               <EmptyState message="No return data yet" />
             ) : (
+              <ChartFigure
+                label={describeSeries(
+                  "Monthly return rate",
+                  monthly,
+                  "month",
+                  "return",
+                  (v) => `${v}%`,
+                )}
+              >
               <ResponsiveContainer width="100%" height={chartHeight}>
-                <LineChart data={monthly} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <LineChart
+                  data={monthly}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                  accessibilityLayer
+                >
                   <defs>
                     <linearGradient id="returnGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
@@ -329,6 +435,7 @@ export default function AnalyticsCharts({
                   />
                 </LineChart>
               </ResponsiveContainer>
+              </ChartFigure>
             )}
           </CardContent>
         </Card>

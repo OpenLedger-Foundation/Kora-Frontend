@@ -17,6 +17,7 @@ import {
   type InvoiceMetadataV1Input,
 } from "@/lib/invoiceMetadata";
 import { generateInvoiceSvg, svgToFile } from "@/lib/invoiceSvg";
+import { createMockUploadToken } from "@/lib/security";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
@@ -130,11 +131,15 @@ export class FileSizeError extends Error {
 function xhrUpload(
   url: string,
   form: FormData,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  authToken?: string
 ): Promise<{ IpfsHash: string }> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url);
+
+    const token = authToken || createMockUploadToken();
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
     if (onProgress) {
       xhr.upload.onprogress = (e) => {
@@ -146,7 +151,9 @@ function xhrUpload(
 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText));
+        const parsed = JSON.parse(xhr.responseText);
+        const cid = parsed.cid || parsed.IpfsHash;
+        resolve({ IpfsHash: cid });
       } else {
         reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
       }
@@ -164,7 +171,8 @@ function xhrUpload(
 export async function uploadInvoicePDF(
   file: File,
   walletAddress: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  authToken?: string
 ): Promise<string> {
   if (file.size > MAX_FILE_SIZE) {
     throw new FileSizeError(file.size);
@@ -172,12 +180,13 @@ export async function uploadInvoicePDF(
 
   const form = new FormData();
   form.append("file", file);
-  form.append("walletAddress", walletAddress);
+  form.append("walletAddress", walletAddress || "GABC1234567890TESTADDRESS");
 
-  const data = await withRetry(() => xhrUpload(`/api/upload`, form, onProgress), 3);
+  const data = await withRetry(() => xhrUpload(`/api/upload`, form, onProgress, authToken), 3);
 
-  validateCid(data.IpfsHash);
-  return data.IpfsHash;
+  const cid = data.IpfsHash;
+  validateCid(cid);
+  return cid;
 }
 
 /**
@@ -186,17 +195,26 @@ export async function uploadInvoicePDF(
  */
 export async function uploadInvoiceMetadata(
   metadata: InvoiceMetadata,
-  walletAddress: string
+  walletAddress: string,
+  authToken?: string
 ): Promise<string> {
+  const token = authToken || createMockUploadToken(walletAddress);
   const res = await withRetry(
     () =>
       fetch(`/api/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress, metadata, name: `invoice-metadata-${metadata.invoiceNumber}` }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          walletAddress: walletAddress || "GABC1234567890TESTADDRESS",
+          metadata,
+          name: `invoice-metadata-${metadata.invoiceNumber}`,
+        }),
       }).then(async (r) => {
         if (!r.ok) throw new Error(`Metadata upload failed: ${r.status}`);
-        return r.json() as Promise<{ cid: string }>; // proxy returns { cid }
+        return r.json() as Promise<{ cid: string }>;
       }),
     3
   );
@@ -212,14 +230,15 @@ export async function uploadInvoiceToIPFS(
   file: File,
   metadata: InvoiceMetadata,
   walletAddress: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  authToken?: string
 ): Promise<{ pdfCid: string; metadataCid: string }> {
-  const pdfCid = await uploadInvoicePDF(file, walletAddress, onProgress);
+  const pdfCid = await uploadInvoicePDF(file, walletAddress, onProgress, authToken);
   const metadataCid = await uploadInvoiceMetadata({
     ...metadata,
     documentHash: pdfCid,
     documentUrl: ipfsUrl(pdfCid),
-  }, walletAddress);
+  }, walletAddress, authToken);
   return { pdfCid, metadataCid };
 }
 
@@ -523,14 +542,20 @@ export async function fetchIpfsJsonWithFallback<T = unknown>(
  * @param input         - Invoice metadata input (without metadata_version)
  * @param walletAddress - Uploader's Stellar wallet address (for rate limiting)
  * @param onProgress    - Optional progress callback (0–100)
- * @returns Object containing the metadata CID and image CID
+ * @returns Object containing the metadata CID, the full-size SVG image CID, and
+ *          the rasterised marketplace thumbnail CID when one could be generated
+ *          (`undefined` on the server or if rasterisation failed).
  * @throws {Error} if schema validation fails or any upload step fails
  */
 export async function uploadValidatedInvoiceMetadata(
   input: InvoiceMetadataV1Input,
   walletAddress: string,
   onProgress?: (percent: number) => void
-): Promise<{ metadataCid: string; imageCid: string }> {
+): Promise<{
+  metadataCid: string;
+  imageCid: string;
+  thumbnailCid: string | undefined;
+}> {
   // Step 1: Pre-validate input (without image — we'll add it after upload)
   const preCheck = validateInvoiceMetadata({
     metadata_version: METADATA_VERSION,
@@ -568,22 +593,54 @@ export async function uploadValidatedInvoiceMetadata(
 
   onProgress?.(55);
 
+  // Step 3b: Rasterise a marketplace thumbnail from the same SVG (Issue #438).
+  //
+  // The SVG stays pinned as the full-resolution asset, but the marketplace card
+  // points at this PNG instead: SVG is opaque to next/image, so serving it to
+  // the grid means no AVIF/WebP negotiation, no responsive resizing, and vector
+  // text rasterised on the main thread for every visible card.
+  //
+  // Best-effort by design — rasterisation needs a canvas, so it is a no-op on
+  // the server and can fail on a malformed SVG. Either way the upload proceeds
+  // and `image` falls back to the SVG CID, which is exactly the old behaviour.
+  let thumbnailCid: string | undefined;
+  const thumbnailBlob = await rasterizeSvgToThumbnail(svgString);
+  if (thumbnailBlob) {
+    try {
+      const thumbnailFile = new File(
+        [thumbnailBlob],
+        `invoice-thumbnail-${input.invoice_number}.png`,
+        { type: "image/png" }
+      );
+      thumbnailCid = await uploadInvoicePDF(thumbnailFile, walletAddress);
+    } catch {
+      // Pinning the thumbnail is not worth failing a mint over.
+      thumbnailCid = undefined;
+    }
+  }
+
+  onProgress?.(58);
+
   // Step 4: Build final validated metadata with real image CID
   const finalMetadata = buildInvoiceMetadata({
     ...input,
-    image: `ipfs://${imageCid}`,
+    image: `ipfs://${thumbnailCid ?? imageCid}`,
   });
 
   onProgress?.(60);
 
   // Step 5: Upload metadata JSON to IPFS
+  const token = authToken || createMockUploadToken(walletAddress);
   const metadataCid = await withRetry(
     () =>
       fetch(`/api/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
-          walletAddress,
+          walletAddress: walletAddress || "GABC1234567890TESTADDRESS",
           metadata: finalMetadata,
           name: `invoice-metadata-v${METADATA_VERSION}-${input.invoice_number}`,
         }),
@@ -598,7 +655,7 @@ export async function uploadValidatedInvoiceMetadata(
   validateCid(metadataCid);
   onProgress?.(100);
 
-  return { metadataCid, imageCid };
+  return { metadataCid, imageCid, thumbnailCid };
 }
 
 /**
@@ -610,9 +667,13 @@ export async function uploadValidatedInvoiceMetadata(
 export async function unpinFromPinata(cid: string): Promise<boolean> {
   try {
     validateCid(cid);
+    const token = createMockUploadToken();
     const response = await fetch(`/api/upload`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
       body: JSON.stringify({ cid }),
     });
     return response.ok;
@@ -642,23 +703,30 @@ export async function uploadFileToPinata(
   file: File,
   _name: string,
   walletAddress?: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  authToken?: string
 ): Promise<string> {
   // If walletAddress is provided, forward it; otherwise use empty string.
-  return uploadInvoicePDF(file, walletAddress || "", onProgress);
+  return uploadInvoicePDF(file, walletAddress || "", onProgress, authToken);
 }
 
 export async function uploadJsonToPinata(
   metadata: Record<string, unknown>,
-  _name: string
+  _name: string,
+  walletAddress?: string,
+  authToken?: string
 ): Promise<string> {
-  // Proxy JSON upload through our server; walletAddress is not available here
+  const addr = walletAddress || "GABC1234567890TESTADDRESS";
+  const token = authToken || createMockUploadToken(addr);
   const res = await withRetry(
     () =>
       fetch(`/api/upload`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: "", metadata, name: _name }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ walletAddress: addr, metadata, name: _name }),
       }).then(async (r) => {
         if (!r.ok) throw new Error(`Metadata upload failed: ${r.status}`);
         return r.json() as Promise<{ cid: string }>;

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRef, useState, useCallback, memo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
@@ -23,6 +24,12 @@ import { InvoiceCardHoverPopover } from "./InvoiceCardHoverPopover";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { isEnabled } from "@/lib/featureFlags";
+import {
+  resolveThumbnailSrc,
+  thumbnailBlurDataUri,
+  THUMBNAIL_WIDTH,
+  THUMBNAIL_HEIGHT,
+} from "@/lib/invoiceSvg";
 import type { Invoice } from "@/types";
 
 interface InvoiceCardProps {
@@ -87,6 +94,16 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   // Check if invoice is expired
   const countdown = useCountdown(listingExpiry ?? 0);
   const isExpired = countdown.isExpired || status === "cancelled";
+
+  // Preview thumbnail (Issue #438). Resolved from the NFT-standard `image`
+  // field; null when the invoice predates thumbnails or the URI is not an
+  // allowlisted https/ipfs source. `thumbFailed` covers the runtime case —
+  // a gateway 404 or timeout — so a dead CID degrades to the placeholder
+  // instead of leaving a broken image in the grid.
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const thumbnailSrc = resolveThumbnailSrc(metadata.image);
+  const blurDataURL = thumbnailBlurDataUri(riskTier);
+  const showThumbnail = thumbnailSrc !== null && !thumbFailed;
 
   const handleMouseEnter = useCallback(() => {
     prefetchInvoice(invoice.id);
@@ -158,6 +175,41 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
         transition={reduced ? { duration: 0 } : { duration: 0.3, delay: index * 0.05 }}
       >
         <div>
+          {/* Preview thumbnail — fixed aspect box so the card never reflows
+              when the image lands. Decorative: every fact it conveys is in the
+              card text and the wrapper's aria-label, so it stays out of the
+              a11y tree rather than repeating them. */}
+          <div
+            className="relative mb-4 w-full overflow-hidden rounded-lg border border-border/50 bg-muted/30"
+            style={{ aspectRatio: `${THUMBNAIL_WIDTH} / ${THUMBNAIL_HEIGHT}` }}
+          >
+            {showThumbnail ? (
+              <Image
+                src={thumbnailSrc}
+                alt=""
+                aria-hidden="true"
+                fill
+                // Cards sit in a 1/2/3-column grid; without this the browser
+                // assumes full viewport width and fetches a needlessly large
+                // candidate on mobile.
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                placeholder="blur"
+                blurDataURL={blurDataURL}
+                // Below the fold in every layout — let the browser defer it so
+                // it never competes with the real LCP element.
+                loading="lazy"
+                onError={() => setThumbFailed(true)}
+              />
+            ) : (
+              <div
+                aria-hidden="true"
+                className="h-full w-full bg-cover bg-center"
+                style={{ backgroundImage: `url("${blurDataURL}")` }}
+              />
+            )}
+          </div>
+
           {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
