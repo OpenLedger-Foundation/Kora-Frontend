@@ -26,27 +26,27 @@ export function createTestQueryClient() {
  * Mock next/navigation for client components
  */
 export function setupNextNavigationMocks() {
-  const useRouter = vi.fn(() => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }));
-
-  const useSearchParams = vi.fn(() => new URLSearchParams());
-  const usePathname = vi.fn(() => "/");
-  const useParams = vi.fn(() => ({}));
-
   vi.mock("next/navigation", () => ({
-    useRouter,
-    useSearchParams,
-    usePathname,
-    useParams,
+    useRouter: vi.fn(() => ({
+      push: vi.fn(),
+      replace: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+      refresh: vi.fn(),
+    })),
+    useSearchParams: vi.fn(() => new URLSearchParams()),
+    usePathname: vi.fn(() => "/"),
+    useParams: vi.fn(() => ({})),
   }));
 
-  return { useRouter, useSearchParams, usePathname, useParams };
+  // Return the mocked module so callers can spy on individual functions
+  return {
+    useRouter: vi.fn(),
+    useSearchParams: vi.fn(),
+    usePathname: vi.fn(),
+    useParams: vi.fn(),
+  };
 }
 
 /**
