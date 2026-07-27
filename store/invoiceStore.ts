@@ -164,7 +164,11 @@ export function useFilteredInvoices(): Invoice[] {
 
 // ─── URL serialization ────────────────────────────────────────────────────────
 
-export function toQueryParams(filters: FilterState, sort: SortState): URLSearchParams {
+export function toQueryParams(
+  filters: FilterState,
+  sort: SortState,
+  searchQuery = ""
+): URLSearchParams {
   const p = new URLSearchParams();
   if (filters.categories.length) p.set("categories", filters.categories.join(","));
   if (filters.jurisdictions.length) p.set("jurisdictions", filters.jurisdictions.join(","));
@@ -175,21 +179,34 @@ export function toQueryParams(filters: FilterState, sort: SortState): URLSearchP
   if (filters.showExpired) p.set("showExpired", "1");
   if (sort.sortBy !== "apr") p.set("sortBy", sort.sortBy);
   if (sort.sortDir !== "desc") p.set("sortDir", sort.sortDir);
+  if (searchQuery.trim()) p.set("q", searchQuery.trim());
   return p;
+}
+
+/** Serialized filter state as a shareable `?a=b` string — empty when nothing is active. */
+export function toQueryString(
+  filters: FilterState,
+  sort: SortState,
+  searchQuery = ""
+): string {
+  return toQueryParams(filters, sort, searchQuery).toString();
 }
 
 export function fromQueryParams(params: URLSearchParams): {
   filters: FilterState;
   sort: SortState;
+  searchQuery: string;
 } {
+  const aprMin = Number(params.get("aprMin") ?? 0);
+  const aprMax = Number(params.get("aprMax") ?? 50);
   return {
     filters: {
       categories: params.get("categories")?.split(",").filter(Boolean) ?? [],
       jurisdictions: params.get("jurisdictions")?.split(",").filter(Boolean) ?? [],
       riskTiers: params.get("riskTiers")?.split(",").filter(Boolean) ?? [],
       aprRange: [
-        Number(params.get("aprMin") ?? 0),
-        Number(params.get("aprMax") ?? 50),
+        Number.isFinite(aprMin) ? aprMin : 0,
+        Number.isFinite(aprMax) ? aprMax : 50,
       ],
       activeOnly: params.get("activeOnly") === "1",
       showExpired: params.get("showExpired") === "1",
@@ -198,6 +215,7 @@ export function fromQueryParams(params: URLSearchParams): {
       sortBy: (params.get("sortBy") as SortState["sortBy"]) ?? "apr",
       sortDir: (params.get("sortDir") as SortState["sortDir"]) ?? "desc",
     },
+    searchQuery: params.get("q") ?? "",
   };
 }
 

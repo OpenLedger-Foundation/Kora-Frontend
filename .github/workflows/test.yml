@@ -99,8 +99,28 @@ jobs:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
 
       - name: Run Playwright performance baseline test
+        # Warn-only: these are wall-clock timings of a scripted scroll, which is
+        # too noisy on shared runners to gate a merge on.
         continue-on-error: true
-        run: npx playwright test e2e/performance.spec.ts --project=chromium
+        run: >-
+          npx playwright test e2e/performance.spec.ts --project=chromium
+          --grep-invert "web vitals have not regressed"
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Web Vitals regression gate
+        # Deliberately NOT continue-on-error — this is the gate (Issue #437).
+        # Core Web Vitals are browser-reported measurements of a single page
+        # load, and evaluateVitalsRegression() requires both a >10% and an
+        # absolute-delta breach, so this is stable enough to block a merge.
+        #
+        # If a regression here is intentional, regenerate the baseline with
+        #   UPDATE_VITALS_BASELINE=true npx playwright test e2e/performance
+        # and commit performance-baseline.json in the same PR.
+        run: >-
+          npx playwright test e2e/performance.spec.ts --project=chromium
+          --grep "web vitals have not regressed"
         env:
           CI: true
           PLAYWRIGHT_BASE_URL: http://localhost:3000

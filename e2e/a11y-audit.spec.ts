@@ -99,3 +99,87 @@ test.describe("Accessibility audit — investor dashboard (/dashboard/investor)"
     await auditPage(page);
   });
 });
+
+// ─── Analytics & transactions (Issue #439) ───────────────────────────────────
+//
+// Both routes were previously excluded from this audit. They are covered here
+// because they carry the two patterns most likely to regress: Recharts SVGs
+// (unlabelled graphics) and a hand-rolled aria-modal drawer (no focus
+// management unless it is implemented explicitly).
+
+test.describe("Accessibility audit — analytics (/analytics)", () => {
+  test("no critical or serious axe violations", async ({ page }) => {
+    await page.goto("/analytics");
+    await page.waitForLoadState("networkidle");
+    await auditPage(page);
+  });
+
+  test("every chart exposes an accessible name", async ({ page }) => {
+    await page.goto("/analytics");
+    await page.waitForLoadState("networkidle");
+
+    // Charts render inside role="img" wrappers whose aria-label summarises the
+    // underlying data — see ChartFigure in components/analytics/AnalyticsCharts.
+    const charts = page.locator('[role="img"]');
+    const count = await charts.count();
+    expect(count, "expected at least one labelled chart").toBeGreaterThan(0);
+
+    for (let i = 0; i < count; i++) {
+      const label = await charts.nth(i).getAttribute("aria-label");
+      expect(label?.trim(), `chart ${i} is missing an accessible name`).toBeTruthy();
+    }
+  });
+});
+
+test.describe("Accessibility audit — transactions (/transactions)", () => {
+  test("no critical or serious axe violations", async ({ page }) => {
+    await page.goto("/transactions");
+    await page.waitForLoadState("networkidle");
+    await auditPage(page);
+  });
+});
+
+test.describe("Accessibility audit — transaction history drawer", () => {
+  /** Open the drawer from the navbar trigger. */
+  async function openDrawer(page: Parameters<typeof injectAxe>[0]) {
+    await page.goto("/transactions");
+    await page.waitForLoadState("networkidle");
+
+    const trigger = page.getByRole("button", { name: /transaction history/i }).first();
+    await trigger.click();
+
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor({ state: "visible" });
+    return dialog;
+  }
+
+  test("no critical or serious axe violations while open", async ({ page }) => {
+    await openDrawer(page);
+    await auditPage(page);
+  });
+
+  test("traps focus and restores it on close", async ({ page }) => {
+    const dialog = await openDrawer(page);
+
+    // Focus must land inside the drawer on open, not on the document body.
+    const focusedInDialog = await dialog.evaluate((el) =>
+      el.contains(document.activeElement),
+    );
+    expect(focusedInDialog, "focus should move into the drawer on open").toBe(true);
+
+    // Tabbing through the whole drawer must never leave it.
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press("Tab");
+      const stillInside = await dialog.evaluate((el) =>
+        el.contains(document.activeElement),
+      );
+      expect(stillInside, `focus escaped the drawer after ${i + 1} Tab press(es)`).toBe(
+        true,
+      );
+    }
+
+    // Escape is the keyboard exit from a trapped surface.
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "hidden" });
+  });
+});

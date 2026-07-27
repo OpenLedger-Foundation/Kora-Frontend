@@ -163,6 +163,43 @@ We use **two separate state systems** for different concerns:
 - Automatic background refetching, caching, deduplication
 - Cache keys: `["invoices", filters, sort]`, `["invoice", id]`
 
+#### Query tuning per network mode
+
+Stale times and refetch intervals are **not fixed** — they are resolved per
+network mode from the `QUERY_TUNING` table in [`lib/featureFlags.ts`](lib/featureFlags.ts)
+via `getQueryTuning()`. The two modes have fundamentally different freshness
+characteristics:
+
+| | `live` | `mock` |
+|---|---|---|
+| Data source | Soroban RPC / indexer | static `MOCK_INVOICES` fixture |
+| Freshness driver | **contract events** (`useContractEvents`) | nothing — data is immutable |
+| `staleTime` | 5 s | 5 min |
+| `gcTime` | 5 min | 5 min |
+| Refetch timers | 2 min (backstop only) | disabled (`false`) |
+
+**Live mode is event-driven.** `useContractEvents` streams `invoice_funded` /
+`invoice_repaid` / `invoice_cancelled` and invalidates the affected query keys
+as they arrive, so timers are a safety net for a degraded stream rather than the
+primary freshness mechanism. The short 5 s `staleTime` exists so that an
+event-invalidated query refetches promptly instead of serving a stale entry.
+
+Pushing the timers out to 2 min is what removes the duplicate requests: the
+previous fixed 15 s / 30 s polls raced the event stream, refetching keys the
+stream had already invalidated seconds earlier.
+
+**Mock mode disables polling entirely.** The fixture cannot change, so every
+refetch returned a byte-identical result. Mutations still invalidate explicitly,
+so optimistic updates and the invoice wizard are unaffected.
+
+All timers are additionally gated on tab visibility (`whenVisible()` in
+`hooks/useInvoices.ts`); a hidden tab refreshes on `visibilitychange` instead.
+
+**Changing the timings:** edit `QUERY_TUNING` in `lib/featureFlags.ts` — that
+table is the single source of truth. `getNetworkMode()` there also backs
+`getInvoiceDataSource()` in `lib/queryKeys.ts`, so cache-key namespacing and
+query tuning can never disagree about which mode is active.
+
 ### Client State — Zustand
 
 - **walletStore**: Persisted to `localStorage` via `zustand/middleware/persist`. Survives page refresh.
@@ -398,6 +435,7 @@ Most interactive pages are client-rendered because they require wallet state. In
 4. **IPFS content addressing.** Invoice documents are content-addressed — the CID stored on-chain is a cryptographic hash of the content, making tampering detectable.
 5. **Contract simulation.** Every transaction is simulated before signing. Simulation errors surface to the user before they're asked to sign.
 6. **No custodial funds.** The frontend never holds or transfers user funds directly. All value flows through Soroban smart contracts.
+7. **PWA Service Worker Cache Security.** Wallet-gated and sensitive routes (`/dashboard/*`, `/transactions/*`, `/invoice/create/*`, `/api/*`) are explicitly excluded from Service Worker caching (`NetworkOnly` rule in `next.config.js`) and serve HTTP `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0` headers. Service worker update listeners guard against reloads during active wallet cryptographic signing sessions.
 
 ---
 
@@ -415,6 +453,49 @@ Most interactive pages are client-rendered because they require wallet state. In
 - **Build:** The project builds with `next build` and is deployed as a static/SSR hybrid depending on the hosting platform.
 - **CI:** CI should run `pnpm install --frozen-lockfile`, `pnpm lint`, and `pnpm test` (if tests exist) before publishing artifacts.
 - **Secrets:** Use the hosting provider's secret store for server-only variables (e.g., `PINATA_JWT`, private indexer keys). Do not expose them as `NEXT_PUBLIC_*`.
+
+### Web Vitals regression gate
+
+`e2e/performance.spec.ts` runs two performance checks, and they are gated
+differently on purpose:
+
+| Check | Measures | CI behaviour |
+|---|---|---|
+| Marketplace load test | Wall-clock timings of a scripted scroll | **Warn only** — too noisy on shared runners to block a merge |
+| Web Vitals gate | Browser-reported LCP, CLS, TTFB, FCP for one page load | **Fails the build** |
+
+The gate is **relative, not absolute**. `VITAL_THRESHOLDS` in `lib/webVitals.ts`
+already answers *"is this page fast enough"*, but a PR can double LCP while
+staying comfortably under 2500 ms and nothing would notice until it crosses the
+bar months later. `evaluateVitalsRegression()` instead compares each run against
+the `webVitals` block in [`performance-baseline.json`](performance-baseline.json)
+and fails when a metric grew by more than **10%**.
+
+To keep the false-positive rate survivable on shared CI hardware, a metric must
+breach **both** a proportional and an absolute floor (`REGRESSION_MIN_DELTA`).
+A TTFB moving 8 ms → 9 ms is +12.5% but is indistinguishable from runner noise,
+so it does not fail. Metrics absent from either the run or the baseline are
+skipped rather than failed — but a run where *nothing* could be compared fails
+too, since that means the collector broke rather than that everything passed.
+
+#### Updating the baseline
+
+When a change makes a metric legitimately slower — a deliberate trade-off, a new
+above-the-fold feature — update the baseline rather than loosening the threshold:
+
+```bash
+UPDATE_VITALS_BASELINE=true npx playwright test e2e/performance
+```
+
+Then commit the regenerated `performance-baseline.json` **in the same PR**, and
+say in the description why the regression is acceptable.
+
+> **Never** update the baseline on `main` to turn a red build green. That
+> silently ratchets the budget upward and defeats the point of the gate.
+
+The same spec also POSTs its measurements to `/api/vitals`, so the ingest
+endpoint gets synthetic traffic on every CI run and a broken handler surfaces in
+CI instead of silently dropping real user metrics in production.
 
 ## Appendix / Glossary
 

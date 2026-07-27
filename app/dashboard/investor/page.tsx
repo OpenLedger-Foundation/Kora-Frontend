@@ -4,18 +4,20 @@ import { useCallback, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Store, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle } from "lucide-react";
+import { Store, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle, Tag } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
-import { useUIStore, useInvoiceStore, DEFAULT_FILTERS } from "@/store";
+import { useUIStore, useInvoiceStore, usePositionListingStore, DEFAULT_FILTERS } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { prepareClaimPosition } from "@/services/invoiceService";
+import { ListPositionDialog } from "@/components/invoice/ListPositionDialog";
 import type { PortfolioDonutProps, DonutFilter } from "@/components/dashboard/PortfolioDonut";
 import {
   marketplacePathForAllocation,
@@ -29,6 +31,7 @@ import {
   cn,
 } from "@/lib/utils";
 import type { InvestorPosition, InvoicePosition } from "@/types/invoice";
+import { computeImpliedDiscount } from "@/types/invoice";
 import type { ColumnDef, DataTableProps } from "@/types/table";
 import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
 
@@ -79,6 +82,8 @@ export default function InvestorDashboardPage() {
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
   const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
+  const [listingTarget, setListingTarget] = useState<InvestorPosition | null>(null);
+  const { listings, listPosition, unlistPosition } = usePositionListingStore();
 
   const positionsData: InvestorPosition[] = useMemo(
     () => positionsQuery.data ?? [],
@@ -151,6 +156,19 @@ export default function InvestorDashboardPage() {
       onSuccess: () => positionsQuery.refetch(),
     });
   };
+
+  const handleListSubmit = (askPrice: number) => {
+    if (!listingTarget) return;
+    listPosition({
+      positionId: listingTarget.id,
+      askPrice,
+      impliedDiscount: computeImpliedDiscount(askPrice, listingTarget.expectedReturn),
+      listedAt: new Date().toISOString(),
+    });
+    setListingTarget(null);
+  };
+
+  const listedPositions = positionsData.filter((pos) => listings[pos.id]);
 
   if (!isConnected) {
     return (
@@ -349,6 +367,20 @@ export default function InvestorDashboardPage() {
       ),
     },
     {
+      id: "listing",
+      header: "Listing",
+      sortable: false,
+      cell: (row) =>
+        listings[row.id] ? (
+          <Badge variant="kora">
+            <Tag className="mr-1 h-3 w-3" aria-hidden />
+            Listed · {formatCurrency(listings[row.id].askPrice, "USDC", true)}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
+    },
+    {
       id: "actions",
       header: "",
       sortable: false,
@@ -359,6 +391,24 @@ export default function InvestorDashboardPage() {
               Claim
             </Button>
           ) : null}
+          {row.status === "active" &&
+            (listings[row.id] ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => unlistPosition(row.id)}
+              >
+                Unlist
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setListingTarget(row)}
+              >
+                <Tag className="h-3.5 w-3.5" /> List for Sale
+              </Button>
+            ))}
           <Link
             href={`/marketplace/${row.invoice?.id ?? row.invoiceId}`}
             className="text-xs text-primary hover:opacity-80"
@@ -450,6 +500,70 @@ export default function InvestorDashboardPage() {
           />
         </CardContent>
       </Card>
+
+      </Card>
+
+      {listedPositions.length > 0 && (
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Tag className="h-4 w-4 text-primary" aria-hidden />
+              Active Listings
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6">
+            <div className="space-y-3">
+              {listedPositions.map((pos) => {
+                const listing = listings[pos.id];
+                if (!listing) return null;
+                const currency = pos.invoice?.metadata.currency ?? "USDC";
+                return (
+                  <div
+                    key={pos.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"
+                  >
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {pos.invoice?.metadata.invoiceNumber ?? `Invoice ${pos.invoiceId}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Listed {formatDate(listing.listedAt)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-foreground">
+                        {formatCurrency(listing.askPrice, currency)}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-xs",
+                          listing.impliedDiscount >= 0 ? "text-success" : "text-warning",
+                        )}
+                      >
+                        {(listing.impliedDiscount * 100).toFixed(2)}% implied discount
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => unlistPosition(pos.id)}
+                    >
+                      Unlist
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <ListPositionDialog
+        position={listingTarget}
+        open={listingTarget !== null}
+        onOpenChange={(open) => !open && setListingTarget(null)}
+        onSubmit={handleListSubmit}
+      />
 
       <TxSimulationPreview {...simulationDialogProps} />
     </div>

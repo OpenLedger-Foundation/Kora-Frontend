@@ -40,6 +40,133 @@ export function getVitalRating(name: string, value: number): VitalRating {
   return "poor";
 }
 
+// ─── CI regression gate (Issue #437) ─────────────────────────────────────────
+//
+// VITAL_THRESHOLDS above answers "is this page fast enough in absolute terms".
+// That is not the same question CI needs to ask. A page can sit comfortably
+// under the "good" LCP bar while a PR doubles it — still green, still a real
+// regression, and nothing catches it until it crosses 2500ms months later.
+//
+// The gate below is relative: it compares a run against the committed
+// performance-baseline.json and fails when a metric has grown by more than
+// REGRESSION_THRESHOLD_PCT. Consumed by e2e/performance.spec.ts.
+
+/** A metric regresses when it exceeds baseline by more than this fraction. */
+export const REGRESSION_THRESHOLD_PCT = 0.1;
+
+/**
+ * Minimum absolute growth before a metric can be reported as a regression.
+ *
+ * Percentage alone is far too twitchy at the small end: a TTFB moving 8ms →
+ * 9ms is +12.5% and would fail the build, but it is indistinguishable from CI
+ * runner noise. A regression must be both proportionally *and* absolutely
+ * meaningful, which is what keeps the false-positive rate survivable on shared
+ * CI hardware.
+ *
+ * Keyed by metric; `default` covers millisecond metrics not listed.
+ */
+export const REGRESSION_MIN_DELTA: Record<string, number> = {
+  // CLS is unitless and typically ~0.0–0.25, so its floor is not in ms.
+  CLS: 0.02,
+  default: 50,
+};
+
+/** Vitals the CI gate enforces. */
+export const GATED_VITALS = ["LCP", "CLS", "TTFB", "FCP"] as const;
+
+export interface VitalRegression {
+  name: string;
+  current: number;
+  baseline: number;
+  /** Growth as a fraction of baseline, e.g. 0.23 for +23%. */
+  changePct: number;
+  limit: number;
+}
+
+export interface VitalsRegressionReport {
+  regressions: VitalRegression[];
+  /** Metrics that were compared and stayed within budget. */
+  passed: VitalRegression[];
+  /** Present in one set of numbers but not the other — never a failure. */
+  skipped: string[];
+}
+
+/**
+ * Compare a run's vitals against a baseline and classify each metric.
+ *
+ * Pure and side-effect free so the gate's logic can be reasoned about (and
+ * unit-tested) without booting a browser. The caller decides what to do with
+ * a non-empty `regressions` array — the spec fails the test, but a report-only
+ * mode is equally possible.
+ *
+ * A metric is a regression only when **both** conditions hold:
+ *   1. `current > baseline * (1 + REGRESSION_THRESHOLD_PCT)`
+ *   2. `current - baseline >= REGRESSION_MIN_DELTA[name]`
+ *
+ * Metrics missing from either side are skipped rather than failed, so adding a
+ * new vital does not break the build until a baseline is recorded for it.
+ */
+export function evaluateVitalsRegression(
+  current: Record<string, number>,
+  baseline: Record<string, number> | undefined,
+  metrics: readonly string[] = GATED_VITALS,
+): VitalsRegressionReport {
+  const report: VitalsRegressionReport = {
+    regressions: [],
+    passed: [],
+    skipped: [],
+  };
+
+  for (const name of metrics) {
+    const currentValue = current[name];
+    const baselineValue = baseline?.[name];
+
+    if (typeof currentValue !== "number" || !Number.isFinite(currentValue)) {
+      report.skipped.push(name);
+      continue;
+    }
+    if (typeof baselineValue !== "number" || !Number.isFinite(baselineValue)) {
+      report.skipped.push(name);
+      continue;
+    }
+
+    const limit = baselineValue * (1 + REGRESSION_THRESHOLD_PCT);
+    const minDelta = REGRESSION_MIN_DELTA[name] ?? REGRESSION_MIN_DELTA.default;
+    // Guard against a zero baseline, which would make changePct infinite.
+    const changePct =
+      baselineValue === 0 ? 0 : (currentValue - baselineValue) / baselineValue;
+
+    const entry: VitalRegression = {
+      name,
+      current: currentValue,
+      baseline: baselineValue,
+      changePct,
+      limit,
+    };
+
+    const overBudget =
+      currentValue > limit && currentValue - baselineValue >= minDelta;
+
+    if (overBudget) {
+      report.regressions.push(entry);
+    } else {
+      report.passed.push(entry);
+    }
+  }
+
+  return report;
+}
+
+/** Human-readable one-liner for a regression, for CI logs and failure output. */
+export function formatRegression(r: VitalRegression): string {
+  const pct = (r.changePct * 100).toFixed(1);
+  const unit = VITAL_THRESHOLDS[r.name]?.unit ?? "";
+  return (
+    `${r.name}: ${r.current.toFixed(2)}${unit} vs baseline ` +
+    `${r.baseline.toFixed(2)}${unit} (+${pct}%, limit ${r.limit.toFixed(2)}${unit})`
+  );
+}
+
 // ─── Console logger (development) ────────────────────────────────────────────
 
 const RATING_STYLES: Record<VitalRating, string> = {

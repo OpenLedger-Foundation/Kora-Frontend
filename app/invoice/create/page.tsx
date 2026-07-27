@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, NumberInput, DatePicker, FileInput, Select } from "@/components/ui";
 import { GlassCard } from "@/components/ui/card";
 import { useWallet } from "@/hooks/useWallet";
+import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { useWalletStore } from "@/store";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
@@ -231,6 +232,8 @@ export default function CreateInvoicePage() {
     });
   };
 
+  const { executeProtectedAction } = useVerifiedAction();
+
   const onSubmit = async (data: CreateInvoiceSchema) => {
     if (!isConnected) {
       setWalletModalOpen(true);
@@ -241,39 +244,49 @@ export default function CreateInvoicePage() {
       return;
     }
 
-    setFileError(null);
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    let tempMetadataCid = "";
-
-    await execute(
+    const { error } = await executeProtectedAction(
       async () => {
-        const result = await prepareCreateInvoice(
-          { ...data, document: file, description: "" },
-          address!,
-          (progress) => setUploadProgress(progress)
+        setFileError(null);
+        setIsUploading(true);
+        setUploadProgress(0);
+
+        let tempMetadataCid = "";
+
+        await execute(
+          async () => {
+            const result = await prepareCreateInvoice(
+              { ...data, document: file, description: "" },
+              address!,
+              (progress) => setUploadProgress(progress)
+            );
+            tempMetadataCid = result.metadataCid;
+            return result.unsignedXdr;
+          },
+          {
+            successMessage: "Invoice minted on Soroban!",
+            onSimulationPreview,
+            onSuccess: (hash) => {
+              const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
+              setMintedInfo({
+                tokenId: mockTokenId,
+                txHash: hash,
+                metadataCid: tempMetadataCid,
+              });
+              clearCreateDraft();
+              setSubmitted(true);
+            },
+          }
         );
-        tempMetadataCid = result.metadataCid;
-        return result.unsignedXdr;
+
+        setIsUploading(false);
       },
-      {
-        successMessage: "Invoice minted on Soroban!",
-        onSimulationPreview,
-        onSuccess: (hash) => {
-          const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
-          setMintedInfo({
-            tokenId: mockTokenId,
-            txHash: hash,
-            metadataCid: tempMetadataCid,
-          });
-          clearCreateDraft();
-          setSubmitted(true);
-        },
-      }
+      "invoice-creation"
     );
 
-    setIsUploading(false);
+    if (error) {
+      setFileError(error);
+      setIsUploading(false);
+    }
   };
 
   if (submitted && mintedInfo) {

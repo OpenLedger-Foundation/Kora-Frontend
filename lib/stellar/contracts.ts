@@ -14,6 +14,7 @@ import type {
   FundInvoiceParams,
   RepayInvoiceParams,
   ClaimYieldParams,
+  TransferPositionParams,
   OnChainInvoice,
 } from "@/types/contract";
 import type { InvoicePosition } from "@/types/invoice";
@@ -403,6 +404,24 @@ class MarketplaceContractClient {
       this.contractId,
       "claim_yield",
       [scvU64(params.tokenId)],
+      sourcePublicKey
+    );
+  }
+
+  /**
+   * P2P secondary-market transfer of an investor position to a new owner.
+   * See the `TransferPositionParams` doc comment in types/contract.ts for
+   * the assumed contract ABI. Returns unsigned XDR string, to be signed by
+   * the current position owner (`sourcePublicKey`).
+   */
+  async transferPosition(
+    params: TransferPositionParams,
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "transfer_position",
+      [scvU64(params.positionId), scvAddress(params.toAddress)],
       sourcePublicKey
     );
   }
