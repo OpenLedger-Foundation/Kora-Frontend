@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, X } from "lucide-react";
 import { useUIStore } from "@/store/uiStore";
@@ -17,6 +18,8 @@ import { cn } from "@/lib/utils";
 export function InProgressOverlay() {
   const { txState, setTxState } = useUIStore();
   const isSigningStage = txState.status === "signing";
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const handleCancel = () => {
     setTxState({ status: "idle" });
@@ -28,11 +31,26 @@ export function InProgressOverlay() {
     }
   };
 
+  // Move focus into the dialog when it opens (screen readers only reliably
+  // announce a role="dialog" region's labelledby/describedby once focus
+  // actually enters it) and restore focus to whatever triggered it on close.
+  useEffect(() => {
+    if (isSigningStage) {
+      previousFocusRef.current = document.activeElement as HTMLElement | null;
+      dialogRef.current?.focus();
+    } else {
+      previousFocusRef.current?.focus();
+      previousFocusRef.current = null;
+    }
+  }, [isSigningStage]);
+
   return (
     <AnimatePresence>
       {isSigningStage && (
         <motion.div
           key="overlay"
+          ref={dialogRef}
+          tabIndex={-1}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -42,7 +60,7 @@ export function InProgressOverlay() {
           aria-modal="true"
           aria-labelledby="signing-title"
           aria-describedby="signing-description"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm focus:outline-none"
         >
           {/* Content */}
           <motion.div

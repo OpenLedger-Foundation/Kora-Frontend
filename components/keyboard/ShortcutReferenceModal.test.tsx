@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { ShortcutReferenceModal } from "./ShortcutReferenceModal";
+import { ShortcutReferenceModal, platformLabel } from "./ShortcutReferenceModal";
 import { KeyboardShortcutsProvider } from "./KeyboardShortcutsProvider";
 import { Footer } from "@/components/layout/Footer";
 
@@ -32,6 +32,46 @@ describe("ShortcutReferenceModal", () => {
     close.focus();
     fireEvent.keyDown(close, { key: "Tab" });
     expect(document.activeElement).toBe(close);
+  });
+
+  it("filters the list as the user searches", async () => {
+    render(<ShortcutReferenceModal open onClose={() => undefined} />);
+
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Search shortcuts" }),
+      "marketplace",
+    );
+
+    expect(screen.getByText("Go to Marketplace")).toBeInTheDocument();
+    expect(screen.queryByText("Go to Analytics")).not.toBeInTheDocument();
+  });
+
+  it("reports when nothing matches the search", async () => {
+    render(<ShortcutReferenceModal open onClose={() => undefined} />);
+
+    await userEvent.type(
+      screen.getByRole("textbox", { name: "Search shortcuts" }),
+      "zzzzz",
+    );
+
+    expect(screen.getByText(/No shortcuts match/)).toBeInTheDocument();
+  });
+});
+
+describe("platformLabel", () => {
+  it("picks the Apple variant on macOS and the Windows variant elsewhere", () => {
+    expect(platformLabel("⌘K / Ctrl+K", true)).toBe("⌘K");
+    expect(platformLabel("⌘K / Ctrl+K", false)).toBe("Ctrl+K");
+  });
+
+  it("passes single-variant labels through untouched", () => {
+    expect(platformLabel("G M", true)).toBe("G M");
+    expect(platformLabel("?", false)).toBe("?");
+  });
+
+  it("leaves non-platform slashes alone", () => {
+    expect(platformLabel("← → / ↑ ↓", true)).toBe("← → / ↑ ↓");
+    expect(platformLabel("← → / ↑ ↓", false)).toBe("← → / ↑ ↓");
   });
 });
 

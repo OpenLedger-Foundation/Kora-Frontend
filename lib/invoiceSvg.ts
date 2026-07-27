@@ -328,3 +328,144 @@ export function svgToDataUri(svg: string): string {
   const encoded = encodeURIComponent(svg);
   return `data:image/svg+xml;charset=utf-8,${encoded}`;
 }
+
+// ─── Marketplace thumbnails (Issue #438) ─────────────────────────────────────
+//
+// The full invoice SVG is a text-heavy vector document sized for 800×600 and
+// 1200×630 social cards. Dropping it straight onto a marketplace card is bad
+// for LCP for three reasons:
+//
+//  1. SVG is opaque to Next.js image optimisation — no AVIF/WebP negotiation,
+//     no responsive resizing. The browser fetches the full document to paint a
+//     ~256px box.
+//  2. Rendering it means parsing and rasterising vector text at paint time, on
+//     the main thread, for every card in the grid.
+//  3. There is no intrinsic size to reserve, so cards reflow as previews land
+//     — layout shift on the largest element in the viewport.
+//
+// The fix is to raster a small thumbnail once at upload time, store it on IPFS
+// alongside the SVG, and let next/image serve it. Everything below supports
+// that path: raster generation for upload, URL resolution for render, and a
+// deterministic blur placeholder so the box is filled from first paint.
+
+/** Rendered size of a marketplace card thumbnail, in CSS pixels. */
+export const THUMBNAIL_WIDTH = 256;
+export const THUMBNAIL_HEIGHT = 160;
+
+/**
+ * Rasterise an SVG string to a PNG blob at thumbnail resolution.
+ *
+ * Browser-only — uses Image decoding and a canvas, neither of which exists on
+ * the server. Call this during the invoice upload flow, then pin the result to
+ * IPFS next to the SVG so the marketplace never has to rasterise at paint time.
+ *
+ * Rendered at 2× the CSS size so the result stays sharp on retina displays;
+ * next/image downsamples from there per the `sizes` hint.
+ *
+ * @param svg     Full invoice SVG, as produced by `generateInvoiceSvg`.
+ * @param scale   Device-pixel multiplier. Defaults to 2.
+ * @returns       PNG blob, or `null` if the SVG could not be decoded.
+ */
+export async function rasterizeSvgToThumbnail(
+  svg: string,
+  scale = 2,
+): Promise<Blob | null> {
+  if (typeof document === "undefined" || typeof Image === "undefined") {
+    return null;
+  }
+
+  const width = THUMBNAIL_WIDTH * scale;
+  const height = THUMBNAIL_HEIGHT * scale;
+
+  const image = new Image();
+  image.decoding = "async";
+  // Data URI rather than a blob URL: keeps the canvas untainted, so toBlob()
+  // is not blocked by the same-origin check.
+  image.src = svgToDataUri(svg);
+
+  try {
+    await image.decode();
+  } catch {
+    // Malformed SVG, or a browser that refused to decode it. The caller falls
+    // back to the placeholder rather than blocking the upload.
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  // The source SVG is 4:3 while the thumbnail is 8:5, so cover-fit rather than
+  // stretch: scale to fill, then centre and crop the overflow.
+  const ratio = Math.max(width / image.width, height / image.height);
+  const drawWidth = image.width * ratio;
+  const drawHeight = image.height * ratio;
+  ctx.drawImage(
+    image,
+    (width - drawWidth) / 2,
+    (height - drawHeight) / 2,
+    drawWidth,
+    drawHeight,
+  );
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/png");
+  });
+}
+
+/**
+ * Build a tiny blurred placeholder for a thumbnail, tinted by risk tier.
+ *
+ * Generated rather than fetched: a real LQIP would mean a build step and a
+ * second round trip per invoice, and the thumbnail's dominant colours are
+ * already known from the risk tier. Deterministic, inline, and a few hundred
+ * bytes, so the card reserves its box and paints a plausible colour on the
+ * very first frame instead of flashing empty.
+ *
+ * The 20×12 viewBox is intentional — the browser scales it up, which is what
+ * produces the blur.
+ */
+export function thumbnailBlurDataUri(riskTier?: string): string {
+  const accent = (riskTier && RISK_COLORS[riskTier]) || PALETTE.primary;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="12" viewBox="0 0 20 12">` +
+    `<rect width="20" height="12" fill="${PALETTE.surface}"/>` +
+    `<circle cx="4" cy="3" r="6" fill="${accent}" opacity="0.35"/>` +
+    `<circle cx="17" cy="10" r="5" fill="${PALETTE.primaryMuted}" opacity="0.4"/>` +
+    `</svg>`;
+  return svgToDataUri(svg);
+}
+
+/**
+ * Resolve the renderable URL for an invoice's preview image.
+ *
+ * Accepts the NFT-standard `image` field, which may be either an `ipfs://CID`
+ * URI or an already-resolved `https://` gateway URL, and returns an https URL
+ * that matches a `remotePatterns` entry in next.config.js.
+ *
+ * @returns The gateway URL, or `null` when the invoice has no preview image —
+ *          in which case the caller should render the placeholder rather than
+ *          an empty box.
+ */
+export function resolveThumbnailSrc(
+  image: string | undefined,
+  gateway = process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://ipfs.io/ipfs",
+): string | null {
+  if (!image) return null;
+
+  const trimmed = image.trim();
+  if (trimmed.length === 0) return null;
+
+  if (trimmed.startsWith("ipfs://")) {
+    const cid = trimmed.slice("ipfs://".length).replace(/^ipfs\//, "");
+    if (cid.length === 0) return null;
+    return `${gateway.replace(/\/$/, "")}/${cid}`;
+  }
+
+  // Anything already served over https is passed through untouched; http and
+  // other schemes are rejected so they cannot bypass next/image's allowlist.
+  return trimmed.startsWith("https://") ? trimmed : null;
+}
