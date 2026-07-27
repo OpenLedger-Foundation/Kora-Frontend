@@ -99,41 +99,41 @@ describe("BatchActionToolbar", () => {
   });
 });
 
-// ─── Cancel constraint: only Active status ────────────────────────────────────
+// ─── Cancel constraint: unfunded listed/pending (aligned with single cancel) ──
 
 import type { Invoice } from "@/types";
 import { createMockInvoice } from "./fixtures";
+import { isBatchCancelEligible } from "@/lib/batch/eligibility";
 
-describe("Batch cancel — Active-status constraint", () => {
-  it("only selects Active invoices for cancellation", () => {
+describe("Batch cancel — eligibility constraint", () => {
+  it("only selects unfunded listed/pending invoices for cancellation", () => {
     const invoices = [
-      createMockInvoice({ id: "inv_1", status: "active" }),
-      createMockInvoice({ id: "inv_2", status: "listed" }),
-      createMockInvoice({ id: "inv_3", status: "active" }),
+      createMockInvoice({ id: "inv_1", status: "listed", funding: { totalRaised: 0, targetAmount: 1000, fundingProgress: 0, investorCount: 0, remainingCapacity: 1000 } }),
+      createMockInvoice({ id: "inv_2", status: "active" }),
+      createMockInvoice({ id: "inv_3", status: "pending_mint", funding: { totalRaised: 0, targetAmount: 1000, fundingProgress: 0, investorCount: 0, remainingCapacity: 1000 } }),
       createMockInvoice({ id: "inv_4", status: "fully_funded" }),
-      createMockInvoice({ id: "inv_5", status: "partially_funded" }),
+      createMockInvoice({ id: "inv_5", status: "listed", funding: { totalRaised: 100, targetAmount: 1000, fundingProgress: 0.1, investorCount: 1, remainingCapacity: 900 } }),
     ];
 
     const selectedIds = invoices.map((i) => i.id);
 
-    // Simulate the filter the SME page uses
     const eligible = invoices.filter(
-      (inv) => selectedIds.includes(inv.id) && inv.status === "active"
+      (inv) => selectedIds.includes(inv.id) && isBatchCancelEligible(inv)
     );
 
     expect(eligible).toHaveLength(2);
     expect(eligible.map((i) => i.id)).toEqual(["inv_1", "inv_3"]);
   });
 
-  it("returns zero eligible when no Active invoices are selected", () => {
+  it("returns zero eligible when no cancelable invoices are selected", () => {
     const invoices = [
-      createMockInvoice({ id: "inv_1", status: "listed" }),
+      createMockInvoice({ id: "inv_1", status: "active" }),
       createMockInvoice({ id: "inv_2", status: "fully_funded" }),
     ];
     const selectedIds = invoices.map((i) => i.id);
 
     const eligible = invoices.filter(
-      (inv) => selectedIds.includes(inv.id) && inv.status === "active"
+      (inv) => selectedIds.includes(inv.id) && isBatchCancelEligible(inv)
     );
 
     expect(eligible).toHaveLength(0);
