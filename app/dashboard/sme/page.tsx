@@ -470,7 +470,7 @@ export default function SMEDashboardPage() {
                           </Button>
                         )}
                         <div className="flex items-center gap-2">
-                          <ShareInvoiceButton id={row.id} invoiceTitle={row.metadata.invoiceNumber} summary={row.metadata.description} />
+                          <ShareInvoiceButton id={row.id} tokenId={row.tokenId} invoiceTitle={row.metadata.invoiceNumber} summary={row.metadata.description} />
                           <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
                             View →
                           </Link>

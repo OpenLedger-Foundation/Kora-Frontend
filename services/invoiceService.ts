@@ -180,7 +180,10 @@ class MockInvoiceService implements IInvoiceService {
   async getInvoice(id: string): Promise<Result<Invoice | null>> {
     try {
       await this.delay();
-      return success(MOCK_INVOICES.find((i) => i.id === id) ?? null);
+      // Resolve by app id OR on-chain token ID deep links (#383)
+      return success(
+        MOCK_INVOICES.find((i) => i.id === id || i.tokenId === id) ?? null
+      );
     } catch (error) {
       return failure("FETCH_ERROR", "Failed to fetch invoice", { cause: String(error) });
     }

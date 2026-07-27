@@ -37,6 +37,7 @@ import { cn, isValidStellarAddress } from "@/lib/utils";
 import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { usePinataHealth } from "@/hooks/usePinataHealth";
+import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -327,7 +328,26 @@ export default function CreateInvoicePage() {
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <div className="mt-8 rounded-xl border border-kora-500/20 bg-kora-500/5 p-5 text-left">
+            <p className="text-sm font-semibold text-zinc-100" data-testid="post-mint-share-cta">
+              Share your invoice
+            </p>
+            <p className="mt-1 text-xs text-zinc-400">
+              Send a deep link with the on-chain token ID so funders open the correct listing.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <ShareInvoiceButton
+                id={mintedInfo.tokenId}
+                tokenId={mintedInfo.tokenId}
+                invoiceTitle={`Invoice #${mintedInfo.tokenId}`}
+                summary="Newly minted invoice on Kora — ready for funding."
+                variant="default"
+                size="default"
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <a
               href={safeStellarTxUrl(mintedInfo.txHash)}
               target="_blank"
@@ -338,7 +358,7 @@ export default function CreateInvoicePage() {
               <ArrowRight className="h-3.5 w-3.5" />
             </a>
 
-            <Link href="/marketplace">
+            <Link href={`/marketplace/${mintedInfo.tokenId}`}>
               <Button className="w-full sm:w-auto bg-gradient-to-r from-kora-500 to-kora-600 hover:from-kora-600 hover:to-kora-700 text-white shadow-lg shadow-kora-500/15">
                 View on Marketplace
               </Button>
