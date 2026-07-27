@@ -7,6 +7,7 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc, networkConfig, sequenceManager } from "./client";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
+import { parseSorobanError } from "@/lib/stellar/simulationErrors";
 
 import type {
   MintInvoiceParams,
@@ -108,29 +109,6 @@ const {
   marketplaceContractId: MARKETPLACE_CONTRACT_ID_RESOLVED,
   tokenContractId: TOKEN_CONTRACT_ID_RESOLVED,
 } = resolveContractAddresses();
-
-// ─── Error code → human-readable message ─────────────────────────────────────
-
-const SOROBAN_ERROR_CODES: Record<number, string> = {
-  1: "Invoice not found",
-  2: "Invoice already funded",
-  3: "Insufficient balance",
-  4: "Unauthorized: caller is not the owner",
-  5: "Invoice has already been repaid",
-  6: "Funding amount exceeds remaining capacity",
-  7: "Invoice is not in a fundable state",
-  8: "Repayment amount is incorrect",
-};
-
-function parseSorobanError(error: string): string {
-  // Extract numeric error code from Soroban error strings like "Error(Contract, #4)"
-  const match = error.match(/#(\d+)/);
-  if (match) {
-    const code = parseInt(match[1], 10);
-    return SOROBAN_ERROR_CODES[code] ?? `Contract error #${code}`;
-  }
-  return error;
-}
 
 // ─── XDR helpers ──────────────────────────────────────────────────────────────
 
