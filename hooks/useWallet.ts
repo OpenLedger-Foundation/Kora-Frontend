@@ -90,6 +90,7 @@ export function useWallet() {
     updateActivity,
     isSessionExpired,
     setKitSessionActive,
+    setNetwork,
   } = useWalletStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -302,7 +303,7 @@ export function useWallet() {
         // best-effort redirect
       }
     },
-    [connect, setBalance, setKitSessionActive, router],
+    [connect, setBalance, setKitSessionActive, setNetwork, router],
   );
 
   const disconnectWallet = useCallback(async () => {
@@ -494,7 +495,16 @@ export function useWallet() {
 
   const requestChallenge = useCallback(async (): Promise<string> => {
     try {
-      const res = await fetch("/api/auth/challenge", { method: "POST" });
+      const csrfRes = await fetch("/api/auth/csrf");
+      const csrfData = await csrfRes.json();
+      const csrfToken = csrfData?.token ?? "";
+
+      const res = await fetch("/api/auth/challenge", {
+        method: "POST",
+        headers: {
+          "x-kora-csrf": csrfToken,
+        },
+      });
       if (!res.ok) throw new Error("Failed to request challenge");
       const data = await res.json();
       return data.challenge;
@@ -509,7 +519,17 @@ export function useWallet() {
       throw new Error("Wallet not connected");
     }
 
+    if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+      const mockExpiresAt = Date.now() + 60 * 60 * 1000;
+      setVerified(true, mockExpiresAt);
+      return true;
+    }
+
     try {
+      const csrfRes = await fetch("/api/auth/csrf");
+      const csrfData = await csrfRes.json();
+      const csrfToken = csrfData?.token ?? "";
+
       const challenge = await requestChallenge();
       const walletKit = getKit();
       const { result: signature } = await (walletKit as any).signMessage({
@@ -519,7 +539,10 @@ export function useWallet() {
 
       const verifyRes = await fetch("/api/auth/verify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-kora-csrf": csrfToken,
+        },
         body: JSON.stringify({ challenge, signature, publicKey }),
       });
 

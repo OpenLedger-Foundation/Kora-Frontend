@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, NumberInput, DatePicker, FileInput, Select } from "@/components/ui";
 import { GlassCard } from "@/components/ui/card";
 import { useWallet } from "@/hooks/useWallet";
+import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { useWalletStore } from "@/store";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
@@ -235,6 +236,8 @@ export default function CreateInvoicePage() {
     });
   };
 
+  const { executeProtectedAction } = useVerifiedAction();
+
   const onSubmit = async (data: CreateInvoiceSchema) => {
     if (!isConnected) {
       setWalletModalOpen(true);
@@ -268,8 +271,8 @@ export default function CreateInvoicePage() {
             }
           }
         );
-        tempMetadataCid = result.metadataCid;
-        return result.unsignedXdr;
+
+        setIsUploading(false);
       },
       {
         successMessage: "Invoice minted on Soroban!",
@@ -292,7 +295,10 @@ export default function CreateInvoicePage() {
       }
     );
 
-    setIsUploading(false);
+    if (error) {
+      setFileError(error);
+      setIsUploading(false);
+    }
   };
 
   if (submitted && mintedInfo) {

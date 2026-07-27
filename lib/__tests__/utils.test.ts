@@ -438,6 +438,7 @@ describe("withRetry", () => {
   it("fails permanently when max attempts are exhausted", async () => {
     const fn = vi.fn().mockRejectedValue(new Error("500 Internal Server Error"));
     const promise = withRetry(fn, 3, 100);
+    promise.catch(() => {});
 
     await vi.runAllTimersAsync();
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { logger } from "@/lib/logger";
 import { verifyCsrf } from "@/lib/csrf";
+import { markWalletVerified } from "@/lib/verifiedSessions";
 
 interface VerifyRequest {
   challenge: string;
@@ -87,6 +88,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<VerifyRes
       // Verification successful - session valid for 1 hour
       const SESSION_DURATION = 60 * 60 * 1000; // 1 hour
       const expiresAt = now + SESSION_DURATION;
+
+      // Bind this wallet as cryptographically verified so /api/upload can
+      // authorize pinning only for wallets that proved ownership here.
+      markWalletVerified(publicKey, expiresAt);
 
       return NextResponse.json({ verified: true, expiresAt });
     } catch (verifyError) {

@@ -35,15 +35,17 @@ export function formatCurrency(
     const formatted = new Intl.NumberFormat(locale, {
       minimumFractionDigits: 1,
       maximumFractionDigits: 1,
-    }).format(n / 1_000_000);
-    return `${formatted}M ${currency}`;
+      useGrouping: true,
+    }).format(Math.abs(n) / 1_000_000);
+    return `${n < 0 ? "$-" : "$"}${formatted}M ${currency}`;
   }
   if (compact && Math.abs(n) >= 1_000) {
     const formatted = new Intl.NumberFormat(locale, {
       minimumFractionDigits: 1,
       maximumFractionDigits: 1,
-    }).format(n / 1_000);
-    return `${formatted}K ${currency}`;
+      useGrouping: true,
+    }).format(Math.abs(n) / 1_000);
+    return `${n < 0 ? "$-" : "$"}${formatted}K ${currency}`;
   }
   return (
     new Intl.NumberFormat(locale, {
@@ -51,6 +53,7 @@ export function formatCurrency(
       currency: "USD",
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
+      useGrouping: true,
     }).format(n) + ` ${currency}`
   );
 }

@@ -1,15 +1,25 @@
 import type { FilterState, SortState } from "@/store/invoiceStore";
-
-/** Whether invoice queries resolve from mock data or the live indexer. */
-export type InvoiceDataSource = "mock" | "live";
+import { getNetworkMode, type NetworkMode } from "@/lib/featureFlags";
 
 /**
- * Resolve the active invoice data source from env.
- * Kept as a pure process.env read so query keys stay usable in client + tests
- * without pulling the full Zod env module.
+ * Whether invoice queries resolve from mock data or the live indexer.
+ *
+ * Alias of {@link NetworkMode} — the data source and the network mode are the
+ * same axis, and Issue #436 made `@/lib/featureFlags` the single definition so
+ * key namespacing and query tuning can never disagree about which mode is
+ * active. Kept as a named export for existing import sites.
+ */
+export type InvoiceDataSource = NetworkMode;
+
+/**
+ * Resolve the active invoice data source.
+ *
+ * Delegates to `getNetworkMode()`, which stays a plain env read so query keys
+ * remain usable on the client and in unit tests without pulling in the full Zod
+ * env module.
  */
 export function getInvoiceDataSource(): InvoiceDataSource {
-  return process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true" ? "mock" : "live";
+  return getNetworkMode();
 }
 
 export const queryKeys = {
@@ -17,6 +27,8 @@ export const queryKeys = {
     all: ["invoices"] as const,
     list: (filters: FilterState, sort: SortState, page: number) =>
       ["invoices", "list", filters, sort, page] as const,
+    infinite: (filters: FilterState, sort: string | SortState, pageSize: number) =>
+      ["invoices", "infinite", filters, sort, pageSize] as const,
     /**
      * Infinite-scroll query key — includes filters, sortBy string, and page
      * size so any filter/sort change resets pagination automatically.
