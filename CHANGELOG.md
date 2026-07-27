@@ -1,3 +1,13 @@
+# [1.8.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.7.0...v1.8.0) (2026-07-27)
+
+
+### Features
+
+* **analytics:** implement analytics date-range filter bar with query sync - Add 1y preset to DateRangePicker (7d/30d/90d/1y/YTD/All) - Add invalid range validation in custom date picker (from > to shows error) - Fix duplicate positionsQuery declaration that caused a compile error - Remove unused range/setRange state; filters.dateRange drives all slices - Persist custom date range (from/to) in URL search params and restore on load - sliceByRange covers 1y (full 12-month dataset) and handles unknown keys - filtersFromParams validates custom range and falls back to default if invalid Closes [#388](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/388) ([28252d3](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/28252d30297176ce3523bf92ffd831875cd149ec))
+* invoice state machine refactor with transition buttons and cancel dialog tests ([5fc0a13](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/5fc0a13f054b13d80f0c878f13694aa4d3a68162))
+* **invoice-lifecycle:** complete live createinvoice mint pipeline on testnet - Add infinite query key to queryKeys for marketplace cache invalidation - Add per-stage progress UI (IPFS pin vs on-chain mint) with stage indicators - Invalidate marketplace infinite/all cache after successful mint so new invoice appears immediately on /marketplace without manual refresh - Progress callbacks drive uploadStage state (ipfs → chain → done) Closes [#379](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/379) ([6a70e30](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/6a70e30286a0b606198ad190268d00acb7626565))
+* **marketplace:** implement advanced marketplace filter persistence and deep linking - Import and render ActiveFilterChips below the search/sort bar when any filter is active — chips sync with URL via the existing Zustand↔URL loop - Clear-all on chips calls resetFilters() which zeroes the store; the debounced URL sync effect then strips all params from the address bar - Mobile bottom sheet already shares renderFiltersList() so all filter controls are at full parity between mobile and desktop Closes [#377](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/377) ([f7115e2](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/f7115e20cc3433f4ee8b7df2eb965da91d51fdc2))
+
 # [1.7.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.6.0...v1.7.0) (2026-07-27)
 
 
