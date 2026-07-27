@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, MapPin, Calendar, Zap } from "lucide-react";
-import { formatApr, formatCurrency, daysUntil } from "@/lib/utils";
+import { daysUntil } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import type { Invoice } from "@/types";
 
 interface InvoiceCardHoverPopoverProps {
@@ -50,6 +51,7 @@ export function InvoiceCardHoverPopover({
   onPrefetch,
 }: InvoiceCardHoverPopoverProps) {
   const { terms, funding, riskTier, metadata } = invoice;
+  const { formatApr } = useFormatters();
   const popoverRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [isTouchDevice, setIsTouchDevice] = useState(false);

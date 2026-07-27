@@ -22,7 +22,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store/uiStore";
-import { formatCurrency } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -64,6 +64,7 @@ export function CommandPalette() {
   const { isConnected } = useWallet();
   const setWalletModalOpen = useUIStore((s) => s.setWalletModalOpen);
   const [query, setQuery] = React.useState("");
+  const { formatCurrency, formatPercentage } = useFormatters();
 
   // Fetch invoices for search (only when palette is open)
   const { data: invoiceData } = useInvoices();
@@ -228,7 +229,7 @@ export function CommandPalette() {
                       key={inv.id}
                       icon={<FileText className="h-4 w-4" />}
                       label={inv.metadata.invoiceNumber}
-                      sublabel={`${inv.metadata.debtorName} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)} · ${Math.round(inv.funding.fundingProgress * 100)}% funded`}
+                      sublabel={`${inv.metadata.debtorName} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)} · ${formatPercentage(inv.funding.fundingProgress * 100, 0)} funded`}
                       query={query}
                       badge={inv.status}
                       onSelect={() =>

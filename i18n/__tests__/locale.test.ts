@@ -11,6 +11,12 @@ import {
   resolveLocaleFromRequest,
   setCookieLocale,
 } from "../locale";
+import {
+  LOCALE_FORMATS,
+  getIntlTag,
+  getLocaleFormatConfig,
+} from "@/lib/validations/locales";
+import type { Locale } from "../config";
 
 describe("parseLocale", () => {
   it("accepts supported locale codes", () => {
@@ -102,5 +108,100 @@ describe("detectBrowserLocale", () => {
   it("detects Spanish from navigator.languages", () => {
     vi.stubGlobal("navigator", { language: "en-US", languages: ["fr-FR", "es-ES"] });
     expect(detectBrowserLocale()).toBe("es");
+  });
+});
+
+// ─── Locale formatting configuration (LOCALE_FORMATS) ─────────────────────────
+
+describe("LOCALE_FORMATS — locale-aware number/currency/date configuration", () => {
+  const SUPPORTED_LOCALES: ReadonlyArray<Locale> = ["en", "es", "ar", "pt-BR"];
+
+  it.each(SUPPORTED_LOCALES)(
+    "locale %s defines a complete LocaleFormatConfig with intlTag, separators, and examples",
+    (locale) => {
+      const cfg = LOCALE_FORMATS[locale];
+      expect(cfg).toBeDefined();
+      expect(typeof cfg.intlTag).toBe("string");
+      expect(cfg.intlTag.length).toBeGreaterThan(1);
+      expect(typeof cfg.thousandsSep).toBe("string");
+      expect(typeof cfg.decimalSep).toBe("string");
+      expect(["MDY", "DMY", "YMD"]).toContain(cfg.dateOrder);
+      expect(typeof cfg.rtl).toBe("boolean");
+      expect(typeof cfg.examples.currency).toBe("string");
+      expect(typeof cfg.examples.dateShort).toBe("string");
+      expect(typeof cfg.examples.percentage).toBe("string");
+    }
+  );
+
+  it("en uses comma thousands, period decimal, MDY date order, LTR", () => {
+    const cfg = LOCALE_FORMATS.en;
+    expect(cfg.intlTag).toBe("en-US");
+    expect(cfg.thousandsSep).toBe(",");
+    expect(cfg.decimalSep).toBe(".");
+    expect(cfg.dateOrder).toBe("MDY");
+    expect(cfg.rtl).toBe(false);
+    expect(cfg.numberingSystem).toBe("latn");
+  });
+
+  it("es uses period thousands, comma decimal, DMY date order, LTR", () => {
+    const cfg = LOCALE_FORMATS.es;
+    expect(cfg.intlTag).toBe("es-ES");
+    expect(cfg.thousandsSep).toBe(".");
+    expect(cfg.decimalSep).toBe(",");
+    expect(cfg.dateOrder).toBe("DMY");
+    expect(cfg.rtl).toBe(false);
+  });
+
+  it("pt-BR uses period thousands, comma decimal, DMY date order, LTR", () => {
+    const cfg = LOCALE_FORMATS["pt-BR"];
+    expect(cfg.intlTag).toBe("pt-BR");
+    expect(cfg.thousandsSep).toBe(".");
+    expect(cfg.decimalSep).toBe(",");
+    expect(cfg.dateOrder).toBe("DMY");
+    expect(cfg.rtl).toBe(false);
+  });
+
+  it("ar is RTL with Arabic-Indic numbering system and DMY date order", () => {
+    const cfg = LOCALE_FORMATS.ar;
+    expect(cfg.intlTag).toBe("ar-SA");
+    expect(cfg.rtl).toBe(true);
+    expect(cfg.dateOrder).toBe("DMY");
+    expect(cfg.numberingSystem).toBe("arab");
+  });
+});
+
+describe("getIntlTag — resolve canonical Intl tag for app locale", () => {
+  it("returns en-US for 'en'", () => {
+    expect(getIntlTag("en")).toBe("en-US");
+  });
+  it("returns es-ES for 'es'", () => {
+    expect(getIntlTag("es")).toBe("es-ES");
+  });
+  it("returns ar-SA for 'ar'", () => {
+    expect(getIntlTag("ar")).toBe("ar-SA");
+  });
+  it("returns pt-BR for 'pt-BR' (no extra regional transform needed)", () => {
+    expect(getIntlTag("pt-BR")).toBe("pt-BR");
+  });
+});
+
+describe("getLocaleFormatConfig — look up config by short tag or full Intl tag", () => {
+  it("resolves short app locale codes", () => {
+    expect(getLocaleFormatConfig("en").intlTag).toBe("en-US");
+    expect(getLocaleFormatConfig("es").intlTag).toBe("es-ES");
+    expect(getLocaleFormatConfig("ar").rtl).toBe(true);
+    expect(getLocaleFormatConfig("pt-BR").decimalSep).toBe(",");
+  });
+
+  it("resolves full Intl tags back to app locale entry", () => {
+    expect(getLocaleFormatConfig("en-US").intlTag).toBe("en-US");
+    expect(getLocaleFormatConfig("es-ES").intlTag).toBe("es-ES");
+    expect(getLocaleFormatConfig("ar-SA").rtl).toBe(true);
+  });
+
+  it("falls back to English config for unknown locale codes", () => {
+    const fallback = getLocaleFormatConfig("zh-CN");
+    expect(fallback.intlTag).toBe("en-US");
+    expect(fallback.rtl).toBe(false);
   });
 });

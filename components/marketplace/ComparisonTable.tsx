@@ -17,11 +17,9 @@ import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import {
-  formatCurrency,
-  formatApr,
-  formatDate,
   cn,
 } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import type { Invoice } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -46,7 +44,9 @@ interface MetricRow {
   format: (val: number | string, inv: Invoice) => React.ReactNode;
 }
 
-const METRIC_ROWS: MetricRow[] = [
+function buildMetricRows(formatters: ReturnType<typeof useFormatters>): MetricRow[] {
+  const { formatCurrency, formatApr, formatDate } = formatters;
+  return [
   {
     label: "Invoice Amount",
     icon: DollarSign,
@@ -139,6 +139,7 @@ const METRIC_ROWS: MetricRow[] = [
     format: (val, inv) => <InvoiceStatusBadge status={inv.status} />,
   },
 ];
+}
 
 // ─── Best-value detection ─────────────────────────────────────────────────────
 
@@ -166,6 +167,8 @@ function getBestIndex(
 
 export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
   const { removeFromComparison } = useInvoiceStore();
+  const formatters = useFormatters();
+  const METRIC_ROWS = buildMetricRows(formatters);
 
   return (
     <motion.div

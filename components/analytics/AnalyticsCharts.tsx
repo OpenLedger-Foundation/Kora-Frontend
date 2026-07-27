@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { Download, TrendingUp, TrendingDown } from "lucide-react";
+import { useFormatters } from "@/hooks/useFormatters";
 
 const TOOLTIP_STYLE = {
   contentStyle: {
@@ -132,6 +133,7 @@ export default function AnalyticsCharts({
   onRiskSegmentClick,
 }: AnalyticsChartsProps) {
   const chartHeight = compact ? 180 : 240;
+  const { formatCurrency, formatNumber, formatPercentage } = useFormatters();
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
@@ -164,7 +166,7 @@ export default function AnalyticsCharts({
                   portfolio,
                   "month",
                   "value",
-                  (v) => `$${v.toLocaleString()}`,
+                  (v) => formatCurrency(v, "USDC"),
                 )}
               >
               <ResponsiveContainer width="100%" height={chartHeight}>
@@ -190,11 +192,11 @@ export default function AnalyticsCharts({
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`}
+                    tickFormatter={(v: number) => `${formatNumber(v / 1000, { maximumFractionDigits: 0 })}K`}
                   />
                   <Tooltip
                     {...TOOLTIP_STYLE}
-                    formatter={(v: number) => [`$${v.toLocaleString()}`, "Value"]}
+                    formatter={(v: number) => [formatCurrency(v, "USDC"), "Value"]}
                     labelFormatter={(label) => `Month: ${label}`}
                   />
                   <Area
@@ -239,7 +241,7 @@ export default function AnalyticsCharts({
                   yieldData,
                   "month",
                   "yield",
-                  (v) => `$${v.toLocaleString()}`,
+                  (v) => formatCurrency(v, "USDC"),
                 )}
               >
               <ResponsiveContainer width="100%" height={chartHeight}>
@@ -259,11 +261,11 @@ export default function AnalyticsCharts({
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`}
+                    tickFormatter={(v: number) => `${formatNumber(v / 1000, { maximumFractionDigits: 0 })}K`}
                   />
                   <Tooltip
                     {...TOOLTIP_STYLE}
-                    formatter={(v: number) => [`$${v.toLocaleString()}`, "Yield"]}
+                    formatter={(v: number) => [formatCurrency(v, "USDC"), "Yield"]}
                     labelFormatter={(label) => `Month: ${label}`}
                   />
                   <Bar dataKey="yield" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} isAnimationActive={!isLoading} />
@@ -391,7 +393,7 @@ export default function AnalyticsCharts({
                   monthly,
                   "month",
                   "return",
-                  (v) => `${v}%`,
+                  (v) => formatPercentage(v, 2),
                 )}
               >
               <ResponsiveContainer width="100%" height={chartHeight}>
@@ -417,11 +419,11 @@ export default function AnalyticsCharts({
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v: number) => `${v.toFixed(1)}%`}
+                    tickFormatter={(v: number) => formatPercentage(v, 1)}
                   />
                   <Tooltip
                     {...TOOLTIP_STYLE}
-                    formatter={(v: number) => [`${v.toFixed(2)}%`, "Return"]}
+                    formatter={(v: number) => [formatPercentage(v, 2), "Return"]}
                     labelFormatter={(label) => `Month: ${label}`}
                   />
                   <Line

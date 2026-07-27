@@ -26,7 +26,8 @@ import { Container } from "@/components/layout/Container";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore, useTransactionStore } from "@/store";
 import type { TxRecord, TxType } from "@/store/transactionStore";
-import { formatCurrency, formatDate, cn, exportCsv } from "@/lib/utils";
+import { cn, exportCsv } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { safeStellarTxUrl } from "@/lib/security";
 import EmptyState from "@/components/ui/EmptyState";
@@ -111,6 +112,7 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
 
 function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => void }) {
   const config = TX_TYPE_CONFIG[tx.type];
+  const { formatDate, formatCurrency } = useFormatters();
 
   return (
     <motion.div
@@ -179,6 +181,7 @@ export default function TransactionHistoryPage() {
   const { isConnected } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { transactions, removeTransaction, clearHistory } = useTransactionStore();
+  const { formatCurrency } = useFormatters();
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TxType | "all">("all");

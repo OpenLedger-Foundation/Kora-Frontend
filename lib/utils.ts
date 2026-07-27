@@ -2,6 +2,13 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { StrKey } from "@stellar/stellar-sdk";
+import {
+  LOCALE_FORMATS,
+  getIntlTag,
+  getLocaleFormatConfig,
+  type LocaleFormatConfig,
+} from "@/lib/validations/locales";
+import type { Locale } from "@/i18n/config";
 
 export function isValidStellarAddress(
   address: string | null | undefined,
@@ -15,74 +22,118 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Resolve a short locale code ("en", "pt-BR") to a full Intl tag ("en-US", "pt-BR")
+ * using the app's LOCALE_FORMATS mapping. Unknown tags pass through unchanged.
+ */
+function resolveIntlTag(locale: string): string {
+  const appLocale = Object.keys(LOCALE_FORMATS).find(
+    (k) => k === locale || (LOCALE_FORMATS as Record<string, LocaleFormatConfig>)[k]?.intlTag === locale,
+  ) as Locale | undefined;
+  if (appLocale) return getIntlTag(appLocale);
+  return locale;
+}
+
+/**
+ * Determines whether a locale places the currency symbol before the amount.
+ * Uses a heuristic based on the locale's currency format pattern.
+ */
+function isCurrencyPrefix(locale: string): boolean {
+  const cfg = getLocaleFormatConfig(locale);
+  if (cfg && !cfg.rtl) return true;
+  if (cfg && cfg.rtl) return false;
+  try {
+    const parts = new Intl.NumberFormat(resolveIntlTag(locale), {
+      style: "currency",
+      currency: "USD",
+    }).formatToParts(1);
+    const currencyIdx = parts.findIndex((p) => p.type === "currency");
+    return currencyIdx === 0 || currencyIdx === 1;
+  } catch {
+    return true;
+  }
+}
+
+/**
  * Format a number as a currency string.
- * Always uses USDC (or the provided currency label) as the symbol.
- * The number is formatted according to the active locale.
+ * Uses the provided crypto/fiat currency label (USDC, XLM, etc.) and a $ prefix
+ * for familiarity. The number formatting (thousands separator, decimal mark)
+ * respects the active locale.
  *
  * @param amount   - The numeric value to format (null/undefined → 0)
  * @param currency - Currency label appended to the formatted number (default: "USDC")
  * @param compact  - When true, abbreviates large numbers as K / M (default: false)
- * @param locale   - BCP 47 locale string used for number formatting (default: "en-US")
+ * @param locale   - App locale code or BCP 47 tag for number formatting (default: "en")
  */
 export function formatCurrency(
   amount: number | null | undefined,
   currency = "USDC",
   compact = false,
-  locale = "en-US",
+  locale = "en",
 ): string {
+  const intlTag = resolveIntlTag(locale);
   const n = amount ?? 0;
-  if (compact && Math.abs(n) >= 1_000_000) {
-    const formatted = new Intl.NumberFormat(locale, {
+  const abs = Math.abs(n);
+  const prefix = isCurrencyPrefix(locale);
+
+  if (compact && abs >= 1_000_000) {
+    const formatted = new Intl.NumberFormat(intlTag, {
       minimumFractionDigits: 1,
       maximumFractionDigits: 1,
       useGrouping: true,
-    }).format(Math.abs(n) / 1_000_000);
-    return `${n < 0 ? "$-" : "$"}${formatted}M ${currency}`;
+    }).format(abs / 1_000_000);
+    const num = `${formatted}M`;
+    const withSign = n < 0 ? `-${num}` : num;
+    return prefix ? `$${withSign} ${currency}` : `${withSign} $ ${currency}`;
   }
-  if (compact && Math.abs(n) >= 1_000) {
-    const formatted = new Intl.NumberFormat(locale, {
+  if (compact && abs >= 1_000) {
+    const formatted = new Intl.NumberFormat(intlTag, {
       minimumFractionDigits: 1,
       maximumFractionDigits: 1,
       useGrouping: true,
-    }).format(Math.abs(n) / 1_000);
-    return `${n < 0 ? "$-" : "$"}${formatted}K ${currency}`;
+    }).format(abs / 1_000);
+    const num = `${formatted}K`;
+    const withSign = n < 0 ? `-${num}` : num;
+    return prefix ? `$${withSign} ${currency}` : `${withSign} $ ${currency}`;
   }
-  return (
-    new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-      useGrouping: true,
-    }).format(n) + ` ${currency}`
-  );
+
+  const formattedNumber = new Intl.NumberFormat(intlTag, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
+  }).format(n);
+
+  return prefix ? `$${formattedNumber} ${currency}` : `${formattedNumber} $ ${currency}`;
 }
 
-/** Format an amount as USDC: "1,234.56 USDC" */
+/** Format an amount as USDC: "1,234.56 USDC" (locale-aware number formatting) */
 export function formatUSDC(
   amount: number | null | undefined,
   decimals = 2,
-  locale = "en-US",
+  locale = "en",
 ): string {
+  const intlTag = resolveIntlTag(locale);
   const n = amount ?? 0;
   return (
-    new Intl.NumberFormat(locale, {
+    new Intl.NumberFormat(intlTag, {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
+      useGrouping: true,
     }).format(n) + " USDC"
   );
 }
 
-/** Format an amount as XLM: "1,234.5678900 XLM" (7 decimal places) */
+/** Format an amount as XLM: "1,234.5678900 XLM" (7 decimal places, locale-aware) */
 export function formatXLM(
   amount: number | null | undefined,
-  locale = "en-US",
+  locale = "en",
 ): string {
+  const intlTag = resolveIntlTag(locale);
   const n = amount ?? 0;
   return (
-    new Intl.NumberFormat(locale, {
+    new Intl.NumberFormat(intlTag, {
       minimumFractionDigits: 7,
       maximumFractionDigits: 7,
+      useGrouping: true,
     }).format(n) + " XLM"
   );
 }
@@ -91,10 +142,11 @@ export function formatXLM(
 export function formatPercentage(
   value: number | null | undefined,
   decimals = 2,
-  locale = "en-US",
+  locale = "en",
 ): string {
+  const intlTag = resolveIntlTag(locale);
   const n = value ?? 0;
-  return new Intl.NumberFormat(locale, {
+  return new Intl.NumberFormat(intlTag, {
     style: "percent",
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
@@ -109,22 +161,44 @@ export function formatPercent(
   return `${((value ?? 0) * 100).toFixed(decimals)}%`;
 }
 
-/** Format APR (already in percent, e.g. 12.5 → "12.50% APR") */
-export function formatApr(apr: number | null | undefined): string {
-  return `${(apr ?? 0).toFixed(2)}% APR`;
+/** Format APR (already in percent, e.g. 12.5 → "12.50% APR"), locale-aware */
+export function formatApr(
+  apr: number | null | undefined,
+  locale = "en",
+): string {
+  const intlTag = resolveIntlTag(locale);
+  const n = apr ?? 0;
+  const formatted = new Intl.NumberFormat(intlTag, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
+  }).format(n);
+  return `${formatted}% APR`;
 }
 
 /** Format a date string. format: "short" = "Jan 5, 2025", "long" = "January 5, 2025", "relative" = relative time */
 export function formatDate(
   dateStr: string | null | undefined,
   fmt: "short" | "long" | "relative" = "short",
+  locale = "en",
 ): string {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return "—";
-  if (fmt === "relative") return formatRelativeDate(dateStr);
-  if (fmt === "long") return format(d, "MMMM d, yyyy");
-  return format(d, "MMM d, yyyy");
+  if (fmt === "relative") return formatRelativeDate(dateStr, locale);
+  const intlTag = resolveIntlTag(locale);
+  if (fmt === "long") {
+    return new Intl.DateTimeFormat(intlTag, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(d);
+  }
+  return new Intl.DateTimeFormat(intlTag, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(d);
 }
 
 /** Relative time (e.g. "in 30 days", "2 hours ago") using Intl.RelativeTimeFormat */
@@ -135,8 +209,9 @@ export function formatRelativeTime(
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;
   if (isNaN(d.getTime())) return "—";
+  const intlTag = resolveIntlTag(locale);
 
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  const rtf = new Intl.RelativeTimeFormat(intlTag, { numeric: "auto" });
   const diffMs = d.getTime() - Date.now();
   const diffSec = Math.round(diffMs / 1000);
   const diffMin = Math.round(diffSec / 60);
@@ -156,11 +231,14 @@ export function formatRelativeTime(
 }
 
 /** Relative time using date-fns (original behaviour, kept for backward compat) */
-export function formatRelativeDate(dateStr: string | null | undefined): string {
+export function formatRelativeDate(
+  dateStr: string | null | undefined,
+  locale = "en",
+): string {
   if (!dateStr) return "—";
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return "—";
-  return formatDistanceToNow(d, { addSuffix: true });
+  return formatDistanceToNow(d, { addSuffix: true, locale: undefined });
 }
 
 /** Days remaining until a date */
@@ -293,6 +371,7 @@ export function calculateYieldProjection(
   amount: number,
   tier: string,
   horizonMonths: number,
+  locale = "en",
 ): YieldProjectionResult {
   const apr = RISK_TIER_APR[tier] || 12;
   const monthlyRate = apr / 100 / 12;
@@ -300,11 +379,17 @@ export function calculateYieldProjection(
   const tbillsMonthlyRate = YIELD_BENCHMARKS.T_BILLS_APY / 100 / 12;
 
   const data: YieldProjectionPoint[] = [];
+  const intlTag = resolveIntlTag(locale);
+
+  const monthFormatter = new Intl.DateTimeFormat(intlTag, {
+    month: "short",
+    year: "2-digit",
+  });
 
   for (let m = 0; m <= horizonMonths; m++) {
     const date = new Date();
     date.setMonth(date.getMonth() + m);
-    const monthName = format(date, "MMM yy");
+    const monthName = monthFormatter.format(date);
 
     data.push({
       month: m,

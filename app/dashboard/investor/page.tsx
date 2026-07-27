@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
+import { useFormatters } from "@/hooks/useFormatters";
 import { useUIStore, useInvoiceStore, usePositionListingStore, DEFAULT_FILTERS } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
@@ -22,9 +23,6 @@ import {
   allocationToMarketplaceFilters,
 } from "@/lib/portfolioAllocation";
 import {
-  formatCurrency,
-  formatDate,
-  formatApr,
   RISK_TIER_COLORS,
   cn,
 } from "@/lib/utils";
@@ -73,6 +71,7 @@ export default function InvestorDashboardPage() {
   const { setWalletModalOpen } = useUIStore();
   const router = useRouter();
   const { setFilters, resetFilters } = useInvoiceStore();
+  const { formatCurrency, formatDate, formatApr, formatPercentage } = useFormatters();
   const positionsQuery = usePositions(address ?? undefined, {
     refetchInterval: 30_000,
   });

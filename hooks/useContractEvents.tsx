@@ -28,7 +28,7 @@ import { useInvoiceStore } from "@/store/invoiceStore";
 import { useUIStore } from "@/store/uiStore";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { env } from "@/lib/env";
-import { formatCurrency } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import type { Invoice } from "@/types/invoice";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -39,55 +39,6 @@ const EVENT_TYPES: KoraEventType[] = [
   "invoice_repaid",
   "invoice_cancelled",
 ];
-
-// ─── Toast helpers ────────────────────────────────────────────────────────────
-
-function showEventToast(event: ContractEvent, walletAddress: string) {
-  const isRelevant =
-    event.participantAddress.toLowerCase() === walletAddress.toLowerCase();
-
-  if (!isRelevant) return;
-
-  const amountStr = formatCurrency(event.amount, "USDC");
-
-  switch (event.type) {
-    case "invoice_funded":
-      toast.success(
-        <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-foreground">Invoice Funded</span>
-          <span className="text-xs text-muted-foreground">
-            {amountStr} invested · Invoice #{event.tokenId}
-          </span>
-        </div>,
-        { duration: 5000 }
-      );
-      break;
-
-    case "invoice_repaid":
-      toast.success(
-        <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-foreground">Invoice Repaid</span>
-          <span className="text-xs text-muted-foreground">
-            Invoice #{event.tokenId} has been fully repaid
-          </span>
-        </div>,
-        { duration: 5000 }
-      );
-      break;
-
-    case "invoice_cancelled":
-      toast.info(
-        <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-foreground">Invoice Cancelled</span>
-          <span className="text-xs text-muted-foreground">
-            Invoice #{event.tokenId} has been cancelled
-          </span>
-        </div>,
-        { duration: 5000 }
-      );
-      break;
-  }
-}
 
 // ─── Cache invalidation ───────────────────────────────────────────────────────
 
@@ -289,6 +240,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
   const notificationPreferences = useUIStore((s) => s.notificationPreferences);
   const { health } = useNetworkStatus();
   const { updateInvoiceFunding } = useInvoiceStore();
+  const { formatCurrency } = useFormatters();
 
   const isOffline = health.overall === "down";
   const [mode, setMode] = useState<EventSubscriptionMode>(
@@ -297,6 +249,53 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
 
   const lastLedgerRef = useRef<number>(0);
   const processedEventIds = useRef<Set<string>>(new Set());
+
+  const showEventToast = useCallback((event: ContractEvent, addr: string) => {
+    const isRelevant =
+      event.participantAddress.toLowerCase() === addr.toLowerCase();
+
+    if (!isRelevant) return;
+
+    const amountStr = formatCurrency(event.amount, "USDC");
+
+    switch (event.type) {
+      case "invoice_funded":
+        toast.success(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-foreground">Invoice Funded</span>
+            <span className="text-xs text-muted-foreground">
+              {amountStr} invested · Invoice #{event.tokenId}
+            </span>
+          </div>,
+          { duration: 5000 }
+        );
+        break;
+
+      case "invoice_repaid":
+        toast.success(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-foreground">Invoice Repaid</span>
+            <span className="text-xs text-muted-foreground">
+              Invoice #{event.tokenId} has been fully repaid
+            </span>
+          </div>,
+          { duration: 5000 }
+        );
+        break;
+
+      case "invoice_cancelled":
+        toast.info(
+          <div className="flex flex-col gap-0.5">
+            <span className="font-semibold text-foreground">Invoice Cancelled</span>
+            <span className="text-xs text-muted-foreground">
+              Invoice #{event.tokenId} has been cancelled
+            </span>
+          </div>,
+          { duration: 5000 }
+        );
+        break;
+    }
+  }, [formatCurrency]);
 
   const processEvents = useCallback(
     (events: ContractEvent[], latestLedger: number) => {
@@ -322,7 +321,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
         processedEventIds.current = new Set(arr.slice(-250));
       }
     },
-    [queryClient, walletAddress, notificationPreferences.invoiceFunded, updateInvoiceFunding]
+    [queryClient, walletAddress, notificationPreferences.invoiceFunded, updateInvoiceFunding, showEventToast]
   );
 
   const fetchOnce = useCallback(async () => {

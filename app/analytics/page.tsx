@@ -12,11 +12,11 @@ import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
+import { useFormatters } from "@/hooks/useFormatters";
 import { usePositions } from "@/hooks/usePositions";
 import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
 import { Button } from "@/components/ui/button";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
-import { formatCurrency } from "@/lib/utils";
 import { exportCsv, exportPdf } from "@/lib/export";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
@@ -103,6 +103,7 @@ function PortfolioAnalyticsInner() {
   const searchParams = useSearchParams();
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
   const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
+  const { formatCurrency, formatPercentage } = useFormatters();
 
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
@@ -166,7 +167,7 @@ function PortfolioAnalyticsInner() {
     {
       label: "Expected Yield",
       value: formatCurrency(totalYield, "USDC", true),
-      change: totalInvested > 0 ? `${((totalYield / totalInvested) * 100).toFixed(1)}% return` : "0.0% return",
+      change: totalInvested > 0 ? `${formatPercentage((totalYield / totalInvested) * 100, 1)} return` : "0.0% return",
       changePositive: true,
       icon: <TrendingUp className="h-4 w-4" />,
     },
@@ -177,7 +178,7 @@ function PortfolioAnalyticsInner() {
     },
     {
       label: "Avg. APR",
-      value: `${averageApr.toFixed(1)}%`,
+      value: formatPercentage(averageApr, 1),
       change: "Across all positions",
       changePositive: true,
       icon: <Shield className="h-4 w-4" />,

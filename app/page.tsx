@@ -16,37 +16,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/card";
 import { MOCK_STATS } from "@/services/mockData";
-import { formatCurrency } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { websiteSchema, organizationSchema, faqSchema, serializeSchema } from "@/lib/structuredData";
 
 const HERO_HEADLINE = "Invoice Financing, On-Chain";
-
-const HERO_STATS = [
-  {
-    label: "Total Invoices",
-    value: MOCK_STATS.activeInvoices,
-    formatter: (value: number) => value.toLocaleString(),
-  },
-  {
-    label: "Total USDC Financed",
-    value: MOCK_STATS.totalVolumeFinanced,
-    formatter: (value: number) => formatCurrency(value, "USDC", true),
-  },
-  {
-    label: "Average APR",
-    value: MOCK_STATS.averageApr,
-    formatter: (value: number) => `${value.toFixed(1)}%`,
-  },
-];
-
-const STATS = [
-  { label: "Total Volume Financed", value: formatCurrency(MOCK_STATS.totalVolumeFinanced, "USDC", true) },
-  { label: "Active Invoices", value: MOCK_STATS.activeInvoices.toLocaleString() },
-  { label: "Liquidity Providers", value: MOCK_STATS.totalInvestors.toLocaleString() },
-  { label: "Avg. APR", value: `${MOCK_STATS.averageApr}%` },
-];
 
 function AnimatedStat({ value, label, formatter }: { value: number; label: string; formatter: (value: number) => string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -139,6 +114,38 @@ const FEATURES = [
 
 export default function LandingPage() {
   const words = useMemo(() => HERO_HEADLINE.split(" "), []);
+  const { formatCurrency, formatPercentage, formatNumber } = useFormatters();
+
+  const heroStats = useMemo(
+    () => [
+      {
+        label: "Total Invoices",
+        value: MOCK_STATS.activeInvoices,
+        formatter: (value: number) => formatNumber(value),
+      },
+      {
+        label: "Total USDC Financed",
+        value: MOCK_STATS.totalVolumeFinanced,
+        formatter: (value: number) => formatCurrency(value, "USDC", true),
+      },
+      {
+        label: "Average APR",
+        value: MOCK_STATS.averageApr,
+        formatter: (value: number) => formatPercentage(value, 1),
+      },
+    ],
+    [formatCurrency, formatPercentage, formatNumber]
+  );
+
+  const stats = useMemo(
+    () => [
+      { label: "Total Volume Financed", value: formatCurrency(MOCK_STATS.totalVolumeFinanced, "USDC", true) },
+      { label: "Active Invoices", value: formatNumber(MOCK_STATS.activeInvoices) },
+      { label: "Liquidity Providers", value: formatNumber(MOCK_STATS.totalInvestors) },
+      { label: "Avg. APR", value: formatPercentage(MOCK_STATS.averageApr, 0) },
+    ],
+    [formatCurrency, formatNumber, formatPercentage]
+  );
 
   return (
     <div className="bg-mesh">
@@ -223,7 +230,7 @@ export default function LandingPage() {
             transition={{ duration: 0.7, delay: 0.45 }}
             className="relative z-10 mx-auto mt-16 grid gap-4 sm:grid-cols-3"
           >
-            {HERO_STATS.map((stat) => (
+            {heroStats.map((stat) => (
               <AnimatedStat key={stat.label} value={stat.value} label={stat.label} formatter={stat.formatter} />
             ))}
           </motion.div>
@@ -234,7 +241,7 @@ export default function LandingPage() {
       <section className="border-y border-zinc-800/60 bg-zinc-900/30 px-4 py-12 sm:px-6" aria-label="Protocol statistics">
         <div className="mx-auto max-w-5xl">
           <div className="grid grid-cols-2 gap-6 lg:grid-cols-4">
-            {STATS.map((stat, i) => (
+            {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 16 }}
