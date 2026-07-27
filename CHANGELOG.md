@@ -1,3 +1,15 @@
+# [1.7.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.6.0...v1.7.0) (2026-07-27)
+
+
+### Features
+
+* add devtools coverage and runtime flags ([a47e123](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/a47e1237497da32029c3c3e2918d4b7ee10bd347))
+* **analytics:** wire portfolio CSV/PDF export to live filtered positions ([7a6739e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/7a6739ea4907b1a0438c2330bb6347c8ddb76ab2)), closes [#387](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/387)
+* **observability:** add query cache rules and performance workflow ([5c77fba](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/5c77fbae27aa79eb917ca2f11bee4eb164d9c131))
+* **share:** canonical token-id deep links, post-mint CTA, PNG OG ([59d0a2e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/59d0a2ebcc146e3d73b9df67a6ad8cc5147190b6)), closes [#383](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/383)
+* **sme:** enable batch cancel/repay with sequential tx queue ([cc784f6](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/cc784f6df9f01b33069ec28af0631e0a21bf44d0)), closes [#382](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/382)
+* **tx:** add simulation preview to claim and map Soroban errors ([828ec3b](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/828ec3b3e55071fda95d983af9283c8fa0f0bd59)), closes [#385](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/385)
+
 # [1.6.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.5.0...v1.6.0) (2026-07-26)
 
 
