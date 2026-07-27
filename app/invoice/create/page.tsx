@@ -29,13 +29,13 @@ import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareCreateInvoice } from "@/services/invoiceService";
 import {
-  createInvoiceSchema,
-  invoiceDetailsStepSchema,
-  financingTermsSchema,
+  buildLocalizedInvoiceSchemas,
   INVOICE_DETAILS_STEP_FIELDS,
   FINANCING_TERMS_STEP_FIELDS,
   type CreateInvoiceSchema,
 } from "@/lib/validations/invoice";
+import { createLocalizedErrorMap } from "@/lib/validations/locales";
+import { useLocale } from "@/i18n/LocaleProvider";
 import { cn, isValidStellarAddress } from "@/lib/utils";
 import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -86,6 +86,15 @@ export default function CreateInvoicePage() {
   const { execute, status: txStatus, error: txError, reset: resetTxState } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
 
+  // ── i18n: rebuild Zod schemas whenever the active locale changes ──────────
+  const locale = useLocale();
+  const {
+    invoiceDetailsStepSchema,
+    financingTermsSchema,
+    createInvoiceSchema,
+  } = useMemo(() => buildLocalizedInvoiceSchemas(locale), [locale]);
+  const localizedErrorMap = useMemo(() => createLocalizedErrorMap(locale), [locale]);
+
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStage, setUploadStage] = useState<"ipfs" | "chain" | "done">("ipfs");
@@ -115,7 +124,7 @@ export default function CreateInvoicePage() {
     setValue,
     formState: { errors },
   } = useForm<CreateInvoiceSchema>({
-    resolver: zodResolver(createInvoiceSchema),
+    resolver: zodResolver(createInvoiceSchema, { errorMap: localizedErrorMap }),
     mode: "onBlur",
     reValidateMode: "onChange",
     defaultValues: {
@@ -138,11 +147,13 @@ export default function CreateInvoicePage() {
   const formValues = watch();
   const step0Valid = useMemo(
     () => invoiceDetailsStepSchema.safeParse(formValues).success,
-    [formValues]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [formValues, invoiceDetailsStepSchema]
   );
   const step1Valid = useMemo(
     () => financingTermsSchema.safeParse(formValues).success,
-    [formValues]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [formValues, financingTermsSchema]
   );
 
   const dueDate = watch("dueDate");
