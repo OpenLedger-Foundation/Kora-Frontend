@@ -8,7 +8,7 @@ const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCh
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
-import { TrendingUp, DollarSign, BarChart3, Shield } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
@@ -16,7 +16,6 @@ import { usePositions } from "@/hooks/usePositions";
 import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
 import { Button } from "@/components/ui/button";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
-import { formatCurrency } from "@/lib/utils";
 import { exportCsv, exportPdf } from "@/lib/export";
 import {
   PORTFOLIO_EXPORT_HEADERS,
@@ -44,41 +43,76 @@ import {
 // ── Mock analytics data (time-series history; risk uses live positions) ───────
 
 const PORTFOLIO_HISTORY = [
+  { month: "Jan", value: 0 },
+  { month: "Feb", value: 12000 },
+  { month: "Mar", value: 25000 },
+  { month: "Apr", value: 48000 },
+  { month: "May", value: 72000 },
   { month: "Jun", value: 0 },
   { month: "Jul", value: 25000 },
   { month: "Aug", value: 48000 },
   { month: "Sep", value: 72000 },
   { month: "Oct", value: 115000 },
   { month: "Nov", value: 170000 },
+  { month: "Dec", value: 210000 },
 ];
 
 const YIELD_HISTORY = [
+  { month: "Jan", yield: 0 },
+  { month: "Feb", yield: 180 },
+  { month: "Mar", yield: 420 },
+  { month: "Apr", yield: 890 },
+  { month: "May", yield: 1200 },
   { month: "Jun", yield: 0 },
   { month: "Jul", yield: 420 },
   { month: "Aug", yield: 890 },
   { month: "Sep", yield: 1540 },
   { month: "Oct", yield: 2800 },
   { month: "Nov", yield: 4200 },
+  { month: "Dec", yield: 5600 },
 ];
 
 const MONTHLY_RETURNS = [
+  { month: "Jan", return: 0 },
+  { month: "Feb", return: 1.50 },
+  { month: "Mar", return: 1.68 },
+  { month: "Apr", return: 1.85 },
+  { month: "May", return: 2.00 },
   { month: "Jun", return: 0 },
   { month: "Jul", return: 1.68 },
   { month: "Aug", return: 1.85 },
   { month: "Sep", return: 2.14 },
   { month: "Oct", return: 2.43 },
   { month: "Nov", return: 2.47 },
+  { month: "Dec", return: 2.60 },
 ];
 
 // ── URL ↔ filter helpers ───────────────────────────────────────────────────────
 
 function filtersFromParams(params: URLSearchParams): AnalyticsFilters {
-  return {
+  const dateRange = (params.get("range") as PresetRange | "custom") ?? DEFAULT_FILTERS.dateRange;
+  const fromStr = params.get("from");
+  const toStr = params.get("to");
+
+  const result: AnalyticsFilters = {
     riskTier: (params.get("risk") as RiskTierFilter) ?? DEFAULT_FILTERS.riskTier,
     jurisdiction: (params.get("jurisdiction") as JurisdictionFilter) ?? DEFAULT_FILTERS.jurisdiction,
     category: (params.get("category") as CategoryFilter) ?? DEFAULT_FILTERS.category,
-    dateRange: (params.get("range") as PresetRange | "custom") ?? DEFAULT_FILTERS.dateRange,
+    dateRange,
   };
+
+  if (dateRange === "custom" && fromStr && toStr) {
+    const from = new Date(fromStr);
+    const to = new Date(toStr);
+    if (!isNaN(from.getTime()) && !isNaN(to.getTime()) && from <= to) {
+      result.customDateRange = { from, to };
+    } else {
+      // Invalid custom range — fall back to default
+      result.dateRange = DEFAULT_FILTERS.dateRange;
+    }
+  }
+
+  return result;
 }
 
 function filtersToParams(filters: AnalyticsFilters): URLSearchParams {
@@ -86,15 +120,37 @@ function filtersToParams(filters: AnalyticsFilters): URLSearchParams {
   if (filters.riskTier !== "all") p.set("risk", filters.riskTier);
   if (filters.jurisdiction !== "all") p.set("jurisdiction", filters.jurisdiction);
   if (filters.category !== "all") p.set("category", filters.category);
-  if (filters.dateRange !== "30d") p.set("range", filters.dateRange);
+  if (filters.dateRange !== DEFAULT_FILTERS.dateRange) p.set("range", filters.dateRange);
+  if (
+    filters.dateRange === "custom" &&
+    filters.customDateRange?.from &&
+    filters.customDateRange?.to
+  ) {
+    const from = filters.customDateRange.from;
+    const to = filters.customDateRange.to;
+    if (from > to) {
+      // Invalid range — don't persist
+      return p;
+    }
+    p.set("from", from.toISOString().split("T")[0]);
+    p.set("to", to.toISOString().split("T")[0]);
+  }
   return p;
 }
 
-// ── Slice helpers (mock — in real app filter by actual data timestamps/fields) ─
+// ── Slice helpers — filter mock data by date range ────────────────────────────
 
 function sliceByRange<T>(data: T[], range: PresetRange | "custom"): T[] {
-  const counts: Record<string, number> = { "7d": 1, "30d": 2, "90d": 4, ytd: 5, all: 6, custom: 6 };
-  return data.slice(-(counts[range] ?? 6));
+  const counts: Record<string, number> = {
+    "7d": 1,
+    "30d": 2,
+    "90d": 4,
+    "1y": 12,
+    ytd: 5,
+    all: data.length,
+    custom: data.length,
+  };
+  return data.slice(-(counts[range] ?? data.length));
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -105,6 +161,8 @@ function PortfolioAnalyticsInner() {
   const { setFilters, resetFilters } = useInvoiceStore();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Single positionsQuery — refetch every 30 s while tab is visible
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
 
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
@@ -120,10 +178,7 @@ function PortfolioAnalyticsInner() {
 
   const handleRiskSegmentClick = useCallback(
     (riskTier: string) => {
-      const allocationFilter = {
-        dimension: "riskTier" as const,
-        value: riskTier,
-      };
+      const allocationFilter = { dimension: "riskTier" as const, value: riskTier };
       resetFilters();
       setFilters({
         ...MARKETPLACE_DEFAULT_FILTERS,
@@ -271,23 +326,9 @@ function PortfolioAnalyticsInner() {
             </div>
           </div>
 
-          {/* Filter bar */}
+          {/* Filter bar — changes push new URL params, charts re-slice instantly */}
           <div className="mb-6 print:hidden">
             <AnalyticsFilterBar filters={filters} onChange={handleFiltersChange} />
-          </div>
-
-          {/* Stats */}
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.07 }}
-              >
-                <StatCard {...stat} />
-              </motion.div>
-            ))}
           </div>
 
           {/* Charts */}
@@ -350,7 +391,6 @@ function PortfolioAnalyticsInner() {
           </section>
         </div>
       </PrintLayout>
-
     </ErrorBoundary>
   );
 }

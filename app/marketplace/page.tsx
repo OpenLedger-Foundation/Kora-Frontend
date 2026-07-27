@@ -716,6 +716,11 @@ function MarketplaceContent() {
         </div>
 
         {/* 2-Column Responsive Layout */}
+        {/* Active filter chips — shown below the search/sort bar when filters are applied */}
+        {activeFiltersCount > 0 && (
+          <ActiveFilterChips className="mb-4" />
+        )}
+
         <div className="flex flex-col gap-8 lg:flex-row">
           {/* A. Sticky Filter Sidebar (Desktop screens) */}
           <div className="hidden lg:block w-72 shrink-0">

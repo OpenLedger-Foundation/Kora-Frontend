@@ -30,6 +30,12 @@ export const queryKeys = {
     infinite: (filters: FilterState, sort: string | SortState, pageSize: number) =>
       ["invoices", "infinite", filters, sort, pageSize] as const,
     /**
+     * Infinite-scroll query key — includes filters, sortBy string, and page
+     * size so any filter/sort change resets pagination automatically.
+     */
+    infinite: (filters: FilterState, sortBy: string, pageSize: number) =>
+      ["invoices", "infinite", filters, sortBy, pageSize] as const,
+    /**
      * Detail keys are namespaced by data source so mock and live indexer
      * responses never collide in the TanStack Query cache.
      */

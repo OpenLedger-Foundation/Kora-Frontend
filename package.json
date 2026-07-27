@@ -126,5 +126,8 @@
       "path": ".next/static/chunks/pages/**/*.js",
       "maxSize": "300 kB"
     }
-  ]
+  ],
+  "overrides": {
+    "std-env": "3.8.0"
+  }
 }

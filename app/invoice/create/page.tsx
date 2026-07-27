@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type FileRejection, useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   FileText,
   CheckCircle2,
@@ -15,6 +16,7 @@ import {
   WifiOff,
   RefreshCw,
 } from "lucide-react";
+import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, NumberInput, DatePicker, FileInput, Select } from "@/components/ui";
 import { GlassCard } from "@/components/ui/card";
@@ -86,7 +88,9 @@ export default function CreateInvoicePage() {
 
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState<"ipfs" | "chain" | "done">("ipfs");
   const [isUploading, setIsUploading] = useState(false);
+  const queryClient = useQueryClient();
   const [mintedInfo, setMintedInfo] = useState<{
     tokenId: string;
     txHash: string;
@@ -245,43 +249,51 @@ export default function CreateInvoicePage() {
       return;
     }
 
-    const { error } = await executeProtectedAction(
+    setFileError(null);
+    setIsUploading(true);
+    setUploadProgress(0);
+    setUploadStage("ipfs");
+
+    let tempMetadataCid = "";
+
+    await execute(
       async () => {
-        setFileError(null);
-        setIsUploading(true);
-        setUploadProgress(0);
-
-        let tempMetadataCid = "";
-
-        await execute(
-          async () => {
-            const result = await prepareCreateInvoice(
-              { ...data, document: file, description: "" },
-              address!,
-              (progress) => setUploadProgress(progress)
-            );
-            tempMetadataCid = result.metadataCid;
-            return result.unsignedXdr;
-          },
-          {
-            successMessage: "Invoice minted on Soroban!",
-            onSimulationPreview,
-            onSuccess: (hash) => {
-              const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
-              setMintedInfo({
-                tokenId: mockTokenId,
-                txHash: hash,
-                metadataCid: tempMetadataCid,
-              });
-              clearCreateDraft();
-              setSubmitted(true);
-            },
+        const result = await prepareCreateInvoice(
+          { ...data, document: file, description: "" },
+          address!,
+          (progress) => {
+            setUploadProgress(progress);
+            // progress 0–75 = IPFS stages (doc upload + metadata pin)
+            // progress 76–100 = on-chain stages (XDR build + submit)
+            if (progress < 76) {
+              setUploadStage("ipfs");
+            } else {
+              setUploadStage("chain");
+            }
           }
         );
 
         setIsUploading(false);
       },
-      "invoice-creation"
+      {
+        successMessage: "Invoice minted on Soroban!",
+        onSimulationPreview,
+        onSuccess: (hash) => {
+          setUploadStage("done");
+          const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
+          setMintedInfo({
+            tokenId: mockTokenId,
+            txHash: hash,
+            metadataCid: tempMetadataCid,
+          });
+          // Invalidate marketplace infinite-scroll cache so the new invoice
+          // appears immediately when the user navigates to /marketplace.
+          queryClient.invalidateQueries({ queryKey: ["invoices", "infinite"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+          clearCreateDraft();
+          setSubmitted(true);
+        },
+      }
     );
 
     if (error) {
@@ -845,9 +857,35 @@ export default function CreateInvoicePage() {
                       <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
                         <span className="flex items-center gap-1.5 font-medium text-kora-400">
                           <span className="h-1.5 w-1.5 animate-ping rounded-full bg-kora-500" />
-                          Uploading invoice to IPFS...
+                          {uploadStage === "ipfs"
+                            ? "Uploading invoice to IPFS…"
+                            : "Building on-chain transaction…"}
                         </span>
                         <span className="font-mono font-semibold text-zinc-300">{uploadProgress}%</span>
+                      </div>
+                      {/* Stage indicators */}
+                      <div className="flex items-center gap-3 text-xs">
+                        <div className={cn(
+                          "flex items-center gap-1.5 rounded-md border px-2 py-1 transition-colors",
+                          uploadStage === "ipfs"
+                            ? "border-kora-500/40 bg-kora-500/10 text-kora-400"
+                            : "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
+                        )}>
+                          {uploadStage !== "ipfs" && <CheckCircle2 className="h-3 w-3" />}
+                          IPFS Pin
+                        </div>
+                        <div className="h-px w-4 bg-zinc-700" />
+                        <div className={cn(
+                          "flex items-center gap-1.5 rounded-md border px-2 py-1 transition-colors",
+                          uploadStage === "chain"
+                            ? "border-kora-500/40 bg-kora-500/10 text-kora-400"
+                            : uploadStage === "done"
+                              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-400"
+                              : "border-zinc-700 bg-zinc-900 text-zinc-500"
+                        )}>
+                          {uploadStage === "done" && <CheckCircle2 className="h-3 w-3" />}
+                          On-chain Mint
+                        </div>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-950">
                         <motion.div
@@ -858,7 +896,9 @@ export default function CreateInvoicePage() {
                         />
                       </div>
                       <p className="text-xs text-zinc-500 leading-normal">
-                        Your invoice is being pinned to IPFS. This is a necessary first step to anchor the document hash on-chain.
+                        {uploadStage === "ipfs"
+                          ? "Pinning your invoice document to IPFS. This anchors the document hash on-chain."
+                          : "Building and simulating the Soroban mint transaction."}
                       </p>
                     </div>
                   ) : (
