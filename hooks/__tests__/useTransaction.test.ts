@@ -44,6 +44,21 @@ vi.mock("@/lib/stellar/client", () => ({
     simulateTransaction: vi.fn(),
   },
   submitTransaction: vi.fn(),
+  BadSequenceError: class BadSequenceError extends Error {},
+  sequenceManager: { reset: vi.fn() },
+}));
+
+vi.mock("@/lib/stellar/contracts", () => ({
+  parseSorobanError: (error: string) => {
+    const match = error.match(/#(\d+)/);
+    if (!match) return error;
+    const codes: Record<number, string> = {
+      4: "Unauthorized: caller is not the owner",
+      3: "Insufficient balance",
+    };
+    const code = parseInt(match[1], 10);
+    return codes[code] ?? `Contract error #${code}`;
+  },
 }));
 
 vi.mock("@/lib/env", () => ({
