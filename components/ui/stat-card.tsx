@@ -1,9 +1,12 @@
-import { cn, formatCurrency } from "@/lib/utils";
+"use client";
+
+import { cn } from "@/lib/utils";
 import { StatCardSkeleton } from "./skeleton";
 import { LineChart, Line } from "recharts";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useMotionValue, animate } from "framer-motion";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface Trend {
   percentage: number;
@@ -22,7 +25,7 @@ interface StatCardProps {
   className?: string;
 }
 
-function formatNumber(n: number) {
+function formatNumberLocal(n: number) {
   return Math.round(n).toLocaleString();
 }
 
@@ -40,6 +43,8 @@ export function StatCard({
 }: StatCardProps) {
   const mv = useMotionValue(0);
   const [display, setDisplay] = useState<number>(typeof valueRaw === "number" ? valueRaw : 0);
+  const { formatCurrency, formatNumber, formatPercentage } = useFormatters();
+  void formatNumberLocal;
 
   useEffect(() => {
     if (isLoading) return;
@@ -58,7 +63,7 @@ export function StatCard({
   const trendNode = trend ? (
     <div className={cn("ml-2 flex items-center text-sm font-medium", trend.percentage > 0 ? "text-emerald-400" : trend.percentage < 0 ? "text-red-400" : "text-zinc-400") }>
       {trend.percentage > 0 ? <ArrowUp className="h-3 w-3" /> : trend.percentage < 0 ? <ArrowDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-      <span className="ml-1">{Math.abs(trend.percentage).toFixed(1)}%</span>
+      <span className="ml-1">{formatPercentage(Math.abs(trend.percentage), 1)}</span>
     </div>
   ) : null;
 

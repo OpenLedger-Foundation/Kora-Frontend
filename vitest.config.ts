@@ -1,10 +1,14 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import { loadEnvConfig } from "@next/env";
+import { config as loadDotenv } from "dotenv";
 import { transformWithEsbuild } from "vite";
 
-loadEnvConfig(process.cwd());
+// Load .env.local then .env so test env vars are available.
+// Replaces the @next/env loadEnvConfig call which triggers an ERR_REQUIRE_ESM
+// error when vitest loads the config via CJS interop (vitest >= 2 + std-env ESM).
+loadDotenv({ path: ".env.local", override: false });
+loadDotenv({ path: ".env", override: false });
 
 export default defineConfig({
   plugins: [

@@ -10,8 +10,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { formatCurrency } from "@/lib/utils";
 import type { Invoice } from "@/types";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface RepaymentDialogProps {
   invoice: Invoice | null;
@@ -37,6 +37,7 @@ export function RepaymentDialog({
   insufficientBalance,
 }: RepaymentDialogProps) {
   const t = useTranslations("repaymentDialog");
+  const { formatCurrency } = useFormatters();
 
   if (!invoice) return null;
 

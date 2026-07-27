@@ -11,7 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatCurrency, formatDate, daysUntil, cn } from "@/lib/utils";
+import { daysUntil, cn } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { RepaymentTimeline } from "@/components/invoice/RepaymentTimeline";
 import type { InvoicePosition, Invoice } from "@/types";
@@ -34,6 +35,8 @@ export function PositionDetailDrawer({
   onOpenChange,
   loading = false,
 }: PositionDetailDrawerProps) {
+  const { formatCurrency, formatDate, formatPercentage } = useFormatters();
+
   if (!position || !invoice) {
     return (
       <Drawer
@@ -57,8 +60,12 @@ export function PositionDetailDrawer({
   const roi = position.investedAmount > 0 
     ? ((position.expectedReturn / position.investedAmount) * 100)
     : 0;
+  const roiStr = formatPercentage(roi, 2);
 
   const handleExportPDF = () => {
+    const invoiceAmountStr = formatCurrency(invoice.metadata.amount, invoice.metadata.currency);
+    const investedStr = formatCurrency(position.investedAmount, invoice.metadata.currency);
+    const expectedStr = formatCurrency(position.expectedReturn, invoice.metadata.currency);
     // Use window.print() for PDF export
     const printWindow = window.open("", "_blank");
     if (printWindow) {
@@ -95,7 +102,7 @@ export function PositionDetailDrawer({
                 </tr>
                 <tr>
                   <td>Invoice Amount</td>
-                  <td>${formatCurrency(invoice.metadata.amount, invoice.metadata.currency)}</td>
+                  <td>${invoiceAmountStr}</td>
                 </tr>
               </table>
             </div>
@@ -108,15 +115,15 @@ export function PositionDetailDrawer({
                 </tr>
                 <tr>
                   <td>Invested Amount</td>
-                  <td>${formatCurrency(position.investedAmount, invoice.metadata.currency)}</td>
+                  <td>${investedStr}</td>
                 </tr>
                 <tr>
                   <td>Expected Return</td>
-                  <td>${formatCurrency(position.expectedReturn, invoice.metadata.currency)}</td>
+                  <td>${expectedStr}</td>
                 </tr>
                 <tr>
                   <td>ROI</td>
-                  <td>${roi.toFixed(2)}%</td>
+                  <td>${roiStr}</td>
                 </tr>
                 <tr>
                   <td>Status</td>
@@ -164,7 +171,7 @@ export function PositionDetailDrawer({
                 ROI
               </p>
               <p className="mt-1 text-lg font-bold text-primary">
-                {roi.toFixed(2)}%
+                {roiStr}
               </p>
             </div>
             <div className="rounded-lg border border-border p-3 bg-muted/30">
@@ -256,7 +263,7 @@ export function PositionDetailDrawer({
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">APR</span>
-              <span className="font-medium text-primary">{invoice.terms.apr.toFixed(2)}%</span>
+              <span className="font-medium text-primary">{formatPercentage(invoice.terms.apr, 2)}</span>
             </div>
           </div>
         </DrawerSection>

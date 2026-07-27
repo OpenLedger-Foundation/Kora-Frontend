@@ -13,7 +13,99 @@ import type { Locale } from "@/i18n/config";
  * outside the wizard) but is superseded by the schema-factory pattern.
  */
 
-// ─── Message contract ─────────────────────────────────────────────────────────
+/**
+ * Locale-specific formatting configuration for numbers, currency, and dates.
+ * Ensures consistent display across the 4 supported application locales.
+ */
+export interface LocaleFormatConfig {
+  /** BCP 47 locale tag used for Intl.NumberFormat / Intl.DateTimeFormat */
+  intlTag: string;
+  /** Whether the locale uses a Latin or Arabic-Indic numbering system */
+  numberingSystem?: "latn" | "arab";
+  /** Expected thousands separator for quick validation */
+  thousandsSep: string;
+  /** Expected decimal separator for quick validation */
+  decimalSep: string;
+  /** Date order in short format patterns */
+  dateOrder: "MDY" | "DMY" | "YMD";
+  /** Whether the locale is RTL (right-to-left) */
+  rtl: boolean;
+  /** Locale-specific example strings (for tooltips/placeholders) */
+  examples: {
+    currency: string;
+    dateShort: string;
+    percentage: string;
+  };
+}
+
+/** Supported application locales with their formatting characteristics. */
+export const LOCALE_FORMATS: Record<Locale, LocaleFormatConfig> = {
+  en: {
+    intlTag: "en-US",
+    numberingSystem: "latn",
+    thousandsSep: ",",
+    decimalSep: ".",
+    dateOrder: "MDY",
+    rtl: false,
+    examples: {
+      currency: "$1,234.56 USDC",
+      dateShort: "Jan 15, 2025",
+      percentage: "12.50%",
+    },
+  },
+  es: {
+    intlTag: "es-ES",
+    numberingSystem: "latn",
+    thousandsSep: ".",
+    decimalSep: ",",
+    dateOrder: "DMY",
+    rtl: false,
+    examples: {
+      currency: "$1.234,56 USDC",
+      dateShort: "15 ene 2025",
+      percentage: "12,50 %",
+    },
+  },
+  ar: {
+    intlTag: "ar-SA",
+    numberingSystem: "arab",
+    thousandsSep: "٬",
+    decimalSep: "٫",
+    dateOrder: "DMY",
+    rtl: true,
+    examples: {
+      currency: "١٬٢٣٤٫٥٦ $ USDC",
+      dateShort: "١٥ جمادى الأولى ٢٠٢٥",
+      percentage: "١٢٫٥٠٪",
+    },
+  },
+  "pt-BR": {
+    intlTag: "pt-BR",
+    numberingSystem: "latn",
+    thousandsSep: ".",
+    decimalSep: ",",
+    dateOrder: "DMY",
+    rtl: false,
+    examples: {
+      currency: "$1.234,56 USDC",
+      dateShort: "15 de jan. de 2025",
+      percentage: "12,50%",
+    },
+  },
+};
+
+/** Resolve the canonical Intl tag for an app locale. */
+export function getIntlTag(locale: Locale): string {
+  return LOCALE_FORMATS[locale]?.intlTag ?? locale;
+}
+
+/** Return the locale formatting config for a given locale code. */
+export function getLocaleFormatConfig(locale: string): LocaleFormatConfig {
+  const key = Object.keys(LOCALE_FORMATS).find(
+    (k) => k === locale || (LOCALE_FORMATS as Record<string, LocaleFormatConfig>)[k]?.intlTag === locale,
+  ) as Locale | undefined;
+  return LOCALE_FORMATS[key ?? "en"];
+}
 
 export interface ValidationMessages {
   // Invoice number
@@ -136,100 +228,79 @@ const esMessages: ValidationMessages = {
   walletAddressInvalid: "Formato de clave pública de Stellar inválido",
 };
 
-// ─── Arabic ───────────────────────────────────────────────────────────────────
-
 const arMessages: ValidationMessages = {
   invoiceNumberRequired: "رقم الفاتورة مطلوب",
-  invoiceNumberInvalid:
-    "يجب أن يحتوي رقم الفاتورة على أحرف وأرقام وشرطات فقط",
+  invoiceNumberInvalid: "يجب أن يحتوي رقم الفاتورة على أحرف وأرقام وشرطات فقط",
   debtorNameRequired: "اسم المدين مطلوب",
-  debtorNameMinLength: "يجب أن يتكون اسم المدين من حرفين على الأقل",
+  debtorNameMinLength: "يجب أن يبلغ اسم المدين حرفين على الأقل",
   debtorAddressRequired: "عنوان المدين مطلوب",
-  debtorAddressMinLength: "يجب أن يتكون عنوان المدين من 5 أحرف على الأقل",
+  debtorAddressMinLength: "يجب أن يبلغ عنوان المدين 5 أحرف على الأقل",
   amountPositive: "يجب أن يكون المبلغ موجبًا",
   amountMin: "الحد الأدنى 100 USDC",
   dueDateRequired: "تاريخ الاستحقاق مطلوب",
   dueDateAfterIssueDate: "يجب أن يكون تاريخ الاستحقاق بعد تاريخ الإصدار",
-  descriptionMaxLength: "لا يمكن أن يتجاوز الوصف 200 حرف",
+  descriptionMaxLength: "لا يمكن أن تتجاوز الوصف 200 حرف",
   discountRateMin: "الحد الأدنى 0.5%",
   discountRateMax: "الحد الأقصى 20%",
   minInvestmentPositive: "يجب أن يكون الحد الأدنى للاستثمار موجبًا",
-  minInvestmentMin: "الحد الأدنى 100 دولار",
-  minInvestmentExceedsAmount:
-    "لا يمكن أن يتجاوز الحد الأدنى للاستثمار إجمالي قيمة الفاتورة",
-  listingExpiryDateRequired: "تاريخ انتهاء الإدراج مطلوب",
-  listingExpiryDateBeforeDueDate:
-    "يجب أن يكون تاريخ انتهاء الإدراج قبل تاريخ الاستحقاق",
+  minInvestmentMin: "الحد الأدنى 100$",
+  minInvestmentExceedsAmount: "لا يمكن أن يتجاوز الحد الأدنى للاستثمار إجمالي مبلغ الفاتورة",
+  listingExpiryDateRequired: "تاريخ انتهاء صلاحية القائمة مطلوب",
+  listingExpiryDateBeforeDueDate: "يجب أن يكون تاريخ انتهاء صلاحية القائمة قبل تاريخ الاستحقاق تمامًا",
   fileRequired: "الملف مطلوب",
   fileType: "يُسمح فقط بملفات PDF",
-  fileSize: "يجب ألا يتجاوز حجم الملف 10 ميغابايت",
-  fundingAmountMinInvestment:
-    "يجب أن لا يقل مبلغ التمويل عن الحد الأدنى للاستثمار",
-  fundingAmountExceedsCapacity: "لا يمكن أن يتجاوز مبلغ التمويل الطاقة المتبقية",
-  repaymentExactMatch: "يجب أن يطابق مبلغ السداد الرصيد المستحق تمامًا",
-  nameMinLength: "يجب أن يتكون الاسم من حرفين على الأقل",
-  emailInvalid: "عنوان البريد الإلكتروني غير صالح",
-  companyNameMinLength: "يجب أن يتكون اسم الشركة من حرفين على الأقل",
-  walletAddressInvalid: "تنسيق مفتاح Stellar العام غير صالح",
+  fileSize: "يجب ألا يتجاوز حجم الملف 10 ميجابايت",
+  fundingAmountMinInvestment: "يجب أن يكون مبلغ التمويل على الأقل الحد الأدنى لمبلغ الاستثمار",
+  fundingAmountExceedsCapacity: "لا يمكن أن يتجاوز مبلغ التمويل السعة المتبقية",
+  repaymentExactMatch: "يجب أن يتطابق مبلغ السداد تمامًا مع الرصيد المستحق",
+  nameMinLength: "يجب أن يبلغ الاسم حرفين على الأقل",
+  emailInvalid: "عنوان بريد إلكتروني غير صالح",
+  companyNameMinLength: "يجب أن يبلغ اسم الشركة حرفين على الأقل",
+  walletAddressInvalid: "تنسيق المفتاح العام لـ Stellar غير صالح",
 };
 
-// ─── Portuguese (Brazil) ──────────────────────────────────────────────────────
-
-const ptBRMessages: ValidationMessages = {
+const ptBrMessages: ValidationMessages = {
   invoiceNumberRequired: "O número da fatura é obrigatório",
-  invoiceNumberInvalid:
-    "O número da fatura deve conter apenas caracteres alfanuméricos e hifens",
+  invoiceNumberInvalid: "O número da fatura deve conter apenas caracteres alfanuméricos e hífens",
   debtorNameRequired: "O nome do devedor é obrigatório",
   debtorNameMinLength: "O nome do devedor deve ter pelo menos 2 caracteres",
   debtorAddressRequired: "O endereço do devedor é obrigatório",
-  debtorAddressMinLength:
-    "O endereço do devedor deve ter pelo menos 5 caracteres",
+  debtorAddressMinLength: "O endereço do devedor deve ter pelo menos 5 caracteres",
   amountPositive: "O valor deve ser positivo",
-  amountMin: "Mínimo $100 USDC",
+  amountMin: "Mínimo 100 USDC",
   dueDateRequired: "A data de vencimento é obrigatória",
-  dueDateAfterIssueDate:
-    "A data de vencimento deve ser posterior à data de emissão",
+  dueDateAfterIssueDate: "A data de vencimento deve ser posterior à data de emissão",
   descriptionMaxLength: "A descrição não pode exceder 200 caracteres",
   discountRateMin: "Mín 0,5%",
   discountRateMax: "Máx 20%",
   minInvestmentPositive: "O investimento mínimo deve ser positivo",
-  minInvestmentMin: "Mín $100",
-  minInvestmentExceedsAmount:
-    "O investimento mínimo não pode exceder o valor total da fatura",
+  minInvestmentMin: "Mín R$100",
+  minInvestmentExceedsAmount: "O investimento mínimo não pode exceder o valor total da fatura",
   listingExpiryDateRequired: "A data de expiração da listagem é obrigatória",
-  listingExpiryDateBeforeDueDate:
-    "A data de expiração da listagem deve ser estritamente anterior à data de vencimento",
+  listingExpiryDateBeforeDueDate: "A data de expiração da listagem deve ser estritamente anterior à data de vencimento",
   fileRequired: "O arquivo é obrigatório",
   fileType: "Apenas arquivos PDF são permitidos",
   fileSize: "O tamanho do arquivo não deve exceder 10MB",
-  fundingAmountMinInvestment:
-    "O valor do financiamento deve ser pelo menos o valor mínimo de investimento",
-  fundingAmountExceedsCapacity:
-    "O valor do financiamento não pode exceder a capacidade restante",
-  repaymentExactMatch:
-    "O valor do reembolso deve corresponder exatamente ao saldo pendente",
+  fundingAmountMinInvestment: "O valor do financiamento deve ser pelo menos o valor do investimento mínimo",
+  fundingAmountExceedsCapacity: "O valor do financiamento não pode exceder a capacidade restante",
+  repaymentExactMatch: "O valor do pagamento deve corresponder exatamente ao saldo pendente",
   nameMinLength: "O nome deve ter pelo menos 2 caracteres",
   emailInvalid: "Endereço de e-mail inválido",
-  companyNameMinLength:
-    "O nome da empresa deve ter pelo menos 2 caracteres",
+  companyNameMinLength: "O nome da empresa deve ter pelo menos 2 caracteres",
   walletAddressInvalid: "Formato de chave pública Stellar inválido",
 };
 
-// ─── Locale map ───────────────────────────────────────────────────────────────
-
-const messagesByLocale: Record<Locale, ValidationMessages> = {
-  en: enMessages,
-  es: esMessages,
-  ar: arMessages,
-  "pt-BR": ptBRMessages,
-};
-
-/**
- * Returns the full set of validation messages for the given locale.
- * Falls back to English for any unknown locale.
- */
 export function getValidationMessages(locale: Locale): ValidationMessages {
-  return messagesByLocale[locale] ?? enMessages;
+  switch (locale) {
+    case "es":
+      return esMessages;
+    case "ar":
+      return arMessages;
+    case "pt-BR":
+      return ptBrMessages;
+    default:
+      return enMessages;
+  }
 }
 
 // ─── Zod error-map (ad-hoc usage) ────────────────────────────────────────────

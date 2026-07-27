@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { logger } from "../logger";
+import { logger, redact } from "../logger";
 
 describe("Structured Logger", () => {
   let consoleSpy: any;
@@ -59,5 +59,55 @@ describe("Structured Logger", () => {
     expect(logObj.error).toHaveProperty("name", "Error");
     expect(logObj.error).toHaveProperty("message", "Something went wrong");
     expect(logObj.error).toHaveProperty("stack");
+  });
+
+  it("should redact Stellar wallet addresses, private keys, and JWTs in strings", () => {
+    const publicKey = "G".padEnd(56, "A");
+    const secretKey = "S".padEnd(56, "B");
+    const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature";
+
+    expect(redact({ wallet: publicKey })).toEqual({ wallet: "[REDACTED_WALLET]" });
+    expect(redact({ message: `secret ${secretKey}` })).toEqual({
+      message: "secret [REDACTED_SECRET_KEY]",
+    });
+    expect(redact({ header: `Bearer ${jwt}` })).toEqual({
+      header: "Bearer [REDACTED_JWT]",
+    });
+  });
+
+  it("reports client errors to vitals with a csrf token and sanitized payload", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValue({ token: "csrf-token" }),
+      })
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("window", { location: { href: "https://kora.test/dashboard", pathname: "/dashboard" } });
+    vi.stubGlobal("navigator", { userAgent: "vitest" });
+
+    await logger.reportClientError(new Error(`Failed for ${"G".padEnd(56, "A")}`), {
+      boundary: "TestBoundary",
+      jwt: "do-not-send",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/auth/csrf", {
+      method: "GET",
+      credentials: "same-origin",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/vitals",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "same-origin",
+        headers: expect.objectContaining({ "x-kora-csrf": "csrf-token" }),
+      })
+    );
+    const body = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(body.metrics[0].name).toBe("client_error");
+    expect(body.metrics[0].error.message).toContain("[REDACTED_WALLET]");
+    expect(body.metrics[0].context.jwt).toBe("[REDACTED]");
+
+    vi.unstubAllGlobals();
   });
 });

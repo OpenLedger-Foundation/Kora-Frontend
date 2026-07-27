@@ -30,6 +30,12 @@ export const queryKeys = {
     infinite: (filters: FilterState, sort: string | SortState, pageSize: number) =>
       ["invoices", "infinite", filters, sort, pageSize] as const,
     /**
+     * Infinite-scroll query key — includes filters, sortBy string, and page
+     * size so any filter/sort change resets pagination automatically.
+     */
+    infinite: (filters: FilterState, sortBy: string, pageSize: number) =>
+      ["invoices", "infinite", filters, sortBy, pageSize] as const,
+    /**
      * Detail keys are namespaced by data source so mock and live indexer
      * responses never collide in the TanStack Query cache.
      */
@@ -49,3 +55,85 @@ export const queryKeys = {
     usdcBalance: (address: string) => ["account", address, "usdc"] as const,
   },
 } as const;
+
+export type QueryInvalidationEvent =
+  | "mint_invoice"
+  | "invoice_funded"
+  | "invoice_repaid"
+  | "invoice_cancelled"
+  | "wallet_connected"
+  | "wallet_disconnected"
+  | "usdc_balance_changed";
+
+export interface QueryInvalidationContext {
+  tokenId?: string;
+  address?: string;
+}
+
+/**
+ * Human-readable TanStack Query hierarchy.
+ *
+ * Keep this in sync with `queryKeys` so feature code and tests can reason about
+ * broad-list invalidation versus narrow detail/account invalidation.
+ */
+export const queryKeyHierarchy = {
+  invoices: {
+    root: queryKeys.invoices.all,
+    listPrefix: ["invoices", "list"] as const,
+    infinitePrefix: ["invoices", "infinite"] as const,
+    detailPrefix: ["invoices", "detail"] as const,
+    ownerPrefix: ["invoices", "owner"] as const,
+    positionsPrefix: ["invoices", "positions"] as const,
+    batchPrefix: ["invoices", "batch"] as const,
+  },
+  account: {
+    rootPrefix: ["account"] as const,
+    balancesSegment: "balances",
+    transactionsSegment: "transactions",
+    existsSegment: "exists",
+    usdcSegment: "usdc",
+  },
+} as const;
+
+/**
+ * Central invalidation map for mutation/event side effects.
+ *
+ * Rules return concrete query keys whenever possible. Prefix keys such as
+ * `queryKeys.invoices.all` intentionally invalidate every invoice list/detail
+ * descendant through TanStack Query's partial-key matching.
+ */
+export const queryInvalidationRules = {
+  mint_invoice: () => [queryKeys.invoices.all],
+  invoice_funded: ({ tokenId }: QueryInvalidationContext) => [
+    ...(tokenId ? [queryKeys.invoices.detail(tokenId)] : []),
+    queryKeys.invoices.all,
+  ],
+  invoice_repaid: ({ tokenId }: QueryInvalidationContext) => [
+    ...(tokenId ? [queryKeys.invoices.detail(tokenId)] : []),
+    queryKeys.invoices.all,
+    queryKeyHierarchy.invoices.positionsPrefix,
+  ],
+  invoice_cancelled: ({ tokenId }: QueryInvalidationContext) => [
+    ...(tokenId ? [queryKeys.invoices.detail(tokenId)] : []),
+    queryKeys.invoices.all,
+  ],
+  wallet_connected: ({ address }: QueryInvalidationContext) => [
+    ...(address ? [queryKeys.account.all(address)] : []),
+  ],
+  wallet_disconnected: ({ address }: QueryInvalidationContext) => [
+    ...(address ? [queryKeys.account.all(address)] : []),
+  ],
+  usdc_balance_changed: ({ address }: QueryInvalidationContext) => [
+    ...(address ? [queryKeys.account.usdcBalance(address)] : []),
+  ],
+} satisfies Record<
+  QueryInvalidationEvent,
+  (context: QueryInvalidationContext) => ReadonlyArray<readonly unknown[]>
+>;
+
+export function getInvalidationKeys(
+  event: QueryInvalidationEvent,
+  context: QueryInvalidationContext = {}
+): ReadonlyArray<readonly unknown[]> {
+  return queryInvalidationRules[event](context);
+}

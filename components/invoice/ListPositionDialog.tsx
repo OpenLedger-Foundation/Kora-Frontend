@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { NumberInput } from "@/components/ui/number-input";
-import { formatCurrency } from "@/lib/utils";
 import { computeImpliedDiscount } from "@/types/invoice";
 import type { InvestorPosition } from "@/types/invoice";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface ListPositionDialogProps {
   position: InvestorPosition | null;
@@ -35,6 +35,7 @@ export function ListPositionDialog({
   onSubmit,
 }: ListPositionDialogProps) {
   const [askPrice, setAskPrice] = useState<string>("");
+  const { formatCurrency, formatPercentage } = useFormatters();
 
   if (!position) return null;
 
@@ -93,7 +94,7 @@ export function ListPositionDialog({
                     : "mt-1 text-lg font-bold text-warning"
                 }
               >
-                {(impliedDiscount * 100).toFixed(2)}%
+                {formatPercentage(impliedDiscount * 100, 2)}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {impliedDiscount >= 0

@@ -34,13 +34,16 @@ const TransactionAnnouncer = dynamic(
   () => import("@/components/transactions").then((m) => m.TransactionAnnouncer),
   { ssr: false, loading: () => null }
 );
+const FeatureFlagPanel = dynamic(
+  () => import("@/components/dev/FeatureFlagPanel").then((m) => m.FeatureFlagPanel),
+  { ssr: false, loading: () => null }
+);
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { VerificationProvider } from "@/components/wallet/VerificationProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
-import { env } from "@/lib/env";
-import { isEnabled } from "@/lib/featureFlags";
+import { useFeatureFlag } from "@/lib/featureFlags";
 
 // Pre-load both locale message files at the module level so they are
 // bundled and available synchronously on the client.
@@ -87,6 +90,8 @@ function ThemedToaster() {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const onboardingTourEnabled = useFeatureFlag("onboarding-tour");
+  const devtoolsEnabled = useFeatureFlag("devtools");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -101,7 +106,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
     const handleControllerChange = () => {
       // Guard: do not reload or interrupt if user is currently signing a transaction
-      const isSigning = useUIStore.getState().isSigning;
+      const isSigning = useUIStore.getState().txState.status === "signing";
       if (isSigning) {
         console.warn("[PWA] Service worker update deferred during active wallet signing session.");
         return;
@@ -119,7 +124,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <LocaleProvider allMessages={ALL_MESSAGES}>
         <ThemeProvider>
           {children}
-          {isEnabled("onboarding-tour") && <OnboardingTour />}
+          {onboardingTourEnabled && <OnboardingTour />}
           <WalletConnectModal />
           <InProgressOverlay />
           <TransactionAnnouncer />
@@ -129,7 +134,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <CommandPalette />
           <ChangelogModal />
           <ThemedToaster />
-          {isEnabled("devtools") && (
+          <FeatureFlagPanel />
+          {devtoolsEnabled && (
             <ReactQueryDevtools initialIsOpen={false} />
           )}
         </ThemeProvider>

@@ -11,11 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePrefetchInvoice } from "@/hooks/usePrefetchInvoice";
 import {
-  formatCurrency,
-  formatApr,
   daysUntil,
   cn,
 } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import useCountdown from "@/hooks/useCountdown";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
@@ -23,7 +22,7 @@ import { DebtorDisplay } from "./DebtorDisplay";
 import { InvoiceCardHoverPopover } from "./InvoiceCardHoverPopover";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
-import { isEnabled } from "@/lib/featureFlags";
+import { useFeatureFlag } from "@/lib/featureFlags";
 import {
   resolveThumbnailSrc,
   thumbnailBlurDataUri,
@@ -76,6 +75,7 @@ function getFlagEmoji(countryCode: string) {
 
 export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
+  const { formatCurrency, formatApr } = useFormatters();
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
   const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
@@ -83,7 +83,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= MAX_COMPARISON_INVOICES && !isInComparison;
-  const comparisonEnabled = isEnabled("comparison");
+  const comparisonEnabled = useFeatureFlag("comparison");
   const reduced = useReducedMotion();
   
   // Hover popover state

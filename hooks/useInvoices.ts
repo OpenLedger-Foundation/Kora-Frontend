@@ -8,7 +8,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { getQueryTuning } from "@/lib/featureFlags";
+import { useQueryTuning } from "@/lib/featureFlags";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import {
   fetchInvoices,
@@ -75,7 +75,7 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
   const page = typeof pageOrOpts === "number" ? pageOrOpts : 1;
   const refetchInterval = typeof pageOrOpts === "object" ? pageOrOpts?.refetchInterval : opts?.refetchInterval;
   const { filters, sort } = useInvoiceStore();
-  const tuning = getQueryTuning();
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.list(filters, sort, page),
     queryFn: () =>
@@ -109,7 +109,7 @@ export function useInfiniteInvoices(options?: {
   const enabled = options?.enabled ?? true;
   const filters = useInvoiceStore((s) => s.filters);
   const sortBy = useInvoiceStore((s) => s.sortBy);
-  const tuning = getQueryTuning();
+  const tuning = useQueryTuning();
 
   return useInfiniteQuery({
     queryKey: queryKeys.invoices.infinite(filters, sortBy, pageSize),
@@ -139,7 +139,7 @@ export function useInfiniteInvoices(options?: {
 const ACTIVE_STATUSES = new Set(["listed", "partially_funded"]);
 
 export function useInvoice(id: string, walletAddress?: string) {
-  const tuning = getQueryTuning();
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.detail(id),
     queryFn: () => fetchInvoiceById(id, walletAddress),
@@ -162,7 +162,7 @@ export function useInvoice(id: string, walletAddress?: string) {
 // ─── SME invoices ─────────────────────────────────────────────────────────────
 
 export function useSMEInvoices(address: string | undefined) {
-  const tuning = getQueryTuning();
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.byOwner(address ?? ""),
     queryFn: () => fetchInvoicesByOwner(address!),
@@ -199,7 +199,7 @@ export function useBatchInvoicePolling(
 ) {
   const queryClient = useQueryClient();
   const { mergeInvoicesBatch } = useInvoiceStore();
-  const tuning = getQueryTuning();
+  const tuning = useQueryTuning();
 
   // Track intersection visibility via a ref so the refetchInterval closure
   // always reads the latest value without causing re-renders.
@@ -268,7 +268,7 @@ export function useBatchInvoicePolling(
 // ─── Investor positions ───────────────────────────────────────────────────────
 
 export function useInvestorPositions(address: string | undefined) {
-  const tuning = getQueryTuning();
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.positions(address ?? ""),
     queryFn: () => fetchInvestorPositions(address!),

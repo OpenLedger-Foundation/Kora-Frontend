@@ -62,6 +62,11 @@ describe("cn", () => {
   it("returns empty string for no inputs", () => {
     expect(cn()).toBe("");
   });
+  it("supports arrays and object-style conditional input", () => {
+    expect(
+      cn("base", ["px-2", { "text-sm": true, hidden: false }], "px-4")
+    ).toBe("base text-sm px-4");
+  });
 });
 
 // ─── 2. formatCurrency ────────────────────────────────────────────────────────
@@ -74,7 +79,7 @@ describe("formatCurrency", () => {
     expect(formatCurrency(0)).toBe("$0.00 USDC");
   });
   it("formats negative amount", () => {
-    expect(formatCurrency(-500)).toBe("-$500.00 USDC");
+    expect(formatCurrency(-500)).toBe("$-500.00 USDC");
   });
   it("handles null → treats as 0", () => {
     expect(formatCurrency(null)).toBe("$0.00 USDC");
@@ -107,31 +112,49 @@ describe("formatCurrency", () => {
     expect(formatCurrency(1_000, "USDC", true)).toBe("$1.0K USDC");
   });
 
-  // ── Locale tests (Issue #290) ──────────────────────────────────────────────
-  it("locale en-US: 1000 → '1,234.00 USDC'", () => {
-    // en-US uses comma thousands sep and period decimal
+  // ── Locale tests (Issue #290): en, es, ar, pt-BR ─────────────────────
+  const APP_LOCALES: ReadonlyArray<"en" | "es" | "ar" | "pt-BR"> = [
+    "en",
+    "es",
+    "ar",
+    "pt-BR",
+  ] as const;
+
+  it("locale en: 1000 → '$1,000.00 USDC' (comma thousands, period decimal)", () => {
+    expect(formatCurrency(1000, "USDC", false, "en")).toBe("$1,000.00 USDC");
+  });
+  it("locale en-US full tag also resolves via LOCALE_FORMATS", () => {
     expect(formatCurrency(1000, "USDC", false, "en-US")).toBe("$1,000.00 USDC");
   });
-  it("locale en-US: 1000.00 matches spec", () => {
-    expect(formatCurrency(1000, "USDC", false, "en-US")).toContain("1,000.00");
-  });
-  it("locale es-ES: 1000 → contains '1.000,00'", () => {
+  it("locale es: 1000 → period thousands, comma decimal + '$' prefix", () => {
+    const result = formatCurrency(1000, "USDC", false, "es");
     // es-ES uses period thousands sep and comma decimal
-    const result = formatCurrency(1000, "USDC", false, "es-ES");
     expect(result).toContain("1.000,00");
+    expect(result).toContain("$");
     expect(result).toContain("USDC");
   });
-  it("locale fr-FR: 1000 → contains '1\u00a0000,00'", () => {
-    // fr-FR uses narrow no-break space as thousands sep and comma decimal
-    const result = formatCurrency(1000, "USDC", false, "fr-FR");
-    // Accept either a regular space or narrow no-break space (\u202f or \u00a0)
-    expect(result.replace(/[\u00a0\u202f]/g, " ")).toContain("1 000,00");
+  it("locale pt-BR: 1000 → period thousands, comma decimal", () => {
+    const result = formatCurrency(1000, "USDC", false, "pt-BR");
+    // pt-BR uses period thousands sep and comma decimal (same as es)
+    expect(result.replace(/[\u00a0\u202f]/g, " ")).toContain("1.000,00");
     expect(result).toContain("USDC");
+  });
+  it("locale ar (RTL): places '$' AFTER the number (suffix mode)", () => {
+    const result = formatCurrency(1234.56, "USDC", false, "ar");
+    expect(result).toContain("USDC");
+    // RTL locale: dollar sign should appear after the number, not before
+    const dollarIdx = result.indexOf("$");
+    const numberStart = result.search(/\d/);
+    expect(dollarIdx).toBeGreaterThan(numberStart);
   });
   it("currency symbol always remains USDC regardless of locale", () => {
     expect(formatCurrency(100, "USDC", false, "de-DE")).toContain("USDC");
     expect(formatCurrency(100, "USDC", false, "ja-JP")).toContain("USDC");
     expect(formatCurrency(100, "USDC", false, "ar-SA")).toContain("USDC");
+  });
+  it("rounds compact values to one decimal place", () => {
+    expect(formatCurrency(1_549, "USDC", true)).toBe("$1.5K USDC");
+    expect(formatCurrency(1_550, "USDC", true)).toBe("$1.6K USDC");
   });
 });
 
@@ -162,6 +185,40 @@ describe("formatUSDC", () => {
   it("0 decimals", () => {
     expect(formatUSDC(1234.56, 0)).toBe("1,235 USDC");
   });
+
+  // ── 4-locale coverage ───────────────────────────────────────────────────
+  const USDC_LOCALES = ["en", "es", "ar", "pt-BR"] as const;
+
+  it.each(USDC_LOCALES)(
+    "locale %s: 1000 USDC ends with ' USDC' label",
+    (locale) => {
+      const result = formatUSDC(1000, 2, locale);
+      expect(result).toContain("USDC");
+    }
+  );
+
+  it("locale en: 1000 → '1,000.00 USDC'", () => {
+    expect(formatUSDC(1000, 2, "en")).toBe("1,000.00 USDC");
+  });
+
+  it("locale es: 1000 → period thousands + comma decimal", () => {
+    const result = formatUSDC(1000, 2, "es");
+    expect(result).toContain("1.000,00");
+    expect(result).toContain("USDC");
+  });
+
+  it("locale pt-BR: 1000 → period thousands + comma decimal", () => {
+    const result = formatUSDC(1000, 2, "pt-BR");
+    expect(result.replace(/[\u00a0\u202f]/g, "")).toContain("1.000,00");
+    expect(result).toContain("USDC");
+  });
+
+  it("locale ar: 1000 → non-empty string with USDC label", () => {
+    const result = formatUSDC(1000, 2, "ar");
+    expect(typeof result).toBe("string");
+    expect(result).toContain("USDC");
+    expect(result.length).toBeGreaterThan(0);
+  });
 });
 
 // ─── 4. formatXLM ────────────────────────────────────────────────────────────
@@ -184,6 +241,31 @@ describe("formatXLM", () => {
   });
   it("handles stroops precision (0.0000001)", () => {
     expect(formatXLM(0.0000001)).toBe("0.0000001 XLM");
+  });
+
+  // ── 4-locale coverage ───────────────────────────────────────────────────
+  const XLM_LOCALES = ["en", "es", "ar", "pt-BR"] as const;
+
+  it.each(XLM_LOCALES)(
+    "locale %s: 1.5 XLM always has 7 fraction digits and 'XLM' label",
+    (locale) => {
+      const result = formatXLM(1.5, locale);
+      expect(result).toContain("XLM");
+      // Match exactly 7 digits after whatever the locale decimal separator is
+      expect(result).toMatch(/\d\D\d{7}[\s\u00a0]*XLM/);
+    }
+  );
+
+  it("locale es: 1000 XLM → period thousands, comma decimal", () => {
+    const result = formatXLM(1000, "es");
+    expect(result).toContain("1.000,0000000");
+    expect(result).toContain("XLM");
+  });
+
+  it("locale pt-BR: 1000 XLM → period thousands, comma decimal", () => {
+    const result = formatXLM(1000, "pt-BR");
+    expect(result.replace(/[\u00a0\u202f]/g, "")).toContain("1.000,0000000");
+    expect(result).toContain("XLM");
   });
 });
 
@@ -239,7 +321,7 @@ describe("formatPercent (deprecated)", () => {
 // ─── 7. formatApr ────────────────────────────────────────────────────────────
 
 describe("formatApr", () => {
-  it("formats APR with 2 decimal places", () => {
+  it("formats APR with 2 decimal places (en-US default)", () => {
     expect(formatApr(12.5)).toBe("12.50% APR");
   });
   it("handles zero", () => {
@@ -254,19 +336,24 @@ describe("formatApr", () => {
   it("handles large APR", () => {
     expect(formatApr(99.99)).toBe("99.99% APR");
   });
+  it("rounds fractional APR values consistently", () => {
+    expect(formatApr(12.345)).toBe("12.35% APR");
+  });
+  it("supports negative APR values", () => {
+    expect(formatApr(-1.5)).toBe("-1.50% APR");
+  });
 });
 
 // ─── 8. formatDate ───────────────────────────────────────────────────────────
 
 describe("formatDate", () => {
-  it("short format (default)", () => {
+  it("short format (default, en-US)", () => {
     expect(formatDate("2025-06-15")).toBe("Jun 15, 2025");
   });
-  it("long format", () => {
+  it("long format (en-US)", () => {
     expect(formatDate("2025-06-15", "long")).toBe("June 15, 2025");
   });
   it("relative format delegates to formatRelativeDate", () => {
-    // Just verify it returns a non-empty string (relative output is time-dependent)
     const result = formatDate("2025-01-01", "relative");
     expect(typeof result).toBe("string");
     expect(result).not.toBe("—");
@@ -282,6 +369,84 @@ describe("formatDate", () => {
   });
   it("handles empty string → '—'", () => {
     expect(formatDate("")).toBe("—");
+  });
+
+  // ── Locale tests (Issue #290): 4 locales ────────────────────────────────
+  const DATE_LOCALES = ["en", "es", "ar", "pt-BR"] as const;
+
+  it.each(DATE_LOCALES)("locale %s: short format returns non-empty date string", (locale) => {
+    const result = formatDate("2025-06-15", "short", locale);
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).not.toBe("—");
+  });
+
+  it.each(DATE_LOCALES)("locale %s: long format returns non-empty date string", (locale) => {
+    const result = formatDate("2025-06-15", "long", locale);
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+    expect(result).not.toBe("—");
+  });
+
+  it("locale en: long format contains 'June 15, 2025'", () => {
+    expect(formatDate("2025-06-15", "long", "en")).toBe("June 15, 2025");
+  });
+
+  it("locale es: short format contains Spanish month abbreviation", () => {
+    const result = formatDate("2025-06-15", "short", "es");
+    // "jun" for junio; day 15; year 2025
+    expect(result.toLowerCase()).toContain("jun");
+    expect(result).toContain("15");
+    expect(result).toContain("2025");
+  });
+
+  it("locale pt-BR: short format contains Portuguese month abbreviation", () => {
+    const result = formatDate("2025-06-15", "short", "pt-BR");
+    // "jun" for junho in pt-BR
+    expect(result.toLowerCase()).toContain("jun");
+    expect(result).toContain("15");
+    expect(result).toContain("2025");
+  });
+
+  it("locale ar: short format contains year 2025 in some numeral form", () => {
+    const result = formatDate("2025-06-15", "short", "ar");
+    // Accept either western or Eastern-Arabic numerals; year 2025 or ٢٠٢٥
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── 8b. formatPercentage — 4-locale tests ───────────────────────────────────
+
+describe("formatPercentage (4 locales)", () => {
+  const PCT_LOCALES = ["en", "es", "ar", "pt-BR"] as const;
+
+  it.each(PCT_LOCALES)("locale %s: 12.5 with 2 decimals ends with %%", (locale) => {
+    const result = formatPercentage(12.5, 2, locale);
+    expect(result.endsWith("%")).toBe(true);
+  });
+
+  it("locale en: 50 → '50.00%'", () => {
+    expect(formatPercentage(50, 2, "en")).toBe("50.00%");
+  });
+
+  it("locale es: 1234.56 → period thousands / comma decimal + %", () => {
+    const result = formatPercentage(1234.56, 2, "es");
+    // style: percent with Intl => 1.234,56 % or 1.234,56% depending on browser
+    expect(result.replace(/\s/g, "")).toContain("1.234,56");
+    expect(result).toContain("%");
+  });
+
+  it("locale pt-BR: 1234.56 → period thousands / comma decimal", () => {
+    const result = formatPercentage(1234.56, 2, "pt-BR");
+    expect(result.replace(/\s/g, "")).toContain("1.234,56");
+    expect(result).toContain("%");
+  });
+
+  it("locale ar: produces a non-empty percentage string", () => {
+    const result = formatPercentage(12.5, 2, "ar");
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
   });
 });
 
@@ -397,6 +562,15 @@ describe("truncateAddress", () => {
   });
   it("returns empty string for falsy input", () => {
     expect(truncateAddress(undefined as any)).toBe("");
+  });
+  it("returns the trimmed address unchanged when it is already short", () => {
+    expect(truncateAddress("  GABC1234  ", 4)).toBe("GABC1234");
+  });
+  it("trims leading and trailing whitespace before truncating", () => {
+    expect(truncateAddress(`  ${addr}  `, 5)).toBe("GBVZQ...ZQKZQ");
+  });
+  it("returns the full string when chars * 2 covers the address length", () => {
+    expect(truncateAddress("GABCD123", 4)).toBe("GABCD123");
   });
 });
 

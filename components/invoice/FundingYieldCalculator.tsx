@@ -17,8 +17,8 @@
 import React, { useMemo } from "react";
 import { TrendingUp, Calendar, Percent } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
-import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface FundingYieldCalculatorProps {
   /** Raw investment amount string from the controlled input — may be empty */
@@ -58,6 +58,7 @@ export function FundingYieldCalculator({
   currency,
   className,
 }: FundingYieldCalculatorProps) {
+  const { formatCurrency, formatDate, formatApr } = useFormatters();
   // Debounce the raw string to avoid computing on every keystroke
   const debouncedInput = useDebounce(amountInput, 300);
   const debouncedApr = useDebounce(apr, 300);
@@ -111,7 +112,7 @@ export function FundingYieldCalculator({
           className="font-mono text-sm font-semibold text-kora-400"
           data-testid="annualised-yield"
         >
-          {apr.toFixed(2)}% APR
+          {formatApr(apr)}
         </span>
       </div>
 

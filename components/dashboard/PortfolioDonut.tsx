@@ -22,8 +22,9 @@ import {
   Sector,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { PieChart as PieChartIcon } from "lucide-react";
+import { useFormatters } from "@/hooks/useFormatters";
 import {
   aggregatePositions,
   type AllocatablePosition,
@@ -59,6 +60,7 @@ function ActiveShape(props: {
   payload?: AllocationSlice;
   percent?: number;
 }) {
+  const { formatPercentage } = useFormatters();
   const {
     cx = 0,
     cy = 0,
@@ -101,7 +103,7 @@ function ActiveShape(props: {
         fontSize={12}
         fontWeight={600}
       >
-        {(percent * 100).toFixed(1)}%
+        {formatPercentage(percent * 100, 1)}
       </text>
     </g>
   );
@@ -116,6 +118,7 @@ function DonutTooltip({
   active?: boolean;
   payload?: Array<{ payload: AllocationSlice }>;
 }) {
+  const { formatCurrency, formatPercentage } = useFormatters();
   if (!active || !payload?.length) return null;
   const { name, value, percent } = payload[0].payload;
   return (
@@ -134,7 +137,7 @@ function DonutTooltip({
       <p style={{ color: "#14b8a6", fontWeight: 600 }}>
         {formatCurrency(value, "USDC", true)}
       </p>
-      <p style={{ color: "#71717a" }}>{percent.toFixed(1)}% of portfolio</p>
+      <p style={{ color: "#71717a" }}>{formatPercentage(percent * 100, 1)} of portfolio</p>
       <p style={{ color: "#a1a1aa", marginTop: 4 }}>Click to browse marketplace</p>
     </div>
   );
@@ -150,6 +153,7 @@ interface LegendProps {
 }
 
 function DonutLegend({ slices, dimension, activeValue, onItemClick }: LegendProps) {
+  const { formatCurrency, formatPercentage } = useFormatters();
   if (slices.length === 0) return null;
   return (
     <ul
@@ -170,7 +174,7 @@ function DonutLegend({ slices, dimension, activeValue, onItemClick }: LegendProp
               )}
               onClick={() => onItemClick(slice.name)}
               aria-pressed={isActive}
-              aria-label={`Browse marketplace filtered by ${slice.name}: ${slice.percent.toFixed(1)}%`}
+              aria-label={`Browse marketplace filtered by ${slice.name}: ${formatPercentage(slice.percent * 100, 1)}`}
             >
               <span className="flex min-w-0 items-center gap-2">
                 <span
@@ -196,7 +200,7 @@ function DonutLegend({ slices, dimension, activeValue, onItemClick }: LegendProp
                     isActive ? "text-primary" : "text-foreground"
                   )}
                 >
-                  {slice.percent.toFixed(1)}%
+                  {formatPercentage(slice.percent * 100, 1)}
                 </span>
               </span>
             </button>

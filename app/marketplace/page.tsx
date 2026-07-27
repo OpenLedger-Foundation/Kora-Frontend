@@ -30,7 +30,7 @@ import { sanitizeQueryParam } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
-import { isEnabled } from "@/lib/featureFlags";
+import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 
@@ -294,6 +294,7 @@ function Switch({
 // ─── Marketplace Content (State & Layout) ───────────────────────────────────
 
 function MarketplaceContent() {
+  const comparisonEnabled = useFeatureFlag("comparison");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -715,6 +716,11 @@ function MarketplaceContent() {
         </div>
 
         {/* 2-Column Responsive Layout */}
+        {/* Active filter chips — shown below the search/sort bar when filters are applied */}
+        {activeFiltersCount > 0 && (
+          <ActiveFilterChips className="mb-4" />
+        )}
+
         <div className="flex flex-col gap-8 lg:flex-row">
           {/* A. Sticky Filter Sidebar (Desktop screens) */}
           <div className="hidden lg:block w-72 shrink-0">
@@ -820,7 +826,7 @@ function MarketplaceContent() {
       </BottomSheet>
 
       {/* Fixed comparison bar — renders above the page when invoices are selected */}
-      {isEnabled("comparison") && <ComparisonBar />}
+      {comparisonEnabled && <ComparisonBar />}
     </Container>
   );
 }

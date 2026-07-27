@@ -9,6 +9,7 @@ import { useNetworkValidation } from "./useNetworkValidation";
 import { useTxSimulation } from "./useTxSimulation";
 import { rpc, submitTransaction, BadSequenceError, sequenceManager } from "@/lib/stellar/client";
 import { env } from "@/lib/env";
+import { mapSimulationError } from "@/lib/stellar/simulationErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
@@ -204,6 +205,7 @@ export function useTransaction() {
           const sim = await Promise.race([simPromise, timeoutPromise]);
 
           if (StellarSdk.rpc.Api.isSimulationError(sim)) {
+            const readableError = mapSimulationError(sim.error);
             const preview: SimulationPreview = {
               feeStroops: 0,
               feeXlm: 0,
@@ -212,7 +214,7 @@ export function useTransaction() {
               memoryBytes: 0,
               readBytes: 0,
               writeBytes: 0,
-              error: sim.error,
+              error: readableError,
             };
             setSimulationPreview(preview);
 
@@ -220,7 +222,7 @@ export function useTransaction() {
             if (options?.onSimulationPreview) {
               await options.onSimulationPreview(preview);
             }
-            throw new Error(`Simulation failed: ${sim.error}`);
+            throw new Error(`Simulation failed: ${readableError}`);
           }
 
           // Parse successful simulation
