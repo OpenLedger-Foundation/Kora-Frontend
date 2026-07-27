@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Invoice } from "@/types";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface CancelInvoiceDialogProps {
   invoice: Invoice | null;
@@ -51,6 +51,7 @@ export function CancelInvoiceDialog({
   onCancel,
 }: CancelInvoiceDialogProps) {
   const t = useTranslations("cancelDialog");
+  const { formatCurrency, formatDate } = useFormatters();
 
   if (!invoice) return null;
 

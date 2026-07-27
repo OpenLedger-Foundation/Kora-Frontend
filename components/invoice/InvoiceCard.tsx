@@ -11,11 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePrefetchInvoice } from "@/hooks/usePrefetchInvoice";
 import {
-  formatCurrency,
-  formatApr,
   daysUntil,
   cn,
 } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import useCountdown from "@/hooks/useCountdown";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
@@ -76,6 +75,7 @@ function getFlagEmoji(countryCode: string) {
 
 export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
+  const { formatCurrency, formatApr } = useFormatters();
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
   const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;

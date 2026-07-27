@@ -2,7 +2,8 @@
 
 import React from "react";
 import { CheckCircle2, Circle, Clock, TrendingUp } from "lucide-react";
-import { cn, formatDate, daysUntil } from "@/lib/utils";
+import { cn, daysUntil } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ interface MilestoneProps {
 }
 
 function Milestone({ label, date, completed, active, icon, sub, align = "center" }: MilestoneProps) {
+  const { formatDate } = useFormatters();
   const dotClasses = cn(
     "relative z-10 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300",
     completed
@@ -116,6 +118,7 @@ export function RepaymentTimeline({
   yieldReceived,
   className,
 }: RepaymentTimelineProps) {
+  const { formatDate } = useFormatters();
   const now = new Date();
   const startDate = new Date(fundedAt);
   const endDate = new Date(maturityDate);

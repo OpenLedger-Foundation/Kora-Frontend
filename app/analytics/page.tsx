@@ -12,6 +12,7 @@ import { BarChart3 } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
+import { useFormatters } from "@/hooks/useFormatters";
 import { usePositions } from "@/hooks/usePositions";
 import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
 import { Button } from "@/components/ui/button";
@@ -238,7 +239,7 @@ function PortfolioAnalyticsInner() {
     {
       label: "Expected Yield",
       value: formatCurrency(totalYield, "USDC", true),
-      change: totalInvested > 0 ? `${((totalYield / totalInvested) * 100).toFixed(1)}% return` : "0.0% return",
+      change: totalInvested > 0 ? `${formatPercentage((totalYield / totalInvested) * 100, 1)} return` : "0.0% return",
       changePositive: true,
       icon: <TrendingUp className="h-4 w-4" />,
     },

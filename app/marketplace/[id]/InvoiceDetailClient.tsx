@@ -42,13 +42,10 @@ import { RiskBadge } from "@/components/ui/badge";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
-  formatCurrency,
-  formatApr,
-  formatDate,
-  formatRelativeDate,
   daysUntil,
   cn,
 } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import type { Invoice } from "@/types";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
@@ -88,6 +85,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
+  const { formatCurrency, formatApr, formatDate, formatRelativeDate, formatPercentage } = useFormatters();
 
   if (!id || isLoading) return <InvoiceDetailSkeleton />;
   if (!invoice) return notFound();
@@ -462,7 +460,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       },
                       {
                         label: "Discount Rate",
-                        value: `${(terms.discountRate * 100).toFixed(1)}%`,
+                        value: formatPercentage(terms.discountRate * 100, 1),
                       },
                       {
                         label: "APR",
@@ -543,7 +541,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       raised
                     </span>
                     <span className="font-semibold text-zinc-200">
-                      {Math.round(fundingState.fundingProgress * 100)}% of{" "}
+                      {formatPercentage(fundingState.fundingProgress * 100, 0)} of{" "}
                       {formatCurrency(
                         terms.financingAmount,
                         metadata.currency,
@@ -826,7 +824,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                         placeholder={`Min ${terms.minInvestment}`}
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
-                        hint={`Min: $${terms.minInvestment.toLocaleString()} · Remaining Capacity: $${fundingState.remainingCapacity.toLocaleString()}`}
+                        hint={`Min: ${formatCurrency(terms.minInvestment, metadata.currency, true)} · Remaining Capacity: ${formatCurrency(fundingState.remainingCapacity, metadata.currency, true)}`}
                         disabled={funding}
                         className={cn(
                           (inputError || insufficientBalanceMessage) &&
