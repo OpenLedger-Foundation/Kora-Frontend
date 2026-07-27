@@ -158,17 +158,31 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Docker (Alternative)
+### Docker Dev Environment
 
 If you prefer Docker, run:
 
 ```bash
 cp .env.example .env.local
 # Edit .env.local with your values
-docker compose up
+docker compose up --build
 ```
 
 The app will be available at [http://localhost:3000](http://localhost:3000) with hot reload enabled.
+
+Recommended contributor flow:
+
+1. Keep `NEXT_PUBLIC_ENABLE_MOCK_DATA=true` for first-run development unless you are testing live Soroban contracts.
+2. Start the container with `docker compose up --build`.
+3. Open [http://localhost:3000](http://localhost:3000) and verify the marketplace loads.
+4. Confirm hot reload by editing a copy-only string in a component and checking that the browser updates without rebuilding the image.
+5. Stop the stack with `docker compose down`. Use `docker compose down --volumes` only when you intentionally want to remove the container-managed `node_modules` volume.
+
+Troubleshooting:
+
+- If changes do not appear, confirm Docker Desktop file sharing includes this repository path.
+- If dependencies change, rerun `docker compose build --no-cache kora-frontend`.
+- If `.env.local` is missing, Docker will fail because the compose file mounts it read-only.
 
 ### Quick Start with Mock Data
 

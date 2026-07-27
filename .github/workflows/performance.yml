@@ -1,0 +1,70 @@
+name: Performance
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+
+env:
+  NEXT_PUBLIC_STELLAR_NETWORK: testnet
+  NEXT_PUBLIC_STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+  NEXT_PUBLIC_STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+  NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"
+  NEXT_PUBLIC_INVOICE_CONTRACT_ID: CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4
+  NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4
+  NEXT_PUBLIC_TOKEN_CONTRACT_ID: CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4
+  NEXT_PUBLIC_IPFS_GATEWAY: https://gateway.pinata.cloud/ipfs
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  NEXT_PUBLIC_APP_NAME: Kora
+  NEXT_PUBLIC_ENABLE_MOCK_DATA: "true"
+  NEXT_PUBLIC_ENABLE_DEVTOOLS: "false"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  bundlesize:
+    name: Bundlesize
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Check bundle size
+        run: npm run bundlesize
+
+  lighthouse:
+    name: Lighthouse CI
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' && vars.ENABLE_LIGHTHOUSE_CI == 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build production bundle
+        run: npm run build
+
+      - name: Run Lighthouse CI
+        run: npx @lhci/cli@0.15.x autorun --collect.startServerCommand="npm run start" --collect.url="http://localhost:3000"
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}

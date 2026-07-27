@@ -10,17 +10,36 @@ import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 
 type Props = {
+  /** App-level invoice id (e.g. inv_001). Used as fallback when tokenId is absent. */
   id: string;
+  /** On-chain NFT token ID — preferred for canonical marketplace deep links. */
+  tokenId?: string;
   invoiceTitle?: string;
   summary?: string;
+  /** Optional visual variant for post-mint / primary CTAs */
+  variant?: "ghost" | "default" | "outline";
+  size?: "sm" | "default" | "lg";
+  className?: string;
 };
 
-export function buildInvoiceShareUrl(origin: string, tokenId: string): string {
-  const url = new URL(`/marketplace/${tokenId}`, origin);
+/**
+ * Canonical marketplace share URL using the on-chain token ID when available.
+ */
+export function buildInvoiceShareUrl(
+  origin: string,
+  tokenOrId: string
+): string {
+  const url = new URL(`/marketplace/${tokenOrId}`, origin);
   url.searchParams.set("utm_source", "kora");
   url.searchParams.set("utm_medium", "share");
-  url.searchParams.set("utm_content", tokenId);
+  url.searchParams.set("utm_content", tokenOrId);
   return url.toString();
+}
+
+/** Resolve the canonical deep-link id: prefer on-chain tokenId. */
+export function resolveShareTokenId(id: string, tokenId?: string): string {
+  const trimmed = tokenId?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : id;
 }
 
 function supportsMobileShare(): boolean {
@@ -28,15 +47,25 @@ function supportsMobileShare(): boolean {
   return navigator.maxTouchPoints > 0 || window.matchMedia?.("(pointer: coarse)").matches === true;
 }
 
-export default function ShareInvoiceButton({ id, invoiceTitle, summary }: Props): JSX.Element {
+export default function ShareInvoiceButton({
+  id,
+  tokenId,
+  invoiceTitle,
+  summary,
+  variant = "ghost",
+  size = "sm",
+  className,
+}: Props): JSX.Element {
   const t = useTranslations("shareInvoice");
   const [open, setOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const { copy, copied } = useCopyToClipboard();
 
+  const shareId = useMemo(() => resolveShareTokenId(id, tokenId), [id, tokenId]);
+
   const invoiceUrl = useMemo(
-    () => (typeof window === "undefined" ? "" : buildInvoiceShareUrl(window.location.origin, id)),
-    [id],
+    () => (typeof window === "undefined" ? "" : buildInvoiceShareUrl(window.location.origin, shareId)),
+    [shareId],
   );
 
   useEffect(() => {
@@ -98,9 +127,11 @@ export default function ShareInvoiceButton({ id, invoiceTitle, summary }: Props)
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
         <Button
-          size="sm"
-          variant="ghost"
+          size={size}
+          variant={variant}
+          className={className}
           aria-label={t("shareLabel")}
+          data-share-token-id={shareId}
           onClick={(event) => { event.preventDefault(); void handlePrimaryShare(); }}
         >
           {t("shareButton")}

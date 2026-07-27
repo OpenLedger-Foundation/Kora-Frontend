@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
+    "bundlesize": "bundlesize",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",

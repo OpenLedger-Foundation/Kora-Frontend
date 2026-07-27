@@ -62,6 +62,11 @@ describe("cn", () => {
   it("returns empty string for no inputs", () => {
     expect(cn()).toBe("");
   });
+  it("supports arrays and object-style conditional input", () => {
+    expect(
+      cn("base", ["px-2", { "text-sm": true, hidden: false }], "px-4")
+    ).toBe("base text-sm px-4");
+  });
 });
 
 // ─── 2. formatCurrency ────────────────────────────────────────────────────────
@@ -132,6 +137,10 @@ describe("formatCurrency", () => {
     expect(formatCurrency(100, "USDC", false, "de-DE")).toContain("USDC");
     expect(formatCurrency(100, "USDC", false, "ja-JP")).toContain("USDC");
     expect(formatCurrency(100, "USDC", false, "ar-SA")).toContain("USDC");
+  });
+  it("rounds compact values to one decimal place", () => {
+    expect(formatCurrency(1_549, "USDC", true)).toBe("$1.5K USDC");
+    expect(formatCurrency(1_550, "USDC", true)).toBe("$1.6K USDC");
   });
 });
 
@@ -253,6 +262,12 @@ describe("formatApr", () => {
   });
   it("handles large APR", () => {
     expect(formatApr(99.99)).toBe("99.99% APR");
+  });
+  it("rounds fractional APR values consistently", () => {
+    expect(formatApr(12.345)).toBe("12.35% APR");
+  });
+  it("supports negative APR values", () => {
+    expect(formatApr(-1.5)).toBe("-1.50% APR");
   });
 });
 
@@ -397,6 +412,15 @@ describe("truncateAddress", () => {
   });
   it("returns empty string for falsy input", () => {
     expect(truncateAddress(undefined as any)).toBe("");
+  });
+  it("returns the trimmed address unchanged when it is already short", () => {
+    expect(truncateAddress("  GABC1234  ", 4)).toBe("GABC1234");
+  });
+  it("trims leading and trailing whitespace before truncating", () => {
+    expect(truncateAddress(`  ${addr}  `, 5)).toBe("GBVZQ...ZQKZQ");
+  });
+  it("returns the full string when chars * 2 covers the address length", () => {
+    expect(truncateAddress("GABCD123", 4)).toBe("GABCD123");
   });
 });
 

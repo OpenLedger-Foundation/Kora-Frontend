@@ -17,6 +17,13 @@ import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FIL
 import { Button } from "@/components/ui/button";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
 import { exportCsv, exportPdf } from "@/lib/export";
+import {
+  PORTFOLIO_EXPORT_HEADERS,
+  filterPositionsForExport,
+  positionsToExportRows,
+  portfolioExportFilename,
+  portfolioPdfFilename,
+} from "@/lib/portfolioExport";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   AnalyticsFilterBar,
@@ -182,31 +189,86 @@ function PortfolioAnalyticsInner() {
     [resetFilters, setFilters, router]
   );
 
-  // Slice all chart data by the active date-range filter
-  const portfolio = useMemo(
-    () => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange),
-    [filters.dateRange]
+  const positionsData = useMemo(
+    () => positionsQuery.data ?? [],
+    [positionsQuery.data]
   );
-  const yieldData = useMemo(
-    () => sliceByRange(YIELD_HISTORY, filters.dateRange),
-    [filters.dateRange]
+  const filteredPositions = useMemo(
+    () => filterPositionsForExport(positionsData, filters),
+    [positionsData, filters]
   );
-  const monthly = useMemo(
-    () => sliceByRange(MONTHLY_RETURNS, filters.dateRange),
-    [filters.dateRange]
+  const exportRows = useMemo(
+    () => positionsToExportRows(filteredPositions),
+    [filteredPositions]
   );
+  const hasExportData = exportRows.length > 0;
+
+  // Slice chart series based on active date-range filters
+  const portfolio = useMemo(() => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange), [filters.dateRange]);
+  const yieldData = useMemo(() => sliceByRange(YIELD_HISTORY, filters.dateRange), [filters.dateRange]);
   const risk = useMemo(() => {
-    const slices = aggregatePositions(
-      (positionsQuery.data ?? []) as import("@/lib/portfolioAllocation").AllocatablePosition[],
-      "riskTier"
-    ).map((s) => ({
-      name: s.name,
-      value: Math.round(s.percent * 10) / 10,
-      color: s.color,
-    }));
+    const slices = aggregatePositions(filteredPositions, "riskTier").map(
+      (s) => ({
+        name: s.name,
+        value: Math.round(s.percent * 10) / 10,
+        color: s.color,
+      })
+    );
     if (filters.riskTier === "all") return slices;
     return slices.filter((d) => d.name === filters.riskTier);
-  }, [positionsQuery.data, filters.riskTier]);
+  }, [filteredPositions, filters.riskTier]);
+  const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
+
+  const totalInvested = filteredPositions.reduce((sum, position) => sum + position.investedAmount, 0);
+  const totalExpected = filteredPositions.reduce((sum, position) => sum + position.expectedReturn, 0);
+  const totalYield = totalExpected - totalInvested;
+  const averageApr = filteredPositions.length
+    ? filteredPositions.reduce((sum, position) => sum + (position.invoice?.terms.apr ?? 0), 0) /
+      filteredPositions.length
+    : 0;
+
+  const stats = [
+    {
+      label: "Portfolio Value",
+      value: formatCurrency(totalInvested, "USDC", true),
+      change: `${filteredPositions.length} ${filteredPositions.length === 1 ? "position" : "positions"}`,
+      changePositive: true,
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      label: "Expected Yield",
+      value: formatCurrency(totalYield, "USDC", true),
+      change: totalInvested > 0 ? `${((totalYield / totalInvested) * 100).toFixed(1)}% return` : "0.0% return",
+      changePositive: true,
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Active Positions",
+      value: filteredPositions.length.toString(),
+      icon: <BarChart3 className="h-4 w-4" />,
+    },
+    {
+      label: "Avg. APR",
+      value: `${averageApr.toFixed(1)}%`,
+      change: "Across filtered positions",
+      changePositive: true,
+      icon: <Shield className="h-4 w-4" />,
+    },
+  ];
+
+  const handleExportCsv = useCallback(() => {
+    if (!hasExportData) return;
+    exportCsv(
+      exportRows as Record<string, unknown>[],
+      portfolioExportFilename(),
+      [...PORTFOLIO_EXPORT_HEADERS]
+    );
+  }, [exportRows, hasExportData]);
+
+  const handleExportPdf = useCallback(() => {
+    if (!hasExportData) return;
+    void exportPdf("analytics-report", portfolioPdfFilename());
+  }, [hasExportData]);
 
   if (!isConnected) {
     return (
@@ -243,19 +305,20 @@ function PortfolioAnalyticsInner() {
             </div>
             <div className="flex items-center gap-2 print:hidden">
               <button
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors"
-                onClick={() => exportCsv(portfolio as any, "kora-portfolio.csv")}
+                type="button"
+                disabled={!hasExportData}
+                aria-disabled={!hasExportData}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleExportCsv}
               >
                 Export CSV
               </button>
               <button
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors"
-                onClick={() =>
-                  exportPdf(
-                    "analytics-report",
-                    `kora-analytics-${new Date().toISOString().split("T")[0]}`
-                  )
-                }
+                type="button"
+                disabled={!hasExportData}
+                aria-disabled={!hasExportData}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleExportPdf}
               >
                 Export PDF
               </button>
@@ -277,6 +340,55 @@ function PortfolioAnalyticsInner() {
             isLoading={positionsQuery.isLoading}
             onRiskSegmentClick={handleRiskSegmentClick}
           />
+
+          {/* Filtered positions — included in PDF/print layout */}
+          <section
+            id="portfolio-export-table"
+            className="mt-10 overflow-hidden rounded-xl border border-zinc-800"
+            aria-label="Filtered portfolio positions"
+          >
+            <div className="border-b border-zinc-800 px-4 py-3">
+              <h2 className="text-sm font-semibold text-zinc-100">
+                Positions ({filteredPositions.length})
+              </h2>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Live positions matching the active filters
+              </p>
+            </div>
+            {hasExportData ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left text-xs">
+                  <thead className="bg-zinc-900/80 text-zinc-400">
+                    <tr>
+                      {PORTFOLIO_EXPORT_HEADERS.map((header) => (
+                        <th key={header} className="px-3 py-2 font-medium">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {exportRows.map((row) => (
+                      <tr
+                        key={`${row["Invoice ID"]}-${row["Transaction Hash"]}`}
+                        className="border-t border-zinc-800/80 text-zinc-200"
+                      >
+                        {PORTFOLIO_EXPORT_HEADERS.map((header) => (
+                          <td key={header} className="px-3 py-2 font-mono tabular-nums">
+                            {row[header] === "" ? "—" : String(row[header])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="px-4 py-8 text-center text-sm text-zinc-500">
+                No positions match the current filters.
+              </p>
+            )}
+          </section>
         </div>
       </PrintLayout>
     </ErrorBoundary>
