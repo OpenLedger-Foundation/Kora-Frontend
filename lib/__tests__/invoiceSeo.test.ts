@@ -85,11 +85,12 @@ describe("buildPublicInvoiceSeo", () => {
     const blob = JSON.stringify(seo);
     expect(blob).not.toContain(inv.metadata.debtorAddress);
     expect(blob).not.toContain(inv.ownerAddress);
-    expect(seo.pageUrl).toContain(`/marketplace/${inv.id}`);
-    expect(seo.ogImageUrl).toContain(`/marketplace/${inv.id}/opengraph-image`);
+    // Canonical deep links prefer on-chain token ID (#383)
+    expect(seo.pageUrl).toContain(`/marketplace/${inv.tokenId}`);
+    expect(seo.ogImageUrl).toContain(`/marketplace/${inv.tokenId}/opengraph-image`);
   });
 
-  it("hydrates OG image from IPFS metadata SVG when present", () => {
+  it("uses PNG opengraph-image route for social crawlers (not IPFS SVG)", () => {
     const inv = MOCK_INVOICES[0];
     const cid = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
     const ipfsMeta = {
@@ -109,7 +110,8 @@ describe("buildPublicInvoiceSeo", () => {
     } satisfies InvoiceMetadataV1;
 
     const seo = buildPublicInvoiceSeo(inv, ipfsMeta);
-    expect(seo.ogImageUrl).toBe(`https://gateway.pinata.cloud/ipfs/${cid}`);
+    expect(seo.ogImageUrl).toContain(`/marketplace/${inv.tokenId}/opengraph-image`);
+    expect(seo.ogImageUrl).not.toContain(cid);
     expect(seo.description).toBe("Public description only");
   });
 

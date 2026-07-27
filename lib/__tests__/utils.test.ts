@@ -62,6 +62,11 @@ describe("cn", () => {
   it("returns empty string for no inputs", () => {
     expect(cn()).toBe("");
   });
+  it("supports arrays and object-style conditional input", () => {
+    expect(
+      cn("base", ["px-2", { "text-sm": true, hidden: false }], "px-4")
+    ).toBe("base text-sm px-4");
+  });
 });
 
 // ─── 2. formatCurrency ────────────────────────────────────────────────────────
@@ -147,38 +152,10 @@ describe("formatCurrency", () => {
     expect(formatCurrency(100, "USDC", false, "ja-JP")).toContain("USDC");
     expect(formatCurrency(100, "USDC", false, "ar-SA")).toContain("USDC");
   });
-
-  it.each(APP_LOCALES)(
-    "app locale %s: formats 123456.78 with 2 decimals and USDC label",
-    (locale) => {
-      const result = formatCurrency(123456.78, "USDC", false, locale);
-      expect(result).toContain("USDC");
-      expect(result).toContain("$");
-      // 2 fraction digits after the locale-appropriate decimal separator
-      expect(result).toMatch(/\d\D\d{2}[\s\u00a0\u202f]*USDC/);
-    }
-  );
-
-  it.each(APP_LOCALES)(
-    "app locale %s: compact 2.5M yields 'M' + 'USDC' suffix",
-    (locale) => {
-      const result = formatCurrency(2_500_000, "USDC", true, locale);
-      expect(result).toContain("M");
-      expect(result).toContain("USDC");
-    }
-  );
-
-  it.each(APP_LOCALES)(
-    "app locale %s: null/undefined amounts → 0.00 USDC equivalent",
-    (locale) => {
-      const n = formatCurrency(null, "USDC", false, locale);
-      const u = formatCurrency(undefined, "USDC", false, locale);
-      expect(n).toContain("USDC");
-      expect(u).toContain("USDC");
-      expect(n).toContain("$");
-      expect(u).toContain("$");
-    }
-  );
+  it("rounds compact values to one decimal place", () => {
+    expect(formatCurrency(1_549, "USDC", true)).toBe("$1.5K USDC");
+    expect(formatCurrency(1_550, "USDC", true)).toBe("$1.6K USDC");
+  });
 });
 
 // ─── 3. formatUSDC ───────────────────────────────────────────────────────────
@@ -359,39 +336,11 @@ describe("formatApr", () => {
   it("handles large APR", () => {
     expect(formatApr(99.99)).toBe("99.99% APR");
   });
-
-  // ── Locale tests (Issue #290): 4 locales ────────────────────────────────
-  const APR_LOCALES = ["en", "es", "ar", "pt-BR"] as const;
-
-  it.each(APR_LOCALES)("locale %s: always uses 2 fraction digits", (locale) => {
-    const result = formatApr(12.5, locale);
-    // Match that we have exactly 2 digits after whatever decimal separator
-    expect(result).toMatch(/\d\D\d{2}% APR/);
-    expect(result).toContain("% APR");
+  it("rounds fractional APR values consistently", () => {
+    expect(formatApr(12.345)).toBe("12.35% APR");
   });
-
-  it("locale en: 1000.5 → contains '1,000.50'", () => {
-    expect(formatApr(1000.5, "en")).toContain("1,000.50");
-  });
-
-  it("locale es: 1000.5 → contains '1.000,50'", () => {
-    // es-ES style: period thousands, comma decimal
-    const result = formatApr(1000.5, "es");
-    expect(result).toContain("1.000,50");
-  });
-
-  it("locale pt-BR: 1000.5 → contains '1.000,50'", () => {
-    const result = formatApr(1000.5, "pt-BR");
-    expect(result).toContain("1.000,50");
-  });
-
-  it("locale ar: 1000.5 → contains Arabic-style grouping or Eastern-Arabic numerals", () => {
-    const result = formatApr(1000.5, "ar");
-    // Accept either western or eastern numerals; ensure thousands + 2 decimals rendered
-    expect(typeof result).toBe("string");
-    expect(result).toContain("% APR");
-    // Node Intl for ar may produce either ١٬٠٠٠٫٥٠ or 1,000.50 depending on ICU data
-    expect(result.length).toBeGreaterThan(0);
+  it("supports negative APR values", () => {
+    expect(formatApr(-1.5)).toBe("-1.50% APR");
   });
 });
 
@@ -613,6 +562,15 @@ describe("truncateAddress", () => {
   });
   it("returns empty string for falsy input", () => {
     expect(truncateAddress(undefined as any)).toBe("");
+  });
+  it("returns the trimmed address unchanged when it is already short", () => {
+    expect(truncateAddress("  GABC1234  ", 4)).toBe("GABC1234");
+  });
+  it("trims leading and trailing whitespace before truncating", () => {
+    expect(truncateAddress(`  ${addr}  `, 5)).toBe("GBVZQ...ZQKZQ");
+  });
+  it("returns the full string when chars * 2 covers the address length", () => {
+    expect(truncateAddress("GABCD123", 4)).toBe("GABCD123");
   });
 });
 

@@ -1,11 +1,12 @@
 {
   "name": "kora-frontend",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "description": "On-chain Invoice Financing Protocol built on Stellar Soroban",
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
+    "bundlesize": "bundlesize",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
@@ -125,5 +126,8 @@
       "path": ".next/static/chunks/pages/**/*.js",
       "maxSize": "300 kB"
     }
-  ]
+  ],
+  "overrides": {
+    "std-env": "3.8.0"
+  }
 }

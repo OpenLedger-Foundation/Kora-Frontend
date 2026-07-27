@@ -148,6 +148,10 @@ import StatCardMeta, * as StatCardStories from "@/components/ui/stat-card.storie
 import TextareaMeta, * as TextareaStories from "@/components/ui/textarea.stories";
 import TooltipMeta, * as TooltipStories from "@/components/ui/tooltip.stories";
 import PositionDetailDrawerMeta, * as PositionDetailDrawerStories from "@/components/invoice/PositionDetailDrawer.stories";
+import VerificationModalMeta, * as VerificationModalStories from "@/components/wallet/VerificationModal.stories";
+import WalletBalanceMeta, * as WalletBalanceStories from "@/components/wallet/WalletBalance.stories";
+import TransactionToastsMeta, * as TransactionToastsStories from "@/components/transactions/TransactionToasts.stories";
+import TransactionHistoryDrawerMeta, * as TransactionHistoryDrawerStories from "@/components/transactions/TransactionHistoryDrawer.stories";
 
 // ─── Helper: extract named story exports (skip "default") ─────────────────────
 
@@ -333,6 +337,40 @@ describe("Storybook snapshots — Invoice components", () => {
     const stories = getStoryExports(PositionDetailDrawerStories as any);
     it.each(stories)("%s", (_name, story) => {
       const { container } = renderStory(story, PositionDetailDrawerMeta);
+      expect(container.firstChild).toMatchSnapshot();
+    });
+  });
+});
+
+describe("Storybook snapshots — Wallet and transaction components", () => {
+  describe("VerificationModal", () => {
+    const stories = getStoryExports(VerificationModalStories as any);
+    it.each(stories)("%s", (_name, story) => {
+      const { container } = renderStory(story, VerificationModalMeta);
+      expect(container.firstChild).toMatchSnapshot();
+    });
+  });
+
+  describe("WalletBalance", () => {
+    const stories = getStoryExports(WalletBalanceStories as any);
+    it.each(stories)("%s", (_name, story) => {
+      const { container } = renderStory(story, WalletBalanceMeta);
+      expect(container.firstChild).toMatchSnapshot();
+    });
+  });
+
+  describe("TransactionToasts", () => {
+    const stories = getStoryExports(TransactionToastsStories as any);
+    it.each(stories)("%s", (_name, story) => {
+      const { container } = renderStory(story, TransactionToastsMeta);
+      expect(container.firstChild).toMatchSnapshot();
+    });
+  });
+
+  describe("TransactionHistoryDrawer", () => {
+    const stories = getStoryExports(TransactionHistoryDrawerStories as any);
+    it.each(stories)("%s", (_name, story) => {
+      const { container } = renderStory(story, TransactionHistoryDrawerMeta);
       expect(container.firstChild).toMatchSnapshot();
     });
   });

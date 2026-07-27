@@ -128,7 +128,7 @@ export function buildPublicInvoiceSeo(
   invoice: Invoice,
   ipfsMeta?: InvoiceMetadataV1 | null
 ): PublicInvoiceSeo {
-  const id = invoice.id;
+  const canonicalId = invoice.tokenId || invoice.id;
   const siteUrl = APP_URL().replace(/\/$/, "");
   const isAnonymized = invoice.debtorPrivacy === "anonymized";
   const debtorLabel = publicDebtorLabel(invoice);
@@ -155,12 +155,11 @@ export function buildPublicInvoiceSeo(
     description = `Invoice NFT marketplace opportunity: ${debtorLabel} invoice of ${formatCurrency(amount, currency)} at ${formatApr(apr)} APR on Stellar Soroban.`;
   }
 
-  const ipfsImage = resolveIpfsAssetUrl(ipfsMeta?.image);
-  const ogImageUrl =
-    ipfsImage || `${siteUrl}/marketplace/${id}/opengraph-image`;
+  // Prefer PNG opengraph-image route for Twitter/Slack crawlers (SVG IPFS is NFT art).
+  const ogImageUrl = `${siteUrl}/marketplace/${canonicalId}/opengraph-image`;
 
   return {
-    id,
+    id: canonicalId,
     invoiceNumber,
     debtorLabel,
     amount,
@@ -172,7 +171,7 @@ export function buildPublicInvoiceSeo(
     riskTier: invoice.riskTier,
     description,
     ogImageUrl,
-    pageUrl: `${siteUrl}/marketplace/${id}`,
+    pageUrl: `${siteUrl}/marketplace/${canonicalId}`,
     isAnonymized,
   };
 }

@@ -81,6 +81,21 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+### Docker Development
+
+The Docker path is useful for Wave contributors who want a reproducible local
+environment without installing Node modules on the host:
+
+```bash
+cp .env.example .env.local
+docker compose up --build
+```
+
+After the app starts, visit `http://localhost:3000` and verify hot reload by
+editing a component or copy string. Source files are bind-mounted into the
+container; `node_modules` stays in a container volume. Rebuild the image after
+dependency changes with `docker compose build --no-cache kora-frontend`.
+
 ## Mock Data Mode
 
 Mock data mode lets you work on marketplace pages, SME dashboards, investor views, invoice cards, filters, and many UI states without live Stellar contracts.

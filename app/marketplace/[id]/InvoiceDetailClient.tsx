@@ -384,7 +384,8 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       <div className="flex items-center gap-2">
                         <InvoiceStatusBadge status={status} />
                         <ShareInvoiceButton
-                          id={id}
+                          id={invoice.tokenId || id}
+                          tokenId={invoice.tokenId}
                           invoiceTitle={metadata.invoiceNumber}
                           summary={metadata.description}
                         />

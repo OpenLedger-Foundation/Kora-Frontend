@@ -22,7 +22,7 @@ import { DebtorDisplay } from "./DebtorDisplay";
 import { InvoiceCardHoverPopover } from "./InvoiceCardHoverPopover";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
-import { isEnabled } from "@/lib/featureFlags";
+import { useFeatureFlag } from "@/lib/featureFlags";
 import {
   resolveThumbnailSrc,
   thumbnailBlurDataUri,
@@ -83,7 +83,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= MAX_COMPARISON_INVOICES && !isInComparison;
-  const comparisonEnabled = isEnabled("comparison");
+  const comparisonEnabled = useFeatureFlag("comparison");
   const reduced = useReducedMotion();
   
   // Hover popover state

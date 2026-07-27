@@ -15,6 +15,8 @@ import { useFormatters } from "@/hooks/useFormatters";
 import { useUIStore, useInvoiceStore, usePositionListingStore, DEFAULT_FILTERS } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
+import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { ListPositionDialog } from "@/components/invoice/ListPositionDialog";
 import type { PortfolioDonutProps, DonutFilter } from "@/components/dashboard/PortfolioDonut";
@@ -48,7 +50,7 @@ const PortfolioDonut = dynamic<PortfolioDonutProps>(
 );
 
 /** Loading must resolve within 30s or we surface an error state. */
-export const INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS = 30_000;
+const INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS = 30_000;
 
 function toInvoicePositions(positions: InvestorPosition[]): InvoicePosition[] {
   return positions
@@ -76,6 +78,7 @@ export default function InvestorDashboardPage() {
     refetchInterval: 30_000,
   });
   const { execute } = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
   const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [listingTarget, setListingTarget] = useState<InvestorPosition | null>(null);
@@ -148,6 +151,7 @@ export default function InvestorDashboardPage() {
     if (!address) return;
     await execute(() => prepareClaimPosition(pos.id, address), {
       successMessage: "Claim submitted",
+      onSimulationPreview,
       onSuccess: () => positionsQuery.refetch(),
     });
   };
@@ -496,6 +500,8 @@ export default function InvestorDashboardPage() {
         </CardContent>
       </Card>
 
+      </Card>
+
       {listedPositions.length > 0 && (
         <Card className="mt-8">
           <CardHeader>
@@ -557,6 +563,8 @@ export default function InvestorDashboardPage() {
         onOpenChange={(open) => !open && setListingTarget(null)}
         onSubmit={handleListSubmit}
       />
+
+      <TxSimulationPreview {...simulationDialogProps} />
     </div>
   );
 }
