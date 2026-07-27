@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
 import { verifyUploadToken } from "@/lib/security";
 import { logger } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 const PINATA_BASE = "https://api.pinata.cloud";
 const PINATA_JWT = process.env.PINATA_JWT ?? "";
@@ -138,8 +139,11 @@ function checkRateLimit(wallet: string) {
   return true;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
+
+  const csrfError = verifyCsrf(req);
+  if (csrfError) return csrfError;
 
   // 1. IP rate limiting (10 req/min)
   const forwardedFor = req.headers.get("x-forwarded-for");
@@ -258,6 +262,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unsupported content type", requestId }, { status: 415 });
   } catch (err) {
     logger.error("[pinata-proxy] error", { requestId, route: "/api/upload", error: err });
+    return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
+  try {
+    const authHeader = req.headers.get("authorization") ?? "";
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!bearerToken) {
+      return NextResponse.json({ error: "Unauthorized: missing token", requestId }, { status: 401 });
+    }
+    const authResult = verifyUploadToken(bearerToken);
+    if (!authResult.ok) {
+      return NextResponse.json({ error: `Unauthorized: ${authResult.error}`, requestId }, { status: 401 });
+    }
+
+    const { cid } = await req.json();
+    if (!cid) {
+      return NextResponse.json({ error: "cid is required", requestId }, { status: 400 });
+    }
+
+    if (PINATA_JWT) {
+      await fetch(`${PINATA_BASE}/pinning/unpin/${cid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${PINATA_JWT}` },
+      });
+    }
+
+    return NextResponse.json({ ok: true, cid });
+  } catch (err) {
+    logger.error("[pinata-proxy] unpin error", { requestId, route: "/api/upload", error: err });
     return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
 }

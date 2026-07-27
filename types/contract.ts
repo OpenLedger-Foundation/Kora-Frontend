@@ -67,6 +67,7 @@ export type ServiceErrorCode =
   | "REPAY_ERROR"
   | "CLAIM_ERROR"
   | "CANCEL_ERROR"
+  | "TRANSFER_ERROR"
   | "NOT_IMPLEMENTED"
   | "UNKNOWN_ERROR";
 
@@ -110,6 +111,22 @@ export interface RepayInvoiceParams {
 
 export interface ClaimYieldParams {
   tokenId: bigint;
+}
+
+/**
+ * P2P secondary-market transfer of an investor position (#443).
+ *
+ * ABI assumption: `transfer_position(position_id: u64, to: Address)` is a
+ * single atomic call authorized by the position's current owner (the
+ * `sourcePublicKey` signer), mirroring `claim_position`/`claim_yield`. The
+ * recipient is not required to co-sign the transfer itself. If the deployed
+ * contract instead requires a two-step propose/accept pattern, wire the
+ * buyer's confirmation into `acceptPositionTransfer` in
+ * services/invoiceService.ts, which is currently a documented stub.
+ */
+export interface TransferPositionParams {
+  positionId: bigint;
+  toAddress: string;
 }
 
 // ─── API Response Wrappers ────────────────────────────────────────────────────

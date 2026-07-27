@@ -30,6 +30,7 @@ import { InvoiceDetailSkeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { useInvoice } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
+import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { useToast } from "@/hooks/useToast";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
@@ -213,6 +214,8 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
         })
       : "";
 
+  const { executeProtectedAction } = useVerifiedAction();
+
   const handleFund = async () => {
     if (!isConnected) {
       setWalletModalOpen(true);
@@ -231,102 +234,108 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       );
       return;
     }
-    setFunding(true);
 
-    // Optimistic update: immediately reflect new totals in UI
-    const newTotalRaised = fundingState.totalRaised + amountNum;
-    const optimisticInvoice: Invoice = {
-      ...invoice,
-      status:
-        newTotalRaised >= terms.financingAmount
-          ? "fully_funded"
-          : "partially_funded",
-      funding: {
-        ...fundingState,
-        totalRaised: newTotalRaised,
-        investorCount: fundingState.investorCount + 1,
-        remainingCapacity: Math.max(0, terms.financingAmount - newTotalRaised),
-        fundingProgress: Math.min(1, newTotalRaised / terms.financingAmount),
-      },
-    };
-    useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
-    queryClient.setQueryData(["invoice", id], optimisticInvoice);
+    await executeProtectedAction(
+      async () => {
+        setFunding(true);
 
-    await execute(
-      () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
-      {
-        successMessage: "Invoice funded successfully!",
-        successNotificationType: "invoiceFunded",
-        onSimulationPreview,
-        onSuccess: (txHash) => {
-          // DoD Requirement: Clear instructions and trace of exposes final txHash to developer console
-          console.log(`[Stellar/Soroban Factoring ESCROW Confirmation]
+        // Optimistic update: immediately reflect new totals in UI
+        const newTotalRaised = fundingState.totalRaised + amountNum;
+        const optimisticInvoice: Invoice = {
+          ...invoice,
+          status:
+            newTotalRaised >= terms.financingAmount
+              ? "fully_funded"
+              : "partially_funded",
+          funding: {
+            ...fundingState,
+            totalRaised: newTotalRaised,
+            investorCount: fundingState.investorCount + 1,
+            remainingCapacity: Math.max(0, terms.financingAmount - newTotalRaised),
+            fundingProgress: Math.min(1, newTotalRaised / terms.financingAmount),
+          },
+        };
+        useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
+        queryClient.setQueryData(["invoice", id], optimisticInvoice);
+
+        await execute(
+          () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
+          {
+            successMessage: "Invoice funded successfully!",
+            successNotificationType: "invoiceFunded",
+            onSimulationPreview,
+            onSuccess: (txHash) => {
+              // DoD Requirement: Clear instructions and trace of exposes final txHash to developer console
+              console.log(`[Stellar/Soroban Factoring ESCROW Confirmation]
 Token NFT ID: ${invoice.tokenId}
 Escrow Amount deposited: ${amountNum} USDC
 Escrow Yield Expectation: ${expectedReturn - amountNum} USDC
 Stellar Testnet Transaction Hash: ${txHash}`);
 
-          setFundTxHash(txHash);
+              setFundTxHash(txHash);
 
-          // Calculate optimistic state changes
-          const newTotalRaised = fundingState.totalRaised + amountNum;
-          const isFull = newTotalRaised >= terms.financingAmount;
-          const newInvestorCount = fundingState.investorCount + 1;
-          const newRemaining = Math.max(
-            0,
-            terms.financingAmount - newTotalRaised,
-          );
-          const newProgress = Math.min(
-            1,
-            newTotalRaised / terms.financingAmount,
-          );
-          const newStatus = isFull ? "fully_funded" : "partially_funded";
+              // Calculate optimistic state changes
+              const newTotalRaised = fundingState.totalRaised + amountNum;
+              const isFull = newTotalRaised >= terms.financingAmount;
+              const newInvestorCount = fundingState.investorCount + 1;
+              const newRemaining = Math.max(
+                0,
+                terms.financingAmount - newTotalRaised,
+              );
+              const newProgress = Math.min(
+                1,
+                newTotalRaised / terms.financingAmount,
+              );
+              const newStatus = isFull ? "fully_funded" : "partially_funded";
 
-          const updatedInvoice: Invoice = {
-            ...invoice,
-            status: newStatus,
-            funding: {
-              ...fundingState,
-              totalRaised: newTotalRaised,
-              investorCount: newInvestorCount,
-              remainingCapacity: newRemaining,
-              fundingProgress: newProgress,
+              const updatedInvoice: Invoice = {
+                ...invoice,
+                status: newStatus,
+                funding: {
+                  ...fundingState,
+                  totalRaised: newTotalRaised,
+                  investorCount: newInvestorCount,
+                  remainingCapacity: newRemaining,
+                  fundingProgress: newProgress,
+                },
+              };
+
+              // 1. Update Memory array directly so the list pages show dynamic updates
+              if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+                const mockIdx = MOCK_INVOICES.findIndex((i) => i.id === id);
+                if (mockIdx !== -1) {
+                  MOCK_INVOICES[mockIdx] = updatedInvoice;
+                }
+              }
+
+              // 2. Update Zustand store invoices list
+              const { invoices, setInvoices } = useInvoiceStore.getState();
+              if (invoices && invoices.length > 0) {
+                const updatedInvoices = invoices.map((inv) =>
+                  inv.id === id ? updatedInvoice : inv,
+                );
+                setInvoices(updatedInvoices);
+              }
+
+              // 3. Update TanStack Server cache
+              queryClient.setQueryData(["invoice", id], updatedInvoice);
+              queryClient.invalidateQueries({ queryKey: ["invoices"] });
+
+              // Clear form input amount
+              setAmount("");
             },
-          };
-
-          // 1. Update Memory array directly so the list pages show dynamic updates
-          if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
-            const mockIdx = MOCK_INVOICES.findIndex((i) => i.id === id);
-            if (mockIdx !== -1) {
-              MOCK_INVOICES[mockIdx] = updatedInvoice;
-            }
-          }
-
-          // 2. Update Zustand store invoices list
-          const { invoices, setInvoices } = useInvoiceStore.getState();
-          if (invoices && invoices.length > 0) {
-            const updatedInvoices = invoices.map((inv) =>
-              inv.id === id ? updatedInvoice : inv,
-            );
-            setInvoices(updatedInvoices);
-          }
-
-          // 3. Update TanStack Server cache
-          queryClient.setQueryData(["invoice", id], updatedInvoice);
-          queryClient.invalidateQueries({ queryKey: ["invoices"] });
-
-          // Clear form input amount
-          setAmount("");
-        },
-        onError: (err) => {
-          // Rollback optimistic change
-          useInvoiceStore.getState().rollbackInvoiceFunding(id);
-          queryClient.setQueryData(["invoice", id], invoice);
-          console.error("Fund transaction failed", err);
-        },
+            onError: (err) => {
+              // Rollback optimistic change
+              useInvoiceStore.getState().rollbackInvoiceFunding(id);
+              queryClient.setQueryData(["invoice", id], invoice);
+              console.error("Fund transaction failed", err);
+            },
+          },
+        );
+        setFunding(false);
       },
+      "funding"
     );
-    setFunding(false);
   };
 
   return (

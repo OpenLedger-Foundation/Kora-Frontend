@@ -1,3 +1,55 @@
+# [1.6.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.5.0...v1.6.0) (2026-07-26)
+
+
+### Features
+
+* **accessibility:** build shortcutreferencemodal with searchable shortcut list ([be65efe](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/be65efed0adf0b8ab24d41ee3632c08a65c93bc5)), closes [#480](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/480)
+* **documentation:** add contributor quick-start guide for stellar wave participants ([ea85731](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/ea8573163d179099012bcf364ec7591775889e02)), closes [#482](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/482)
+* **marketplace:** implement advanced marketplace filter persistence and deep linking ([4f01b60](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/4f01b604114c6da7244a1a901fb75abd58c717c7)), closes [#483](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/483)
+* **ui:** implement data-table component for sme invoice management ([d0d250e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/d0d250ec48a9ce88551143e51a5695b475bc962a)), closes [#481](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/481)
+
+# [1.5.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.4.0...v1.5.0) (2026-07-26)
+
+
+### Features
+
+* **performance:** add web vitals regression gate in ci ([f8ca527](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/f8ca5276c1e6ef74d2fb9e88d6c2fd703db4d67e))
+* **performance:** optimize ipfs invoice svg previews for lcp ([9bcf251](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9bcf251f84fbe97c49ce23c2eeb1fc80154bbb32))
+* **pwa:** audit pwa cache exclusions for wallet and tx routes ([55eac6f](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/55eac6f0142b28cda68cd2187df93c5c8b65158a))
+
+# [1.4.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.3.0...v1.4.0) (2026-07-26)
+
+
+### Bug Fixes
+
+* **security:** bind upload pinning to cryptographically verified wallet session ([29481fc](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/29481fcac4928dbbc7b0abe9b2d79901912581e9))
+* **security:** enforce CSRF verification on upload and vitals mutation routes ([83e8610](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/83e8610f7161ff556da40a6bdee81930eb9e796f))
+* **security:** nonce-based script-src CSP and add mainnet RPC to connect-src ([9ce2149](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9ce2149ff61ee6055e264468a96b7a94bf29dc95))
+* **security:** reject dangerous URL schemes in IPFS metadata sanitization ([69fdf92](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/69fdf92f332b4a1c0cb810731f373935dff39b04))
+
+
+### Features
+
+* **accessibility:** fix axe violations on analytics and transactions routes ([2e712ed](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/2e712ed627fd7586b1b7503deb7c000d10af4c1c))
+* **ipfs:** migrate all pinata uploads to server-side api route ([16d58fd](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/16d58fda0246ed43967255ed88461abf0b7375da))
+* **performance:** tune tanstack query stale times per network mode ([e2d9e62](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/e2d9e625414d44de42f91f8053e1f35456ef8551))
+
+# [1.3.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.2.0...v1.3.0) (2026-07-26)
+
+
+### Features
+
+* **accessibility:** add screen-reader announcements for transaction toasts ([08b8b78](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/08b8b785f5f1097f92f84cd3aba76059d798990a)), closes [#441](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/441)
+* **accessibility:** implement keyboard-navigable marketplace filter panel ([20ffd68](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/20ffd68a4a017b89f2da0f4f43ec60ce07f1a143)), closes [#440](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/440)
+* add user-facing VirusTotal rejection reason parser for upload flow ([9e2f169](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9e2f169af1b4e52f36eb287dfb7d9159e830aad0))
+* persist TanStack Query invoice cache to IndexedDB with stale/last-sync tracking ([a1da54e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/a1da54e70d06afad20c9d7c9b002264f1a41bc3f))
+* queue signed XDR drafts in IndexedDB for offline resubmission ([9aea95e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/9aea95ead2996ce86784a69c8d488d2463dc799a))
+* **secondary-market:** design secondary market listing ui for invoice positions ([1e0777b](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/1e0777b3be38e476321db18b55e1d5b365a73a50)), closes [#442](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/442)
+* **secondary-market:** implement transfer_position soroban contract integration ([aadcdd7](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/aadcdd77d3429355a72b62d34b42efa7057abe2d)), closes [#443](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/443)
+* **soroban:** implement live invoice listing via soroban event indexer ([e9bb445](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/e9bb4450eb9a718530f14395822b860e75bdaf99))
+* track InstallPrompt install/dismiss analytics with SME/investor cohorts ([12cc5e7](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/12cc5e756fe03423d4249ac2acafafdb8279a01b))
+* **wallet:** complete wallet ownership verification challenge flow ([10a5229](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/10a5229040ad30ea2c8eeb531669ffb5b2ea5816))
+
 # [1.2.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.1.0...v1.2.0) (2026-07-25)
 
 

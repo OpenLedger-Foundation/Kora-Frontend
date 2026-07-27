@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 
 const WalletConnectModal = dynamic(
@@ -30,8 +30,13 @@ const InProgressOverlay = dynamic(
   () => import("@/components/transactions").then((m) => m.InProgressOverlay),
   { ssr: false, loading: () => null }
 );
+const TransactionAnnouncer = dynamic(
+  () => import("@/components/transactions").then((m) => m.TransactionAnnouncer),
+  { ssr: false, loading: () => null }
+);
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { VerificationProvider } from "@/components/wallet/VerificationProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
 import { env } from "@/lib/env";
@@ -91,6 +96,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+    const handleControllerChange = () => {
+      // Guard: do not reload or interrupt if user is currently signing a transaction
+      const isSigning = useUIStore.getState().isSigning;
+      if (isSigning) {
+        console.warn("[PWA] Service worker update deferred during active wallet signing session.");
+        return;
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <LocaleProvider allMessages={ALL_MESSAGES}>
@@ -99,6 +122,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           {isEnabled("onboarding-tour") && <OnboardingTour />}
           <WalletConnectModal />
           <InProgressOverlay />
+          <TransactionAnnouncer />
           <InstallPrompt />
           <FeedbackWidget />
           <KeyboardShortcutsProvider />

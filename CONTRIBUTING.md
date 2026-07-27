@@ -13,6 +13,7 @@ This guide is written for first-time contributors. Follow it from top to bottom 
 - [Daily Development Commands](#daily-development-commands)
 - [Storybook](#storybook)
 - [Your First Issue](#your-first-issue)
+- [Stellar Wave Quick Start](#stellar-wave-quick-start)
 - [Branch Naming](#branch-naming)
 - [Commit Messages](#commit-messages)
 - [Testing Checklist](#testing-checklist)
@@ -177,6 +178,92 @@ If the `good first issue` label has not been populated yet, use the same approac
 - `#296` - contributor quick-start guide.
 
 Before starting, read the issue comments. Do not take an issue that has already been assigned or accepted for another contributor. If a maintainer asks contributors to apply first, comment on the issue and wait for assignment before expecting reward-program credit.
+
+## Stellar Wave Quick Start
+
+Kora Protocol takes contributions through the **Stellar Wave** program. Wave work is tracked with the
+`Stellar Wave` label, and merged pull requests earn points that are paid out through
+[Drips](https://www.drips.network/) — see the [Drips documentation](https://docs.drips.network/) for
+how splits and payouts work.
+
+### 1. Find an issue
+
+```text
+is:issue is:open label:"Stellar Wave" no:assignee
+```
+
+### 2. Apply and wait for assignment
+
+Comment on the issue saying you would like to take it, and include a short note on how you plan to
+approach it. **Do not open a pull request before a maintainer assigns you** — unassigned work is not
+eligible for points.
+
+### 3. Branch
+
+Use the branch name suggested in the issue body, or one of the prefixes in
+[Branch Naming](#branch-naming):
+
+```bash
+git switch -c feat/sme-invoice-table
+```
+
+### 4. Build and verify
+
+Run the full local gate before pushing:
+
+```bash
+npm run lint && npm run type-check && npm run test && npm run build
+```
+
+### 5. Open the pull request
+
+Fill in the template like this:
+
+```markdown
+## Summary
+
+Adds a status filter to the SME dashboard invoice table so SMEs can narrow a long
+invoice list to a single status.
+
+Closes #481
+
+## Changes
+
+- Added a status `<select>` above the invoice table
+- Selection resets when the filter changes so hidden rows cannot stay selected
+- Added an empty state for a filter that matches nothing
+
+## Testing
+
+- [x] `npm run lint`
+- [x] `npm run type-check`
+- [x] `npm run test`
+- [x] `npm run build`
+
+## Screenshots
+
+<!-- Required for UI changes -->
+```
+
+Every Wave pull request description **must** contain `Closes #<issue_number>` so the issue closes on
+merge and the points are attributed to you.
+
+### Complexity and points
+
+Issues carry a complexity rating in the body, which maps to Drips points:
+
+| Complexity | Points | Typical scope |
+| ---------- | ------ | ------------- |
+| Low        | 50     | Docs, copy, a single small component |
+| Medium     | 100    | One feature or test suite in a single module |
+| High       | 200    | Engineering work touching multiple modules |
+
+### Wave rules
+
+- Assignment before starting — always.
+- One issue at a time unless a maintainer says otherwise.
+- If you go quiet for a week, a maintainer may unassign the issue.
+- UI changes need screenshots or a recording in the pull request.
 
 ## Branch Naming
 

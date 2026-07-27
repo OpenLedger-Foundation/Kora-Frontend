@@ -7,6 +7,7 @@ import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { useUIStore } from "@/store/uiStore";
 import { toast } from "sonner";
 import type { NotificationPreferenceType } from "@/hooks/useToast";
+import { useTxAnnouncement } from "@/hooks/useTransaction";
 
 export type NotificationVariant = "pending" | "success" | "error" | "warning";
 
@@ -162,6 +163,28 @@ export function WarningTransactionToast({ message, details }: { message: string;
         </div>
       </div>
     </motion.div>
+  );
+}
+
+/**
+ * Persistent, visually-hidden live regions announcing transaction lifecycle
+ * changes (building/simulating/signing/submitting/polling/confirmed/failed)
+ * to assistive tech (#441). Mount once, globally — see app/providers.tsx —
+ * so it's a reliable single source of truth independent of the Sonner
+ * toasts, which are visual-first and whose DOM nodes are too transient to
+ * depend on for announcements.
+ */
+export function TransactionAnnouncer() {
+  const { polite, assertive } = useTxAnnouncement();
+  return (
+    <>
+      <span className="sr-only" role="status" aria-live="polite">
+        {polite ?? ""}
+      </span>
+      <span className="sr-only" role="alert" aria-live="assertive">
+        {assertive ?? ""}
+      </span>
+    </>
   );
 }
 

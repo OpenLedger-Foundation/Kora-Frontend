@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   getFilteredInvoices,
   toQueryParams,
+  toQueryString,
   fromQueryParams,
   DEFAULT_FILTERS,
   useInvoiceStore,
@@ -183,9 +184,44 @@ describe("URL serialization", () => {
   });
 
   it("returns defaults for empty params", () => {
-    const { filters, sort } = fromQueryParams(new URLSearchParams());
+    const { filters, sort, searchQuery } = fromQueryParams(new URLSearchParams());
     expect(filters).toEqual(DEFAULT_FILTERS);
     expect(sort).toEqual({ sortBy: "apr", sortDir: "desc" });
+    expect(searchQuery).toBe("");
+  });
+
+  it("round-trips the search query", () => {
+    const params = toQueryParams(DEFAULT_FILTERS, { sortBy: "apr", sortDir: "desc" }, "acme corp");
+    expect(params.get("q")).toBe("acme corp");
+    expect(fromQueryParams(params).searchQuery).toBe("acme corp");
+  });
+
+  it("omits a blank search query so clear-all produces an empty query string", () => {
+    const params = toQueryParams(DEFAULT_FILTERS, { sortBy: "apr", sortDir: "desc" }, "   ");
+    expect(params.has("q")).toBe(false);
+    expect(toQueryString(DEFAULT_FILTERS, { sortBy: "apr", sortDir: "desc" })).toBe("");
+  });
+
+  it("falls back to default APR bounds when params are not numeric", () => {
+    const { filters } = fromQueryParams(new URLSearchParams("aprMin=abc&aprMax=xyz"));
+    expect(filters.aprRange).toEqual([0, 50]);
+  });
+
+  it("a shared query string restores the full filter state", () => {
+    const filters = {
+      categories: ["technology", "retail"],
+      jurisdictions: ["US", "NG"],
+      riskTiers: ["A"],
+      aprRange: [8, 22] as [number, number],
+      activeOnly: true,
+      showExpired: true,
+    };
+    const sort = { sortBy: "dueDate" as const, sortDir: "asc" as const };
+    const shared = toQueryString(filters, sort, "invoice-42");
+    const restored = fromQueryParams(new URLSearchParams(shared));
+    expect(restored.filters).toEqual(filters);
+    expect(restored.sort).toEqual(sort);
+    expect(restored.searchQuery).toBe("invoice-42");
   });
 });
 
