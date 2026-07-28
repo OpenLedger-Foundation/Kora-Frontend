@@ -640,5 +640,25 @@ export async function getPositions(
   return marketplaceContract.getPositions(investor, sourcePublicKey);
 }
 
+/**
+ * P2P secondary-market transfer of an investor position.
+ * Returns an unsigned XDR string ready for signing by the seller.
+ *
+ * @param positionId     On-chain position ID (string, BigInt-convertible).
+ * @param toAddress      Recipient's Stellar G-address.
+ * @param sellerAddress  Current owner's Stellar G-address (transaction signer).
+ */
+export async function transferPosition(
+  positionId: string,
+  toAddress: string,
+  sellerAddress: string
+): Promise<string> {
+  return marketplaceContract.transferPosition(
+    { positionId: BigInt(positionId), toAddress },
+    sellerAddress
+  );
+}
+
 // Re-export low-level helpers for advanced use
 export { buildCall, readCall, parseSorobanError, simulate, scvAddress };
+
