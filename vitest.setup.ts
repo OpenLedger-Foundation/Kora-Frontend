@@ -38,11 +38,13 @@ global.IntersectionObserver = class IntersectionObserver {
   unobserve() {}
 } as any;
 
+import React from "react";
+
 // Mock next/image
 vi.mock("next/image", () => ({
   default: (props: any) => {
     // eslint-disable-next-line jsx-a11y/alt-text
-    return <img {...props} />;
+    return React.createElement("img", props);
   },
 }));
 
@@ -56,5 +58,5 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// Add custom matchers if needed
-expect.extend({});
+import * as matchers from "@testing-library/jest-dom/matchers";
+expect.extend(matchers);

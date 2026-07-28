@@ -37,9 +37,22 @@ function getKit(): StellarWalletsKit {
   return kit;
 }
 
+export function useNetworkValidation(targetNetwork?: string) {
+  const expectedNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet";
+  const isNetworkMismatch = Boolean(
+    targetNetwork && targetNetwork.toLowerCase() !== expectedNetwork.toLowerCase()
+  );
+  return { expectedNetwork, isNetworkMismatch };
+}
+
 export function useWallet() {
-  const { address, publicKey, isConnected, provider, balance, connect, disconnect, setBalance } =
+  const { address, publicKey, isConnected, provider, balance, network, connect, disconnect, setBalance } =
     useWalletStore();
+
+  const validateNetwork = useCallback((targetNetwork: string) => {
+    const expected = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet";
+    return targetNetwork.toLowerCase() === expected.toLowerCase();
+  }, []);
 
   const connectWallet = useCallback(
     async (walletId: string = FREIGHTER_ID) => {
@@ -75,7 +88,7 @@ export function useWallet() {
     async (xdr: string): Promise<string> => {
       if (!isConnected) throw new Error("Wallet not connected");
       if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true" || xdr.startsWith("mock_")) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         return `${xdr}_signed`;
       }
       const walletKit = getKit();
@@ -109,6 +122,8 @@ export function useWallet() {
     isConnected,
     provider,
     balance,
+    network,
+    validateNetwork,
     connectWallet,
     disconnectWallet,
     signTransaction,
