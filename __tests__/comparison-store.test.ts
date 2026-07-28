@@ -62,4 +62,22 @@ describe("invoiceStore — comparison list", () => {
     useInvoiceStore.getState().clearComparison();
     expect(useInvoiceStore.getState().comparisonList).toHaveLength(0);
   });
+
+  it("handles URL comparison parameter parsing and deduplication", () => {
+    const rawParam = "inv_001,inv_002,inv_003,inv_004,inv_005";
+    const ids = rawParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, MAX_COMPARISON_INVOICES);
+
+    useInvoiceStore.getState().setComparisonList(ids);
+    expect(useInvoiceStore.getState().comparisonList).toEqual([
+      "inv_001",
+      "inv_002",
+      "inv_003",
+      "inv_004",
+    ]);
+  });
 });
+
