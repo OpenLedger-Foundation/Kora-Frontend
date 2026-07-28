@@ -657,6 +657,14 @@
     "back": "Atrás",
     "next": "Siguiente",
     "finish": "Finalizar",
+    "personaInvestor": "Inversor",
+    "personaSme": "Pyme",
+    "selectPersona": "Seleccionar rol",
+    "restartTour": "Reiniciar recorrido",
+    "restartTourDesc": "Reiniciar recorrido guiado para tu rol seleccionado.",
+    "tourCompleted": "Recorrido completado",
+    "tourSkipped": "Recorrido omitido",
+    "activePersona": "Rol activo",
     "steps": {
       "findOpportunityTitle": "Encuentra la oportunidad correcta",
       "findOpportunityBody": "Busca por deudor, número de factura o jurisdicción para filtrar el mercado.",
@@ -665,7 +673,13 @@
       "fundInvoiceTitle": "Financia una factura",
       "fundInvoiceBody": "Abre un listado elegible desde su acción de financiamiento cuando estés listo para invertir.",
       "trackPortfolioTitle": "Sigue tu portafolio",
-      "trackPortfolioBody": "Usa el panel de inversor para monitorear posiciones, pagos y rendimiento generado."
+      "trackPortfolioBody": "Usa el panel de inversor para monitorear posiciones, pagos y rendimiento generado.",
+      "mintInvoiceTitle": "Emitir una factura",
+      "mintInvoiceBody": "Sube los detalles de la factura y emite un NFT en Soroban para solicitar financiamiento.",
+      "smeDashboardTitle": "Panel de Pyme",
+      "smeDashboardBody": "Monitorea tus facturas emitidas, estado de financiamiento y pagos.",
+      "marketplaceVisibilityTitle": "Visibilidad en mercado",
+      "marketplaceVisibilityBody": "Tus facturas emitidas aparecen en el mercado público para que los inversores las financien."
     }
   },
   "invoiceCard": {

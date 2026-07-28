@@ -662,6 +662,14 @@
     "back": "Back",
     "next": "Next",
     "finish": "Finish",
+    "personaInvestor": "Investor",
+    "personaSme": "SME",
+    "selectPersona": "Select persona",
+    "restartTour": "Restart Tour",
+    "restartTourDesc": "Restart guided onboarding tour for your selected role.",
+    "tourCompleted": "Tour completed",
+    "tourSkipped": "Tour skipped",
+    "activePersona": "Active Role",
     "steps": {
       "findOpportunityTitle": "Find the right opportunity",
       "findOpportunityBody": "Search by debtor, invoice number, or jurisdiction to narrow the marketplace.",
@@ -670,7 +678,13 @@
       "fundInvoiceTitle": "Fund an invoice",
       "fundInvoiceBody": "Open an eligible listing from its funding action when you are ready to invest.",
       "trackPortfolioTitle": "Track your portfolio",
-      "trackPortfolioBody": "Use the investor dashboard to monitor positions, repayments, and earned yield."
+      "trackPortfolioBody": "Use the investor dashboard to monitor positions, repayments, and earned yield.",
+      "mintInvoiceTitle": "Mint an invoice",
+      "mintInvoiceBody": "Upload unpaid invoice details and mint a Soroban NFT to request financing.",
+      "smeDashboardTitle": "SME Dashboard",
+      "smeDashboardBody": "Track your minted invoices, funding progress, and upcoming repayments.",
+      "marketplaceVisibilityTitle": "Marketplace listing",
+      "marketplaceVisibilityBody": "Your minted invoices appear on the public marketplace for investors to discover and fund."
     }
   },
   "invoiceCard": {

@@ -602,5 +602,37 @@
       "companyNameMinLength": "يجب أن يتكون اسم الشركة من حرفين على الأقل",
       "walletAddressInvalid": "تنسيق مفتاح Stellar العام غير صالح"
     }
+  },
+  "onboarding": {
+    "step": "الخطوة {current} من {total}",
+    "skipTour": "تخطي الجولة",
+    "skipLabel": "تخطي جولة التوجيه",
+    "back": "السابق",
+    "next": "التالي",
+    "finish": "إنهاء",
+    "personaInvestor": "مستثمر",
+    "personaSme": "شركة صغيرة",
+    "selectPersona": "حدد الدور",
+    "restartTour": "إعادة تشغيل الجولة",
+    "restartTourDesc": "إعادة تشغيل جولة التوجيه للدور المحدد.",
+    "tourCompleted": "اكتملت الجولة",
+    "tourSkipped": "تم تخطي الجولة",
+    "activePersona": "الدور النشط",
+    "steps": {
+      "findOpportunityTitle": "العثور على الفرصة المناسبة",
+      "findOpportunityBody": "ابحث حسب المدين أو رقم الفاتورة أو النطاق القضائي لتضييق السوق.",
+      "reviewDetailsTitle": "مراجعة تفاصيل الفاتورة",
+      "reviewDetailsBody": "تلخص كل بطاقة المبلغ والعائد ومستوى المخاطرة وتقدم التمويل والاستحقاق.",
+      "fundInvoiceTitle": "تمويل فاتورة",
+      "fundInvoiceBody": "افتح قائمة مؤهلة عندما تكون مستعدًا للاستثمار.",
+      "trackPortfolioTitle": "متابعة محفظتك",
+      "trackPortfolioBody": "استخدم لوحة تحكم المستثمر لمراقبة المراكز والدفعات والعوائد.",
+      "mintInvoiceTitle": "صك فاتورة",
+      "mintInvoiceBody": "قم بتحميل تفاصيل الفاتورة وصك رمز NFT للحصول على التمويل.",
+      "smeDashboardTitle": "لوحة تحكم الشركات",
+      "smeDashboardBody": "تابع الفواتير المبتكرة وتقدم التمويل والدفعات القادمة.",
+      "marketplaceVisibilityTitle": "العرض في السوق",
+      "marketplaceVisibilityBody": "تظهر فواتيرك في السوق العام ليكتشفها المستثمرون ويقوموا بتمويلها."
+    }
   }
 }

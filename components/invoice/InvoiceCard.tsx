@@ -154,6 +154,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
     <Link
       ref={cardRef}
       href={`/marketplace/${invoice.id}`}
+      data-tour={index === 0 ? "invoice-card" : undefined}
       className={cn("block group relative h-full", isExpired && "opacity-60")}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}

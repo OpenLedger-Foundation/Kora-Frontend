@@ -55,7 +55,11 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
 
 function readEnvFlag(flag: FeatureFlag): boolean {
   const envVar = FLAG_ENV_MAP[flag];
-  return process.env[envVar] === "true";
+  const val = process.env[envVar];
+  if (flag === "onboarding-tour") {
+    return val !== "false";
+  }
+  return val === "true";
 }
 
 function canUseRuntimeOverrides(): boolean {
