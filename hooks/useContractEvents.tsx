@@ -13,6 +13,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import {
   getContractEvents,
   subscribeContractEvents,
@@ -241,6 +242,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
   const { health } = useNetworkStatus();
   const { updateInvoiceFunding } = useInvoiceStore();
   const { formatCurrency } = useFormatters();
+  const t = useTranslations("contractEvents");
 
   const isOffline = health.overall === "down";
   const [mode, setMode] = useState<EventSubscriptionMode>(
@@ -262,9 +264,9 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
       case "invoice_funded":
         toast.success(
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">Invoice Funded</span>
+            <span className="font-semibold text-foreground">{t("invoiceFunded")}</span>
             <span className="text-xs text-muted-foreground">
-              {amountStr} invested · Invoice #{event.tokenId}
+              {t("invoiceFundedDesc", { amount: amountStr, tokenId: event.tokenId })}
             </span>
           </div>,
           { duration: 5000 }
@@ -274,9 +276,9 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
       case "invoice_repaid":
         toast.success(
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">Invoice Repaid</span>
+            <span className="font-semibold text-foreground">{t("invoiceRepaid")}</span>
             <span className="text-xs text-muted-foreground">
-              Invoice #{event.tokenId} has been fully repaid
+              {t("invoiceRepaidDesc", { tokenId: event.tokenId })}
             </span>
           </div>,
           { duration: 5000 }
@@ -286,16 +288,16 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
       case "invoice_cancelled":
         toast.info(
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">Invoice Cancelled</span>
+            <span className="font-semibold text-foreground">{t("invoiceCancelled")}</span>
             <span className="text-xs text-muted-foreground">
-              Invoice #{event.tokenId} has been cancelled
+              {t("invoiceCancelledDesc", { tokenId: event.tokenId })}
             </span>
           </div>,
           { duration: 5000 }
         );
         break;
     }
-  }, [formatCurrency]);
+  }, [formatCurrency, t]);
 
   const processEvents = useCallback(
     (events: ContractEvent[], latestLedger: number) => {

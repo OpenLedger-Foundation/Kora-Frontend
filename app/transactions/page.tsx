@@ -31,6 +31,7 @@ import { useFormatters } from "@/hooks/useFormatters";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { safeStellarTxUrl } from "@/lib/security";
 import EmptyState from "@/components/ui/EmptyState";
+import { useTranslations } from "next-intl";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -182,6 +183,7 @@ export default function TransactionHistoryPage() {
   const { setWalletModalOpen } = useUIStore();
   const { transactions, removeTransaction, clearHistory } = useTransactionStore();
   const { formatCurrency } = useFormatters();
+  const t = useTranslations("transactions");
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TxType | "all">("all");
@@ -252,11 +254,11 @@ export default function TransactionHistoryPage() {
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           <History className="h-6 w-6 text-muted-foreground" aria-hidden />
         </div>
-        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
+        <h2 className="text-xl font-semibold text-foreground">{t("connectTitle")}</h2>
         <p className="text-sm text-muted-foreground">
-          Connect to view your on-chain transaction history
+          {t("connectDesc")}
         </p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
+        <Button onClick={() => setWalletModalOpen(true)}>{t("connectTitle")}</Button>
       </div>
     );
   }
@@ -266,9 +268,9 @@ export default function TransactionHistoryPage() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Transaction History</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Your complete on-chain activity on Kora Protocol
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -280,7 +282,7 @@ export default function TransactionHistoryPage() {
             className="gap-2"
           >
             <Download className="h-4 w-4" aria-hidden />
-            Export CSV
+            {t("exportCsv")}
           </Button>
           {transactions.length > 0 && (
             <Button
@@ -290,7 +292,7 @@ export default function TransactionHistoryPage() {
               className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" aria-hidden />
-              Clear All
+              {t("clearAll")}
             </Button>
           )}
         </div>
@@ -424,16 +426,16 @@ export default function TransactionHistoryPage() {
           {filtered.length === 0 ? (
             transactions.length === 0 ? (
               <EmptyState
-                title="No transactions yet"
-                description="Your on-chain activity will appear here once you mint, fund, or repay invoices."
+                title={t("empty.title")}
+                description={t("empty.description")}
                 variant="transactions"
               />
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Search className="h-8 w-8 text-muted-foreground" aria-hidden />
-                <p className="mt-3 text-sm font-medium text-foreground">No results</p>
+                <p className="mt-3 text-sm font-medium text-foreground">{t("noResults")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Try adjusting your search or filters
+                  {t("noResultsDesc")}
                 </p>
               </div>
             )

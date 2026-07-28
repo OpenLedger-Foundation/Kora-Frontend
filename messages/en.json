@@ -736,10 +736,20 @@
     "unableToCopy": "Unable to copy link",
     "sharedSuccessfully": "Shared successfully"
   },
+  "contractEvents": {
+    "invoiceFunded": "Invoice Funded",
+    "invoiceFundedDesc": "{amount} invested · Invoice #{tokenId}",
+    "invoiceRepaid": "Invoice Repaid",
+    "invoiceRepaidDesc": "Invoice #{tokenId} has been fully repaid",
+    "invoiceCancelled": "Invoice Cancelled",
+    "invoiceCancelledDesc": "Invoice #{tokenId} has been cancelled"
+  },
   "language": {
     "label": "Language",
     "en": "English",
     "es": "Español",
+    "ar": "العربية",
+    "pt-BR": "Português (BR)",
     "switchTo": "Switch to {lang}"
   },
   "validation": {

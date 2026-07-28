@@ -42,7 +42,12 @@
     "termsPrefix": "Al conectar, aceptas nuestros",
     "termsLink": "Términos de Servicio",
     "connectGuardTitle": "Conecta tu billetera para continuar",
-    "connectGuardDesc": "Esta página requiere una billetera conectada."
+    "connectGuardDesc": "Esta página requiere una billetera conectada.",
+    "sessionExpiredTitle": "Sesión de billetera inactiva",
+    "sessionExpiredDesc": "Desbloquea tu extensión de billetera o reconéctate para continuar.",
+    "reconnect": "Reconectar Billetera",
+    "reconnecting": "Reconectando...",
+    "restoringSession": "Restaurando sesión de billetera..."
   },
   "landing": {
     "headline": "Financiamiento de Facturas, En Cadena",
@@ -731,10 +736,20 @@
     "unableToCopy": "No se pudo copiar el enlace",
     "sharedSuccessfully": "Compartido exitosamente"
   },
+  "contractEvents": {
+    "invoiceFunded": "Factura Financiada",
+    "invoiceFundedDesc": "{amount} invertido · Factura #{tokenId}",
+    "invoiceRepaid": "Factura Pagada",
+    "invoiceRepaidDesc": "La factura #{tokenId} ha sido completamente pagada",
+    "invoiceCancelled": "Factura Cancelada",
+    "invoiceCancelledDesc": "La factura #{tokenId} ha sido cancelada"
+  },
   "language": {
     "label": "Idioma",
     "en": "English",
     "es": "Español",
+    "ar": "العربية",
+    "pt-BR": "Português (BR)",
     "switchTo": "Cambiar a {lang}"
   },
   "validation": {

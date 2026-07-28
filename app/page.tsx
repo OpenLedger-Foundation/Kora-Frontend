@@ -20,6 +20,7 @@ import { useFormatters } from "@/hooks/useFormatters";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Script from "next/script";
 import { websiteSchema, organizationSchema, faqSchema, serializeSchema } from "@/lib/structuredData";
+import { useTranslations } from "next-intl";
 
 const HERO_HEADLINE = "Invoice Financing, On-Chain";
 
@@ -115,36 +116,37 @@ const FEATURES = [
 export default function LandingPage() {
   const words = useMemo(() => HERO_HEADLINE.split(" "), []);
   const { formatCurrency, formatPercentage, formatNumber } = useFormatters();
+  const t = useTranslations("landing");
 
   const heroStats = useMemo(
     () => [
       {
-        label: "Total Invoices",
+        label: t("stats.totalInvoices"),
         value: MOCK_STATS.activeInvoices,
         formatter: (value: number) => formatNumber(value),
       },
       {
-        label: "Total USDC Financed",
+        label: t("stats.totalFinanced"),
         value: MOCK_STATS.totalVolumeFinanced,
         formatter: (value: number) => formatCurrency(value, "USDC", true),
       },
       {
-        label: "Average APR",
+        label: t("stats.averageApr"),
         value: MOCK_STATS.averageApr,
         formatter: (value: number) => formatPercentage(value, 1),
       },
     ],
-    [formatCurrency, formatPercentage, formatNumber]
+    [t, formatCurrency, formatPercentage, formatNumber]
   );
 
   const stats = useMemo(
     () => [
-      { label: "Total Volume Financed", value: formatCurrency(MOCK_STATS.totalVolumeFinanced, "USDC", true) },
-      { label: "Active Invoices", value: formatNumber(MOCK_STATS.activeInvoices) },
-      { label: "Liquidity Providers", value: formatNumber(MOCK_STATS.totalInvestors) },
-      { label: "Avg. APR", value: formatPercentage(MOCK_STATS.averageApr, 0) },
+      { label: t("stats.totalVolume"), value: formatCurrency(MOCK_STATS.totalVolumeFinanced, "USDC", true) },
+      { label: t("stats.activeInvoices"), value: formatNumber(MOCK_STATS.activeInvoices) },
+      { label: t("stats.liquidityProviders"), value: formatNumber(MOCK_STATS.totalInvestors) },
+      { label: t("stats.avgApr"), value: formatPercentage(MOCK_STATS.averageApr, 0) },
     ],
-    [formatCurrency, formatNumber, formatPercentage]
+    [t, formatCurrency, formatNumber, formatPercentage]
   );
 
   return (
@@ -262,8 +264,8 @@ export default function LandingPage() {
       <section className="px-4 py-24 sm:px-6" aria-labelledby="how-it-works-heading">
         <div className="mx-auto max-w-5xl">
           <div className="mb-16 text-center">
-            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="how-it-works-heading">How It Works</h2>
-            <p className="mt-3 text-zinc-500">Five steps from invoice to liquidity</p>
+            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="how-it-works-heading">{t("howItWorksTitle")}</h2>
+            <p className="mt-3 text-zinc-500">{t("howItWorksSubtitle")}</p>
           </div>
 
           <div className="relative">
@@ -335,8 +337,8 @@ export default function LandingPage() {
       <section className="px-4 py-24 sm:px-6" aria-labelledby="architecture-heading">
         <div className="mx-auto max-w-5xl">
           <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="architecture-heading">Protocol Architecture</h2>
-            <p className="mt-3 text-zinc-500">Fully on-chain, non-custodial, and auditable</p>
+            <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="architecture-heading">{t("architectureTitle")}</h2>
+            <p className="mt-3 text-zinc-500">{t("architectureSubtitle")}</p>
           </div>
 
           <GlassCard className="overflow-hidden p-8">

@@ -47,6 +47,7 @@ import { useSMEInvoices } from "@/hooks/useInvoices";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
+import { useTranslations } from "next-intl";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -157,6 +158,8 @@ function SMEStatsGrid({ address }: { address: string }) {
 export default function SMEDashboardPage() {
   const { isConnected, address, signTransaction } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const t = useTranslations("smeDashboard");
+  const tCommon = useTranslations("common");
   const queryClient = useQueryClient();
   const invoicesQuery = useSMEInvoices(address ?? undefined);
   const { execute, status: txStatus } = useTransaction();
@@ -223,9 +226,9 @@ export default function SMEDashboardPage() {
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
         <EmptyState
           variant="no-invoices"
-          title="Connect your wallet"
-          description="Connect to view and manage your invoices"
-          cta={{ label: "Connect Wallet", onClick: () => setWalletModalOpen(true) }}
+          title={t("connectTitle")}
+          description={t("connectDesc")}
+          cta={{ label: tCommon("connectWallet"), onClick: () => setWalletModalOpen(true) }}
         />
       </div>
     );
@@ -464,12 +467,12 @@ export default function SMEDashboardPage() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">SME Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage your invoice financing</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Link href="/invoice/create">
           <Button>
-            <PlusCircle className="h-4 w-4" /> New Invoice
+            <PlusCircle className="h-4 w-4" /> {t("newInvoice")}
           </Button>
         </Link>
       </div>
@@ -484,7 +487,7 @@ export default function SMEDashboardPage() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle>My Invoices</CardTitle>
+              <CardTitle>{t("myInvoices")}</CardTitle>
               <div className="flex items-center gap-2">
                 <label htmlFor="sme-status-filter" className="text-xs text-muted-foreground">
                   Status
@@ -618,8 +621,8 @@ export default function SMEDashboardPage() {
             emptyState={
               statusFilter === "all"
                 ? {
-                    title: "No invoices yet",
-                    message: "Create your first invoice to start raising liquidity.",
+                    title: t("empty.title"),
+                    message: t("empty.message"),
                     illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
                   }
                 : {

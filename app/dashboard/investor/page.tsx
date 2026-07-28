@@ -16,6 +16,7 @@ import { useUIStore, useInvoiceStore, usePositionListingStore, DEFAULT_FILTERS }
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { useTranslations } from "next-intl";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { ListPositionDialog } from "@/components/invoice/ListPositionDialog";
@@ -71,6 +72,8 @@ function toInvoicePositions(positions: InvestorPosition[]): InvoicePosition[] {
 export default function InvestorDashboardPage() {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const t = useTranslations("investorDashboard");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const { setFilters, resetFilters } = useInvoiceStore();
   const { formatCurrency, formatDate, formatApr, formatPercentage } = useFormatters();
@@ -176,12 +179,12 @@ export default function InvestorDashboardPage() {
           <BarChart3 className="h-6 w-6 text-muted-foreground" />
         </div>
         <h2 className="text-xl font-semibold text-foreground">
-          Connect your wallet
+          {t("connectTitle")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Connect to view your investment portfolio
+          {t("connectDesc")}
         </p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
+        <Button onClick={() => setWalletModalOpen(true)}>{tCommon("connectWallet")}</Button>
       </div>
     );
   }
@@ -424,10 +427,10 @@ export default function InvestorDashboardPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Investor Dashboard
+            {t("title")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Track your invoice financing portfolio
+            {t("subtitle")}
           </p>
         </div>
         <Link href="/marketplace">
@@ -488,18 +491,16 @@ export default function InvestorDashboardPage() {
             isLoading={false}
             pageSize={5}
             emptyState={{
-              title: donutFilter ? "No matching positions" : "No positions",
+              title: donutFilter ? "No matching positions" : t("empty.title"),
               message: donutFilter
                 ? `No positions match the selected filter (${donutFilter.value}).`
-                : "Fund invoices on the marketplace to build your portfolio.",
+                : t("empty.message"),
               illustration: (
                 <BarChart3 className="h-10 w-10 text-muted-foreground" />
               ),
             }}
           />
         </CardContent>
-      </Card>
-
       </Card>
 
       {listedPositions.length > 0 && (
