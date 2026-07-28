@@ -93,6 +93,24 @@ vi.mock("next-intl", () => ({
     if (!values) return key;
     return key.replace(/\{(.*?)\}/g, (_, group) => String(values[group] ?? `{${group}}`));
   },
+  useLocale: () => "en",
+  useFormatter: () => ({
+    number: (value: number, opts?: Intl.NumberFormatOptions) =>
+      new Intl.NumberFormat("en", opts).format(value),
+    dateTime: (value: Date | number, opts?: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("en", opts).format(value),
+    relativeTime: (value: Date | number) => String(value),
+    list: (items: Iterable<string>) => [...items].join(", "),
+  }),
+  useNextIntlFormatter: () => ({
+    number: (value: number, opts?: Intl.NumberFormatOptions) =>
+      new Intl.NumberFormat("en", opts).format(value),
+    dateTime: (value: Date | number, opts?: Intl.DateTimeFormatOptions) =>
+      new Intl.DateTimeFormat("en", opts).format(value),
+    relativeTime: (value: Date | number) => String(value),
+    list: (items: Iterable<string>) => [...items].join(", "),
+  }),
+  NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 vi.mock("next/navigation", () => ({

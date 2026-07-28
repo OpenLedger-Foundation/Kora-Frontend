@@ -25,24 +25,38 @@ export interface TransactionRecord {
 
 interface TransactionHistoryStore {
   transactions: TransactionRecord[];
-  addTransaction: (tx: Omit<TransactionRecord, "timestamp">) => void;
+  filterType: string;
+  filterStartDate: string | null;
+  filterEndDate: string | null;
+
+  addTransaction: (tx: Omit<TransactionRecord, "timestamp"> & { timestamp?: number }) => void;
   updateTransactionStatus: (hash: string, status: TxStatus, error?: string) => void;
   clearHistory: () => void;
   getRecentTransactions: (limit?: number) => TransactionRecord[];
   getTransactionByHash: (hash: string) => TransactionRecord | undefined;
+  removeTransaction: (hash: string) => void;
+
+  setFilterType: (type: string) => void;
+  setFilterStartDate: (date: string | null) => void;
+  setFilterEndDate: (date: string | null) => void;
+  resetFilters: () => void;
+  getFilteredTransactions: () => TransactionRecord[];
 }
 
 export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
   persist(
     (set, get) => ({
       transactions: [],
+      filterType: "all",
+      filterStartDate: null,
+      filterEndDate: null,
 
       addTransaction: (tx) => {
         set((state) => ({
           transactions: [
             {
               ...tx,
-              timestamp: Date.now(),
+              timestamp: tx.timestamp ?? Date.now(),
             },
             ...state.transactions,
           ].slice(0, 100), // Keep last 100 transactions
@@ -65,6 +79,47 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
 
       getTransactionByHash: (hash) => {
         return get().transactions.find((tx) => tx.hash === hash);
+      },
+
+      removeTransaction: (hash) => {
+        set((state) => ({
+          transactions: state.transactions.filter((tx) => tx.hash !== hash),
+        }));
+      },
+
+      setFilterType: (type) => set({ filterType: type }),
+      setFilterStartDate: (date) => set({ filterStartDate: date }),
+      setFilterEndDate: (date) => set({ filterEndDate: date }),
+      resetFilters: () => set({ filterType: "all", filterStartDate: null, filterEndDate: null }),
+
+      getFilteredTransactions: () => {
+        const { transactions, filterType, filterStartDate, filterEndDate } = get();
+        return transactions.filter((tx) => {
+          // 1. Filter by type
+          if (filterType !== "all") {
+            const txType = tx.type;
+            let match = false;
+            if (filterType === "mint" && txType === "mint_invoice") match = true;
+            else if (filterType === "fund" && txType === "fund_invoice") match = true;
+            else if (filterType === "repay" && txType === "repay_invoice") match = true;
+            else if (filterType === "claim" && txType === "claim_yield") match = true;
+            else if (filterType === "transfer" && txType === "transfer") match = true;
+            else if (filterType === "other" && txType === "other") match = true;
+            if (!match) return false;
+          }
+
+          // 2. Filter by date range
+          if (filterStartDate) {
+            const startMs = new Date(filterStartDate).getTime();
+            if (!isNaN(startMs) && tx.timestamp < startMs) return false;
+          }
+          if (filterEndDate) {
+            const endMs = new Date(filterEndDate).getTime() + 86400000 - 1;
+            if (!isNaN(endMs) && tx.timestamp > endMs) return false;
+          }
+
+          return true;
+        });
       },
     }),
     {
@@ -104,9 +159,23 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
                 error: typeof tx.error === "string" ? tx.error : undefined,
               }))
               .slice(0, 100);
-            return { state: { transactions } };
+            return {
+              state: {
+                transactions,
+                filterType: "all",
+                filterStartDate: null,
+                filterEndDate: null,
+              },
+            };
           } catch {
-            return { state: { transactions: [] } };
+            return {
+              state: {
+                transactions: [],
+                filterType: "all",
+                filterStartDate: null,
+                filterEndDate: null,
+              },
+            };
           }
         },
         setItem: (name: string, value: any) => {
