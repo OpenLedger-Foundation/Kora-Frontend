@@ -23,3 +23,27 @@ export const CATEGORIES = [
   { key: "construction", label: "Construction", icon: "🏗️" },
   { key: "export", label: "Export", icon: "🚢" },
 ];
+
+export interface PositionFilterState {
+  minTenor?: number;
+  maxTenor?: number;
+  minYield?: number;
+  sellerAddress?: string;
+  category?: string;
+  riskTier?: string;
+}
+
+export const TENOR_OPTIONS = [
+  { value: "all", label: "All Tenors" },
+  { value: "0-30", label: "0 - 30 days", min: 0, max: 30 },
+  { value: "31-60", label: "31 - 60 days", min: 31, max: 60 },
+  { value: "61-90", label: "61 - 90 days", min: 61, max: 90 },
+  { value: "90+", label: "90+ days", min: 91, max: 365 },
+];
+
+export const YIELD_OPTIONS = [
+  { value: "0", label: "Any Yield" },
+  { value: "5", label: "5%+ Yield" },
+  { value: "10", label: "10%+ Yield" },
+  { value: "15", label: "15%+ Yield" },
+];
