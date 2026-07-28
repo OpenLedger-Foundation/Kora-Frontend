@@ -35,6 +35,7 @@ vi.mock("../useToast", () => ({
 vi.mock("../useWallet", () => ({
   useWallet: () => ({
     signTransaction: vi.fn(),
+    publicKey: "GBTESTPUBLICKEYXXXXXXXXXXXXXXXXXXXXXXXXXXX",
   }),
 }));
 
@@ -348,6 +349,42 @@ describe("useTransaction", () => {
       await executePromise;
 
       expect(mockGetTransaction).not.toHaveBeenCalled();
+    });
+
+    it("retries once after tx_bad_seq and succeeds", async () => {
+      const signedXdr = "SIGNED_XDR";
+      const txHash = "retry-hash";
+
+      mockSignTransaction.mockResolvedValue(signedXdr);
+      mockSubmitTransaction
+        .mockRejectedValueOnce(new (await import("@/lib/stellar/client")).BadSequenceError())
+        .mockResolvedValue({ status: "PENDING", hash: txHash });
+      mockGetTransaction.mockResolvedValue({ status: "SUCCESS" });
+      mockSimulateTransaction.mockResolvedValue({
+        results: [{ auth: [], xdr: "result-xdr" }],
+        latestLedger: 1000,
+        minResourceFee: "1000",
+      });
+
+      const { result } = renderHook(() => useTransaction());
+      const buildFn = vi.fn().mockResolvedValue(MOCK_UNSIGNED_XDR);
+
+      const executePromise = act(async () => {
+        return result.current.execute(buildFn);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+
+      const hash = await executePromise;
+
+      expect(hash).toBe(txHash);
+      expect(buildFn).toHaveBeenCalledTimes(2);
+      expect(mockSignTransaction).toHaveBeenCalledTimes(2);
+      expect(mockSubmitTransaction).toHaveBeenCalledTimes(2);
+      expect(mockGetTransaction).toHaveBeenCalled();
     });
   });
 

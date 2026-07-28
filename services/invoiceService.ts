@@ -25,7 +25,7 @@ import {
   IpfsUnavailableError,
 } from "@/lib/ipfs";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
-import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
+import { BadSequenceError, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
@@ -614,6 +614,9 @@ class LiveInvoiceService implements IInvoiceService {
       }
       return success(result.hash);
     } catch (error) {
+      if (error instanceof BadSequenceError) {
+        throw error;
+      }
       return failure("SUBMIT_ERROR", "Failed to submit transaction", { cause: String(error) });
     }
   }
