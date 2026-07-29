@@ -79,5 +79,49 @@ describe("invoiceStore — comparison list", () => {
       "inv_004",
     ]);
   });
-});
 
+  // ─── New tests for URL hydrate + remove chip ──────────────────────────
+
+  it("hydrates comparison list from URL on load", () => {
+    // Simulate URL hydration
+    const ids = ["url_001", "url_002", "url_003"];
+    useInvoiceStore.getState().setComparisonList(ids);
+    expect(useInvoiceStore.getState().comparisonList).toEqual(ids);
+  });
+
+  it("removing a chip updates the comparison list", () => {
+    useInvoiceStore.getState().setComparisonList(["chip_001", "chip_002", "chip_003"]);
+    useInvoiceStore.getState().removeFromComparison("chip_002");
+    expect(useInvoiceStore.getState().comparisonList).toEqual(["chip_001", "chip_003"]);
+  });
+
+  it("removing the last chip clears the list", () => {
+    useInvoiceStore.getState().setComparisonList(["last_chip"]);
+    useInvoiceStore.getState().removeFromComparison("last_chip");
+    expect(useInvoiceStore.getState().comparisonList).toHaveLength(0);
+  });
+
+  it("max selection enforced when toggling", () => {
+    useInvoiceStore.getState().setComparisonList(["a", "b", "c", "d"]);
+    useInvoiceStore.getState().toggleComparison("e");
+    expect(useInvoiceStore.getState().comparisonList).toHaveLength(4);
+    expect(useInvoiceStore.getState().comparisonList).not.toContain("a");
+    expect(useInvoiceStore.getState().comparisonList).toContain("e");
+  });
+
+  it("URL hydration handles malformed input gracefully", () => {
+    const malformed = "inv_001,,inv_002, ,inv_003";
+    const ids = malformed
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, MAX_COMPARISON_INVOICES);
+
+    useInvoiceStore.getState().setComparisonList(ids);
+    expect(useInvoiceStore.getState().comparisonList).toEqual([
+      "inv_001",
+      "inv_002",
+      "inv_003",
+    ]);
+  });
+});
