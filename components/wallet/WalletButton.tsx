@@ -22,6 +22,8 @@ import { useUIStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { safeStellarAccountUrl } from "@/lib/security";
 import { env } from "@/lib/env";
+import { SynapsKycModal } from "./SynapsKycModal";
+import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 
 export function WalletButton() {
   const t = useTranslations("wallet");
@@ -44,6 +46,9 @@ export function WalletButton() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
+  const [kycModalOpen, setKycModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"notifications" | "kyc">("notifications");
+  const { kycStatus } = useWalletStore();
 
   const isTestnet = env.NEXT_PUBLIC_STELLAR_NETWORK === "testnet";
   const hasNetworkMismatch = isWrongNetwork() || hasPassphraseMismatch();
@@ -265,18 +270,123 @@ export function WalletButton() {
         </div>
       )}
 
-      {/* Notification settings dialog */}
+      {/* Settings Dialog (Notifications & KYC) */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-md bg-zinc-950 border border-zinc-850 text-zinc-100">
           <DialogHeader>
-            <DialogTitle>{t("notificationSettings")}</DialogTitle>
-            <DialogDescription>
-              Configure toast notifications for transaction and invoice events.
+            <DialogTitle>Account Settings</DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Configure notifications and verify your identity limits.
             </DialogDescription>
           </DialogHeader>
-          <NotificationSettings />
+
+          <div className="flex border-b border-zinc-800 mb-4 mt-2">
+            <button
+              onClick={() => setActiveTab("notifications")}
+              className={cn(
+                "pb-2 px-4 text-xs font-semibold border-b-2 transition-all",
+                activeTab === "notifications"
+                  ? "border-primary text-zinc-100"
+                  : "border-transparent text-muted-foreground hover:text-zinc-300"
+              )}
+            >
+              Notifications
+            </button>
+            <button
+              onClick={() => setActiveTab("kyc")}
+              className={cn(
+                "pb-2 px-4 text-xs font-semibold border-b-2 transition-all",
+                activeTab === "kyc"
+                  ? "border-primary text-zinc-100"
+                  : "border-transparent text-muted-foreground hover:text-zinc-300"
+              )}
+            >
+              Identity Verification (KYC)
+            </button>
+          </div>
+
+          {activeTab === "notifications" ? (
+            <NotificationSettings />
+          ) : (
+            <div className="space-y-4 pt-1">
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/10 p-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">KYC Status</p>
+                  <p className="text-sm font-bold capitalize flex items-center gap-1.5 mt-0.5">
+                    {kycStatus === "verified" && (
+                      <>
+                        <ShieldCheck className="h-4 w-4 text-success" /> Verified
+                      </>
+                    )}
+                    {kycStatus === "pending" && (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-warning" /> Pending Review
+                      </>
+                    )}
+                    {kycStatus === "rejected" && (
+                      <>
+                        <ShieldAlert className="h-4 w-4 text-destructive" /> Rejected
+                      </>
+                    )}
+                    {kycStatus === "none" && (
+                      <>
+                        <Shield className="h-4 w-4 text-muted-foreground" /> Unverified
+                      </>
+                    )}
+                  </p>
+                </div>
+                {kycStatus === "verified" && (
+                  <span className="rounded bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success border border-success/10">
+                    Unlimited
+                  </span>
+                )}
+                {kycStatus === "none" && (
+                  <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border/50">
+                    Limit: $10,000
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-2 text-xs text-zinc-400 leading-relaxed">
+                {kycStatus === "none" && (
+                  <p>
+                    Verify your identity to increase your funding capacity above $10,000 USDC and unlock secondary trade capabilities.
+                  </p>
+                )}
+                {kycStatus === "pending" && (
+                  <p>
+                    Your documents have been submitted to Synaps and are currently under review. This process usually completes within 5 minutes.
+                  </p>
+                )}
+                {kycStatus === "rejected" && (
+                  <p className="text-destructive font-medium">
+                    Your verification request was rejected. Please re-submit your verification documents.
+                  </p>
+                )}
+                {kycStatus === "verified" && (
+                  <p>
+                    Your identity is fully verified! You have access to unlimited funding thresholds and global secondary markets.
+                  </p>
+                )}
+              </div>
+
+              {(kycStatus === "none" || kycStatus === "rejected") && (
+                <Button
+                  onClick={() => {
+                    setKycModalOpen(true);
+                    setSettingsOpen(false);
+                  }}
+                  className="w-full text-xs font-semibold"
+                >
+                  {kycStatus === "rejected" ? "Re-submit Documents" : "Verify with Synaps"}
+                </Button>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
+
+      <SynapsKycModal open={kycModalOpen} onOpenChange={setKycModalOpen} />
 
       {/* Disconnect confirm dialog */}
       <Dialog open={confirmDisconnectOpen} onOpenChange={setConfirmDisconnectOpen}>

@@ -1,6 +1,7 @@
 {
   "nav": {
     "marketplace": "Marketplace",
+    "secondaryMarket": "السوق الثانوية",
     "invest": "Invest",
     "myInvoices": "My Invoices",
     "createInvoice": "Create Invoice",
@@ -601,6 +602,26 @@
       "emailInvalid": "عنوان البريد الإلكتروني غير صالح",
       "companyNameMinLength": "يجب أن يتكون اسم الشركة من حرفين على الأقل",
       "walletAddressInvalid": "تنسيق مفتاح Stellar العام غير صالح"
+    }
+  },
+  "kyc": {
+    "title": "حالة التحقق من الهوية (KYC)",
+    "status": {
+      "unverified": "غير موثق",
+      "pending": "التحقق قيد الانتظار",
+      "verified": "تم التحقق",
+      "rejected": "تم رفض التحقق"
+    },
+    "desc": {
+      "unverified": "قم بتوثيق هويتك لفتح حدود تمويل أعلى وتداولات السوق الثانوية.",
+      "pending": "يتم مراجعة مستنداتك حاليًا. يستغرق هذا عادةً أقل من 5 دقائق.",
+      "verified": "لديك حق الوصول الكامل إلى جميع الميزات وحدود استثمار غير محدودة.",
+      "rejected": "تم رفض التحقق من هويتك. يرجى مراجعة التفاصيل والمحاولة مرة أخرى."
+    },
+    "cta": {
+      "verify": "توثيق الهوية",
+      "reverify": "إعادة تقديم المستندات",
+      "close": "إغلاق"
     }
   }
 }

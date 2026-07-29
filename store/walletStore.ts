@@ -43,6 +43,7 @@ type WalletStoreState = {
    * - `true`  → kit session active (fully operational)
    */
   kitSessionActive: boolean | null;
+  kycStatus: "none" | "pending" | "verified" | "rejected";
 };
 
 type WalletStoreActions = {
@@ -62,6 +63,7 @@ type WalletStoreActions = {
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
   removeAddressBookEntry: (id: string) => void;
   setNetwork: (network: WalletNetwork, walletPassphrase?: string) => void;
+  setKycStatus: (kycStatus: "none" | "pending" | "verified" | "rejected") => void;
 };
 
 type WalletStore = WalletStoreState & WalletStoreActions;
@@ -82,6 +84,7 @@ export const useWalletStore = create<WalletStore>()(
       addressBook: [],
       walletPassphrase: null,
       kitSessionActive: false,
+      kycStatus: "none",
 
       connect: (provider, address, publicKey, walletPassphrase) =>
         set({
@@ -174,6 +177,7 @@ export const useWalletStore = create<WalletStore>()(
           network,
           walletPassphrase: walletPassphrase ?? s.walletPassphrase,
         })),
+      setKycStatus: (kycStatus) => set({ kycStatus }),
     }),
     {
       name: "kora-wallet",
@@ -188,6 +192,7 @@ export const useWalletStore = create<WalletStore>()(
         lastActivityAt: s.lastActivityAt,
         addressBook: s.addressBook,
         walletPassphrase: s.walletPassphrase,
+        kycStatus: s.kycStatus,
       }),
     }
   )
@@ -209,3 +214,6 @@ export const useWalletBalance = () =>
 
 export const useWalletNetwork = () =>
   useWalletStore((s: WalletStore) => s.network);
+
+export const useWalletKycStatus = () =>
+  useWalletStore((s: WalletStore) => s.kycStatus);

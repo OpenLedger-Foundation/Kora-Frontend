@@ -15,6 +15,7 @@ import {
   Clock,
   Zap,
   X,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
@@ -23,6 +24,7 @@ import { useInvoices } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store/uiStore";
 import { useFormatters } from "@/hooks/useFormatters";
+import { useWalletStore } from "@/store";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -62,6 +64,7 @@ export function CommandPalette() {
   const router = useRouter();
   const { open, setOpen, getRecent, pushRecent } = useCommandPalette();
   const { isConnected } = useWallet();
+  const disconnect = useWalletStore((s) => s.disconnect);
   const setWalletModalOpen = useUIStore((s) => s.setWalletModalOpen);
   const [query, setQuery] = React.useState("");
   const { formatCurrency, formatPercentage } = useFormatters();
@@ -108,6 +111,10 @@ export function CommandPalette() {
     action();
   }
 
+  function handleDisconnect() {
+    runAction(() => disconnect());
+  }
+
   const showEmpty = !query.trim();
 
   return (
@@ -127,6 +134,13 @@ export function CommandPalette() {
           role="dialog"
           aria-modal="true"
           aria-label="Command palette"
+          data-testid="command-palette-dialog"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setOpen(false);
+            }
+          }}
           className={cn(
             "fixed left-1/2 top-[20%] z-50 w-full max-w-xl -translate-x-1/2",
             "animate-in fade-in-0 zoom-in-95 slide-in-from-top-4 duration-150"
@@ -211,6 +225,7 @@ export function CommandPalette() {
                       icon={<page.icon className="h-4 w-4" />}
                       label={page.label}
                       query={query}
+                      testId={`nav-${page.id}`}
                       onSelect={() => navigate(page.href, page.label, "page")}
                     />
                   ))}
@@ -242,7 +257,7 @@ export function CommandPalette() {
 
               {/* Actions */}
               {(showEmpty ||
-                ["connect wallet", "create invoice", "disconnect"].some((a) =>
+                ["connect wallet", "create invoice", "disconnect wallet"].some((a) =>
                   a.includes(query.toLowerCase())
                 )) && (
                 <Command.Group
@@ -255,6 +270,7 @@ export function CommandPalette() {
                       icon={<Wallet className="h-4 w-4" />}
                       label="Connect Wallet"
                       query={query}
+                      testId="action-connect-wallet"
                       onSelect={() => runAction(() => setWalletModalOpen(true))}
                     />
                   )}
@@ -262,8 +278,18 @@ export function CommandPalette() {
                     icon={<PlusCircle className="h-4 w-4" />}
                     label="Create Invoice"
                     query={query}
+                    testId="action-create-invoice"
                     onSelect={() => navigate("/invoice/create", "Create Invoice", "page")}
                   />
+                  {isConnected && (
+                    <PaletteItem
+                      icon={<LogOut className="h-4 w-4" />}
+                      label="Disconnect Wallet"
+                      query={query}
+                      testId="action-disconnect-wallet"
+                      onSelect={handleDisconnect}
+                    />
+                  )}
                 </Command.Group>
               )}
             </Command.List>
@@ -307,14 +333,16 @@ interface PaletteItemProps {
   sublabel?: string;
   query: string;
   badge?: string;
+  testId?: string;
   onSelect: () => void;
 }
 
-function PaletteItem({ icon, label, sublabel, query, badge, onSelect }: PaletteItemProps) {
+function PaletteItem({ icon, label, sublabel, query, badge, testId, onSelect }: PaletteItemProps) {
   return (
     <Command.Item
       value={label}
       onSelect={onSelect}
+      data-testid={testId}
       className={cn(
         "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
         "text-foreground outline-none transition-colors",

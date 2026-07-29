@@ -15,6 +15,7 @@ import {
   History,
   Keyboard,
   Search,
+  Tag,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -40,6 +41,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
   { href: "/marketplace", label: "Marketplace", icon: Store, shortcut: "G M" },
+  { href: "/secondary", label: "Secondary", icon: Tag, shortcut: "G S" },
   { href: "/dashboard/investor", label: "Invest", icon: BarChart3, shortcut: "G D" },
   { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard, shortcut: null },
   { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle, shortcut: "G C" },
@@ -78,6 +80,7 @@ export function Navbar() {
   // Nav links defined inside component so labels are translated
   const NAV_LINKS = [
     { href: "/marketplace", label: t("marketplace"), icon: Store, shortcut: "G M" },
+    { href: "/secondary", label: t("secondaryMarket"), icon: Tag, shortcut: "G S" },
     { href: "/dashboard/investor", label: t("invest"), icon: BarChart3, shortcut: "G D" },
     { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard, shortcut: null },
     { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle, shortcut: "G C" },
