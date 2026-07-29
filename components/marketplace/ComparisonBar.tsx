@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, GitCompareArrows, Share2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,8 @@ import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { ComparisonTable } from "./ComparisonTable";
 
 export function ComparisonBar() {
+  const tInvoiceCard = useTranslations("invoiceCard");
+  const tMarketplace = useTranslations("marketplace");
   const {
     comparisonList,
     invoices,
@@ -149,7 +152,7 @@ export function ComparisonBar() {
                 <button
                   onClick={() => removeFromComparison(invoice.id)}
                   className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  aria-label={`Remove ${invoice.metadata.debtorName} from comparison`}
+                  aria-label={tInvoiceCard("removeFromCompare", { debtor: invoice.metadata.debtorName })}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -202,7 +205,7 @@ export function ComparisonBar() {
               className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               aria-label="Clear all comparisons"
             >
-              Clear
+              {tMarketplace("clear")}
             </button>
 
             <Button

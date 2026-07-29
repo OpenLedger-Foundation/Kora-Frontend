@@ -139,6 +139,28 @@
       "dueSoonest": "Due Date: Soonest",
       "dueLatest": "Due Date: Latest",
       "newest": "Newest Listed"
+    },
+    "categoryOptions": {
+      "technology": "Technology",
+      "agriculture": "Agriculture",
+      "healthcare": "Healthcare",
+      "construction": "Construction",
+      "energy": "Energy",
+      "logistics": "Logistics",
+      "retail": "Retail",
+      "manufacturing": "Manufacturing",
+      "finance": "Finance",
+      "other": "Other"
+    },
+    "jurisdictionOptions": {
+      "KE": "Kenya",
+      "NG": "Nigeria",
+      "GH": "Ghana",
+      "ZA": "South Africa",
+      "US": "United States",
+      "EU": "European Union",
+      "UK": "United Kingdom",
+      "OTHER": "Other"
     }
   },
   "invoiceDetail": {
@@ -475,7 +497,8 @@
     "confirmed": "Transaction confirmed!",
     "failed": "Transaction failed",
     "retry": "Retry",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "txLink": "Tx Link:"
   },
   "txSimulation": {
     "title": "Transaction Preview",
@@ -511,7 +534,10 @@
     "lastChecked": "Last checked: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Error"
+    "error": "Error",
+    "rpcDown": "RPC Down",
+    "rpcDegraded": "RPC Degraded",
+    "statusAriaLabel": "Network status: {status} on {network}"
   },
   "offline": {
     "title": "You're offline",
@@ -688,6 +714,59 @@
     "removeFromCompareButton": "Remove from Compare",
     "viewDetails": "View Details"
   },
+  "invoiceStatus": {
+    "draft": {
+      "label": "Pending",
+      "description": "Invoice draft is being prepared.",
+      "action": "Awaiting submission."
+    },
+    "pendingMint": {
+      "label": "Pending",
+      "description": "Invoice is being minted on-chain.",
+      "action": "Awaiting blockchain confirmation."
+    },
+    "listed": {
+      "label": "Active",
+      "description": "Invoice is active and accepting funds.",
+      "action": "Available for investment."
+    },
+    "partiallyFunded": {
+      "label": "Active",
+      "description": "Invoice is partially funded and still open.",
+      "action": "Accepting remaining funds."
+    },
+    "active": {
+      "label": "Active",
+      "description": "Invoice is currently active.",
+      "action": "Monitoring for repayment."
+    },
+    "fullyFunded": {
+      "label": "Funded",
+      "description": "Financing target has been reached.",
+      "action": "Awaiting final settlement/repayment."
+    },
+    "repaid": {
+      "label": "Repaid",
+      "description": "Invoice has been fully repaid.",
+      "action": "Yield distributed to investors."
+    },
+    "defaulted": {
+      "label": "Defaulted",
+      "description": "Invoice has defaulted on repayment.",
+      "action": "Recovery process initiated."
+    },
+    "cancelled": {
+      "label": "Cancelled",
+      "description": "Invoice financing was cancelled.",
+      "action": "No further action."
+    },
+    "expired": {
+      "label": "Expired",
+      "description": "Invoice listing has expired.",
+      "action": "No longer accepting funds."
+    },
+    "nextLabel": "Next: {action}"
+  },
   "transactionToast": {
     "doNotClose": "Do not close this window",
     "txLabel": "Tx:",
@@ -699,6 +778,14 @@
     "signatureTimeoutDesc": "The wallet popup was not signed in time. You can retry without rebuilding.",
     "warningRetryLabel": "Retry",
     "warningDismissLabel": "Dismiss"
+  },
+  "contractEventToast": {
+    "fundedTitle": "Invoice Funded",
+    "fundedDesc": "{amount} invested · Invoice #{tokenId}",
+    "repaidTitle": "Invoice Repaid",
+    "repaidDesc": "Invoice #{tokenId} has been fully repaid",
+    "cancelledTitle": "Invoice Cancelled",
+    "cancelledDesc": "Invoice #{tokenId} has been cancelled"
   },
   "statusTransition": {
     "confirmTitle": "Confirm: {label}",
@@ -713,7 +800,10 @@
     "percentCompleted": "{percent}% completed",
     "selectBulkActions": "Select actions to perform in bulk",
     "exportCsv": "Export CSV",
+    "repay": "Repay",
     "cancelInvoices": "Cancel Invoices",
+    "retryFailedCount": "Retry {count} failed",
+    "retryFailed": "Retry failed",
     "processing": "Processing...",
     "resultTotal": "Total",
     "resultSuccess": "Success",
@@ -740,7 +830,9 @@
     "label": "Language",
     "en": "English",
     "es": "Español",
-    "switchTo": "Switch to {lang}"
+    "switchTo": "Switch to {lang}",
+    "ar": "العربية",
+    "pt-BR": "Português (BR)"
   },
   "validation": {
     "invoiceNumber": {

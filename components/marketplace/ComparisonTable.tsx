@@ -9,6 +9,7 @@
  */
 
 import { motion } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { X, TrendingUp, Calendar, Shield, MapPin, Users, DollarSign, Clock, Activity } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -44,7 +45,11 @@ interface MetricRow {
   format: (val: number | string, inv: Invoice) => React.ReactNode;
 }
 
-function buildMetricRows(formatters: ReturnType<typeof useFormatters>): MetricRow[] {
+function buildMetricRows(
+  formatters: ReturnType<typeof useFormatters>,
+  tInvoiceCard: (key: string) => string,
+  tMarketplace: (key: string) => string
+): MetricRow[] {
   const { formatCurrency, formatApr, formatDate } = formatters;
   return [
   {
@@ -56,7 +61,7 @@ function buildMetricRows(formatters: ReturnType<typeof useFormatters>): MetricRo
     format: (val, inv) => formatCurrency(val as number, inv.metadata.currency, true),
   },
   {
-    label: "APR",
+    label: tInvoiceCard("aprLabel"),
     icon: TrendingUp,
     getValue: (inv) => inv.terms.apr,
     getNumericValue: (inv) => inv.terms.apr,
@@ -66,7 +71,7 @@ function buildMetricRows(formatters: ReturnType<typeof useFormatters>): MetricRo
     ),
   },
   {
-    label: "Risk Tier",
+    label: tMarketplace("riskTier"),
     icon: Shield,
     getValue: (inv) => inv.riskTier,
     getNumericValue: (inv) => {
@@ -116,7 +121,7 @@ function buildMetricRows(formatters: ReturnType<typeof useFormatters>): MetricRo
     ),
   },
   {
-    label: "Investors",
+    label: tInvoiceCard("investorsLabel"),
     icon: Users,
     getValue: (inv) => inv.funding.investorCount,
     getNumericValue: (inv) => inv.funding.investorCount,
@@ -166,9 +171,12 @@ function getBestIndex(
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
+  const tInvoiceCard = useTranslations("invoiceCard");
+  const tMarketplace = useTranslations("marketplace");
+  const tCommon = useTranslations("common");
   const { removeFromComparison } = useInvoiceStore();
   const formatters = useFormatters();
-  const METRIC_ROWS = buildMetricRows(formatters);
+  const METRIC_ROWS = buildMetricRows(formatters, tInvoiceCard, tMarketplace);
 
   return (
     <motion.div
@@ -244,7 +252,7 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
                       <button
                         onClick={() => removeFromComparison(invoice.id)}
                         className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                        aria-label={`Remove ${invoice.metadata.debtorName} from comparison`}
+                        aria-label={tInvoiceCard("removeFromCompare", { debtor: invoice.metadata.debtorName })}
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -322,7 +330,7 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
         {/* Footer — CTA links */}
         <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4 shrink-0">
           <Button variant="outline" size="sm" onClick={onClose}>
-            Close
+            {tCommon("close")}
           </Button>
           <div className="flex gap-2">
             {invoices.map((invoice) => (

@@ -7,8 +7,6 @@ import {
 } from "@/i18n/locale";
 import { locales, defaultLocale } from "@/i18n/config";
 
-const PROTECTED = ["/invoice/create"];
-
 /**
  * Detect the best locale from the Accept-Language header.
  * Falls back to the default locale if no match is found.
@@ -39,8 +37,6 @@ function buildNonceCsp(nonce: string): string {
 }
 
 export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
-
   // ── X-Request-ID (#277) ───────────────────────────────────────────────────
   const requestId = crypto.randomUUID();
   const requestHeaders = new Headers(req.headers);
@@ -75,27 +71,13 @@ export function middleware(req: NextRequest) {
     response.cookies.set(LOCALE_COOKIE_NAME, locale, getLocaleCookieOptions(process.env.NODE_ENV === "production"));
   }
 
-  // ── Protected route guard ─────────────────────────────────────────────────
-  for (const p of PROTECTED) {
-    if (pathname === p || pathname.startsWith(p + "/")) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/";
-      url.searchParams.set("redirectTo", pathname + (search || ""));
-      const redirect = NextResponse.rewrite(url, {
-        request: { headers: requestHeaders },
-      });
-      redirect.headers.set("x-request-id", requestId);
-      if (!cookieValue || cookieValue !== locale) {
-        redirect.cookies.set(
-          LOCALE_COOKIE_NAME,
-          locale,
-          getLocaleCookieOptions(process.env.NODE_ENV === "production")
-        );
-      }
-      return redirect;
-    }
-  }
-
+  // Wallet-gated routes (/invoice/create, /dashboard/sme, /dashboard/investor)
+  // are guarded client-side by ConnectWalletGuard instead of here: wallet
+  // connection state lives in the browser (wallet extension + localStorage),
+  // so middleware has no server-readable signal to gate on. A prior version
+  // of this middleware unconditionally rewrote /invoice/create to "/" for
+  // every visitor regardless of wallet state, which made that route
+  // permanently unreachable — removed rather than papered over.
   return response;
 }
 

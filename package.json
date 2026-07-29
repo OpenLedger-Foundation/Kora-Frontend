@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "check:i18n": "node scripts/check-i18n-parity.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",

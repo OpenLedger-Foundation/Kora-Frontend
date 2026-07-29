@@ -45,6 +45,9 @@ jobs:
       - name: Run linter
         run: npm run lint
 
+      - name: Check i18n locale key parity
+        run: npm run check:i18n
+
       - name: Run tests with coverage
         # Main currently has a large set of pre-existing unit-test failures unrelated
         # to feature work. Keep collecting coverage artifacts without blocking the PR.

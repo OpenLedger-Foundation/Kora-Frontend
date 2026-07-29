@@ -13,7 +13,6 @@ import { mapSimulationError } from "@/lib/stellar/simulationErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
-import type { ServiceError, TxState } from "@/types";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -335,6 +334,18 @@ export function useTransaction() {
     error: state.error,
     simulationPreview,
   };
+}
+
+/**
+ * Feeds the visually-hidden live regions in `TransactionAnnouncer` (#441).
+ * `useTransaction()` state is local to each call site, so there is no
+ * existing global source of truth for "the current transaction's stage" to
+ * announce app-wide. This is a stub returning no announcements until that
+ * global tracking is built — it exists so `TransactionAnnouncer` (mounted
+ * once in app/providers.tsx) has something to import and render.
+ */
+export function useTxAnnouncement(): { polite: string | null; assertive: string | null } {
+  return { polite: null, assertive: null };
 }
 
 /**
