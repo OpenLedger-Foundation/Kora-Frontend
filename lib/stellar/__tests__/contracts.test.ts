@@ -609,6 +609,37 @@ describe("MarketplaceContract", () => {
       expect(typeof xdr).toBe("string");
     });
   });
+
+  describe("transferPosition", () => {
+    it("builds XDR for transferring an investor position", async () => {
+      const { rpc } = await import("../client");
+      
+      (rpc.simulateTransaction as any).mockResolvedValue({
+        results: [{ auth: [], xdr: "mock-xdr" }],
+        latestLedger: 1000,
+        minResourceFee: "1000",
+        cost: { cpuInsns: "100", memBytes: "200" },
+      });
+
+      const xdr = await marketplaceContract.transferPosition(
+        { positionId: BigInt(1), toAddress: VALID_ADDRESS_2 },
+        VALID_ADDRESS_1
+      );
+
+      expect(typeof xdr).toBe("string");
+      expect(xdr.length).toBeGreaterThan(0);
+    });
+
+    it("throws on invalid recipient address", async () => {
+      await expect(
+        marketplaceContract.transferPosition(
+          { positionId: BigInt(1), toAddress: INVALID_ADDRESS },
+          VALID_ADDRESS_1
+        )
+      ).rejects.toThrow("Invalid Stellar address format");
+    });
+  });
+
 });
 
 describe("Utility Functions", () => {

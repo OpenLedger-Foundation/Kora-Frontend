@@ -1,0 +1,602 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import {
+  Search,
+  SlidersHorizontal,
+  Clock,
+  Tag,
+  Percent,
+  User,
+  ShieldAlert,
+  ArrowRight,
+  RotateCcw,
+} from "lucide-react";
+import { Container } from "@/components/layout/Container";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import EmptyState from "@/components/ui/EmptyState";
+import { usePositionListingStore } from "@/store/positionListingStore";
+import { useInvoiceStore } from "@/store/invoiceStore";
+import { MOCK_INVOICES } from "@/services/mockData";
+import { formatCurrency, formatDate, RISK_TIER_COLORS, cn } from "@/lib/utils";
+import { computeImpliedDiscount } from "@/types/invoice";
+import type { PositionListing, Invoice } from "@/types/invoice";
+import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+
+interface SecondaryMarketItem {
+  listing: PositionListing;
+  positionId: string;
+  invoice: Invoice;
+  investedAmount: number;
+  expectedReturn: number;
+  sellerAddress: string;
+  remainingTenor: number;
+  yieldPercent: number;
+}
+
+// Default mock secondary market listings for initial browse experience
+const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = [
+  {
+    listing: {
+      positionId: "pos_101",
+      askPrice: 4850,
+      impliedDiscount: computeImpliedDiscount(4850, 5000),
+      listedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+    },
+    positionId: "pos_101",
+    invoice: MOCK_INVOICES[0] || {
+      id: "inv_1",
+      tokenId: "101",
+      contractAddress: "C123",
+      ipfsCid: "QmTest1",
+      metadata: {
+        invoiceNumber: "INV-2026-001",
+        issuerName: "TechCorp Ltd",
+        issuerAddress: "GABC...1234",
+        debtorName: "Global Logistics Inc",
+        debtorAddress: "GDEF...5678",
+        amount: 5000,
+        currency: "USDC",
+        issueDate: "2026-06-01T00:00:00Z",
+        dueDate: new Date(Date.now() + 86400000 * 45).toISOString(),
+        description: "Enterprise software licenses",
+        jurisdiction: "US",
+        category: "technology",
+        documentHash: "QmTest1",
+        documentUrl: "https://gateway.pinata.cloud/ipfs/QmTest1",
+      },
+      terms: {
+        discountRate: 0.08,
+        apr: 12.5,
+        financingAmount: 5000,
+        minInvestment: 100,
+        maxInvestment: 5000,
+        tenor: 45,
+        repaymentDate: new Date(Date.now() + 86400000 * 45).toISOString(),
+      },
+      funding: {
+        totalRaised: 5000,
+        targetAmount: 5000,
+        fundingProgress: 1,
+        investorCount: 2,
+        remainingCapacity: 0,
+      },
+      riskTier: "AA",
+      riskScore: 88,
+      debtorPrivacy: "full",
+      status: "active",
+      createdAt: "2026-06-01T00:00:00Z",
+      updatedAt: "2026-06-02T00:00:00Z",
+      ownerAddress: "GSELLER...0001",
+    },
+    investedAmount: 4600,
+    expectedReturn: 5000,
+    sellerAddress: "GSELLER1111111111111111111111111111111111111111111",
+    remainingTenor: 45,
+    yieldPercent: ((5000 - 4850) / 4850) * 100,
+  },
+  {
+    listing: {
+      positionId: "pos_102",
+      askPrice: 9700,
+      impliedDiscount: computeImpliedDiscount(9700, 10200),
+      listedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+    },
+    positionId: "pos_102",
+    invoice: MOCK_INVOICES[1] || {
+      id: "inv_2",
+      tokenId: "102",
+      contractAddress: "C123",
+      ipfsCid: "QmTest2",
+      metadata: {
+        invoiceNumber: "INV-2026-002",
+        issuerName: "AgriExport Co",
+        issuerAddress: "GXYZ...9999",
+        debtorName: "Metro Foods Supermarkets",
+        debtorAddress: "GKLM...4321",
+        amount: 10200,
+        currency: "USDC",
+        issueDate: "2026-06-10T00:00:00Z",
+        dueDate: new Date(Date.now() + 86400000 * 20).toISOString(),
+        description: "Fresh produce shipment",
+        jurisdiction: "KE",
+        category: "agriculture",
+        documentHash: "QmTest2",
+        documentUrl: "https://gateway.pinata.cloud/ipfs/QmTest2",
+      },
+      terms: {
+        discountRate: 0.06,
+        apr: 14.2,
+        financingAmount: 10000,
+        minInvestment: 500,
+        maxInvestment: 10000,
+        tenor: 20,
+        repaymentDate: new Date(Date.now() + 86400000 * 20).toISOString(),
+      },
+      funding: {
+        totalRaised: 10000,
+        targetAmount: 10000,
+        fundingProgress: 1,
+        investorCount: 4,
+        remainingCapacity: 0,
+      },
+      riskTier: "A",
+      riskScore: 79,
+      debtorPrivacy: "partial",
+      status: "active",
+      createdAt: "2026-06-10T00:00:00Z",
+      updatedAt: "2026-06-11T00:00:00Z",
+      ownerAddress: "GSELLER...0002",
+    },
+    investedAmount: 9500,
+    expectedReturn: 10200,
+    sellerAddress: "GSELLER2222222222222222222222222222222222222222222",
+    remainingTenor: 20,
+    yieldPercent: ((10200 - 9700) / 9700) * 100,
+  },
+  {
+    listing: {
+      positionId: "pos_103",
+      askPrice: 2400,
+      impliedDiscount: computeImpliedDiscount(2400, 2550),
+      listedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+    },
+    positionId: "pos_103",
+    invoice: MOCK_INVOICES[2] || {
+      id: "inv_3",
+      tokenId: "103",
+      contractAddress: "C123",
+      ipfsCid: "QmTest3",
+      metadata: {
+        invoiceNumber: "INV-2026-003",
+        issuerName: "MediHealth Supplies",
+        issuerAddress: "GHJK...7777",
+        debtorName: "City General Hospital",
+        debtorAddress: "GOPQ...8888",
+        amount: 2550,
+        currency: "USDC",
+        issueDate: "2026-05-15T00:00:00Z",
+        dueDate: new Date(Date.now() + 86400000 * 75).toISOString(),
+        description: "Medical equipment maintenance",
+        jurisdiction: "NG",
+        category: "healthcare",
+        documentHash: "QmTest3",
+        documentUrl: "https://gateway.pinata.cloud/ipfs/QmTest3",
+      },
+      terms: {
+        discountRate: 0.1,
+        apr: 16.8,
+        financingAmount: 2400,
+        minInvestment: 100,
+        maxInvestment: 2400,
+        tenor: 75,
+        repaymentDate: new Date(Date.now() + 86400000 * 75).toISOString(),
+      },
+      funding: {
+        totalRaised: 2400,
+        targetAmount: 2400,
+        fundingProgress: 1,
+        investorCount: 1,
+        remainingCapacity: 0,
+      },
+      riskTier: "BBB",
+      riskScore: 71,
+      debtorPrivacy: "full",
+      status: "active",
+      createdAt: "2026-05-15T00:00:00Z",
+      updatedAt: "2026-05-16T00:00:00Z",
+      ownerAddress: "GSELLER...0003",
+    },
+    investedAmount: 2300,
+    expectedReturn: 2550,
+    sellerAddress: "GSELLER3333333333333333333333333333333333333333333",
+    remainingTenor: 75,
+    yieldPercent: ((2550 - 2400) / 2400) * 100,
+  },
+];
+
+export default function SecondaryMarketplacePage() {
+  const { listings: storeListings } = usePositionListingStore();
+  const { invoices } = useInvoiceStore();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tenorFilter, setTenorFilter] = useState("all");
+  const [yieldFilter, setYieldFilter] = useState("0");
+  const [sellerFilter, setSellerFilter] = useState("");
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  // Combine store position listings with mock defaults
+  const allItems: SecondaryMarketItem[] = useMemo(() => {
+    const combined = [...MOCK_SECONDARY_LISTINGS];
+
+    Object.values(storeListings).forEach((listing) => {
+      if (combined.some((item) => item.positionId === listing.positionId)) return;
+      const relatedInv = invoices.find(
+        (inv) => inv.id === listing.positionId || inv.tokenId === listing.positionId
+      );
+      if (relatedInv) {
+        const expectedReturn = relatedInv.terms.financingAmount * (1 + relatedInv.terms.discountRate);
+        const investedAmount = relatedInv.terms.financingAmount;
+        const due = new Date(relatedInv.terms.repaymentDate).getTime();
+        const daysLeft = Math.max(0, Math.ceil((due - Date.now()) / (1000 * 60 * 60 * 24)));
+        const yieldPercent = listing.askPrice > 0 ? ((expectedReturn - listing.askPrice) / listing.askPrice) * 100 : 0;
+
+        combined.push({
+          listing,
+          positionId: listing.positionId,
+          invoice: relatedInv,
+          investedAmount,
+          expectedReturn,
+          sellerAddress: relatedInv.ownerAddress,
+          remainingTenor: daysLeft,
+          yieldPercent,
+        });
+      }
+    });
+
+    return combined;
+  }, [storeListings, invoices]);
+
+  // Filter items
+  const filteredItems = useMemo(() => {
+    return allItems.filter((item) => {
+      // Search filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesInvoice =
+          item.invoice.metadata.debtorName.toLowerCase().includes(q) ||
+          item.invoice.metadata.invoiceNumber.toLowerCase().includes(q) ||
+          item.invoice.metadata.category.toLowerCase().includes(q);
+        if (!matchesInvoice) return false;
+      }
+
+      // Tenor filter
+      if (tenorFilter !== "all") {
+        const selectedTenor = TENOR_OPTIONS.find((t) => t.value === tenorFilter);
+        if (selectedTenor && selectedTenor.min !== undefined && selectedTenor.max !== undefined) {
+          if (item.remainingTenor < selectedTenor.min || item.remainingTenor > selectedTenor.max) {
+            return false;
+          }
+        }
+      }
+
+      // Yield filter
+      const minYieldReq = parseFloat(yieldFilter);
+      if (!isNaN(minYieldReq) && minYieldReq > 0) {
+        if (item.yieldPercent < minYieldReq) return false;
+      }
+
+      // Seller filter
+      if (sellerFilter.trim()) {
+        const s = sellerFilter.toLowerCase();
+        if (!item.sellerAddress.toLowerCase().includes(s)) return false;
+      }
+
+      return true;
+    });
+  }, [allItems, searchQuery, tenorFilter, yieldFilter, sellerFilter]);
+
+  const hasActiveFilters =
+    searchQuery.trim() !== "" ||
+    tenorFilter !== "all" ||
+    yieldFilter !== "0" ||
+    sellerFilter.trim() !== "";
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setTenorFilter("all");
+    setYieldFilter("0");
+    setSellerFilter("");
+  };
+
+  return (
+    <main className="min-h-screen bg-zinc-950 py-8 text-zinc-100">
+      <Container>
+        {/* Header */}
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <Tag className="h-6 w-6 text-primary" />
+              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
+                Secondary Market
+              </h1>
+              <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
+                P2P Transferable Positions
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-zinc-400">
+              Browse and buy active investor positions at competitive yields before maturity.
+            </p>
+          </div>
+        </div>
+
+        {/* Filter Controls Bar */}
+        <div className="mb-6 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-md">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <Input
+                placeholder="Search by debtor, invoice number, category..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 bg-zinc-950/80 border-zinc-800 text-sm focus:border-primary"
+              />
+            </div>
+
+            {/* Desktop Filters */}
+            <div className="hidden lg:flex lg:items-center lg:gap-3">
+              {/* Tenor Filter */}
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-zinc-400" />
+                <Select
+                  value={tenorFilter}
+                  onChange={(e) => setTenorFilter(e.target.value)}
+                  className="w-40 bg-zinc-950/80 border-zinc-800 text-xs"
+                >
+                  {TENOR_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              {/* Yield Filter */}
+              <div className="flex items-center gap-2">
+                <Percent className="h-4 w-4 text-zinc-400" />
+                <Select
+                  value={yieldFilter}
+                  onChange={(e) => setYieldFilter(e.target.value)}
+                  className="w-36 bg-zinc-950/80 border-zinc-800 text-xs"
+                >
+                  {YIELD_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              {/* Seller Filter */}
+              <div className="relative w-44">
+                <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                <Input
+                  placeholder="Seller G-address..."
+                  value={sellerFilter}
+                  onChange={(e) => setSellerFilter(e.target.value)}
+                  className="pl-8 bg-zinc-950/80 border-zinc-800 text-xs h-9"
+                />
+              </div>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetFilters}
+                  className="text-xs text-zinc-400 hover:text-white"
+                >
+                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                  Reset
+                </Button>
+              )}
+            </div>
+
+            {/* Mobile Filter Toggle */}
+            <div className="flex items-center justify-between lg:hidden">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMobileFilterOpen(true)}
+                className="w-full border-zinc-800 bg-zinc-950/80 text-xs"
+              >
+                <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-primary" />
+                Filter Positions
+                {hasActiveFilters && (
+                  <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary text-[10px]">
+                    Active
+                  </Badge>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Position Listings Grid */}
+        {filteredItems.length === 0 ? (
+          <EmptyState
+            title="No Transferable Positions Found"
+            description="No secondary market position listings match your filter criteria. Try expanding your tenor or yield requirements."
+            actionText="Clear All Filters"
+            onAction={resetFilters}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredItems.map((item) => {
+              const riskColor = RISK_TIER_COLORS[item.invoice.riskTier] ?? "text-zinc-400 border-zinc-700";
+
+              return (
+                <Card
+                  key={item.positionId}
+                  className="group relative overflow-hidden border border-zinc-800/80 bg-zinc-900/40 backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-zinc-900/80 hover:shadow-lg hover:shadow-primary/5"
+                >
+                  <CardHeader className="p-5 pb-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono font-medium text-zinc-400">
+                            {item.invoice.metadata.invoiceNumber}
+                          </span>
+                          <Badge variant="outline" className={cn("text-[10px] uppercase", riskColor)}>
+                            {item.invoice.riskTier}
+                          </Badge>
+                        </div>
+                        <CardTitle className="mt-1 text-base font-semibold text-white">
+                          {item.invoice.metadata.debtorName || "Debtor Account"}
+                        </CardTitle>
+                      </div>
+                      <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-semibold">
+                        +{item.yieldPercent.toFixed(1)}% Yield
+                      </Badge>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="p-5 pt-2">
+                    <div className="space-y-3">
+                      {/* Financial Metrics */}
+                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/60 p-3 text-xs">
+                        <div>
+                          <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
+                            Ask Price
+                          </span>
+                          <span className="font-semibold text-white text-sm">
+                            {formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
+                            Expected Return
+                          </span>
+                          <span className="font-medium text-zinc-300">
+                            {formatCurrency(item.expectedReturn, item.invoice.metadata.currency)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Position Details */}
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex items-center justify-between text-zinc-400">
+                          <span className="flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5 text-primary/80" />
+                            Remaining Tenor:
+                          </span>
+                          <span className="font-medium text-white">
+                            {item.remainingTenor} days remaining
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-zinc-400">
+                          <span className="flex items-center gap-1.5">
+                            <Tag className="h-3.5 w-3.5 text-emerald-400" />
+                            Implied Discount:
+                          </span>
+                          <span className="font-medium text-emerald-400">
+                            {(item.listing.impliedDiscount * 100).toFixed(1)}%
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-zinc-400">
+                          <span className="flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-zinc-400" />
+                            Seller Address:
+                          </span>
+                          <span className="font-mono text-[11px] text-zinc-300">
+                            {item.sellerAddress.slice(0, 4)}...{item.sellerAddress.slice(-4)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Button */}
+                      <Button
+                        className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
+                        onClick={() => {
+                          alert(`Transfer position flow initiated for ${item.positionId}`);
+                        }}
+                      >
+                        Acquire Position
+                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Mobile Filter Bottom Sheet */}
+        <BottomSheet isOpen={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)}>
+          <div className="space-y-4 p-4 text-zinc-100">
+            <h3 className="text-base font-semibold text-white">Filter Secondary Positions</h3>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-zinc-400 mb-1 block">Remaining Tenor</label>
+                <Select
+                  value={tenorFilter}
+                  onChange={(e) => setTenorFilter(e.target.value)}
+                  className="w-full bg-zinc-900 border-zinc-800 text-xs"
+                >
+                  {TENOR_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400 mb-1 block">Minimum Yield</label>
+                <Select
+                  value={yieldFilter}
+                  onChange={(e) => setYieldFilter(e.target.value)}
+                  className="w-full bg-zinc-900 border-zinc-800 text-xs"
+                >
+                  {YIELD_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <label className="text-xs text-zinc-400 mb-1 block">Seller Address</label>
+                <Input
+                  placeholder="Seller G-address..."
+                  value={sellerFilter}
+                  onChange={(e) => setSellerFilter(e.target.value)}
+                  className="bg-zinc-900 border-zinc-800 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1 text-xs" onClick={resetFilters}>
+                Reset
+              </Button>
+              <Button className="flex-1 text-xs" onClick={() => setMobileFilterOpen(false)}>
+                Apply Filters
+              </Button>
+            </div>
+          </div>
+        </BottomSheet>
+      </Container>
+    </main>
+  );
+}

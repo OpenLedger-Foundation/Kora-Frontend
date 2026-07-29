@@ -1,6 +1,7 @@
 {
   "nav": {
     "marketplace": "Marketplace",
+    "secondaryMarket": "السوق الثانوية",
     "invest": "Invest",
     "myInvoices": "My Invoices",
     "createInvoice": "Create Invoice",

@@ -1,6 +1,7 @@
 {
   "nav": {
     "marketplace": "Mercado",
+    "secondaryMarket": "Mercado Secundário",
     "invest": "Investir",
     "myInvoices": "Minhas Faturas",
     "createInvoice": "Criar Fatura",
