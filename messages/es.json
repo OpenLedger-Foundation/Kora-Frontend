@@ -1,6 +1,7 @@
 {
   "nav": {
     "marketplace": "Mercado",
+    "secondaryMarket": "Mercado Secundario",
     "invest": "Invertir",
     "myInvoices": "Mis Facturas",
     "createInvoice": "Crear Factura",
@@ -805,6 +806,26 @@
       "emailInvalid": "Dirección de correo electrónico inválida",
       "companyNameMinLength": "El nombre de la empresa debe tener al menos 2 caracteres",
       "walletAddressInvalid": "Formato de clave pública de Stellar inválido"
+    }
+  },
+  "kyc": {
+    "title": "Estado de Verificación KYC",
+    "status": {
+      "unverified": "No verificado",
+      "pending": "Verificación pendiente",
+      "verified": "Verificado",
+      "rejected": "Verificación rechazada"
+    },
+    "desc": {
+      "unverified": "Verifique su identidad para desbloquear límites de financiamiento más altos y transacciones en el mercado secundario.",
+      "pending": "Sus documentos están siendo revisados. Esto generalmente toma menos de 5 minutos.",
+      "verified": "Tiene acceso completo a todas las funciones y límites de inversión ilimitados.",
+      "rejected": "Su verificación de identidad fue rechazada. Revise sus datos e intente nuevamente."
+    },
+    "cta": {
+      "verify": "Verificar Identidad",
+      "reverify": "Volver a enviar documentos",
+      "close": "Cerrar"
     }
   }
 }

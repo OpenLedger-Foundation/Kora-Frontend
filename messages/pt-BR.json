@@ -1,6 +1,7 @@
 {
   "nav": {
     "marketplace": "Mercado",
+    "secondaryMarket": "Mercado Secundário",
     "invest": "Investir",
     "myInvoices": "Minhas Faturas",
     "createInvoice": "Criar Fatura",
@@ -603,36 +604,24 @@
       "walletAddressInvalid": "Formato de chave pública Stellar inválido"
     }
   },
-  "onboarding": {
-    "step": "Passo {current} de {total}",
-    "skipTour": "Pular tour",
-    "skipLabel": "Pular tour de integração",
-    "back": "Voltar",
-    "next": "Próximo",
-    "finish": "Concluir",
-    "personaInvestor": "Investidor",
-    "personaSme": "PME",
-    "selectPersona": "Selecionar função",
-    "restartTour": "Reiniciar tour",
-    "restartTourDesc": "Reiniciar tour guiado para a função selecionada.",
-    "tourCompleted": "Tour concluído",
-    "tourSkipped": "Tour pulado",
-    "activePersona": "Função ativa",
-    "steps": {
-      "findOpportunityTitle": "Encontre a oportunidade certa",
-      "findOpportunityBody": "Busque por devedor, número da fatura ou jurisdição para filtrar o mercado.",
-      "reviewDetailsTitle": "Revise os detalhes da fatura",
-      "reviewDetailsBody": "Cada cartão resume o valor, retorno, nível de risco, progresso de financiamento e vencimento.",
-      "fundInvoiceTitle": "Financie uma fatura",
-      "fundInvoiceBody": "Abra uma fatura elegível a partir da sua ação de financiamento quando estiver pronto para investir.",
-      "trackPortfolioTitle": "Acompanhe seu portfólio",
-      "trackPortfolioBody": "Use o painel do investidor para monitorar posições, pagamentos e rendimentos.",
-      "mintInvoiceTitle": "Emitir uma fatura",
-      "mintInvoiceBody": "Envie detalhes da fatura e emita um NFT no Soroban para solicitar financiamento.",
-      "smeDashboardTitle": "Painel PME",
-      "smeDashboardBody": "Acompanhe suas faturas emitidas, progresso de financiamento e futuros pagamentos.",
-      "marketplaceVisibilityTitle": "Visibilidade no mercado",
-      "marketplaceVisibilityBody": "Suas faturas emitidas aparecem no mercado público para investidores financiarem."
+  "kyc": {
+    "title": "Status de Verificação KYC",
+    "status": {
+      "unverified": "Não verificado",
+      "pending": "Verificação pendente",
+      "verified": "Verificado",
+      "rejected": "Verificação rejeitada"
+    },
+    "desc": {
+      "unverified": "Verifique sua identidade para liberar limites de financiamento mais altos e negociações no mercado secundário.",
+      "pending": "Seus documentos estão sendo revisados. Isso geralmente leva menos de 5 minutos.",
+      "verified": "Você tem acesso total a todos os recursos e limites de investimento ilimitados.",
+      "rejected": "Sua verificação de identidade foi rejeitada. Revise seus dados e tente novamente."
+    },
+    "cta": {
+      "verify": "Verificar Identidade",
+      "reverify": "Reenviar documentos",
+      "close": "Fechar"
     }
   }
 }

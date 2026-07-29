@@ -417,4 +417,28 @@ describe("IPFS Upload Service", () => {
       expect(cid).toBe("QmMetadataCid1234567890");
     });
   });
-});
+
+  // ─── 9. Gateway Fallback Tests ──────────────────────────────────────────
+
+  describe("Gateway Fallback Tests", () => {
+    it("fetchIpfsBytesWithFallback rotates through gateways on failure", async () => {
+      const { fetchIpfsBytesWithFallback } = await import("../ipfs");
+
+      // Gateway 1 fails with 503
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 503 });
+      // Gateway 2 succeeds with 200 OK
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        arrayBuffer: async () => new TextEncoder().encode('{"test": true}').buffer,
+      });
+
+      const result = await fetchIpfsBytesWithFallback("QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco", {
+        timeoutMs: 5000,
+        skipIntegrity: true,
+      });
+
+      expect(result.text).toContain("test");
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+});

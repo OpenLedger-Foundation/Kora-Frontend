@@ -1,6 +1,7 @@
 {
   "nav": {
     "marketplace": "Marketplace",
+    "secondaryMarket": "Secondary Market",
     "invest": "Invest",
     "myInvoices": "My Invoices",
     "createInvoice": "Create Invoice",
@@ -810,6 +811,26 @@
       "emailInvalid": "Invalid email address",
       "companyNameMinLength": "Company name must be at least 2 characters",
       "walletAddressInvalid": "Invalid Stellar public key format"
+    }
+  },
+  "kyc": {
+    "title": "KYC Verification Status",
+    "status": {
+      "unverified": "Unverified",
+      "pending": "Verification Pending",
+      "verified": "Verified",
+      "rejected": "Verification Rejected"
+    },
+    "desc": {
+      "unverified": "Verify your identity to unlock higher funding limits and secondary market trades.",
+      "pending": "Your documents are being reviewed. This usually takes under 5 minutes.",
+      "verified": "You have full access to all features and unlimited investment limits.",
+      "rejected": "Your identity check was rejected. Please review your details and try again."
+    },
+    "cta": {
+      "verify": "Verify Identity",
+      "reverify": "Re-submit Documents",
+      "close": "Close"
     }
   }
 }

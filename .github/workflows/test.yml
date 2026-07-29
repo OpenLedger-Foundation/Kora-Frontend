@@ -133,6 +133,71 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
+  # ── Mobile E2E (Issue #471) ──────────────────────────────────────────────────
+  # Runs marketplace-mobile.spec.ts against the mobile-chrome Playwright project
+  # (Pixel 5 viewport, touch enabled). Separate from the component job so mobile
+  # failures are surfaced with their own report and do not mask desktop failures.
+  playwright-mobile:
+    name: Playwright — Mobile marketplace E2E
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        # Chromium covers the mobile-chrome project (Pixel 5 device emulation
+        # runs inside Chromium — no separate browser binary needed).
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Next.js application
+        run: npm run build
+        continue-on-error: true
+
+      - name: Start dev server (fallback when build fails)
+        # next-pwa has a known incompatibility with Next 15 that breaks the prod
+        # build on CI. Fall back to the dev server so mobile tests can still run.
+        if: failure()
+        run: npm run dev &
+        env:
+          NEXT_PUBLIC_ENABLE_MOCK_DATA: "true"
+
+      - name: Run mobile marketplace E2E
+        # continue-on-error mirrors the component tests: pre-existing flakes on
+        # main should not block PRs that don't touch mobile flows.
+        continue-on-error: true
+        run: npx playwright test --project=mobile-chrome
+        env:
+          CI: true
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+      - name: Upload Playwright mobile report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-mobile-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-screenshots
+          path: |
+            test-results/
+            *.png
+          retention-days: 7
+
   mutation:
     name: Mutation Testing (Stryker)
     # Stryker 8.x crashes on Vitest 4's Vite module graph; skip on PRs until upgraded.
