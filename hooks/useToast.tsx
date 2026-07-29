@@ -15,15 +15,16 @@ export type NotificationPreferenceType =
 interface TxToastProps {
   message: string;
   txHash?: string;
+  txLinkLabel: string;
 }
 
-export function TxToast({ message, txHash }: TxToastProps) {
+export function TxToast({ message, txHash, txLinkLabel }: TxToastProps) {
   return (
     <div role="status" aria-live="polite" className="flex flex-col gap-1 w-full">
       <span className="font-medium text-foreground">{message}</span>
       {txHash && (
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-          <span className="shrink-0">Tx Link:</span>
+          <span className="shrink-0">{txLinkLabel}</span>
           <StellarTxLink hash={txHash} chars={8} size="sm" />
         </div>
       )}
@@ -110,10 +111,13 @@ export function useToast() {
   ) => {
     const toastId = id ?? Math.random().toString();
     if (!shouldNotify(type)) return toastId;
-    return toast.success(<TxToast message={message} txHash={txHash} />, {
-      id: toastId,
-      duration: 4000,
-    });
+    return toast.success(
+      <TxToast message={message} txHash={txHash} txLinkLabel={t("txLink")} />,
+      {
+        id: toastId,
+        duration: 4000,
+      }
+    );
   };
 
   const showError = (

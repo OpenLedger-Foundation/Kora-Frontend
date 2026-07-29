@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { BatchItemStatus, BatchQueueItem } from "@/lib/batch/txQueue";
 
@@ -50,12 +51,14 @@ export function BatchActionToolbar({
   onExport,
   isProcessing = false,
   progress = 0,
-  processingLabel = "Processing batch operations...",
+  processingLabel,
   items = [],
   onResumeFailed,
   canRepay = true,
   canCancel = true,
 }: BatchActionToolbarProps) {
+  const t = useTranslations("batchToolbar");
+
   if (selectedCount === 0 && !isProcessing && items.length === 0) return null;
 
   const failedCount = items.filter((i) => i.status === "failed").length;
@@ -89,13 +92,13 @@ export function BatchActionToolbar({
               <div>
                 <p className="text-sm font-semibold text-foreground">
                   {isProcessing
-                    ? processingLabel
-                    : `${selectedCount} Invoices Selected`}
+                    ? processingLabel ?? t("processing")
+                    : t("invoicesSelected", { count: selectedCount })}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {isProcessing
-                    ? `${Math.round(progress)}% completed`
-                    : "Select actions to perform in bulk"}
+                    ? t("percentCompleted", { percent: Math.round(progress) })
+                    : t("selectBulkActions")}
                 </p>
               </div>
             </div>
@@ -110,7 +113,7 @@ export function BatchActionToolbar({
                     onClick={onExport}
                   >
                     <Download className="h-4 w-4" />
-                    <span className="hidden sm:inline">Export CSV</span>
+                    <span className="hidden sm:inline">{t("exportCsv")}</span>
                   </Button>
                   {onRepay && (
                     <Button
@@ -122,7 +125,7 @@ export function BatchActionToolbar({
                       data-testid="batch-repay-btn"
                     >
                       <Banknote className="h-4 w-4" />
-                      <span>Repay</span>
+                      <span>{t("repay")}</span>
                     </Button>
                   )}
                   <Button
@@ -134,7 +137,7 @@ export function BatchActionToolbar({
                     data-testid="batch-cancel-btn"
                   >
                     <XCircle className="h-4 w-4" />
-                    <span>Cancel Invoices</span>
+                    <span>{t("cancelInvoices")}</span>
                   </Button>
                   {failedCount > 0 && onResumeFailed && (
                     <Button
@@ -145,7 +148,7 @@ export function BatchActionToolbar({
                       data-testid="batch-resume-btn"
                     >
                       <RotateCcw className="h-4 w-4" />
-                      Retry {failedCount} failed
+                      {t("retryFailedCount", { count: failedCount })}
                     </Button>
                   )}
                 </>
@@ -155,7 +158,7 @@ export function BatchActionToolbar({
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
                   </span>
-                  Processing...
+                  {t("processing")}
                 </div>
               )}
             </div>
@@ -212,20 +215,22 @@ export function BatchResultSummary({
   onClose,
   onResumeFailed,
 }: BatchResultSummaryProps) {
+  const t = useTranslations("batchToolbar");
+
   return (
     <div className="space-y-6 py-4">
       <div className="flex items-center justify-center gap-8 py-4">
         <div className="text-center">
           <p className="text-3xl font-bold text-foreground">{total}</p>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">{t("resultTotal")}</p>
         </div>
         <div className="text-center">
           <p className="text-3xl font-bold text-success">{successCount}</p>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Success</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">{t("resultSuccess")}</p>
         </div>
         <div className="text-center">
           <p className="text-3xl font-bold text-destructive">{failedCount}</p>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Failed</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">{t("resultFailed")}</p>
         </div>
       </div>
 
@@ -233,7 +238,7 @@ export function BatchResultSummary({
         <div className="space-y-3">
           <p className="text-sm font-semibold text-foreground flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-destructive" />
-            Failure Details
+            {t("failureDetails")}
           </p>
           <div className="max-h-48 overflow-auto rounded-lg border border-border bg-muted/30 p-2 space-y-1">
             {errors.map((err, i) => (
@@ -249,8 +254,8 @@ export function BatchResultSummary({
       <div className="rounded-lg bg-primary/5 border border-primary/10 p-4 flex items-start gap-3">
         <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Batch operation completed. {successCount} invoices were successfully processed.
-          {failedCount > 0 && " Some operations failed — you can retry them without re-running successes."}
+          {t("batchComplete", { success: successCount })}
+          {failedCount > 0 && t("batchPartialFail")}
         </p>
       </div>
 
@@ -258,11 +263,11 @@ export function BatchResultSummary({
         {failedCount > 0 && onResumeFailed && (
           <Button variant="outline" className="flex-1" onClick={onResumeFailed} data-testid="summary-resume-btn">
             <RotateCcw className="mr-2 h-4 w-4" />
-            Retry failed
+            {t("retryFailed")}
           </Button>
         )}
         <Button className="flex-1" onClick={onClose}>
-          Done
+          {t("done")}
         </Button>
       </div>
     </div>

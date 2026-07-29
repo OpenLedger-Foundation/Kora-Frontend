@@ -53,6 +53,7 @@ async function captureScreenshot(): Promise<string | null> {
 // ── Component ─────────────────────────────────────────────────────────────────
 export function FeedbackWidget() {
   const t = useTranslations("feedback");
+  const tc = useTranslations("common");
   const [open, setOpen] = useState(false);
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [capturingScreen, setCapturingScreen] = useState(false);
@@ -126,22 +127,22 @@ export function FeedbackWidget() {
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? "Submission failed");
+          throw new Error(err.error ?? t("submissionFailed"));
         }
 
-        toast.success("Feedback submitted — thanks for helping improve Kora!");
+        toast.success(t("successMessage"));
         reset();
         setScreenshot(null);
         setOpen(false);
       } catch (err) {
-        toast.error("Failed to submit feedback", {
+        toast.error(t("submitFailed"), {
           description: (err as Error).message,
         });
       } finally {
         setSubmitting(false);
       }
     },
-    [screenshot, walletAddress, reset]
+    [screenshot, walletAddress, reset, t]
   );
 
   const handleClose = useCallback(() => {
@@ -165,19 +166,19 @@ export function FeedbackWidget() {
               className="w-[340px] sm:w-[380px] rounded-2xl border border-border bg-background shadow-token-lg"
               role="dialog"
               aria-modal="true"
-              aria-label="Feedback form"
+              aria-label={t("ariaLabel")}
             >
               {/* Header */}
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div className="flex items-center gap-2">
                   <MessageSquarePlus className="h-4 w-4 text-primary" aria-hidden="true" />
-                  <span className="text-sm font-semibold text-foreground">Send Feedback</span>
+                  <span className="text-sm font-semibold text-foreground">{t("sendFeedback")}</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleClose}
                   className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  aria-label="Close feedback form"
+                  aria-label={t("closeLabel")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -188,7 +189,7 @@ export function FeedbackWidget() {
                 {/* Type selector */}
                 <div>
                   <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Type
+                    {t("typeLabel")}
                   </p>
                   <div className="grid grid-cols-3 gap-2">
                     {FEEDBACK_TYPES.map(({ value, label, icon: Icon, color }) => (
@@ -214,12 +215,12 @@ export function FeedbackWidget() {
                 {/* Title */}
                 <div>
                   <label htmlFor="fb-title" className="mb-1.5 block text-xs font-medium text-foreground">
-                    Title <span className="text-destructive">*</span>
+                    {t("fieldTitle")} <span className="text-destructive">*</span>
                   </label>
                   <input
                     id="fb-title"
                     {...register("title")}
-                    placeholder="Brief summary…"
+                    placeholder={t("fieldTitlePlaceholder")}
                     className={cn(
                       "w-full rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground",
                       "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background",
@@ -236,13 +237,13 @@ export function FeedbackWidget() {
                 {/* Description */}
                 <div>
                   <label htmlFor="fb-description" className="mb-1.5 block text-xs font-medium text-foreground">
-                    Description <span className="text-destructive">*</span>
+                    {t("fieldDescription")} <span className="text-destructive">*</span>
                   </label>
                   <textarea
                     id="fb-description"
                     {...register("description")}
                     rows={4}
-                    placeholder="Describe the issue or idea in detail…"
+                    placeholder={t("fieldDescriptionPlaceholder")}
                     className={cn(
                       "w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground",
                       "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background",
@@ -259,21 +260,21 @@ export function FeedbackWidget() {
                 {/* Screenshot section */}
                 <div>
                   <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Screenshot (optional)
+                    {t("screenshotLabel")}
                   </p>
                   {screenshot ? (
                     <div className="relative rounded-lg overflow-hidden border border-border">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={screenshot}
-                        alt="Attached screenshot preview"
+                        alt={t("screenshotAlt")}
                         className="w-full max-h-32 object-cover"
                       />
                       <button
                         type="button"
                         onClick={() => setScreenshot(null)}
                         className="absolute right-1.5 top-1.5 rounded-full bg-background/80 p-1 text-muted-foreground hover:text-foreground backdrop-blur-sm"
-                        aria-label="Remove screenshot"
+                        aria-label={t("removeScreenshot")}
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -291,7 +292,7 @@ export function FeedbackWidget() {
                         ) : (
                           <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden="true" />
                         )}
-                        Capture screen
+                        {t("captureScreen")}
                       </button>
                       <button
                         type="button"
@@ -299,14 +300,14 @@ export function FeedbackWidget() {
                         className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-card px-3 py-2 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
                       >
                         <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
-                        Upload image
+                        {t("uploadImage")}
                       </button>
                       <input
                         ref={fileInputRef}
                         type="file"
                         accept="image/*"
                         className="sr-only"
-                        aria-label="Upload screenshot"
+                        aria-label={t("uploadImage")}
                         onChange={handleFileUpload}
                       />
                     </div>
@@ -315,8 +316,7 @@ export function FeedbackWidget() {
 
                 {/* Auto-captured context info */}
                 <p className="text-[11px] text-muted-foreground">
-                  Your current URL, browser info
-                  {walletAddress ? ", and wallet address" : ""} will be included automatically.
+                  {t("contextNote", { wallet: walletAddress ? t("contextWallet") : "" })}
                 </p>
 
                 {/* Actions */}
@@ -329,7 +329,7 @@ export function FeedbackWidget() {
                     onClick={handleClose}
                     disabled={submitting}
                   >
-                    Cancel
+                    {t("cancel")}
                   </Button>
                   <Button
                     type="submit"
@@ -338,7 +338,7 @@ export function FeedbackWidget() {
                     className="flex-1"
                     isLoading={submitting}
                   >
-                    Submit
+                    {t("submit")}
                   </Button>
                 </div>
               </form>
@@ -358,7 +358,7 @@ export function FeedbackWidget() {
             // On mobile collapse to icon only
             "max-sm:px-3 max-sm:py-3"
           )}
-          aria-label={open ? "Close feedback" : "Open feedback form"}
+          aria-label={open ? t("closeLabel") : t("openLabel")}
           aria-expanded={open}
         >
           {open ? (
@@ -366,7 +366,7 @@ export function FeedbackWidget() {
           ) : (
             <MessageSquarePlus className="h-4 w-4 shrink-0" aria-hidden="true" />
           )}
-          <span className="hidden sm:inline">{open ? "Close" : "Feedback"}</span>
+          <span className="hidden sm:inline">{open ? tc("close") : t("sendFeedback")}</span>
         </motion.button>
       </div>
     </>

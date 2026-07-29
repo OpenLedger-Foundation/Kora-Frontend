@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type FileRejection, useDropzone } from "react-dropzone";
@@ -44,39 +45,43 @@ import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
-const STEPS = ["Invoice Details", "Financing Terms", "Upload & Review"];
-
-const JURISDICTION_OPTIONS = [
-  { value: "KE", label: "Kenya" },
-  { value: "NG", label: "Nigeria" },
-  { value: "GH", label: "Ghana" },
-  { value: "ZA", label: "South Africa" },
-  { value: "US", label: "United States" },
-  { value: "EU", label: "European Union" },
-  { value: "UK", label: "United Kingdom" },
-  { value: "OTHER", label: "Other" },
-];
-
-const CATEGORY_OPTIONS = [
-  { value: "technology", label: "Technology" },
-  { value: "agriculture", label: "Agriculture" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "construction", label: "Construction" },
-  { value: "energy", label: "Energy" },
-  { value: "logistics", label: "Logistics" },
-  { value: "manufacturing", label: "Manufacturing" },
-  { value: "retail", label: "Retail" },
-  { value: "finance", label: "Finance" },
-  { value: "other", label: "Other" },
-];
-
-const PRIVACY_OPTIONS = [
-  { value: "full", label: "Full (Name + Address)" },
-  { value: "partial", label: "Partial (Name Only)" },
-  { value: "anonymized", label: "Anonymized (Industry + Country)" },
-];
-
 export default function CreateInvoicePage() {
+  const t = useTranslations("createInvoice");
+  const tMarketplace = useTranslations("marketplace");
+  const tCommon = useTranslations("common");
+
+  const STEPS = [t("steps.details"), t("steps.terms"), t("steps.review")];
+
+  const JURISDICTION_OPTIONS = [
+    { value: "KE", label: tMarketplace("jurisdictionOptions.KE") },
+    { value: "NG", label: tMarketplace("jurisdictionOptions.NG") },
+    { value: "GH", label: tMarketplace("jurisdictionOptions.GH") },
+    { value: "ZA", label: tMarketplace("jurisdictionOptions.ZA") },
+    { value: "US", label: tMarketplace("jurisdictionOptions.US") },
+    { value: "EU", label: tMarketplace("jurisdictionOptions.EU") },
+    { value: "UK", label: tMarketplace("jurisdictionOptions.UK") },
+    { value: "OTHER", label: tMarketplace("jurisdictionOptions.OTHER") },
+  ];
+
+  const CATEGORY_OPTIONS = [
+    { value: "technology", label: tMarketplace("categoryOptions.technology") },
+    { value: "agriculture", label: tMarketplace("categoryOptions.agriculture") },
+    { value: "healthcare", label: tMarketplace("categoryOptions.healthcare") },
+    { value: "construction", label: tMarketplace("categoryOptions.construction") },
+    { value: "energy", label: tMarketplace("categoryOptions.energy") },
+    { value: "logistics", label: tMarketplace("categoryOptions.logistics") },
+    { value: "manufacturing", label: tMarketplace("categoryOptions.manufacturing") },
+    { value: "retail", label: tMarketplace("categoryOptions.retail") },
+    { value: "finance", label: tMarketplace("categoryOptions.finance") },
+    { value: "other", label: tMarketplace("categoryOptions.other") },
+  ];
+
+  const PRIVACY_OPTIONS = [
+    { value: "full", label: t("privacy.full") },
+    { value: "partial", label: t("privacy.partial") },
+    { value: "anonymized", label: t("privacy.anonymized") },
+  ];
+
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -205,15 +210,15 @@ export default function CreateInvoicePage() {
     if (fileRejections[0]) {
       const error = fileRejections[0].errors[0];
       if (error.code === "file-too-large") {
-        setFileError("File is too large. Max size is exactly 10MB.");
+        setFileError(t("upload.errors.tooLarge"));
       } else if (error.code === "file-invalid-type") {
-        setFileError("Invalid file type. Only PDF documents are allowed.");
+        setFileError(t("upload.errors.invalidType"));
       } else {
         setFileError(error.message);
       }
       setFile(null);
     }
-  }, []);
+  }, [t]);
 
   const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
     onDrop,
@@ -256,7 +261,7 @@ export default function CreateInvoicePage() {
       return;
     }
     if (!file) {
-      setFileError("Please upload the invoice PDF before minting.");
+      setFileError(t("upload.errors.required"));
       return;
     }
 
@@ -334,14 +339,14 @@ export default function CreateInvoicePage() {
             <CheckCircle2 className="h-10 w-10" />
           </motion.div>
 
-          <h2 className="text-3xl font-extrabold tracking-tight text-zinc-100">Invoice Minted!</h2>
+          <h2 className="text-3xl font-extrabold tracking-tight text-zinc-100">{t("success.title")}</h2>
           <p className="mt-3 text-sm text-zinc-400">
-            Your invoice has been tokenized as an NFT on the Stellar Soroban network and is ready for funding.
+            {t("success.subtitle")}
           </p>
 
           <div className="mt-8 space-y-4 rounded-xl border border-zinc-800/85 bg-zinc-900/40 p-5 text-left text-sm backdrop-blur-sm">
             <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
-              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">NFT Token ID</span>
+              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
               <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
                 #{mintedInfo.tokenId}
               </span>
@@ -349,7 +354,7 @@ export default function CreateInvoicePage() {
 
             <div className="flex justify-between items-start pt-1">
               <div className="space-y-1 w-full">
-                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Transaction Hash</span>
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">{t("success.txHash")}</span>
                 <span className="font-mono text-xs text-zinc-400 break-all select-all pr-4 block">
                   {mintedInfo.txHash}
                 </span>
@@ -357,7 +362,7 @@ export default function CreateInvoicePage() {
             </div>
 
             <div className="border-t border-zinc-800/60 pt-3 flex justify-between items-center">
-              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">IPFS Metadata CID</span>
+              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.ipfsCid")}</span>
               <span className="font-mono text-xs text-kora-400 break-all bg-kora-500/5 border border-kora-500/10 px-2 py-0.5 rounded select-all max-w-[200px] truncate">
                 {mintedInfo.metadataCid}
               </span>
@@ -390,13 +395,13 @@ export default function CreateInvoicePage() {
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-900 text-zinc-300 rounded-lg transition-colors cursor-pointer"
             >
-              Verify on Stellar Expert
+              {t("success.verifyStellar")}
               <ArrowRight className="h-3.5 w-3.5" />
             </a>
 
             <Link href={`/marketplace/${mintedInfo.tokenId}`}>
               <Button className="w-full sm:w-auto bg-gradient-to-r from-kora-500 to-kora-600 hover:from-kora-600 hover:to-kora-700 text-white shadow-lg shadow-kora-500/15">
-                View on Marketplace
+                {t("success.viewMarketplace")}
               </Button>
             </Link>
           </div>
@@ -410,9 +415,9 @@ export default function CreateInvoicePage() {
       <ErrorBoundary>
         <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-zinc-100">Create Invoice</h1>
+            <h1 className="text-2xl font-bold text-zinc-100">{t("title")}</h1>
             <p className="mt-1 text-sm text-zinc-500">
-              Tokenize your invoice and access instant liquidity
+              {t("subtitle")}
             </p>
           </div>
 
@@ -460,23 +465,23 @@ export default function CreateInvoicePage() {
                 <input type="hidden" {...register("currency")} value="USDC" />
                 <input type="hidden" {...register("issueDate")} />
                 <Input
-                  label="Invoice Number"
-                  placeholder="INV-2024-0001"
+                  label={t("fields.invoiceNumber")}
+                  placeholder={t("fields.invoiceNumberPlaceholder")}
                   aria-required="true"
                   error={errors.invoiceNumber?.message}
                   {...register("invoiceNumber")}
                 />
                 <Input
-                  label="Debtor Company Name"
-                  placeholder="Acme Corporation Ltd"
+                  label={t("fields.debtorName")}
+                  placeholder={t("fields.debtorNamePlaceholder")}
                   aria-required="true"
                   error={errors.debtorName?.message}
                   {...register("debtorName")}
                 />
                 <div>
                   <Input
-                    label="Debtor Address"
-                    placeholder="123 Business St, City, Country"
+                    label={t("fields.debtorAddress")}
+                    placeholder={t("fields.debtorAddressPlaceholder")}
                     aria-required="true"
                     error={errors.debtorAddress?.message}
                     list="address-book-list"
@@ -499,22 +504,22 @@ export default function CreateInvoicePage() {
                       }}
                       className="rounded-lg px-3 py-1 text-sm"
                     >
-                      + Add to Address Book
+                      {t("fields.addToAddressBook")}
                     </button>
                   </div>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <NumberInput
-                    label="Invoice Amount (USDC)"
+                    label={t("fields.invoiceAmount")}
                     placeholder="50000"
-                    hint="Minimum 100 USDC"
+                    hint={t("fields.invoiceAmountHint")}
                     aria-required="true"
                     error={errors.amount?.message}
                     success={!!watch("amount") && !errors.amount}
                     {...register("amount")}
                   />
                   <DatePicker
-                    label="Due Date"
+                    label={t("fields.dueDate")}
                     aria-required="true"
                     error={errors.dueDate?.message}
                     success={!!watch("dueDate") && !errors.dueDate}
@@ -523,8 +528,8 @@ export default function CreateInvoicePage() {
                   />
                 </div>
                 <Textarea
-                  label="Description / Memo"
-                  placeholder="Optional details or terms of the invoice..."
+                  label={t("fields.description")}
+                  placeholder={t("fields.descriptionPlaceholder")}
                   maxLength={200}
                   showCharacterCount={true}
                   error={errors.description?.message}
@@ -533,14 +538,14 @@ export default function CreateInvoicePage() {
                 />
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Select
-                    label="Jurisdiction"
+                    label={t("fields.jurisdiction")}
                     options={JURISDICTION_OPTIONS}
                     aria-required="true"
                     error={errors.jurisdiction?.message}
                     {...register("jurisdiction")}
                   />
                   <Select
-                    label="Industry Category"
+                    label={t("fields.category")}
                     options={CATEGORY_OPTIONS}
                     aria-required="true"
                     error={errors.category?.message}
@@ -549,7 +554,7 @@ export default function CreateInvoicePage() {
                 </div>
 
                 <Select
-                  label="Debtor Privacy Level"
+                  label={t("fields.debtorPrivacy")}
                   options={PRIVACY_OPTIONS}
                   aria-required="true"
                   error={errors.debtorPrivacy?.message}
@@ -560,53 +565,53 @@ export default function CreateInvoicePage() {
                   <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                        Live Invoice Preview
+                        {t("preview.title")}
                       </p>
-                      <p className="text-xs text-zinc-400">Review the key invoice details as you type.</p>
+                      <p className="text-xs text-zinc-400">{t("preview.subtitle")}</p>
                     </div>
                     <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-1 text-[11px] uppercase tracking-[0.16em] text-zinc-400">
-                      Step 1 of 3
+                      {t("preview.step")}
                     </span>
                   </div>
 
                   <div className="grid gap-3 pt-4 sm:grid-cols-2">
                     <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Invoice</p>
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("preview.invoice")}</p>
                       <p className="mt-2 text-base font-semibold text-zinc-100">
-                        {watch("invoiceNumber") || "INV-XXXX-XXXX"}
+                        {watch("invoiceNumber") || t("preview.invoicePlaceholder")}
                       </p>
                       <p className="text-sm text-zinc-400 mt-1">
-                        {watch("description") || "Add a memo or description to summarize the invoice."}
+                        {watch("description") || t("preview.descriptionPlaceholder")}
                       </p>
                     </div>
                     <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
-                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Debtor</p>
+                      <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("preview.debtor")}</p>
                       <p className="mt-2 text-base font-semibold text-zinc-100">
-                        {watch("debtorName") || "Debtor Company Name"}
+                        {watch("debtorName") || t("preview.debtorPlaceholder")}
                       </p>
                       <p className="text-sm text-zinc-400 mt-1">
-                        {watch("debtorAddress") || "Debtor address will display here."}
+                        {watch("debtorAddress") || t("preview.debtorAddressPlaceholder")}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
-                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Amount</span>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("preview.amount")}</span>
                       <p className="mt-2 text-lg font-semibold text-zinc-100">
                         ${amountVal.toLocaleString()} {watch("currency")}
                       </p>
                     </div>
                     <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
-                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Due Date</span>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("preview.dueDate")}</span>
                       <p className="mt-2 text-lg font-semibold text-zinc-100">
-                        {watch("dueDate") || "Select due date"}
+                        {watch("dueDate") || t("preview.selectDueDate")}
                       </p>
                     </div>
                     <div className="rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
-                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Jurisdiction</span>
+                      <span className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">{t("preview.jurisdiction")}</span>
                       <p className="mt-2 text-lg font-semibold text-zinc-100">
-                        {JURISDICTION_OPTIONS.find((option) => option.value === watch("jurisdiction"))?.label || "Select"}
+                        {JURISDICTION_OPTIONS.find((option) => option.value === watch("jurisdiction"))?.label || t("preview.select")}
                       </p>
                     </div>
                   </div>
@@ -629,7 +634,7 @@ export default function CreateInvoicePage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-semibold text-zinc-200" id="discount-rate-label">
-                      Discount Rate (%)
+                      {t("fields.discountRate")}
                     </label>
                     <div className="w-24">
                       <Input
@@ -676,16 +681,15 @@ export default function CreateInvoicePage() {
                     <span className="font-mono text-xs text-zinc-500">20%</span>
                   </div>
                   <p className="text-xs leading-normal text-zinc-500">
-                    The discount offered to investors. A higher rate attracts faster funding but
-                    increases financing cost.
+                    {t("discountRateDesc")}
                   </p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <NumberInput
-                    label="Minimum Investment (USDC)"
+                    label={t("fields.minInvestment")}
                     placeholder="1000"
-                    hint="Smallest amount a single investor can contribute"
+                    hint={t("fields.minInvestmentHint")}
                     aria-required="true"
                     error={errors.minInvestment?.message}
                     success={!!watch("minInvestment") && !errors.minInvestment}
@@ -693,11 +697,11 @@ export default function CreateInvoicePage() {
                   />
 
                   <DatePicker
-                    label="Listing Expiry Date"
+                    label={t("fields.listingExpiry")}
                     min={TODAY}
                     max={maxExpiryDate}
                     placeholder="Select expiry date..."
-                    hint="When the listing period closes"
+                    hint={t("fields.listingExpiryHint")}
                     aria-required="true"
                     error={errors.listingExpiryDate?.message}
                     success={!!watch("listingExpiryDate") && !errors.listingExpiryDate}
@@ -712,11 +716,11 @@ export default function CreateInvoicePage() {
                   <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
                     <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-zinc-400">
                       <span className="bg-kora-500 h-1.5 w-1.5 animate-pulse rounded-full" />
-                      Live Financing Preview
+                      {t("financingPreview.title")}
                     </h3>
                     {daysToMaturity > 0 && (
                       <span className="rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[11px] font-medium text-zinc-400">
-                        {daysToMaturity} days to maturity
+                        {t("financingPreview.daysToMaturity", { count: daysToMaturity })}
                       </span>
                     )}
                   </div>
@@ -724,7 +728,7 @@ export default function CreateInvoicePage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/60 p-3.5 transition-colors hover:border-zinc-800">
                       <span className="mb-1 block text-xs text-zinc-500">
-                        Financing Amount (You Receive)
+                        {t("financingPreview.youReceive")}
                       </span>
                       <span className="text-lg font-bold text-zinc-100">
                         $
@@ -740,7 +744,7 @@ export default function CreateInvoicePage() {
 
                     <div className="rounded-lg border border-zinc-800/40 bg-zinc-900/60 p-3.5 transition-colors hover:border-zinc-800">
                       <span className="mb-1 block text-xs text-zinc-500">
-                        Investor Payout at Maturity
+                        {t("financingPreview.investorPayout")}
                       </span>
                       <span className="text-lg font-bold text-zinc-100">
                         $
@@ -760,9 +764,9 @@ export default function CreateInvoicePage() {
                     <div className="space-y-1.5">
                       <div className="flex justify-between px-0.5 text-[11px] text-zinc-500">
                         <span>
-                          Capital Seek ({((financingAmount / amountVal) * 100).toFixed(0)}%)
+                          {t("financingPreview.capitalSeek", { percent: ((financingAmount / amountVal) * 100).toFixed(0) })}
                         </span>
-                        <span>Yield Cost ({((investorYield / amountVal) * 100).toFixed(0)}%)</span>
+                        <span>{t("financingPreview.yieldCost", { percent: ((investorYield / amountVal) * 100).toFixed(0) })}</span>
                       </div>
                       <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-zinc-900">
                         <div
@@ -934,7 +938,7 @@ export default function CreateInvoicePage() {
 
                   <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
                     <div>
-                      <span className="block text-xs text-zinc-500">Invoice Number</span>
+                      <span className="block text-xs text-zinc-500">{t("fields.invoiceNumber")}</span>
                       <span className="font-medium text-zinc-200">{watch("invoiceNumber")}</span>
                     </div>
                     <div>
@@ -973,7 +977,7 @@ export default function CreateInvoicePage() {
 
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-zinc-400">
                     <div>
-                      <span className="block text-xs text-zinc-500">Listing Expiry Date</span>
+                      <span className="block text-xs text-zinc-500">{t("fields.listingExpiry")}</span>
                       <span className="font-medium text-zinc-200">
                         {watch("listingExpiryDate") || "N/A"}
                       </span>
@@ -994,7 +998,7 @@ export default function CreateInvoicePage() {
         {/* Navigation */}
         <div className="mt-6 flex justify-between">
           <Button type="button" variant="outline" onClick={goBack} disabled={step === 0}>
-            <ArrowLeft className="h-4 w-4" /> Back
+            <ArrowLeft className="h-4 w-4" /> {t("navigation.back")}
           </Button>
 
           {step < STEPS.length - 1 ? (
@@ -1006,7 +1010,7 @@ export default function CreateInvoicePage() {
                 (step === 1 && !step1Valid)
               }
             >
-              Next <ArrowRight className="h-4 w-4" />
+              {t("navigation.next")} <ArrowRight className="h-4 w-4" />
             </Button>
           ) : (
             <Button
@@ -1015,7 +1019,7 @@ export default function CreateInvoicePage() {
               onClick={!isConnected ? () => setWalletModalOpen(true) : undefined}
               title={pinataStatus === "unhealthy" ? "IPFS storage is temporarily unavailable" : undefined}
             >
-              {!isConnected ? "Connect Wallet" : "Mint Invoice NFT"}
+              {!isConnected ? tCommon("connectWallet") : t("review.mintButton")}
             </Button>
           )}
         </div>
@@ -1066,7 +1070,7 @@ export default function CreateInvoicePage() {
                   resetTxState();
                 }}
               >
-                Dismiss
+                {tCommon("dismiss")}
               </Button>
               <Button
                 onClick={() => {

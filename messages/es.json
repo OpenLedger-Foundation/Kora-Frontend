@@ -43,7 +43,12 @@
     "termsPrefix": "Al conectar, aceptas nuestros",
     "termsLink": "Términos de Servicio",
     "connectGuardTitle": "Conecta tu billetera para continuar",
-    "connectGuardDesc": "Esta página requiere una billetera conectada."
+    "connectGuardDesc": "Esta página requiere una billetera conectada.",
+    "sessionExpiredTitle": "Sesión de billetera inactiva",
+    "sessionExpiredDesc": "Desbloquea tu extensión de billetera o vuelve a conectarte para continuar.",
+    "reconnect": "Reconectar Billetera",
+    "reconnecting": "Reconectando...",
+    "restoringSession": "Restaurando sesión de billetera..."
   },
   "landing": {
     "headline": "Financiamiento de Facturas, En Cadena",
@@ -135,6 +140,28 @@
       "dueSoonest": "Vencimiento: Más Próximo",
       "dueLatest": "Vencimiento: Más Lejano",
       "newest": "Más Reciente"
+    },
+    "categoryOptions": {
+      "technology": "Tecnología",
+      "agriculture": "Agricultura",
+      "healthcare": "Salud",
+      "construction": "Construcción",
+      "energy": "Energía",
+      "logistics": "Logística",
+      "retail": "Comercio Minorista",
+      "manufacturing": "Manufactura",
+      "finance": "Finanzas",
+      "other": "Otro"
+    },
+    "jurisdictionOptions": {
+      "KE": "Kenia",
+      "NG": "Nigeria",
+      "GH": "Ghana",
+      "ZA": "Sudáfrica",
+      "US": "Estados Unidos",
+      "EU": "Unión Europea",
+      "UK": "Reino Unido",
+      "OTHER": "Otro"
     }
   },
   "invoiceDetail": {
@@ -471,7 +498,8 @@
     "confirmed": "¡Transacción confirmada!",
     "failed": "Transacción fallida",
     "retry": "Reintentar",
-    "dismiss": "Descartar"
+    "dismiss": "Descartar",
+    "txLink": "Enlace de Tx:"
   },
   "txSimulation": {
     "title": "Vista Previa de Transacción",
@@ -507,7 +535,10 @@
     "lastChecked": "Última verificación: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Error"
+    "error": "Error",
+    "rpcDown": "RPC Caído",
+    "rpcDegraded": "RPC Degradado",
+    "statusAriaLabel": "Estado de la red: {status} en {network}"
   },
   "offline": {
     "title": "Estás sin conexión",
@@ -698,6 +729,59 @@
     "removeFromCompareButton": "Eliminar de Comparar",
     "viewDetails": "Ver Detalles"
   },
+  "invoiceStatus": {
+    "draft": {
+      "label": "Pendiente",
+      "description": "El borrador de la factura se está preparando.",
+      "action": "En espera de envío."
+    },
+    "pendingMint": {
+      "label": "Pendiente",
+      "description": "La factura se está acuñando en la cadena.",
+      "action": "En espera de confirmación en blockchain."
+    },
+    "listed": {
+      "label": "Activa",
+      "description": "La factura está activa y aceptando fondos.",
+      "action": "Disponible para inversión."
+    },
+    "partiallyFunded": {
+      "label": "Activa",
+      "description": "La factura está parcialmente financiada y sigue abierta.",
+      "action": "Aceptando fondos restantes."
+    },
+    "active": {
+      "label": "Activa",
+      "description": "La factura está actualmente activa.",
+      "action": "Monitoreando el reembolso."
+    },
+    "fullyFunded": {
+      "label": "Financiada",
+      "description": "Se ha alcanzado el objetivo de financiamiento.",
+      "action": "En espera de liquidación/reembolso final."
+    },
+    "repaid": {
+      "label": "Reembolsada",
+      "description": "La factura ha sido reembolsada por completo.",
+      "action": "Rendimiento distribuido a los inversores."
+    },
+    "defaulted": {
+      "label": "En Incumplimiento",
+      "description": "La factura ha incumplido el reembolso.",
+      "action": "Proceso de recuperación iniciado."
+    },
+    "cancelled": {
+      "label": "Cancelada",
+      "description": "El financiamiento de la factura fue cancelado.",
+      "action": "Sin más acciones."
+    },
+    "expired": {
+      "label": "Expirada",
+      "description": "El listado de la factura ha expirado.",
+      "action": "Ya no acepta fondos."
+    },
+    "nextLabel": "Siguiente: {action}"
+  },
   "transactionToast": {
     "doNotClose": "No cierres esta ventana",
     "txLabel": "Tx:",
@@ -709,6 +793,14 @@
     "signatureTimeoutDesc": "La ventana de la billetera no fue firmada a tiempo. Puedes reintentar sin reconstruir.",
     "warningRetryLabel": "Reintentar",
     "warningDismissLabel": "Descartar"
+  },
+  "contractEventToast": {
+    "fundedTitle": "Factura Financiada",
+    "fundedDesc": "{amount} invertido · Factura #{tokenId}",
+    "repaidTitle": "Factura Reembolsada",
+    "repaidDesc": "La Factura #{tokenId} ha sido reembolsada por completo",
+    "cancelledTitle": "Factura Cancelada",
+    "cancelledDesc": "La Factura #{tokenId} ha sido cancelada"
   },
   "statusTransition": {
     "confirmTitle": "Confirmar: {label}",
@@ -723,7 +815,10 @@
     "percentCompleted": "{percent}% completado",
     "selectBulkActions": "Selecciona acciones para realizar en lote",
     "exportCsv": "Exportar CSV",
+    "repay": "Pagar",
     "cancelInvoices": "Cancelar Facturas",
+    "retryFailedCount": "Reintentar {count} fallidas",
+    "retryFailed": "Reintentar fallidas",
     "processing": "Procesando...",
     "resultTotal": "Total",
     "resultSuccess": "Exitosas",
@@ -750,7 +845,9 @@
     "label": "Idioma",
     "en": "English",
     "es": "Español",
-    "switchTo": "Cambiar a {lang}"
+    "switchTo": "Cambiar a {lang}",
+    "ar": "العربية",
+    "pt-BR": "Português (BR)"
   },
   "validation": {
     "invoiceNumber": {

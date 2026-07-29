@@ -12,6 +12,7 @@
 
 import React, { useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,8 @@ interface ActiveFilterChipsProps {
  * Exported so consumers can reuse without duplicating logic.
  */
 export function deriveChips(
-  filters: import("@/store/invoiceStore").FilterState
+  filters: import("@/store/invoiceStore").FilterState,
+  t?: (key: string) => string
 ): FilterChip[] {
   const chips: FilterChip[] = [];
 
@@ -82,7 +84,7 @@ export function deriveChips(
   if (filters.activeOnly) {
     chips.push({
       key: "activeOnly",
-      label: "Active Only",
+      label: t ? t("activeOnly") : "Active Only",
       filterKey: "activeOnly",
     });
   }
@@ -94,11 +96,12 @@ export default function ActiveFilterChips({
   chips: externalChips,
   className,
 }: ActiveFilterChipsProps) {
+  const t = useTranslations("marketplace");
   const { filters, updateSingleFilter, resetFilters } = useInvoiceStore();
   const announcerId = useId();
 
   // Derive chips from store if not provided externally
-  const chips = externalChips ?? deriveChips(filters);
+  const chips = externalChips ?? deriveChips(filters, t);
 
   const handleRemove = (chip: FilterChip) => {
     const key = chip.filterKey;
