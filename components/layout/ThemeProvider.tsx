@@ -1,43 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useUIStore } from "@/store/uiStore";
+
+/**
+ * The resolved theme applied to <html> — never "system".
+ * Consumers use this to render the correct icon without needing
+ * to know about the "system" intermediate state.
+ */
+export type ResolvedTheme = "light" | "dark";
+
+const ResolvedThemeContext = createContext<ResolvedTheme>("dark");
+
+/** Returns the currently applied (resolved) theme — never "system". */
+export function useResolvedTheme(): ResolvedTheme {
+  return useContext(ResolvedThemeContext);
+}
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const theme = useUIStore((s) => s.theme);
-  const [applied, setApplied] = useState<"light" | "dark">("light");
+  const [resolved, setResolved] = useState<ResolvedTheme>("dark");
 
   useEffect(() => {
     const root = document.documentElement;
 
-    const apply = (mode: "light" | "dark") => {
+    const apply = (mode: ResolvedTheme) => {
       root.classList.remove("light", "dark");
       root.classList.add(mode);
-      setApplied(mode);
+      setResolved(mode);
     };
 
     if (theme === "system") {
-      const m = window.matchMedia("(prefers-color-scheme: dark)");
-      apply(m.matches ? "dark" : "light");
-      const handler = (e: MediaQueryListEvent) => apply(e.matches ? "dark" : "light");
-      m.addEventListener("change", handler);
-      return () => m.removeEventListener("change", handler);
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      apply(mq.matches ? "dark" : "light");
+      const handler = (e: MediaQueryListEvent) =>
+        apply(e.matches ? "dark" : "light");
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
     }
 
     apply(theme === "dark" ? "dark" : "light");
   }, [theme]);
 
-  // Ensure a smooth transition on theme changes
+  // Enable CSS transitions only after the first mount so the initial page
+  // paint doesn't animate (avoids flash-of-transition on load).
+  // The transition rule in globals.css is gated on [data-theme-ready].
   useEffect(() => {
-    const style = document.createElement("style");
-    style.id = "kora-theme-transition";
-    style.innerHTML = ":root{transition:background-color 200ms,color 200ms;}";
-    document.head.appendChild(style);
-    return () => {
-      const s = document.getElementById("kora-theme-transition");
-      if (s) s.remove();
-    };
+    document.documentElement.dataset.themeReady = "true";
   }, []);
 
-  return <>{children}</>;
+  return (
+    <ResolvedThemeContext.Provider value={resolved}>
+      {children}
+    </ResolvedThemeContext.Provider>
+  );
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 interface UseCopyToClipboard {
-  copy: (text: string) => Promise<void>;
+  copy: (text: string) => Promise<boolean>;
   copied: boolean;
   error: string | null;
 }
@@ -12,6 +12,13 @@ export function useCopyToClipboard(resetMs = 2000): UseCopyToClipboard {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
 
   const copy = useCallback(
     async (text: string) => {
@@ -33,12 +40,14 @@ export function useCopyToClipboard(resetMs = 2000): UseCopyToClipboard {
         }
         setCopied(true);
         timerRef.current = setTimeout(() => setCopied(false), resetMs);
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : "Copy failed");
         setCopied(false);
+        return false;
       }
     },
-    [resetMs]
+    [resetMs],
   );
 
   return { copy, copied, error };

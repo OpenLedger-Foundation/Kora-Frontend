@@ -26,7 +26,8 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
     },
     ref
   ) => {
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || React.useId();
+    const generatedId = React.useId();
+    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
 

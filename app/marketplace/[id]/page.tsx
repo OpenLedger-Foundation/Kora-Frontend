@@ -1,571 +1,85 @@
-"use client";
-
-import { useState } from "react";
-import { useParams, notFound } from "next/navigation";
-import Link from "next/link";
-import { motion } from "framer-motion";
+import { fetchInvoiceById } from "@/services/invoiceService";
+import { validateRouteId } from "@/lib/security";
+import { notFound } from "next/navigation";
+import InvoiceDetailClient from "./InvoiceDetailClient";
 import {
-  ArrowLeft,
-  ExternalLink,
-  Calendar,
-  MapPin,
-  Building2,
-  FileText,
-  Users,
-  TrendingUp,
-  Shield,
-  CheckCircle2,
-  AlertTriangle,
-} from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, GlassCard } from "@/components/ui/card";
-import { Progress, InvoiceFundingProgress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { useInvoice } from "@/hooks/useInvoices";
-import { useWallet } from "@/hooks/useWallet";
-import { useTransaction } from "@/hooks/useTransaction";
-import { useUIStore, useInvoiceStore } from "@/store";
-import { prepareFundInvoice } from "@/services/invoiceService";
-import { Badge, RiskBadge } from "@/components/ui/badge";
-import { MOCK_INVOICES } from "@/services/mockData";
+  invoiceFinancialProductSchema,
+  breadcrumbSchema,
+  serializeSchema,
+} from "@/lib/structuredData";
 import {
-  formatCurrency,
-  formatApr,
-  formatDate,
-  formatRelativeDate,
-  daysUntil,
-  STATUS_COLORS,
-  cn,
-} from "@/lib/utils";
+  buildPublicInvoiceSeo,
+  fetchIpfsMetadataForSeo,
+} from "@/lib/invoiceSeo";
 
-export default function InvoiceDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const { data: invoice, isLoading, dataUpdatedAt } = useInvoice(id);
-  const { isConnected, address } = useWallet();
-  const { setWalletModalOpen } = useUIStore();
-  const { execute } = useTransaction();
-  const queryClient = useQueryClient();
-  const [amount, setAmount] = useState("");
-  const [funding, setFunding] = useState(false);
-  const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+export { generateMetadata, revalidate } from "./metadata";
 
-  if (isLoading) return <DetailSkeleton />;
-  if (!invoice) return notFound();
+type Props = {
+  params: Promise<{ id: string }>;
+};
 
-  const { metadata, terms, funding: fundingState, riskTier, status } = invoice;
-  const days = daysUntil(terms.repaymentDate);
-  const daysToMaturity = Math.max(0, days);
-  
-  // SME Owner Gating Check
-  const isSmeOwner = isConnected && address && invoice.ownerAddress && address.toLowerCase() === invoice.ownerAddress.toLowerCase();
-  
-  // Already Fully Funded Check
-  const isFullyFunded = fundingState.fundingProgress >= 1.0 || status === "fully_funded";
-  
-  // Stateful Gating Eligibility
-  const canFund = (status === "listed" || status === "partially_funded") && !isFullyFunded && !isSmeOwner;
-  
-  const amountNum = parseFloat(amount) || 0;
-  
-  // Precise holding period Expected Return Calculator
-  const expectedReturn = amountNum * (1 + ((terms.apr / 100) * (daysToMaturity / 365)));
-
-  // Input validations for min-investment and remaining capacities
-  let inputError = "";
-  if (amountNum > 0) {
-    if (amountNum < terms.minInvestment) {
-      inputError = `Minimum investment is ${formatCurrency(terms.minInvestment, metadata.currency)}`;
-    } else if (amountNum > fundingState.remainingCapacity) {
-      inputError = `Amount exceeds remaining capacity of ${formatCurrency(fundingState.remainingCapacity, metadata.currency)}`;
-    }
+export default async function Page({ params }: Props) {
+  const { id } = await params;
+  const safeId = validateRouteId(id);
+  if (!safeId) {
+    return notFound();
   }
 
-  const handleFund = async () => {
-    if (!isConnected) { setWalletModalOpen(true); return; }
-    if (!amountNum || amountNum < terms.minInvestment || amountNum > fundingState.remainingCapacity) return;
-    setFunding(true);
+  // Prefetch on the server for JSON-LD (works in mock + live modes).
+  // Failures fall back to client-rendered page without structured data.
+  let jsonLd: string | null = null;
+  let breadcrumbLd: string | null = null;
 
-    // Optimistic update: immediately reflect new totals in UI
-    const newTotalRaised = fundingState.totalRaised + amountNum;
-    useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
+  try {
+    const invoice = await fetchInvoiceById(safeId);
+    if (invoice) {
+      const ipfsMeta = await fetchIpfsMetadataForSeo(invoice.ipfsCid);
+      const seo = buildPublicInvoiceSeo(invoice, ipfsMeta);
 
-    await execute(
-      () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
-      {
-        successMessage: "Invoice funded successfully!",
-        onSuccess: (txHash) => {
-          // DoD Requirement: Clear instructions and trace of exposes final txHash to developer console
-          console.log(`[Stellar/Soroban Factoring ESCROW Confirmation]
-Token NFT ID: ${invoice.tokenId}
-Escrow Amount deposited: ${amountNum} USDC
-Escrow Yield Expectation: ${expectedReturn - amountNum} USDC
-Stellar Testnet Transaction Hash: ${txHash}`);
-          
-          setFundTxHash(txHash);
+      jsonLd = serializeSchema(
+        invoiceFinancialProductSchema({
+          id: seo.id,
+          invoiceNumber: seo.invoiceNumber,
+          debtorName: seo.debtorLabel,
+          amount: seo.amount,
+          currency: seo.currency,
+          apr: seo.apr,
+          dueDate: seo.dueDate,
+          jurisdiction: seo.jurisdiction,
+          category: seo.category,
+          riskTier: seo.riskTier,
+        }),
+      );
 
-          // Calculate optimistic state changes
-          const newTotalRaised = fundingState.totalRaised + amountNum;
-          const isFull = newTotalRaised >= terms.financingAmount;
-          const newInvestorCount = fundingState.investorCount + 1;
-          const newRemaining = Math.max(0, terms.financingAmount - newTotalRaised);
-          const newProgress = Math.min(1, newTotalRaised / terms.financingAmount);
-          const newStatus = isFull ? "fully_funded" : "partially_funded";
-
-          const updatedInvoice = {
-            ...invoice,
-            status: newStatus as any,
-            funding: {
-              ...fundingState,
-              totalRaised: newTotalRaised,
-              investorCount: newInvestorCount,
-              remainingCapacity: newRemaining,
-              fundingProgress: newProgress,
-            },
-          };
-
-          // 1. Update Memory array directly so the list pages show dynamic updates
-          if (process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true") {
-            const mockIdx = MOCK_INVOICES.findIndex((i) => i.id === id);
-            if (mockIdx !== -1) {
-              MOCK_INVOICES[mockIdx] = updatedInvoice;
-            }
-          }
-
-          // 2. Update Zustand store invoices list
-          const { invoices, setInvoices } = useInvoiceStore.getState();
-          if (invoices && invoices.length > 0) {
-            const updatedInvoices = invoices.map((inv) =>
-              inv.id === id ? updatedInvoice : inv
-            );
-            setInvoices(updatedInvoices);
-          }
-
-          // 3. Update TanStack Server cache
-          queryClient.setQueryData(["invoice", id], updatedInvoice);
-          queryClient.invalidateQueries({ queryKey: ["invoices"] });
-
-          // Clear form input amount
-          setAmount("");
-        }
-        ,
-        onError: (err) => {
-          // Rollback optimistic change
-          useInvoiceStore.getState().rollbackInvoiceFunding(id);
-          console.error("Fund transaction failed", err);
-        }
-      }
-    );
-    setFunding(false);
-  };
+      breadcrumbLd = serializeSchema(
+        breadcrumbSchema([
+          { name: "Home", url: "/" },
+          { name: "Marketplace", url: "/marketplace" },
+          { name: seo.invoiceNumber, url: `/marketplace/${seo.id}` },
+        ]),
+      );
+    }
+  } catch {
+    // Structured data is best-effort; page still renders.
+  }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      {/* Back */}
-      <Link
-        href="/marketplace"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to Marketplace
-      </Link>
-
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* ── Left: Invoice Details ─────────────────────────────────────── */}
-        <div className="space-y-6 lg:col-span-2">
-          {/* Header card */}
-          <motion.div layoutId={`invoice-card-${id}`} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-            <Card>
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs text-zinc-500">{metadata.invoiceNumber}</p>
-                    <h1 className="mt-1 text-xl font-bold text-zinc-100">{metadata.debtorName}</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">{metadata.issuerName}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <RiskBadge tier={riskTier} />
-                    <div className="flex items-center gap-2">
-                      <span className={cn("rounded-md px-2 py-0.5 text-xs capitalize", STATUS_COLORS[status])}>
-                        {status.replace(/_/g, " ")}
-                      </span>
-                      {funding && (
-                        <span className="rounded-md bg-yellow-600/20 px-2 py-0.5 text-[11px] text-yellow-300">
-                          Pending confirmation
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Building2 className="h-4 w-4 text-zinc-600" />
-                    <span>{metadata.debtorAddress}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <MapPin className="h-4 w-4 text-zinc-600" />
-                    <span>{metadata.jurisdiction} · {metadata.category}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Calendar className="h-4 w-4 text-zinc-600" />
-                    <span>Issued {formatDate(metadata.issueDate)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-400">
-                    <Calendar className="h-4 w-4 text-zinc-600" />
-                    <span>Due {formatDate(metadata.dueDate)}</span>
-                  </div>
-                </div>
-                {metadata.description && (
-                  <p className="mt-4 text-sm text-zinc-500">{metadata.description}</p>
-                )}
-                {metadata.documentUrl && (
-                  <a
-                    href={metadata.documentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 text-sm text-kora-400 hover:text-kora-300"
-                  >
-                    <FileText className="h-4 w-4" /> View Invoice Document
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Financing terms */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle>Financing Terms</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  {[
-                    { label: "Invoice Amount", value: formatCurrency(metadata.amount, metadata.currency, true) },
-                    { label: "Financing Amount", value: formatCurrency(terms.financingAmount, metadata.currency, true) },
-                    { label: "Discount Rate", value: `${(terms.discountRate * 100).toFixed(1)}%` },
-                    { label: "APR", value: formatApr(terms.apr), highlight: true },
-                    { label: "Tenor", value: `${terms.tenor} days` },
-                    { label: "Repayment Date", value: formatDate(terms.repaymentDate) },
-                    { label: "Min Investment", value: formatCurrency(terms.minInvestment, metadata.currency, true) },
-                    { label: "Max Investment", value: formatCurrency(terms.maxInvestment, metadata.currency, true) },
-                    { label: "Days Remaining", value: days > 0 ? `${days} days` : "Overdue" },
-                  ].map(({ label, value, highlight }) => (
-                    <div key={label} className="rounded-lg bg-zinc-800/50 p-3">
-                      <p className="text-xs text-zinc-500">{label}</p>
-                      <p className={cn("mt-1 text-sm font-semibold", highlight ? "text-kora-400" : "text-zinc-200")}>
-                        {value}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Funding progress */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-zinc-500" /> Funding Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-zinc-400">
-                    {formatCurrency(fundingState.totalRaised, metadata.currency, true)} raised
-                  </span>
-                  <span className="font-semibold text-zinc-200">
-                    {Math.round(fundingState.fundingProgress * 100)}% of{" "}
-                    {formatCurrency(terms.financingAmount, metadata.currency, true)}
-                  </span>
-                </div>
-                <InvoiceFundingProgress
-                  funded={fundingState.totalRaised}
-                  target={fundingState.targetAmount}
-                  currency={metadata.currency}
-                  updatedAt={dataUpdatedAt}
-                />
-                <div className="grid grid-cols-3 gap-4 pt-2">
-                  <div>
-                    <p className="text-xs text-zinc-500">Investors</p>
-                    <p className="mt-0.5 text-lg font-semibold text-zinc-200">{fundingState.investorCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">Remaining</p>
-                    <p className="mt-0.5 text-lg font-semibold text-zinc-200">
-                      {formatCurrency(fundingState.remainingCapacity, metadata.currency, true)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zinc-500">Closes</p>
-                    <p className="mt-0.5 text-sm font-medium text-zinc-400">
-                      {formatRelativeDate(terms.repaymentDate)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* IPFS PDF Document Preview */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-zinc-500" /> IPFS Document Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {metadata.documentHash ? (
-                  <div className="overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 p-1">
-                    <iframe
-                      src={`${process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs"}/${metadata.documentHash}#toolbar=0&navpanes=0&scrollbar=0`}
-                      className="w-full h-[450px] rounded"
-                      title="Invoice PDF Document"
-                    />
-                    <div className="p-3 flex flex-wrap items-center justify-between gap-3 bg-zinc-950/80 border-t border-zinc-800 text-xs">
-                      <div className="truncate max-w-full text-zinc-400">
-                        <span className="font-semibold text-zinc-500 mr-1">IPFS CID:</span>
-                        <code className="text-zinc-300 font-mono text-[10px] select-all">{metadata.documentHash}</code>
-                      </div>
-                      <a
-                        href={process.env.NEXT_PUBLIC_IPFS_GATEWAY ? `${process.env.NEXT_PUBLIC_IPFS_GATEWAY}/${metadata.documentHash}` : metadata.documentUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 px-3 py-1.5 font-medium text-zinc-200 border border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
-                      >
-                        Open in external gateway <ExternalLink className="h-3 w-3" />
-                      </a>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-800 py-10 text-center">
-                    <FileText className="h-8 w-8 text-zinc-600 mb-2" />
-                    <p className="text-sm font-medium text-zinc-400">No document preview available</p>
-                    <p className="text-xs text-zinc-600 mt-1">This invoice does not have an attached PDF hash.</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-
-        {/* ── Right: Fund Panel ─────────────────────────────────────────── */}
-        <div className="space-y-4">
-          <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
-            <GlassCard className="p-6">
-              <div className="mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-kora-400" />
-                <h2 className="font-semibold text-zinc-100">Fund This Invoice</h2>
-              </div>
-
-              {/* APR Metric Badge */}
-              <div className="mb-6 rounded-lg bg-kora-500/5 border border-kora-500/10 p-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Expected APR</p>
-                  <p className="text-2xl font-bold text-kora-400 mt-0.5">{formatApr(terms.apr)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Maturity</p>
-                  <p className="text-xl font-bold text-zinc-200 mt-0.5">{daysToMaturity} days</p>
-                </div>
-              </div>
-
-              {/* Wallet Not Connected Gate */}
-              {!isConnected ? (
-                <div className="space-y-4">
-                  <div className="rounded-lg bg-zinc-800/40 border border-zinc-700/30 p-4 text-center">
-                    <p className="text-sm text-zinc-400">Connect your Stellar wallet to view yields and start investing.</p>
-                  </div>
-                  <Button
-                    className="w-full bg-kora-500 hover:bg-kora-600 text-white font-semibold"
-                    size="lg"
-                    onClick={() => setWalletModalOpen(true)}
-                  >
-                    Connect Wallet to Invest
-                  </Button>
-                </div>
-              ) : isSmeOwner ? (
-                /* SME Owner Self-Funding Lock Gate */
-                <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-4 space-y-3">
-                  <div className="flex gap-2.5 items-start">
-                    <AlertTriangle className="h-5 w-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-sm text-yellow-400">Self-Funding Blocked</p>
-                      <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                        You cannot fund your own invoice. Decoupled factoring escrow rules restrict invoice owners from bidding as liquidity providers.
-                      </p>
-                    </div>
-                  </div>
-                  <Button className="w-full cursor-not-allowed" variant="secondary" disabled size="lg">
-                    You cannot fund your own invoice
-                  </Button>
-                </div>
-              ) : isFullyFunded ? (
-                /* Already Fully Funded Lock Gate */
-                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-4 text-center space-y-3">
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500/10">
-                    <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-emerald-400 text-sm">Invoice Fully Funded</p>
-                    <p className="text-xs text-zinc-400 mt-1">
-                      This invoice has completed its financing target and is now locked in smart contract escrow.
-                    </p>
-                  </div>
-                  <Button className="w-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-not-allowed font-semibold" disabled size="lg">
-                    Fully Funded
-                  </Button>
-                </div>
-              ) : (
-                /* Active Investor Funding Input Card */
-                <div className="space-y-4">
-                  <div>
-                    <Input
-                      label="Investment Amount (USDC)"
-                      type="number"
-                      placeholder={`Min ${terms.minInvestment}`}
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      hint={`Min: $${terms.minInvestment.toLocaleString()} · Remaining Capacity: $${fundingState.remainingCapacity.toLocaleString()}`}
-                      disabled={funding}
-                      className={cn(inputError && "border-red-500 focus-visible:ring-red-500")}
-                    />
-                    {inputError && (
-                      <p className="mt-1.5 text-xs text-red-400 font-medium flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" /> {inputError}
-                      </p>
-                    )}
-                  </div>
-
-                  {amountNum > 0 && !inputError && (
-                    <div className="rounded-lg bg-zinc-800/40 border border-zinc-800 p-3.5 space-y-2 text-sm">
-                      <div className="flex justify-between text-zinc-400">
-                        <span>Investment Principal</span>
-                        <span className="font-mono">{formatCurrency(amountNum, "USDC")}</span>
-                      </div>
-                      <div className="flex justify-between text-zinc-400">
-                        <span>Holding Duration</span>
-                        <span className="font-semibold text-zinc-300">{daysToMaturity} days</span>
-                      </div>
-                      <hr className="border-zinc-800 my-1.5" />
-                      <div className="flex justify-between font-semibold text-zinc-200">
-                        <span>Total Expected Payoff</span>
-                        <span className="font-mono">{formatCurrency(expectedReturn, "USDC")}</span>
-                      </div>
-                      <div className="flex justify-between text-xs text-kora-400 font-semibold pt-0.5">
-                        <span>Net Yield</span>
-                        <span className="font-mono">+{formatCurrency(expectedReturn - amountNum, "USDC")}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <Button
-                    className="w-full bg-kora-500 hover:bg-kora-600 text-white font-semibold shadow-lg shadow-kora-500/20"
-                    size="lg"
-                    onClick={handleFund}
-                    loading={funding}
-                    disabled={!canFund || !!inputError || !amountNum}
-                  >
-                    Fund Invoice
-                  </Button>
-
-                  <p className="text-center text-[10px] text-zinc-500 leading-normal">
-                    Liquidity deposits are held securely in Soroban escrow smart contracts until repayment is confirmed.
-                  </p>
-                </div>
-              )}
-            </GlassCard>
-          </motion.div>
-
-          {/* Risk info */}
-          <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.25 }}>
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Shield className="h-4 w-4 text-zinc-500" />
-                <p className="text-sm font-medium text-zinc-300">Risk Assessment</p>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-zinc-500">Risk Tier</span>
-                  <RiskBadge tier={riskTier} />
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">Risk Score</span>
-                  <span className="text-zinc-300">{invoice.riskScore}/100</span>
-                </div>
-                <Progress value={invoice.riskScore} className="h-1.5" />
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Fund Success Block */}
-          {fundTxHash && (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-              <GlassCard className="p-5 border-emerald-500/20 bg-emerald-500/5 space-y-2">
-                <div className="flex gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0" />
-                  <div className="space-y-1 text-sm">
-                    <p className="font-bold text-emerald-400">Factoring escrow deposits funded!</p>
-                    <p className="text-xs text-zinc-400 leading-relaxed">
-                      Escrow deposit completed successfully. Your factoring shares are logged under on-chain token state.
-                    </p>
-                    <div className="pt-2">
-                      <a
-                        href={fundTxHash.startsWith("mock_") ? "#" : `https://stellar.expert/explorer/testnet/tx/${fundTxHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-kora-400 hover:text-kora-300 font-semibold"
-                      >
-                        <ExternalLink className="h-3 w-3" /> View transaction on Stellar Expert
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-            </motion.div>
-          )}
-
-          {/* On-chain info */}
-          {invoice.txHash && (
-            <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
-              <Card className="p-4">
-                <p className="mb-2 text-xs text-zinc-500">On-Chain</p>
-                <a
-                  href={`https://stellar.expert/explorer/testnet/tx/${invoice.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-xs text-kora-400 hover:text-kora-300"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  View mint transaction
-                </a>
-              </Card>
-            </motion.div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-      <Skeleton className="mb-6 h-4 w-32" />
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-48 w-full" />
-          ))}
-        </div>
-        <Skeleton className="h-80 w-full" />
-      </div>
-    </div>
+    <>
+      {jsonLd ? (
+        <script
+          id="ld-invoice"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd }}
+        />
+      ) : null}
+      {breadcrumbLd ? (
+        <script
+          id="ld-breadcrumb-invoice"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: breadcrumbLd }}
+        />
+      ) : null}
+      <InvoiceDetailClient id={safeId} />
+    </>
   );
 }
