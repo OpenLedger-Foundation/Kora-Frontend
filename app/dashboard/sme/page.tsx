@@ -31,7 +31,7 @@ import {
   type BatchActionType,
 } from "@/lib/batch/txQueue";
 import { isBatchCancelEligible, isBatchRepayEligible } from "@/lib/batch/eligibility";
-import { sequenceManager } from "@/lib/stellar/client";
+import { BadSequenceError, sequenceManager } from "@/lib/stellar/client";
 
 const BatchActionToolbar = dynamic(
   () => import("@/components/dashboard/BatchActionToolbar").then((m) => m.BatchActionToolbar),
@@ -350,14 +350,29 @@ export default function SMEDashboardPage() {
       // Ensure SequenceManager stays in the batch path (builders/submit use it).
       void sequenceManager;
 
-      const unsignedXdr =
-        item.action === "cancel"
-          ? await prepareCancelInvoice(item.tokenId, address)
-          : await prepareRepayInvoice(item.tokenId, address, address);
+      let attempt = 0;
+      while (attempt < 2) {
+        const unsignedXdr =
+          item.action === "cancel"
+            ? await prepareCancelInvoice(item.tokenId, address)
+            : await prepareRepayInvoice(item.tokenId, address, address);
 
-      const signedXdr = await signTransaction(unsignedXdr);
-      const txHash = await submitAndConfirm(signedXdr);
-      return { txHash };
+        const signedXdr = await signTransaction(unsignedXdr);
+
+        try {
+          const txHash = await submitAndConfirm(signedXdr);
+          return { txHash };
+        } catch (err) {
+          if (attempt === 0 && err instanceof BadSequenceError) {
+            attempt += 1;
+            await sequenceManager.reset(address);
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      throw new Error("Transaction failed after retry");
     },
     [address, signTransaction]
   );

@@ -144,13 +144,21 @@ export function useTransaction() {
         setTxState({ status } as any);
       }
       // Show loading toast for in-progress stages
-      const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
+      const inProgress: TxLifecycleStatus[] = [
+        "building",
+        "simulating",
+        "signing",
+        "submitting",
+        "retrying",
+        "polling",
+      ];
       if (inProgress.includes(status)) {
         const labels: Record<string, string> = {
           building: t("building"),
           simulating: t("simulating"),
           signing: t("signing"),
           submitting: t("submitting"),
+          retrying: t("retrying"),
           polling: t("polling"),
         };
         toast.loading(labels[status] ?? status, TOAST_ID, "txConfirmed");
@@ -252,19 +260,42 @@ export function useTransaction() {
           signedXdr = await signTransaction(unsignedXdr);
         }
 
-        // 4. Submit
+        // 4. Submit (with retry on tx_bad_seq)
         setStage("submitting");
         let hash: string;
+        let signedXdrAttempt = signedXdr;
+        let hasRetried = false;
 
-        if (signedXdr.startsWith("mock_")) {
-          await new Promise((r) => setTimeout(r, 800));
-          hash = Array.from({ length: 64 }, () =>
-            Math.floor(Math.random() * 16).toString(16)
-          ).join("");
-        } else {
-          const result = await submitTransaction(signedXdr);
-          if (result.status === "ERROR") throw new Error("Transaction submission failed");
-          hash = result.hash;
+        while (true) {
+          try {
+            if (signedXdrAttempt.startsWith("mock_")) {
+              await new Promise((r) => setTimeout(r, 800));
+              hash = Array.from({ length: 64 }, () =>
+                Math.floor(Math.random() * 16).toString(16)
+              ).join("");
+            } else {
+              const result = await submitTransaction(signedXdrAttempt);
+              if (result.status === "ERROR") throw new Error("Transaction submission failed");
+              hash = result.hash;
+            }
+            break;
+          } catch (err) {
+            if (
+              !hasRetried &&
+              err instanceof BadSequenceError &&
+              publicKey
+            ) {
+              hasRetried = true;
+              setStage("retrying");
+              await sequenceManager.reset(publicKey);
+              const retryUnsignedXdr = await buildFn();
+              signedXdrAttempt = retryUnsignedXdr.startsWith("mock_")
+                ? retryUnsignedXdr
+                : await signTransaction(retryUnsignedXdr);
+              continue;
+            }
+            throw err;
+          }
         }
 
         // Add to history as pending
