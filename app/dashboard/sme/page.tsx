@@ -218,6 +218,25 @@ export default function SMEDashboardPage() {
   // Must run before the early return below so hook order stays stable across renders.
   const { executeProtectedAction } = useVerifiedAction();
 
+  // useCallback must also be called before any early return (Rules of Hooks).
+  const runBatchExecutor = useCallback(
+    async (item: BatchQueueItem) => {
+      if (!address) throw new Error("Wallet not connected");
+      // Ensure SequenceManager stays in the batch path (builders/submit use it).
+      void sequenceManager;
+
+      const unsignedXdr =
+        item.action === "cancel"
+          ? await prepareCancelInvoice(item.tokenId, address)
+          : await prepareRepayInvoice(item.tokenId, address, address);
+
+      const signedXdr = await signTransaction(unsignedXdr);
+      const txHash = await submitAndConfirm(signedXdr);
+      return { txHash };
+    },
+    [address, signTransaction]
+  );
+
   if (!isConnected) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
@@ -342,24 +361,6 @@ export default function SMEDashboardPage() {
     setBatchAction("repay");
     setRepayConfirmOpen(true);
   };
-
-  const runBatchExecutor = useCallback(
-    async (item: BatchQueueItem) => {
-      if (!address) throw new Error("Wallet not connected");
-      // Ensure SequenceManager stays in the batch path (builders/submit use it).
-      void sequenceManager;
-
-      const unsignedXdr =
-        item.action === "cancel"
-          ? await prepareCancelInvoice(item.tokenId, address)
-          : await prepareRepayInvoice(item.tokenId, address, address);
-
-      const signedXdr = await signTransaction(unsignedXdr);
-      const txHash = await submitAndConfirm(signedXdr);
-      return { txHash };
-    },
-    [address, signTransaction]
-  );
 
   const finishBatch = (action: BatchActionType) => {
     const snap = queueRef.current.getSnapshot();

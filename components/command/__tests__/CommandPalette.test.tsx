@@ -1,12 +1,26 @@
 /**
- * Tests for CommandPalette invoice search (issue #213).
+ * Tests for CommandPalette (issue #510 — navigation, wallet, and invoice actions).
  *
  * Covers:
+ *  ── Invoice search (issue #213, retained) ───────────────────────────────────
  *  - Filtering invoices by debtor name, invoice number, token ID, and face value
  *  - 300ms debounce before the invoice list is filtered
  *  - Status badge + funded % shown alongside each invoice result
  *  - Selecting an invoice result navigates to /marketplace/[id]
  *  - Keyboard navigation (arrow keys + Enter) selects a result
+ *
+ *  ── Navigation commands (issue #510) ────────────────────────────────────────
+ *  - All PAGE_COMMANDS labels are visible when the palette opens with no query
+ *  - Selecting a page command navigates to the correct route
+ *
+ *  ── Wallet actions (issue #510) ─────────────────────────────────────────────
+ *  - "Connect Wallet" shown when disconnected, hidden when connected
+ *  - "Disconnect Wallet" shown when connected, hidden when disconnected
+ *  - Clicking "Disconnect Wallet" calls disconnect()
+ *  - Clicking "Connect Wallet" opens the wallet modal
+ *
+ *  ── Recent items (issue #510) ────────────────────────────────────────────────
+ *  - Recent items stored by pushRecent appear in the Recent section
  */
 
 import React from "react";
@@ -15,6 +29,7 @@ import { render, screen, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CommandPalette } from "@/components/command/CommandPalette";
 import { createMockInvoice } from "@/__tests__/fixtures";
+import type { RecentItem } from "@/hooks/useCommandPalette";
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
@@ -30,22 +45,37 @@ let paletteOpen = true;
 const setOpenMock = vi.fn((v: boolean) => {
   paletteOpen = v;
 });
+let recentItems: RecentItem[] = [];
+const getRecentMock = vi.fn(() => recentItems);
+const pushRecentMock = vi.fn();
+const clearRecentMock = vi.fn();
+
 vi.mock("@/hooks/useCommandPalette", () => ({
   useCommandPalette: () => ({
     open: paletteOpen,
     setOpen: setOpenMock,
-    getRecent: () => [],
-    pushRecent: vi.fn(),
+    getRecent: getRecentMock,
+    pushRecent: pushRecentMock,
+    clearRecent: clearRecentMock,
   }),
+  COMMAND_PALETTE_SHORTCUTS: [],
 }));
 
+let walletConnected = true;
 vi.mock("@/hooks/useWallet", () => ({
-  useWallet: () => ({ isConnected: true }),
+  useWallet: () => ({ isConnected: walletConnected }),
 }));
 
+const setWalletModalOpenMock = vi.fn();
 vi.mock("@/store/uiStore", () => ({
-  useUIStore: (selector: (s: { setWalletModalOpen: () => void }) => unknown) =>
-    selector({ setWalletModalOpen: vi.fn() }),
+  useUIStore: (selector: (s: { setWalletModalOpen: typeof setWalletModalOpenMock }) => unknown) =>
+    selector({ setWalletModalOpen: setWalletModalOpenMock }),
+}));
+
+const disconnectMock = vi.fn();
+vi.mock("@/store", () => ({
+  useWalletStore: (selector: (s: { disconnect: typeof disconnectMock }) => unknown) =>
+    selector({ disconnect: disconnectMock }),
 }));
 
 const mockInvoices = [
@@ -81,11 +111,14 @@ vi.mock("@/hooks/useInvoices", () => ({
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   paletteOpen = true;
+  walletConnected = true;
+  recentItems = [];
   vi.useFakeTimers({ shouldAdvanceTime: true });
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.clearAllMocks();
 });
 
 async function typeQuery(user: ReturnType<typeof userEvent.setup>, text: string) {
@@ -93,7 +126,7 @@ async function typeQuery(user: ReturnType<typeof userEvent.setup>, text: string)
   await user.type(input, text);
 }
 
-// ── Tests ──────────────────────────────────────────────────────────────────────
+// ── Invoice search tests (issue #213) ──────────────────────────────────────────
 
 describe("CommandPalette — invoice search", () => {
   it("filters invoices by debtor name after the debounce window", async () => {
@@ -183,5 +216,153 @@ describe("CommandPalette — invoice search", () => {
     await user.keyboard("{Enter}");
 
     await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/marketplace/inv-safaricom"));
+  });
+});
+
+// ── Navigation commands (issue #510) ──────────────────────────────────────────
+
+describe("CommandPalette — navigation commands", () => {
+  const PAGE_LABELS = [
+    "Marketplace",
+    "Investor Dashboard",
+    "My Invoices",
+    "Create Invoice",
+    "Transaction History",
+    "Analytics",
+  ];
+
+  it("renders all primary page command labels when the palette is open with no query", () => {
+    render(<CommandPalette />);
+    for (const label of PAGE_LABELS) {
+      // Some labels (e.g. "Create Invoice") may appear in both Pages and Actions groups
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("navigates to /marketplace when Marketplace is selected", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await user.click(screen.getByText("Marketplace"));
+    expect(pushMock).toHaveBeenCalledWith("/marketplace");
+    expect(setOpenMock).toHaveBeenCalledWith(false);
+  });
+
+  it("navigates to /transactions when Transaction History is selected", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await user.click(screen.getByText("Transaction History"));
+    expect(pushMock).toHaveBeenCalledWith("/transactions");
+  });
+
+  it("navigates to /analytics when Analytics is selected", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await user.click(screen.getByText("Analytics"));
+    expect(pushMock).toHaveBeenCalledWith("/analytics");
+  });
+
+  it("filters page commands by search query", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await typeQuery(user, "Market");
+
+    // HighlightMatch splits the text into spans with a <mark> around the match,
+    // so we use a container query via data-testid instead.
+    expect(screen.getByTestId("nav-page-marketplace")).toBeInTheDocument();
+    // Analytics page item should not be rendered when query is "Market"
+    expect(screen.queryByTestId("nav-page-analytics")).not.toBeInTheDocument();
+  });
+});
+
+// ── Wallet actions (issue #510) ────────────────────────────────────────────────
+
+describe("CommandPalette — wallet actions (disconnected)", () => {
+  beforeEach(() => {
+    walletConnected = false;
+  });
+
+  it("shows Connect Wallet action when not connected", () => {
+    render(<CommandPalette />);
+    expect(screen.getByText("Connect Wallet")).toBeInTheDocument();
+  });
+
+  it("does not show Disconnect Wallet when not connected", () => {
+    render(<CommandPalette />);
+    expect(screen.queryByText("Disconnect Wallet")).not.toBeInTheDocument();
+  });
+
+  it("clicking Connect Wallet opens the wallet modal and closes the palette", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await user.click(screen.getByText("Connect Wallet"));
+
+    expect(setWalletModalOpenMock).toHaveBeenCalledWith(true);
+    expect(setOpenMock).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("CommandPalette — wallet actions (connected)", () => {
+  beforeEach(() => {
+    walletConnected = true;
+  });
+
+  it("shows Disconnect Wallet action when connected", () => {
+    render(<CommandPalette />);
+    expect(screen.getByText("Disconnect Wallet")).toBeInTheDocument();
+  });
+
+  it("does not show Connect Wallet when already connected", () => {
+    render(<CommandPalette />);
+    expect(screen.queryByText("Connect Wallet")).not.toBeInTheDocument();
+  });
+
+  it("clicking Disconnect Wallet calls disconnect() and closes the palette", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await user.click(screen.getByText("Disconnect Wallet"));
+
+    expect(disconnectMock).toHaveBeenCalledTimes(1);
+    expect(setOpenMock).toHaveBeenCalledWith(false);
+  });
+});
+
+// ── Recent items (issue #510) ──────────────────────────────────────────────────
+
+describe("CommandPalette — recent items", () => {
+  it("shows a Recent section when getRecent returns items", () => {
+    recentItems = [
+      { id: "/marketplace", label: "Marketplace", href: "/marketplace", type: "page" },
+    ];
+    render(<CommandPalette />);
+    // Marketplace appears in both Recent and Pages groups
+    expect(screen.getAllByText("Marketplace").length).toBeGreaterThan(0);
+    // The "Recent" heading should be in the DOM
+    expect(screen.getByText("Recent")).toBeInTheDocument();
+  });
+
+  it("does not show a Recent section when there are no recent items", () => {
+    recentItems = [];
+    render(<CommandPalette />);
+    expect(screen.queryByText("Recent")).not.toBeInTheDocument();
+  });
+
+  it("clicking a recent item navigates and closes the palette", async () => {
+    recentItems = [
+      { id: "/analytics", label: "Analytics", href: "/analytics", type: "page" },
+    ];
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    // Analytics appears in both Recent and Pages — click the first occurrence
+    const analyticsItems = screen.getAllByText("Analytics");
+    await user.click(analyticsItems[0]);
+
+    expect(setOpenMock).toHaveBeenCalledWith(false);
   });
 });

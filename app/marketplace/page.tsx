@@ -10,9 +10,7 @@ import {
   ArrowUpDown,
   X,
   Check,
-  ChevronDown,
   RotateCcw,
-  FileQuestion,
   Clock,
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
@@ -489,10 +487,18 @@ function MarketplaceContent() {
 
   const virtualListRef = useRef<HTMLDivElement>(null);
 
+  // Estimate row height based on columns:
+  // - 1 col (mobile)  → cards are wider, less vertical wrapping → ~500px
+  // - 2 cols (tablet) → moderate height → ~460px
+  // - 3 cols (desktop) → narrower cards, more wrapping → ~510px
+  // measureElement corrects the estimate after render, so accuracy here only
+  // affects the initial scroll-height calculation (no layout thrashing on filter).
+  const estimatedRowHeight = columns === 1 ? 500 : columns === 2 ? 460 : 510;
+
   const rowVirtualizer = useWindowVirtualizer({
     count: virtualRows.length,
-    estimateSize: () => 450,
-    overscan: 2,
+    estimateSize: () => estimatedRowHeight,
+    overscan: columns === 1 ? 3 : 2,
     scrollMargin: virtualListRef.current?.offsetTop ?? 0,
   });
   // Active filters count for clearing badge
@@ -775,6 +781,8 @@ function MarketplaceContent() {
                   className="relative w-full"
                   style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
                   data-testid="virtual-invoice-list"
+                  data-virtualized="true"
+                  aria-label={`Invoice grid, ${filteredInvoices.length} invoices`}
                 >
                   {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const rowInvoices = virtualRows[virtualRow.index];

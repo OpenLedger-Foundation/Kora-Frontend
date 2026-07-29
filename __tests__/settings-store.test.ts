@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useSettingsStore, DEFAULT_NOTIFICATION_PREFS } from "../store/settingsStore";
+import { useSettingsStore, DEFAULT_NOTIFICATION_PREFS, DEFAULT_TOUR_SETTINGS } from "../store/settingsStore";
 
 function resetStore() {
-  useSettingsStore.setState({ notifications: { ...DEFAULT_NOTIFICATION_PREFS } });
+  useSettingsStore.setState({
+    notifications: { ...DEFAULT_NOTIFICATION_PREFS },
+    tour: { ...DEFAULT_TOUR_SETTINGS },
+  });
 }
 
 describe("settingsStore — notification preferences", () => {
@@ -43,3 +46,33 @@ describe("settingsStore — notification preferences", () => {
     expect(useSettingsStore.getState().notifications).toEqual(DEFAULT_NOTIFICATION_PREFS);
   });
 });
+
+describe("settingsStore — onboarding tour settings", () => {
+  beforeEach(resetStore);
+
+  it("defaults to investor persona and step 0", () => {
+    const { tour } = useSettingsStore.getState();
+    expect(tour.persona).toBe("investor");
+    expect(tour.stepIndex).toBe(0);
+    expect(tour.completed).toBe(false);
+    expect(tour.skipped).toBe(false);
+  });
+
+  it("updates tour settings properly", () => {
+    useSettingsStore.getState().setTourSettings({ persona: "sme", stepIndex: 2 });
+    const { tour } = useSettingsStore.getState();
+    expect(tour.persona).toBe("sme");
+    expect(tour.stepIndex).toBe(2);
+  });
+
+  it("restarts tour and resets stepIndex/completed/skipped", () => {
+    useSettingsStore.getState().setTourSettings({ stepIndex: 3, completed: true });
+    useSettingsStore.getState().restartTour("sme");
+    const { tour } = useSettingsStore.getState();
+    expect(tour.persona).toBe("sme");
+    expect(tour.stepIndex).toBe(0);
+    expect(tour.completed).toBe(false);
+    expect(tour.skipped).toBe(false);
+  });
+});
+

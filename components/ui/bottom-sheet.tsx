@@ -14,7 +14,12 @@ interface BottomSheetProps {
 /**
  * BottomSheet component - a slide-up panel from the bottom of the screen.
  * Mobile-optimized for responsive layouts, appears on screens below lg breakpoint.
- * Dismissible by overlay tap, Escape key, or swipe (swipe via browser back gesture).
+ *
+ * Dismissal methods:
+ *  - Tap the backdrop overlay
+ *  - Press Escape
+ *  - Click the close (×) button in the header
+ *  - Swipe the drag handle (or the header area) downward ≥ 80px (Issue #471)
  *
  * Keyboard support (#440): Escape closes the sheet, focus moves into the
  * panel on open and returns to the triggering element on close, and Tab is
@@ -30,6 +35,7 @@ export function BottomSheet({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // ── Scroll lock ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -41,6 +47,7 @@ export function BottomSheet({
     };
   }, [open]);
 
+  // ── Keyboard: Escape + Tab trap ─────────────────────────────────────────────
   useEffect(() => {
     if (!open) return;
 
@@ -86,6 +93,26 @@ export function BottomSheet({
     };
   }, [open, onOpenChange]);
 
+  // ── Touch: swipe-down to dismiss (Issue #471) ────────────────────────────────
+  // Attached to the drag-handle area at the top of the panel. A downward
+  // swipe of ≥ 80px closes the sheet. We do NOT call preventDefault() so
+  // native scroll within the content area is unaffected.
+  const touchStartY = useRef<number | null>(null);
+
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
+    touchStartY.current = e.touches[0].clientY;
+  }
+
+  function handleTouchEnd(e: React.TouchEvent<HTMLDivElement>) {
+    if (touchStartY.current === null) return;
+    const delta = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartY.current = null;
+    // 80px threshold — deliberate swipe, not an accidental nudge
+    if (delta >= 80) {
+      onOpenChange(false);
+    }
+  }
+
   if (!open) return null;
 
   return (
@@ -111,9 +138,22 @@ export function BottomSheet({
             "animate-in slide-in-from-bottom-5 duration-300"
           )}
         >
+          {/* Drag handle — touch target for swipe-to-dismiss */}
+          <div
+            data-testid="bottom-sheet-drag-handle"
+            aria-hidden="true"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            className="mx-auto mb-4 h-1 w-10 rounded-full bg-zinc-700 cursor-grab active:cursor-grabbing"
+          />
+
           {/* Header with title and close button */}
           {title && (
-            <div className="flex items-center justify-between border-b border-zinc-900 pb-4 mb-6">
+            <div
+              className="flex items-center justify-between border-b border-zinc-900 pb-4 mb-6"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
               <h2 id={titleId} className="text-md font-bold text-zinc-150">{title}</h2>
               <button
                 onClick={() => onOpenChange(false)}

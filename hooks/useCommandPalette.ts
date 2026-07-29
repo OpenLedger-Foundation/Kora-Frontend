@@ -13,6 +13,20 @@ export interface RecentItem {
   type: "page" | "invoice";
 }
 
+/**
+ * Short list of command-palette–specific shortcuts for the
+ * ShortcutReferenceModal (complements SHORTCUT_DEFINITIONS in useKeyboardShortcuts).
+ */
+export const COMMAND_PALETTE_SHORTCUTS: Array<{
+  label: string;
+  description: string;
+}> = [
+  { label: "⌘K / Ctrl+K", description: "Open / close command palette" },
+  { label: "↑ ↓", description: "Navigate results" },
+  { label: "↵", description: "Select highlighted command" },
+  { label: "Esc", description: "Close command palette" },
+];
+
 function loadRecent(): RecentItem[] {
   if (typeof window === "undefined") return [];
   try {
@@ -50,5 +64,9 @@ export function useCommandPalette() {
     saveRecent([item, ...prev].slice(0, MAX_RECENT));
   }, []);
 
-  return { open, setOpen, getRecent, pushRecent };
+  const clearRecent = useCallback(() => {
+    saveRecent([]);
+  }, []);
+
+  return { open, setOpen, getRecent, pushRecent, clearRecent };
 }

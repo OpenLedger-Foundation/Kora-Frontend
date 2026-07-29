@@ -1,6 +1,6 @@
 {
   "name": "kora-frontend",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "private": true,
   "description": "On-chain Invoice Financing Protocol built on Stellar Soroban",
   "scripts": {
@@ -92,6 +92,7 @@
     "autoprefixer": "^10.4.20",
     "axe-playwright": "2.0.3",
     "bundlesize": "0.18.2",
+    "dotenv": "^17.4.2",
     "eslint": "^8.57.1",
     "eslint-config-next": "15.5.19",
     "husky": "9.1.7",
@@ -128,7 +129,5 @@
       "maxSize": "300 kB"
     }
   ],
-  "overrides": {
-    "std-env": "3.8.0"
-  }
+  "overrides": {}
 }

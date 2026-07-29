@@ -1,10 +1,10 @@
 "use client";
 
-import { Keyboard, RotateCcw } from "lucide-react";
+import { Compass, Keyboard, RotateCcw } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useUIStore } from "@/store/uiStore";
-import { useSettingsStore } from "@/store/settingsStore";
+import { useSettingsStore, type MaturityReminderDays, type Persona } from "@/store/settingsStore";
 import { Button } from "@/components/ui/button";
-import type { MaturityReminderDays } from "@/store/settingsStore";
 
 const NOTIFICATION_ITEMS: Array<{
   key: "maturityReminder" | "fundingAlerts" | "repaymentAlerts";
@@ -60,7 +60,8 @@ function Toggle({
 }
 
 export function NotificationSettings() {
-  const { notifications, setNotifications, resetNotifications } = useSettingsStore();
+  const t = useTranslations("onboarding");
+  const { notifications, setNotifications, resetNotifications, tour, setTourSettings, restartTour } = useSettingsStore();
   const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
   const setShortcutsEnabled = useUIStore((s) => s.setShortcutsEnabled);
 
@@ -115,6 +116,47 @@ export function NotificationSettings() {
         Reset to defaults
       </Button>
 
+      {/* ── Onboarding Tour Settings ────────────────────────────────────── */}
+      <div className="space-y-1 pt-2">
+        <h3 className="text-base font-semibold text-foreground">Onboarding Tour</h3>
+        <p className="text-sm text-muted-foreground">
+          {t("restartTourDesc")}
+        </p>
+      </div>
+      <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+        <div>
+          <label htmlFor="tour-persona-select" className="block text-xs font-medium text-foreground">
+            {t("activePersona")}
+          </label>
+          <select
+            id="tour-persona-select"
+            value={tour.persona}
+            onChange={(e) => setTourSettings({ persona: e.target.value as Persona })}
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground"
+          >
+            <option value="investor">{t("personaInvestor")}</option>
+            <option value="sme">{t("personaSme")}</option>
+          </select>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+          <span>Status:</span>
+          <span className="font-medium text-foreground">
+            {tour.completed ? t("tourCompleted") : tour.skipped ? t("tourSkipped") : `Step ${(tour.stepIndex ?? 0) + 1}`}
+          </span>
+        </div>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          className="w-full"
+          leftIcon={<Compass className="h-3.5 w-3.5" />}
+          onClick={() => restartTour(tour.persona)}
+        >
+          {t("restartTour")}
+        </Button>
+      </div>
+
       {/* ── Keyboard shortcuts toggle ──────────────────────────────────────── */}
       <div className="space-y-1 pt-2">
         <h3 className="text-base font-semibold text-foreground">Keyboard Shortcuts</h3>
@@ -141,3 +183,4 @@ export function NotificationSettings() {
     </div>
   );
 }
+

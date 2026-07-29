@@ -1,3 +1,21 @@
+# [1.9.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.8.0...v1.9.0) (2026-07-29)
+
+
+### Features
+
+* Close i18n gaps across four locales with CI missing-key check ([154a2e5](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/154a2e568e15687a6f95cb99d05a21612622dfa6))
+* commit Virtualize marketplace grid and add performance CI gate ([94b8239](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/94b8239aafec57f93e8e420957ef289d5d6b2b43))
+* integrate Synaps KYC SDK, secondary escrow UX, gate funding, and dashboard widgets ([98e3cd5](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/98e3cd5c27c5a4a6ae64818bccb4f51726393f55)), closes [#487](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/487) [#488](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/488) [#490](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/490) [#491](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/491)
+* **marketplace:** add comparison store persistence and shareable comparison urls ([0185e45](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/0185e45cbb2c624969d8e74598eaafa511e5a99e))
+* **performance:** optimize marketplace with virtualized invoice grid ([#435](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/435)) ([1742780](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/1742780e9ca401bd011873e25f2be64eb33bed60))
+* Polish theme toggle with system preference and FOUC prevention ([adc3485](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/adc3485248a0d1926584e8cad5bf713255e7525b))
+* resolve issues [#472](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/472), [#469](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/469), [#465](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/465), and [#464](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/464) ([52f3686](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/52f3686e14dabee1a286c77f0352b8d041d658ad))
+* **secondary-market:** build secondary market browse page with position filters ([195ab16](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/195ab16c8aac1b5656791d142afd99b8ab7d87a9))
+* **secondary-market:** implement transfer_position soroban contract integration ([43a5a3c](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/43a5a3c64f6cc0262771033142693900b1177797))
+* **soroban:** harden sequence manager for concurrent multi-tx flows ([634bdfe](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/634bdfe0e14def6d085b782da64f90f2e64caca6))
+* **testing:** add ipfs upload and verification integration tests ([3c6d610](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/3c6d6101c15483773575e50ab56ad31effec692e))
+* **testing:** build api route integration tests for auth and upload ([#476](https://github.com/OpenLedger-Foundation/Kora-Frontend/issues/476)) ([4cd481e](https://github.com/OpenLedger-Foundation/Kora-Frontend/commit/4cd481e8eddc8928d9b951b466def3a73ddd7b8a))
+
 # [1.8.0](https://github.com/OpenLedger-Foundation/Kora-Frontend/compare/v1.7.0...v1.8.0) (2026-07-27)
 
 

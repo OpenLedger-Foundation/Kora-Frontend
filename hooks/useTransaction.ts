@@ -400,3 +400,18 @@ export function useTransferPositionFlow() {
     simulationDialogProps,
   };
 }
+
+/** Returns live-region messages for accessible transaction announcements (#441). */
+export function useTxAnnouncement(): { polite?: string; assertive?: string } {
+  const txState = useUIStore((s) => s.txState);
+  if (txState.status === "failed") {
+    return { assertive: txState.error || "Transaction failed" };
+  }
+  if (txState.status !== "idle" && txState.status !== "confirmed") {
+    return { polite: `Transaction ${txState.status}...` };
+  }
+  if (txState.status === "confirmed") {
+    return { polite: "Transaction confirmed" };
+  }
+  return {};
+}

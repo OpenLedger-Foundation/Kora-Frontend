@@ -16,6 +16,7 @@ import {
   FileText,
   RefreshCw,
   Gift,
+  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,47 +25,61 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Container } from "@/components/layout/Container";
 import { useWallet } from "@/hooks/useWallet";
-import { useUIStore, useTransactionStore } from "@/store";
-import type { TxRecord, TxType } from "@/store/transactionStore";
-import { cn, exportCsv } from "@/lib/utils";
+import { useUIStore, useTransactionHistoryStore } from "@/store";
+import type { TransactionRecord, HistoryTxType } from "@/store";
+import { cn } from "@/lib/utils";
+import { exportCsv } from "@/lib/export";
 import { useFormatters } from "@/hooks/useFormatters";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { safeStellarTxUrl } from "@/lib/security";
 import EmptyState from "@/components/ui/EmptyState";
+import { DatePicker } from "@/components/ui/date-picker";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const TX_TYPE_CONFIG: Record<
-  TxType,
+  HistoryTxType,
   { label: string; icon: React.ElementType; colorClass: string; bgClass: string }
 > = {
-  mint: {
+  mint_invoice: {
     label: "Invoice Minted",
     icon: FileText,
     colorClass: "text-blue-400",
     bgClass: "bg-blue-400/10",
   },
-  fund: {
+  fund_invoice: {
     label: "Invoice Funded",
     icon: Coins,
     colorClass: "text-emerald-400",
     bgClass: "bg-emerald-400/10",
   },
-  repay: {
+  repay_invoice: {
     label: "Repayment",
     icon: RefreshCw,
     colorClass: "text-cyan-400",
     bgClass: "bg-cyan-400/10",
   },
-  claim: {
+  claim_yield: {
     label: "Yield Claimed",
     icon: Gift,
     colorClass: "text-yellow-400",
     bgClass: "bg-yellow-400/10",
   },
+  transfer: {
+    label: "Transfer",
+    icon: ArrowUpRight,
+    colorClass: "text-indigo-400",
+    bgClass: "bg-indigo-400/10",
+  },
+  other: {
+    label: "Transaction",
+    icon: Clock,
+    colorClass: "text-gray-400",
+    bgClass: "bg-gray-400/10",
+  },
 };
 
-const TYPE_FILTER_OPTIONS: { value: TxType | "all"; label: string }[] = [
+const TYPE_FILTER_OPTIONS: { value: string; label: string }[] = [
   { value: "all", label: "All Types" },
   { value: "mint", label: "Mints" },
   { value: "fund", label: "Funding" },
@@ -72,8 +87,8 @@ const TYPE_FILTER_OPTIONS: { value: TxType | "all"; label: string }[] = [
   { value: "claim", label: "Claims" },
 ];
 
-function TxTypeIcon({ type }: { type: TxType }) {
-  const config = TX_TYPE_CONFIG[type];
+function TxTypeIcon({ type }: { type: HistoryTxType }) {
+  const config = TX_TYPE_CONFIG[type] || TX_TYPE_CONFIG.other;
   const Icon = config.icon;
   return (
     <div
@@ -87,7 +102,7 @@ function TxTypeIcon({ type }: { type: TxType }) {
   );
 }
 
-function StatusBadge({ status }: { status: TxRecord["status"] }) {
+function StatusBadge({ status }: { status: TransactionRecord["status"] }) {
   if (status === "confirmed") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
@@ -96,10 +111,18 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
       </span>
     );
   }
+  if (status === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-red-400/10 px-2 py-0.5 text-xs font-medium text-red-400">
+        <XCircle className="h-3 w-3" aria-hidden />
+        Failed
+      </span>
+    );
+  }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-red-400/10 px-2 py-0.5 text-xs font-medium text-red-400">
-      <XCircle className="h-3 w-3" aria-hidden />
-      Failed
+    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+      <RefreshCw className="h-3 w-3 animate-spin" aria-hidden />
+      Pending
     </span>
   );
 }
@@ -110,9 +133,10 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
 
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 
-function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => void }) {
-  const config = TX_TYPE_CONFIG[tx.type];
+function TxRow({ tx, onRemove }: { tx: TransactionRecord; onRemove: (hash: string) => void }) {
+  const config = TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other;
   const { formatDate, formatCurrency } = useFormatters();
+  const amountNum = tx.amount ? parseFloat(tx.amount) : undefined;
 
   return (
     <motion.div
@@ -128,9 +152,9 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("text-sm font-semibold", config.colorClass)}>{config.label}</span>
           <StatusBadge status={tx.status} />
-          {tx.invoiceNumber && (
+          {tx.invoiceId && (
             <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-              {tx.invoiceNumber}
+              {tx.invoiceId}
             </span>
           )}
         </div>
@@ -142,9 +166,9 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-xs text-muted-foreground">
           <span>{formatDate(tx.timestamp)}</span>
           <StellarTxLink hash={tx.hash} chars={6} size="sm" />
-          {tx.amount != null && (
+          {amountNum != null && !isNaN(amountNum) && (
             <span className="font-medium text-foreground">
-              {formatCurrency(tx.amount, tx.currency ?? "USDC", true)}
+              {formatCurrency(amountNum, tx.assetCode ?? "USDC", true)}
             </span>
           )}
         </div>
@@ -180,38 +204,46 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 export default function TransactionHistoryPage() {
   const { isConnected } = useWallet();
   const { setWalletModalOpen } = useUIStore();
-  const { transactions, removeTransaction, clearHistory } = useTransactionStore();
   const { formatCurrency } = useFormatters();
 
+  const allTransactions = useTransactionHistoryStore((s) => s.transactions);
+  const filterType = useTransactionHistoryStore((s) => s.filterType);
+  const filterStartDate = useTransactionHistoryStore((s) => s.filterStartDate);
+  const filterEndDate = useTransactionHistoryStore((s) => s.filterEndDate);
+  
+  const setFilterType = useTransactionHistoryStore((s) => s.setFilterType);
+  const setFilterStartDate = useTransactionHistoryStore((s) => s.setFilterStartDate);
+  const setFilterEndDate = useTransactionHistoryStore((s) => s.setFilterEndDate);
+  const resetFilters = useTransactionHistoryStore((s) => s.resetFilters);
+  const getFilteredTransactions = useTransactionHistoryStore((s) => s.getFilteredTransactions);
+  const removeTransaction = useTransactionHistoryStore((s) => s.removeTransaction);
+  const clearHistory = useTransactionHistoryStore((s) => s.clearHistory);
+
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<TxType | "all">("all");
-  const [statusFilter, setStatusFilter] = useState<TxRecord["status"] | "all">("all");
+  const [statusFilter, setStatusFilter] = useState<TransactionRecord["status"] | "all">("all");
 
   // ── Derived stats ──────────────────────────────────────────────────────────
   const stats = useMemo(() => {
-    const confirmed = transactions.filter((t) => t.status === "confirmed");
+    const confirmed = allTransactions.filter((t) => t.status === "confirmed");
     const totalVolume = confirmed
       .filter((t) => t.amount != null)
-      .reduce((sum, t) => sum + (t.amount ?? 0), 0);
-    const byType = (type: TxType) => confirmed.filter((t) => t.type === type).length;
+      .reduce((sum, t) => sum + (t.amount ? parseFloat(t.amount) : 0), 0);
+    const byType = (type: HistoryTxType) => confirmed.filter((t) => t.type === type).length;
 
     return {
-      total: transactions.length,
+      total: allTransactions.length,
       confirmed: confirmed.length,
-      failed: transactions.filter((t) => t.status === "failed").length,
+      failed: allTransactions.filter((t) => t.status === "failed").length,
       totalVolume,
-      mints: byType("mint"),
-      funds: byType("fund"),
+      mints: byType("mint_invoice"),
+      funds: byType("fund_invoice"),
     };
-  }, [transactions]);
+  }, [allTransactions]);
 
   // ── Filtered list ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    let result = transactions;
+    let result = getFilteredTransactions();
 
-    if (typeFilter !== "all") {
-      result = result.filter((t) => t.type === typeFilter);
-    }
     if (statusFilter !== "all") {
       result = result.filter((t) => t.status === statusFilter);
     }
@@ -220,13 +252,13 @@ export default function TransactionHistoryPage() {
       result = result.filter(
         (t) =>
           t.hash.toLowerCase().includes(q) ||
-          t.invoiceNumber?.toLowerCase().includes(q) ||
+          t.invoiceId?.toLowerCase().includes(q) ||
           t.description?.toLowerCase().includes(q)
       );
     }
 
     return result;
-  }, [transactions, typeFilter, statusFilter, search]);
+  }, [getFilteredTransactions, statusFilter, search]);
 
   // ── CSV export ─────────────────────────────────────────────────────────────
   const handleExport = () => {
@@ -235,11 +267,12 @@ export default function TransactionHistoryPage() {
         hash: t.hash,
         type: t.type,
         status: t.status,
-        invoice: t.invoiceNumber ?? "",
         amount: t.amount ?? "",
-        currency: t.currency ?? "USDC",
+        assetCode: t.assetCode ?? "USDC",
         description: t.description ?? "",
-        timestamp: t.timestamp,
+        timestamp: new Date(t.timestamp).toISOString(),
+        invoiceId: t.invoiceId ?? "",
+        error: t.error ?? "",
       })),
       "kora-transactions.csv"
     );
@@ -282,7 +315,7 @@ export default function TransactionHistoryPage() {
             <Download className="h-4 w-4" aria-hidden />
             Export CSV
           </Button>
-          {transactions.length > 0 && (
+          {allTransactions.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
@@ -297,7 +330,7 @@ export default function TransactionHistoryPage() {
       </div>
 
       {/* ── Stats ───────────────────────────────────────────────────────── */}
-      {transactions.length > 0 && (
+      {allTransactions.length > 0 && (
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
@@ -343,9 +376,9 @@ export default function TransactionHistoryPage() {
 
       {/* ── Filters ─────────────────────────────────────────────────────── */}
       <Card className="mb-6">
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-          {/* Search */}
-          <div className="relative flex-1">
+        <CardContent className="flex flex-col gap-4 p-4">
+          {/* Top Row: Search */}
+          <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
               placeholder="Search by hash, invoice number, or description…"
@@ -366,42 +399,88 @@ export default function TransactionHistoryPage() {
             )}
           </div>
 
-          {/* Type filter */}
-          <div className="flex flex-wrap gap-1.5">
-            {TYPE_FILTER_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setTypeFilter(opt.value)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                  typeFilter === opt.value
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          {/* Bottom Row: Type, Status, Dates */}
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Type filter */}
+            <div className="flex flex-wrap gap-1.5">
+              {TYPE_FILTER_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setFilterType(opt.value)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                    filterType === opt.value
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Status filter */}
-          <div className="flex gap-1.5">
-            {(["all", "confirmed", "failed"] as const).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatusFilter(s)}
-                className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                  statusFilter === s
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
-                )}
+            {/* Divider */}
+            <div className="hidden h-6 w-[1px] bg-border sm:block" />
+
+            {/* Status filter */}
+            <div className="flex gap-1.5">
+              {(["all", "confirmed", "failed"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatusFilter(s)}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+                    statusFilter === s
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                  )}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div className="hidden h-6 w-[1px] bg-border sm:block" />
+
+            {/* Date range filters */}
+            <div className="flex items-center gap-2">
+              <div className="w-36">
+                <DatePicker
+                  placeholder="Start date"
+                  value={filterStartDate || ""}
+                  onChange={(e) => setFilterStartDate(e.target.value || null)}
+                  aria-label="Start date filter"
+                />
+              </div>
+              <span className="text-xs text-muted-foreground">to</span>
+              <div className="w-36">
+                <DatePicker
+                  placeholder="End date"
+                  value={filterEndDate || ""}
+                  onChange={(e) => setFilterEndDate(e.target.value || null)}
+                  aria-label="End date filter"
+                />
+              </div>
+            </div>
+
+            {/* Reset button if any filter is active */}
+            {(filterType !== "all" || statusFilter !== "all" || filterStartDate || filterEndDate || search) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  resetFilters();
+                  setStatusFilter("all");
+                  setSearch("");
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground"
               >
-                {s}
-              </button>
-            ))}
+                Reset
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -414,15 +493,15 @@ export default function TransactionHistoryPage() {
               ? `${filtered.length} transaction${filtered.length === 1 ? "" : "s"}`
               : "Transactions"}
           </CardTitle>
-          {filtered.length !== transactions.length && (
+          {filtered.length !== allTransactions.length && (
             <span className="text-xs text-muted-foreground">
-              Filtered from {transactions.length} total
+              Filtered from {allTransactions.length} total
             </span>
           )}
         </CardHeader>
         <CardContent className="space-y-3 p-4">
           {filtered.length === 0 ? (
-            transactions.length === 0 ? (
+            allTransactions.length === 0 ? (
               <EmptyState
                 title="No transactions yet"
                 description="Your on-chain activity will appear here once you mint, fund, or repay invoices."

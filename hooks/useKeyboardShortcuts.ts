@@ -11,7 +11,7 @@ export interface ShortcutDefinition {
   /** Short description shown in the reference modal */
   description: string;
   /** Category for grouping in the modal */
-  category: "Navigation" | "Marketplace" | "Dashboard";
+  category: "Navigation" | "Marketplace" | "Dashboard" | "Command Palette";
   /** When true, only registered in dev builds */
   devOnly?: boolean;
 }
@@ -20,38 +20,38 @@ export interface ShortcutDefinition {
 export const SHORTCUT_DEFINITIONS: Record<string, ShortcutDefinition> = {
   "cmd+k": {
     label: "⌘K / Ctrl+K",
-    description: "Open search",
-    category: "Marketplace",
+    description: "Open command palette",
+    category: "Command Palette",
   },
-  "cmd+w": {
+  "cmd+w-wallet": {
     label: "⌘W / Ctrl+W",
     description: "Open wallet modal",
-    category: "Navigation",
+    category: "Command Palette",
   },
   "g m": {
     label: "G M",
     description: "Go to Marketplace",
-    category: "Marketplace",
+    category: "Navigation",
   },
   "g d": {
     label: "G D",
     description: "Go to Dashboard",
-    category: "Dashboard",
+    category: "Navigation",
   },
   "g c": {
     label: "G C",
     description: "Go to Create Invoice",
-    category: "Marketplace",
+    category: "Navigation",
   },
   "g t": {
     label: "G T",
     description: "Go to Transaction History",
-    category: "Dashboard",
+    category: "Navigation",
   },
   "g a": {
     label: "G A",
     description: "Go to Analytics",
-    category: "Dashboard",
+    category: "Navigation",
   },
   "?": {
     label: "?",
