@@ -1,32 +1,10 @@
-// Set mock environment variables before any other imports to pass schema validation
-process.env.NEXT_PUBLIC_STELLAR_NETWORK = "testnet";
-process.env.NEXT_PUBLIC_STELLAR_RPC_URL = "https://soroban-testnet.stellar.org";
-process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL = "https://horizon-testnet.stellar.org";
-process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
-process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
-process.env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
-process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ID = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
-process.env.NEXT_PUBLIC_IPFS_GATEWAY = "https://gateway.pinata.cloud/ipfs";
-process.env.PINATA_JWT = "mock_jwt";
+/**
+ * Vitest setup file for integration tests
+ * Configures jsdom environment, mocks, and global test utilities
+ */
 
-import React from "react";
 import { expect, afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
-
-// Mock missing jspdf virtual module for export utilities
-vi.mock("jspdf", () => ({
-  default: class {
-    internal = {
-      pageSize: {
-        getWidth: () => 210,
-        getHeight: () => 297,
-      },
-    };
-    addImage() {}
-    addPage() {}
-    save() {}
-  },
-}));
 
 // Cleanup after each test
 afterEach(() => {
@@ -60,17 +38,12 @@ global.IntersectionObserver = class IntersectionObserver {
   unobserve() {}
 } as any;
 
-// Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
-  constructor() {}
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-};
+import React from "react";
 
 // Mock next/image
 vi.mock("next/image", () => ({
   default: (props: any) => {
+    // eslint-disable-next-line jsx-a11y/alt-text
     return React.createElement("img", props);
   },
 }));
@@ -87,42 +60,3 @@ vi.mock("sonner", () => ({
 
 import * as matchers from "@testing-library/jest-dom/matchers";
 expect.extend(matchers);
-
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string, values?: Record<string, unknown>) => {
-    if (!values) return key;
-    return key.replace(/\{(.*?)\}/g, (_, group) => String(values[group] ?? `{${group}}`));
-  },
-  useLocale: () => "en",
-  useFormatter: () => ({
-    number: (value: number, opts?: Intl.NumberFormatOptions) =>
-      new Intl.NumberFormat("en", opts).format(value),
-    dateTime: (value: Date | number, opts?: Intl.DateTimeFormatOptions) =>
-      new Intl.DateTimeFormat("en", opts).format(value),
-    relativeTime: (value: Date | number) => String(value),
-    list: (items: Iterable<string>) => [...items].join(", "),
-  }),
-  useNextIntlFormatter: () => ({
-    number: (value: number, opts?: Intl.NumberFormatOptions) =>
-      new Intl.NumberFormat("en", opts).format(value),
-    dateTime: (value: Date | number, opts?: Intl.DateTimeFormatOptions) =>
-      new Intl.DateTimeFormat("en", opts).format(value),
-    relativeTime: (value: Date | number) => String(value),
-    list: (items: Iterable<string>) => [...items].join(", "),
-  }),
-  NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }),
-  usePathname: () => "/",
-  useSearchParams: () => new URLSearchParams(),
-  useParams: () => ({}),
-}));

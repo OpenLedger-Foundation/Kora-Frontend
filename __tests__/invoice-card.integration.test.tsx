@@ -14,11 +14,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMockInvoice } from "./fixtures";
-import { createTestQueryClient, mockRouter } from "./setup";
+import { createTestQueryClient } from "./setup";
 import React from "react";
-
-import { useRouter } from "next/navigation";
-import { usePrefetchInvoice } from "@/hooks/useInvoices";
 
 const mockInvoice = createMockInvoice({
   id: "inv_card_test",
@@ -44,6 +41,17 @@ const mockInvoice = createMockInvoice({
 });
 
 const mockPrefetch = vi.fn();
+const mockPush = vi.fn();
+const mockPrefetchNav = vi.fn();
+
+// Mock useRouter
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: mockPush,
+    prefetch: mockPrefetchNav,
+  }),
+  useParams: () => ({ id: "inv_card_test" }),
+}));
 
 // Mock usePrefetchInvoice
 vi.mock("@/hooks/useInvoices", () => ({
@@ -64,6 +72,9 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
 }));
 
+import { useRouter } from "next/navigation";
+import { usePrefetchInvoice } from "@/hooks/useInvoices";
+
 // Simplified InvoiceCard component for testing
 const InvoiceCardTest = ({ invoice }: { invoice: typeof mockInvoice }) => {
   const router = useRouter();
@@ -74,7 +85,13 @@ const InvoiceCardTest = ({ invoice }: { invoice: typeof mockInvoice }) => {
   };
 
   const handleClick = () => {
-    router.push(`/marketplace/${invoice.id}`);
+    console.log("handleClick called", invoice.id);
+    try {
+      router.push(`/marketplace/${invoice.id}`);
+      console.log("router.push called successfully");
+    } catch (e) {
+      console.error("Error calling router.push", e);
+    }
   };
 
   const statusColors: Record<string, string> = {
@@ -146,7 +163,8 @@ describe("Invoice Card Integration Tests", () => {
     queryClient = createTestQueryClient();
     vi.clearAllMocks();
     mockPrefetch.mockClear();
-    mockRouter.push.mockClear();
+    mockPush.mockClear();
+    mockPrefetchNav.mockClear();
   });
 
   it("renders invoice card with all data", () => {
@@ -245,7 +263,7 @@ describe("Invoice Card Integration Tests", () => {
     
     await user.click(card);
 
-    expect(mockRouter.push).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
+    expect(mockPush).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
   });
 
   it("prefetches data before navigation", async () => {
@@ -270,7 +288,7 @@ describe("Invoice Card Integration Tests", () => {
 
     // Both should have been called
     expect(mockPrefetch).toHaveBeenCalledWith(mockInvoice.id);
-    expect(mockRouter.push).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
+    expect(mockPush).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
   });
 
   it("displays different status colors for different statuses", () => {

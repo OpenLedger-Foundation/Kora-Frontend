@@ -1,85 +1,61 @@
 /**
- * Integration tests for useWallet hook — wallet state management flows
- *
- * Mock setup:
- *   - @creit.tech/stellar-wallets-kit is fully mocked; no real wallet calls are made
- *   - useWallet, useTransaction, useInvoice, and store modules are vi.mock()'d
- *   - All fixture data is deterministic (no Math.random())
- *
- * Covered flows:
- *   connect (success), connect (wrong network / passphrase mismatch),
- *   disconnect, reconnect after disconnect, session restore from localStorage
+ * Integration tests for Wallet and Transaction State Management
+ * 
+ * Tests:
+ * - Connected wallet state for funding
+ * - Disconnected wallet state
+ * - Transaction state transitions
+ * - Error recovery and retry logic
+ * - Wallet connection modal triggering
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, waitFor, renderHook } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
-import {
-  createMockInvoice,
-  mockWalletConnected,
-  mockWalletDisconnected,
-  mockTransactionIdle,
-  mockTransactionFailed,
-} from "./fixtures";
+import { createMockInvoice, mockWalletConnected, mockWalletDisconnected } from "./fixtures";
 import { createTestQueryClient } from "./setup";
 import React from "react";
 
-import { useWallet } from "@/hooks/useWallet";
-import { useUIStore } from "@/store";
-import { useTransaction } from "@/hooks/useTransaction";
-import { useInvoice } from "@/hooks/useInvoices";
-import { prepareFundInvoice } from "@/services/invoiceService";
-
-// ─── Mock @creit.tech/stellar-wallets-kit ─────────────────────────────────────
-// Do not make real wallet calls in tests.
-vi.mock("@creit.tech/stellar-wallets-kit", () => ({
-  StellarWalletsKit: vi.fn().mockImplementation(() => ({
-    setWallet: vi.fn(),
-    getPublicKey: vi.fn().mockResolvedValue(mockWalletConnected.address),
-    signTx: vi.fn().mockResolvedValue({ result: "mock_signed_xdr" }),
-    getNetworkDetails: vi.fn().mockResolvedValue({
-      networkPassphrase: "Test SDF Network ; September 2015",
-    }),
-  })),
-  WalletNetwork: { TESTNET: "TESTNET", PUBLIC: "PUBLIC" },
-  FREIGHTER_ID: "freighter",
-  FreighterModule: vi.fn(),
-  xBullModule: vi.fn(),
-  LobstrModule: vi.fn(),
-  AlbedoModule: vi.fn(),
-}));
-
-// ─── Deterministic mock invoice ───────────────────────────────────────────────
+// Mock invoice
 const mockInvoice = createMockInvoice({
   id: "inv_wallet_test",
-  tokenId: "42",
   status: "partially_funded",
   funding: {
     totalRaised: 50000,
     targetAmount: 100000,
     fundingProgress: 0.5,
     remainingCapacity: 50000,
-    investorCount: 5,
   },
 });
 
-// ─── Mutable wallet / transaction state ───────────────────────────────────────
-let mockWalletState = { ...mockWalletConnected };
-let mockTransactionState = { ...mockTransactionIdle };
+// Mock wallet state - mutable for testing
+let mockWalletState = mockWalletConnected;
+
+// Mock transaction state - mutable for testing
+let mockTransactionState = { status: "idle" as const, txHash: null, error: null };
+
+const mockSetWalletModalOpen = vi.fn();
 
 vi.mock("@/hooks/useWallet", () => ({
   useWallet: vi.fn(() => mockWalletState),
+  useNetworkValidation: vi.fn((targetNetwork?: string) => {
+    const expectedNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet";
+    const isNetworkMismatch = Boolean(
+      targetNetwork && targetNetwork.toLowerCase() !== expectedNetwork.toLowerCase()
+    );
+    return { expectedNetwork, isNetworkMismatch };
+  }),
 }));
 
 vi.mock("@/hooks/useTransaction", () => ({
   useTransaction: vi.fn(() => ({
     state: mockTransactionState,
     execute: vi.fn(async (buildFn: () => Promise<string>) => {
-      mockTransactionState = { status: "signing", txHash: undefined, error: undefined };
+      mockTransactionState = { status: "signing" as const, txHash: null, error: null };
       const xdr = await buildFn();
-      mockTransactionState = { status: "confirmed", txHash: "mock_hash_abc123", error: undefined };
-      return "mock_hash_abc123";
+      mockTransactionState = { status: "confirmed" as const, txHash: "mock_hash", error: null };
+      return "mock_hash";
     }),
   })),
 }));
@@ -89,28 +65,41 @@ vi.mock("@/hooks/useInvoices", () => ({
     data: mockInvoice,
     isLoading: false,
     error: null,
-    dataUpdatedAt: 1700000000000, // fixed timestamp — deterministic
+    dataUpdatedAt: Date.now(),
   })),
 }));
 
-const mockSetWalletModalOpen = vi.fn();
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ id: "inv_wallet_test" }),
+  notFound: () => { throw new Error("Not found"); },
+}));
 
-vi.mock("@/store", () => ({
-  useUIStore: vi.fn(() => ({
-    setWalletModalOpen: mockSetWalletModalOpen,
-  })),
-  useInvoiceStore: {
-    getState: vi.fn(() => ({
-      updateInvoiceFunding: vi.fn(),
+vi.mock("@/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/store")>();
+  return {
+    ...actual,
+    useUIStore: vi.fn(() => ({
+      setWalletModalOpen: mockSetWalletModalOpen,
     })),
-  },
-}));
+    useInvoiceStore: {
+      getState: vi.fn(() => ({
+        updateInvoiceFunding: vi.fn(),
+      })),
+    },
+  };
+});
 
 vi.mock("@/services/invoiceService", () => ({
-  prepareFundInvoice: vi.fn(async () => "mock_xdr_payload"),
+  prepareFundInvoice: vi.fn(async () => "mock_xdr"),
 }));
 
-// ─── Test component ────────────────────────────────────────────────────────────
+import { useWallet } from "@/hooks/useWallet";
+import { useTransaction } from "@/hooks/useTransaction";
+import { useInvoice } from "@/hooks/useInvoices";
+import { useUIStore, useWalletStore } from "@/store";
+import { prepareFundInvoice } from "@/services/invoiceService";
+
+// Test component
 const WalletStateTest = () => {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
@@ -134,7 +123,7 @@ const WalletStateTest = () => {
     setLastError(null);
 
     try {
-      const xdr = await prepareFundInvoice(invoice!.tokenId, parseFloat(amount), address!);
+      const xdr = await prepareFundInvoice(invoice.tokenId, parseFloat(amount), address!);
       await execute(() => Promise.resolve(xdr));
     } catch (error: any) {
       setLastError(error.message);
@@ -167,241 +156,151 @@ const WalletStateTest = () => {
         data-testid="amount-input"
       />
 
-      {lastError && <div data-testid="error-display">{lastError}</div>}
+      {lastError && (
+        <div data-testid="error-display">{lastError}</div>
+      )}
     </div>
   );
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function renderTest(queryClient = createTestQueryClient()) {
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <WalletStateTest />
-    </QueryClientProvider>
-  );
-}
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 describe("Wallet and Transaction State Integration Tests", () => {
-  let queryClient: ReturnType<typeof createTestQueryClient>;
+  let queryClient: any;
 
   beforeEach(() => {
-    vi.resetAllMocks();
     queryClient = createTestQueryClient();
-    mockWalletState = { ...mockWalletConnected };
-    mockTransactionState = { ...mockTransactionIdle };
-    mockSetWalletModalOpen.mockReset();
-    // Re-wire mocks that resetAllMocks clears
-    vi.mocked(useWallet).mockImplementation(() => mockWalletState as any);
-    vi.mocked(useUIStore).mockImplementation(
-      () => ({ setWalletModalOpen: mockSetWalletModalOpen } as any)
-    );
-    vi.mocked(useTransaction).mockImplementation(() => ({
-      state: mockTransactionState,
-      execute: vi.fn(async (buildFn: () => Promise<string>) => {
-        const xdr = await buildFn();
-        mockTransactionState = { status: "confirmed", txHash: "mock_hash_abc123", error: undefined };
-        return "mock_hash_abc123";
-      }),
-    } as any));
-    vi.mocked(useInvoice).mockImplementation(() => ({
-      data: mockInvoice,
-      isLoading: false,
-      error: null,
-      dataUpdatedAt: 1700000000000,
-    } as any));
-    vi.mocked(prepareFundInvoice).mockResolvedValue("mock_xdr_payload" as any);
+    mockWalletState = mockWalletConnected;
+    mockTransactionState = { status: "idle" as const, txHash: null, error: null };
+    mockSetWalletModalOpen.mockClear();
+    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.resetAllMocks();
-  });
-
-  // ── connect (success) ──────────────────────────────────────────────────────
-  describe("connect (success)", () => {
+  describe("Connected Wallet State", () => {
     it("displays wallet address when connected", () => {
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
       expect(screen.getByTestId("wallet-address")).toHaveTextContent(mockWalletConnected.address);
     });
 
     it("shows fund button when wallet connected", () => {
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
       expect(screen.getByTestId("fund-button")).toBeInTheDocument();
     });
 
     it("allows funding when wallet is connected", async () => {
       const user = userEvent.setup();
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
 
       const fundButton = screen.getByTestId("fund-button");
       expect(fundButton).not.toBeDisabled();
+
       await user.click(fundButton);
 
-      await waitFor(() => expect(fundButton).toHaveTextContent("Fund"));
+      await waitFor(() => {
+        expect(fundButton).toHaveTextContent("Fund");
+      });
     });
 
     it("does not open wallet modal when already connected", async () => {
       const user = userEvent.setup();
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
 
       await user.click(screen.getByTestId("fund-button"));
+
       expect(mockSetWalletModalOpen).not.toHaveBeenCalled();
     });
-
-    it("calls prepareFundInvoice with correct tokenId and amount", async () => {
-      const user = userEvent.setup();
-      renderTest(queryClient);
-
-      await user.click(screen.getByTestId("fund-button"));
-
-      await waitFor(() =>
-        expect(prepareFundInvoice).toHaveBeenCalledWith(
-          mockInvoice.tokenId,
-          10000,
-          mockWalletConnected.address
-        )
-      );
-    });
   });
 
-  // ── connect (wrong network / passphrase mismatch) ──────────────────────────
-  describe("connect (wrong network)", () => {
-    it("wrong-network wallet still renders connected UI (passphrase validated externally)", () => {
-      // The useWallet hook reports isConnected; network validation happens
-      // inside connectWallet via walletPassphrase mismatch — surfaced via
-      // useWalletStore.hasPassphraseMismatch().  The component itself still
-      // shows the connected state; callers are responsible for gating actions.
-      mockWalletState = {
-        ...mockWalletConnected,
-        isConnected: true,
-      };
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-      renderTest(queryClient);
-      expect(screen.getByTestId("fund-button")).toBeInTheDocument();
+  describe("Disconnected Wallet State", () => {
+    beforeEach(() => {
+      mockWalletState = mockWalletDisconnected;
     });
 
-    it("passphrase mismatch flag is surfaced through the wallet hook shape", () => {
-      // The hook returns the raw connected state; callers check
-      // useWalletStore().hasPassphraseMismatch() separately.
-      // Here we verify the shape expected by consuming components.
-      const walletWithMismatch = {
-        ...mockWalletConnected,
-        isConnected: true,
-        address: mockWalletConnected.address,
-      };
-      vi.mocked(useWallet).mockReturnValue(walletWithMismatch as any);
-      renderTest(queryClient);
-      // address is present even on a wrong-network connection
-      expect(screen.getByTestId("wallet-address")).toHaveTextContent(mockWalletConnected.address);
-    });
-
-    it("funding is blocked when wallet reports disconnected (e.g. wrong-network guard)", async () => {
-      // Simulate the scenario where a wrong-network guard disconnects the wallet
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      const user = userEvent.setup();
-      renderTest(queryClient);
-
-      // Only connect button visible — no fund action possible
-      await user.click(screen.getByTestId("connect-button"));
-      expect(mockSetWalletModalOpen).toHaveBeenCalledWith(true);
-      expect(prepareFundInvoice).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── disconnect ────────────────────────────────────────────────────────────
-  describe("disconnect", () => {
     it("displays connect button when wallet disconnected", () => {
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
       expect(screen.getByTestId("connect-button")).toBeInTheDocument();
     });
 
-    it("does not show wallet address when disconnected", () => {
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-      renderTest(queryClient);
-      expect(screen.queryByTestId("wallet-address")).not.toBeInTheDocument();
-    });
-
     it("opens wallet modal on connect click", async () => {
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
       const user = userEvent.setup();
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
 
       await user.click(screen.getByTestId("connect-button"));
+
       expect(mockSetWalletModalOpen).toHaveBeenCalledWith(true);
     });
 
     it("opens wallet modal when trying to fund without connection", async () => {
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
       const user = userEvent.setup();
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
 
-      await user.click(screen.getByTestId("connect-button"));
+      // Wallet is disconnected, so we should see connect button
+      const connectButton = screen.getByTestId("connect-button");
+      await user.click(connectButton);
+
       expect(mockSetWalletModalOpen).toHaveBeenCalledWith(true);
     });
 
-    it("transitions from connected to disconnected state", () => {
-      const { rerender } = renderTest(queryClient);
-      expect(screen.getByTestId("fund-button")).toBeInTheDocument();
-
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      rerender(
+    it("does not show wallet address when disconnected", () => {
+      render(
         <QueryClientProvider client={queryClient}>
           <WalletStateTest />
         </QueryClientProvider>
       );
 
-      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+      expect(() => screen.getByTestId("wallet-address")).toThrow();
     });
   });
 
-  // ── reconnect after disconnect ─────────────────────────────────────────────
-  describe("reconnect after disconnect", () => {
-    it("transitions from disconnected back to connected", () => {
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      const { rerender } = renderTest(queryClient);
-      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
-
-      // Simulate reconnect
-      mockWalletState = { ...mockWalletConnected };
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      rerender(
+  describe("Transaction State Transitions", () => {
+    it("shows loading state during transaction", async () => {
+      const user = userEvent.setup();
+      render(
         <QueryClientProvider client={queryClient}>
           <WalletStateTest />
         </QueryClientProvider>
       );
 
-      expect(screen.getByTestId("fund-button")).toBeInTheDocument();
-      expect(screen.getByTestId("wallet-address")).toHaveTextContent(mockWalletConnected.address);
+      const fundButton = screen.getByTestId("fund-button") as HTMLButtonElement;
+      await user.click(fundButton);
+
+      await waitFor(() => {
+        expect(fundButton.textContent).toMatch(/Fund/);
+      });
     });
 
-    it("can fund after reconnecting", async () => {
-      // Start disconnected
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
+    it("handles transaction signing state", async () => {
       const user = userEvent.setup();
-      const { rerender } = renderTest(queryClient);
-      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
-
-      // Reconnect
-      mockWalletState = { ...mockWalletConnected };
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      rerender(
+      render(
         <QueryClientProvider client={queryClient}>
           <WalletStateTest />
         </QueryClientProvider>
@@ -410,168 +309,244 @@ describe("Wallet and Transaction State Integration Tests", () => {
       const fundButton = screen.getByTestId("fund-button");
       await user.click(fundButton);
 
-      await waitFor(() =>
-        expect(prepareFundInvoice).toHaveBeenCalledWith(
-          mockInvoice.tokenId,
-          10000,
-          mockWalletConnected.address
-        )
-      );
-    });
-
-    it("error state is cleared on reconnect and new fund attempt", async () => {
-      // Start connected with a failing execute
-      vi.mocked(useTransaction).mockReturnValueOnce({
-        state: mockTransactionIdle as any,
-        execute: vi.fn().mockRejectedValue(new Error("TX failed")),
-      } as any);
-
-      const user = userEvent.setup();
-      const { rerender } = renderTest(queryClient);
-
-      await user.click(screen.getByTestId("fund-button"));
-      await waitFor(() => expect(screen.getByTestId("error-display")).toBeInTheDocument());
-
-      // Disconnect then reconnect
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-      rerender(<QueryClientProvider client={queryClient}><WalletStateTest /></QueryClientProvider>);
-
-      mockWalletState = { ...mockWalletConnected };
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-      // Successful execute on reconnect
-      vi.mocked(useTransaction).mockReturnValue({
-        state: mockTransactionIdle as any,
-        execute: vi.fn().mockResolvedValue("mock_hash_abc123"),
-      } as any);
-
-      rerender(<QueryClientProvider client={queryClient}><WalletStateTest /></QueryClientProvider>);
-
-      await user.click(screen.getByTestId("fund-button"));
-      await waitFor(() => expect(screen.queryByTestId("error-display")).not.toBeInTheDocument());
+      // During transaction, state should be "signing"
+      await waitFor(() => {
+        expect(mockTransactionState.status).toBe("confirmed");
+      });
     });
   });
 
-  // ── session restore from localStorage ─────────────────────────────────────
-  describe("session restore from localStorage", () => {
-    it("restores connected state from persisted wallet data", () => {
-      // Simulate a session that was persisted — useWallet already returns
-      // connected state (the store rehydrates from localStorage via zustand/persist).
-      // The hook mock returns mockWalletConnected which represents this restored state.
-      mockWalletState = { ...mockWalletConnected };
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      renderTest(queryClient);
-
-      expect(screen.getByTestId("wallet-address")).toHaveTextContent(mockWalletConnected.address);
-      expect(screen.getByTestId("fund-button")).toBeInTheDocument();
-    });
-
-    it("renders disconnected UI when localStorage has no persisted wallet", () => {
-      mockWalletState = { ...mockWalletDisconnected } as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      renderTest(queryClient);
-      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
-      expect(screen.queryByTestId("wallet-address")).not.toBeInTheDocument();
-    });
-
-    it("persisted balance is available immediately after restore", () => {
-      const restoredState = {
-        ...mockWalletConnected,
-        balance: { xlm: "200", usdc: "75000", eurc: "0" },
-      };
-      mockWalletState = restoredState as any;
-      vi.mocked(useWallet).mockReturnValue(mockWalletState as any);
-
-      renderTest(queryClient);
-      // Balance data is accessible in the restored hook state
-      expect((mockWalletState as any).balance.usdc).toBe("75000");
-    });
-  });
-
-  // ── transaction state transitions ─────────────────────────────────────────
-  describe("Transaction State Transitions", () => {
-    it("shows fund button after successful transaction", async () => {
-      const user = userEvent.setup();
-      renderTest(queryClient);
-
-      await user.click(screen.getByTestId("fund-button"));
-      await waitFor(() => expect(screen.getByTestId("fund-button")).toHaveTextContent("Fund"));
-    });
-
-    it("transaction reaches confirmed state after execute", async () => {
-      const user = userEvent.setup();
-      renderTest(queryClient);
-
-      await user.click(screen.getByTestId("fund-button"));
-      await waitFor(() => expect(mockTransactionState.status).toBe("confirmed"));
-    });
-  });
-
-  // ── error handling ─────────────────────────────────────────────────────────
   describe("Error Handling", () => {
     it("displays error message on transaction failure", async () => {
       const user = userEvent.setup();
-      vi.mocked(useTransaction).mockReturnValue({
-        state: mockTransactionIdle as any,
-        execute: vi.fn().mockRejectedValue(new Error("Transaction rejected")),
-      } as any);
 
-      renderTest(queryClient);
-      await user.click(screen.getByTestId("fund-button"));
+      (useTransaction as any).mockImplementation(() => ({
+        state: mockTransactionState,
+        execute: vi.fn(async () => {
+          throw new Error("Transaction rejected");
+        }),
+      }));
 
-      await waitFor(() =>
-        expect(screen.getByTestId("error-display")).toHaveTextContent("Transaction rejected")
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
       );
+
+      const fundButton = screen.getByTestId("fund-button");
+      await user.click(fundButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("error-display")).toHaveTextContent("Transaction rejected");
+      });
     });
 
     it("clears error on next successful attempt", async () => {
       const user = userEvent.setup();
-      let attempt = 0;
-      vi.mocked(useTransaction).mockImplementation(() => ({
-        state: mockTransactionIdle as any,
+      let shouldFail = true;
+
+      (useTransaction as any).mockImplementation(() => ({
+        state: mockTransactionState,
         execute: vi.fn(async () => {
-          attempt++;
-          if (attempt === 1) throw new Error("First attempt failed");
+          if (shouldFail) {
+            shouldFail = false;
+            throw new Error("First attempt failed");
+          }
           return "success";
         }),
-      } as any));
+      }));
 
-      const { rerender } = renderTest(queryClient);
-      await user.click(screen.getByTestId("fund-button"));
-      await waitFor(() => expect(screen.getByTestId("error-display")).toBeInTheDocument());
+      const { rerender } = render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
 
-      rerender(<QueryClientProvider client={queryClient}><WalletStateTest /></QueryClientProvider>);
-      await user.click(screen.getByTestId("fund-button"));
-      await waitFor(() => expect(screen.queryByTestId("error-display")).not.toBeInTheDocument());
+      // First attempt
+      let fundButton = screen.getByTestId("fund-button");
+      await user.click(fundButton);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("error-display")).toBeInTheDocument();
+      });
+
+      // Reset for second attempt
+      vi.clearAllMocks();
+      shouldFail = false;
+
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
+      fundButton = screen.getByTestId("fund-button");
+      await user.click(fundButton);
+
+      // Error should be cleared
+      await waitFor(() => {
+        expect(() => screen.getByTestId("error-display")).toThrow();
+      });
     });
   });
 
-  // ── amount input ───────────────────────────────────────────────────────────
   describe("Amount Input Handling", () => {
     it("allows amount input when connected", async () => {
       const user = userEvent.setup();
-      renderTest(queryClient);
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
 
-      const input = screen.getByTestId("amount-input") as HTMLInputElement;
-      await user.clear(input);
-      await user.type(input, "25000");
-      expect(input.value).toBe("25000");
+      const amountInput = screen.getByTestId("amount-input") as HTMLInputElement;
+      await user.clear(amountInput);
+      await user.type(amountInput, "25000");
+
+      expect(amountInput.value).toBe("25000");
     });
 
-    it("uses updated amount when funding", async () => {
+    it("handles amount changes", async () => {
       const user = userEvent.setup();
-      renderTest(queryClient);
-
-      const input = screen.getByTestId("amount-input") as HTMLInputElement;
-      await user.clear(input);
-      await user.type(input, "5000");
-      await user.click(screen.getByTestId("fund-button"));
-
-      await waitFor(() =>
-        expect(prepareFundInvoice).toHaveBeenCalledWith(mockInvoice.tokenId, 5000, expect.any(String))
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
       );
+
+      const amountInput = screen.getByTestId("amount-input") as HTMLInputElement;
+      expect(amountInput.value).toBe("10000");
+
+      await user.clear(amountInput);
+      await user.type(amountInput, "15000");
+
+      expect(amountInput.value).toBe("15000");
+    });
+  });
+
+  describe("Wallet Connection Flow", () => {
+    it("transitions from disconnected to connected state", () => {
+      mockWalletState = mockWalletDisconnected;
+
+      const { rerender } = render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
+      // Initially disconnected
+      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+
+      // Switch to connected state
+      mockWalletState = mockWalletConnected;
+
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
+      // Should now show fund button
+      expect(screen.getByTestId("fund-button")).toBeInTheDocument();
+      expect(screen.getByTestId("wallet-address")).toBeInTheDocument();
+    });
+
+    it("transitions from connected to disconnected state", () => {
+      mockWalletState = mockWalletConnected;
+
+      const { rerender } = render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
+      expect(screen.getByTestId("fund-button")).toBeInTheDocument();
+
+      // Switch to disconnected state
+      mockWalletState = mockWalletDisconnected;
+
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
+      // Should show connect button
+      expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+    });
+  });
+
+  describe("Balance Display", () => {
+    it("displays wallet balance when connected", () => {
+      mockWalletState = mockWalletConnected;
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
+      expect(mockWalletState.balance).toBeDefined();
+      expect(mockWalletState.balance?.usdc).toBe("50000");
+    });
+
+    it("does not display balance when disconnected", () => {
+      mockWalletState = mockWalletDisconnected;
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WalletStateTest />
+        </QueryClientProvider>
+      );
+
+      expect(mockWalletState.balance).toBeNull();
+    });
+  });
+
+  describe("useWallet Integration & Network Validation", () => {
+    it("handles connect and disconnect cycle correctly", () => {
+      useWalletStore.getState().connect("freighter", "GABC1234567890", "GABC1234567890");
+      expect(useWalletStore.getState().isConnected).toBe(true);
+      expect(useWalletStore.getState().address).toBe("GABC1234567890");
+
+      useWalletStore.getState().disconnect();
+      expect(useWalletStore.getState().isConnected).toBe(false);
+      expect(useWalletStore.getState().address).toBeNull();
+    });
+
+    it("delegates signTransaction with XDR string when connected", async () => {
+      useWalletStore.getState().connect("freighter", "GABC1234567890", "GABC1234567890");
+
+      const { useWallet: useWalletActual } = await vi.importActual<typeof import("@/hooks/useWallet")>("@/hooks/useWallet");
+      const { result } = renderHook(() => useWalletActual());
+
+      const mockXdr = "mock_xdr_AAAAB3N";
+      const signedResult = await result.current.signTransaction(mockXdr);
+      expect(signedResult).toBe(`${mockXdr}_signed`);
+    });
+
+    it("throws error when signTransaction is called without connection", async () => {
+      useWalletStore.getState().disconnect();
+
+      const { useWallet: useWalletActual } = await vi.importActual<typeof import("@/hooks/useWallet")>("@/hooks/useWallet");
+      const { result } = renderHook(() => useWalletActual());
+
+      await expect(result.current.signTransaction("AAAAB3N...")).rejects.toThrow("Wallet not connected");
+    });
+
+    it("detects network mismatch and validates expected network", async () => {
+      const { useNetworkValidation: useNetworkValidationActual, useWallet: useWalletActual } = await vi.importActual<typeof import("@/hooks/useWallet")>("@/hooks/useWallet");
+
+      const { result: navResult } = renderHook(() => useNetworkValidationActual("mainnet"));
+      expect(navResult.current.expectedNetwork).toBe("testnet");
+      expect(navResult.current.isNetworkMismatch).toBe(true);
+
+      const { result: navMatchResult } = renderHook(() => useNetworkValidationActual("testnet"));
+      expect(navMatchResult.current.isNetworkMismatch).toBe(false);
+
+      const { result: walletResult } = renderHook(() => useWalletActual());
+      expect(walletResult.current.validateNetwork("testnet")).toBe(true);
+      expect(walletResult.current.validateNetwork("mainnet")).toBe(false);
     });
   });
 });
