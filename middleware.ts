@@ -78,6 +78,12 @@ export function middleware(req: NextRequest) {
   // of this middleware unconditionally rewrote /invoice/create to "/" for
   // every visitor regardless of wallet state, which made that route
   // permanently unreachable — removed rather than papered over.
+  //
+  // KYB verification gating (Issue #489 — `kyb-mint-gate` flag):
+  // `kycStatus` is also stored in localStorage via Zustand persist, making
+  // it equally inaccessible to Edge middleware.  The KYB gate is therefore
+  // enforced at the page level inside `app/invoice/create/page.tsx`, where
+  // the full store is available and the wizard step context is known.
   return response;
 }
 
