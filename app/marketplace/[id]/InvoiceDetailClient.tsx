@@ -86,7 +86,10 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
-  const { formatCurrency, formatApr, formatDate, formatRelativeDate, formatPercentage } = useFormatters();
+  const { formatCurrency, formatApr, formatDate, formatRelativeTime, formatPercentage } = useFormatters();
+
+  // Must be called before any early return so hook order is stable across renders.
+  const { executeProtectedAction } = useVerifiedAction();
 
   if (!id || isLoading) return <InvoiceDetailSkeleton />;
   if (!invoice) return notFound();
@@ -215,8 +218,6 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
           amount: formatCurrency(usdcBalance, "USDC"),
         })
       : "";
-
-  const { executeProtectedAction } = useVerifiedAction();
 
   const handleFund = async () => {
     if (!isConnected) {
@@ -588,7 +589,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     <div>
                       <p className="text-xs text-zinc-500">Closes</p>
                       <p className="mt-0.5 text-sm font-medium text-zinc-400">
-                        {formatRelativeDate(terms.repaymentDate)}
+                        {formatRelativeTime(terms.repaymentDate)}
                       </p>
                     </div>
                   </div>

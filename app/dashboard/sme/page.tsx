@@ -12,7 +12,6 @@ import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
 import { DashboardSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BatchResultSummary } from "@/components/dashboard/BatchActionToolbar";
-import { KycStatusCard } from "@/components/dashboard/KycStatusCard";
 import {
   prepareCancelInvoice,
   prepareRepayInvoice,
@@ -31,7 +30,7 @@ import {
   type BatchActionType,
 } from "@/lib/batch/txQueue";
 import { isBatchCancelEligible, isBatchRepayEligible } from "@/lib/batch/eligibility";
-import { BadSequenceError, sequenceManager } from "@/lib/stellar/client";
+import { sequenceManager } from "@/lib/stellar/client";
 
 const BatchActionToolbar = dynamic(
   () => import("@/components/dashboard/BatchActionToolbar").then((m) => m.BatchActionToolbar),
@@ -219,6 +218,25 @@ export default function SMEDashboardPage() {
   // Must run before the early return below so hook order stays stable across renders.
   const { executeProtectedAction } = useVerifiedAction();
 
+  // useCallback must also be called before any early return (Rules of Hooks).
+  const runBatchExecutor = useCallback(
+    async (item: BatchQueueItem) => {
+      if (!address) throw new Error("Wallet not connected");
+      // Ensure SequenceManager stays in the batch path (builders/submit use it).
+      void sequenceManager;
+
+      const unsignedXdr =
+        item.action === "cancel"
+          ? await prepareCancelInvoice(item.tokenId, address)
+          : await prepareRepayInvoice(item.tokenId, address, address);
+
+      const signedXdr = await signTransaction(unsignedXdr);
+      const txHash = await submitAndConfirm(signedXdr);
+      return { txHash };
+    },
+    [address, signTransaction]
+  );
+
   if (!isConnected) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
@@ -344,39 +362,6 @@ export default function SMEDashboardPage() {
     setRepayConfirmOpen(true);
   };
 
-  const runBatchExecutor = useCallback(
-    async (item: BatchQueueItem) => {
-      if (!address) throw new Error("Wallet not connected");
-      // Ensure SequenceManager stays in the batch path (builders/submit use it).
-      void sequenceManager;
-
-      let attempt = 0;
-      while (attempt < 2) {
-        const unsignedXdr =
-          item.action === "cancel"
-            ? await prepareCancelInvoice(item.tokenId, address)
-            : await prepareRepayInvoice(item.tokenId, address, address);
-
-        const signedXdr = await signTransaction(unsignedXdr);
-
-        try {
-          const txHash = await submitAndConfirm(signedXdr);
-          return { txHash };
-        } catch (err) {
-          if (attempt === 0 && err instanceof BadSequenceError) {
-            attempt += 1;
-            await sequenceManager.reset(address);
-            continue;
-          }
-          throw err;
-        }
-      }
-
-      throw new Error("Transaction failed after retry");
-    },
-    [address, signTransaction]
-  );
-
   const finishBatch = (action: BatchActionType) => {
     const snap = queueRef.current.getSnapshot();
     setBatchResults({
@@ -489,8 +474,6 @@ export default function SMEDashboardPage() {
           </Button>
         </Link>
       </div>
-
-      <KycStatusCard />
 
       {address && (
         <Suspense fallback={<StatsGridSkeleton />}>
