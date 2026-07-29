@@ -87,13 +87,15 @@ export default defineConfig({
   webServer: {
     command: process.env.CI ? "npm run start" : "npm run dev",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 180_000,
     stdout: "pipe",
     stderr: "pipe",
     env: {
       ...process.env,
       NEXT_PUBLIC_ENABLE_MOCK_DATA: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA ?? "true",
+      NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR:
+        process.env.NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR ?? "true",
       NEXT_PUBLIC_STELLAR_NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? "testnet",
       NEXT_PUBLIC_STELLAR_RPC_URL:
         process.env.NEXT_PUBLIC_STELLAR_RPC_URL ?? "https://soroban-testnet.stellar.org",

@@ -13,7 +13,6 @@ import { mapSimulationError } from "@/lib/stellar/simulationErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
-import { useTransactionStore } from "@/store/transactionStore";
 import type { ServiceError, TxState } from "@/types";
 
 export type TxLifecycleStatus =
@@ -144,21 +143,13 @@ export function useTransaction() {
         setTxState({ status } as any);
       }
       // Show loading toast for in-progress stages
-      const inProgress: TxLifecycleStatus[] = [
-        "building",
-        "simulating",
-        "signing",
-        "submitting",
-        "retrying",
-        "polling",
-      ];
+      const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
       if (inProgress.includes(status)) {
         const labels: Record<string, string> = {
           building: t("building"),
           simulating: t("simulating"),
           signing: t("signing"),
           submitting: t("submitting"),
-          retrying: t("retrying"),
           polling: t("polling"),
         };
         toast.loading(labels[status] ?? status, TOAST_ID, "txConfirmed");
@@ -260,42 +251,19 @@ export function useTransaction() {
           signedXdr = await signTransaction(unsignedXdr);
         }
 
-        // 4. Submit (with retry on tx_bad_seq)
+        // 4. Submit
         setStage("submitting");
         let hash: string;
-        let signedXdrAttempt = signedXdr;
-        let hasRetried = false;
 
-        while (true) {
-          try {
-            if (signedXdrAttempt.startsWith("mock_")) {
-              await new Promise((r) => setTimeout(r, 800));
-              hash = Array.from({ length: 64 }, () =>
-                Math.floor(Math.random() * 16).toString(16)
-              ).join("");
-            } else {
-              const result = await submitTransaction(signedXdrAttempt);
-              if (result.status === "ERROR") throw new Error("Transaction submission failed");
-              hash = result.hash;
-            }
-            break;
-          } catch (err) {
-            if (
-              !hasRetried &&
-              err instanceof BadSequenceError &&
-              publicKey
-            ) {
-              hasRetried = true;
-              setStage("retrying");
-              await sequenceManager.reset(publicKey);
-              const retryUnsignedXdr = await buildFn();
-              signedXdrAttempt = retryUnsignedXdr.startsWith("mock_")
-                ? retryUnsignedXdr
-                : await signTransaction(retryUnsignedXdr);
-              continue;
-            }
-            throw err;
-          }
+        if (signedXdr.startsWith("mock_")) {
+          await new Promise((r) => setTimeout(r, 800));
+          hash = Array.from({ length: 64 }, () =>
+            Math.floor(Math.random() * 16).toString(16)
+          ).join("");
+        } else {
+          const result = await submitTransaction(signedXdr);
+          if (result.status === "ERROR") throw new Error("Transaction submission failed");
+          hash = result.hash;
         }
 
         // Add to history as pending
@@ -422,101 +390,17 @@ export function useTransferPositionFlow() {
   };
 }
 
-export function useSecondaryEscrowFlow() {
-  const { escrowState, setEscrowStep, setEscrowError, resetEscrow } = useTransactionStore();
-  const tx = useTransaction();
-
-  const startEscrow = useCallback(
-    async (positionId: string, buyerAddress: string, sellerAddress: string, amount: number) => {
-      resetEscrow();
-      
-      // Step 1: Buyer Funding
-      setEscrowStep("buyer_funding");
-      const success1 = await tx.execute(
-        async () => {
-          await new Promise((r) => setTimeout(r, 1500));
-          return "mock_buyer_funding_xdr";
-        },
-        {
-          successMessage: "Buyer funding escrow deposited!",
-          txType: "fund",
-        }
-      );
-
-      if (!success1) {
-        setEscrowError("buyer_funding", "Buyer funding failed or was cancelled.");
-        return false;
-      }
-
-      setEscrowStep("buyer_funded");
-      await new Promise((r) => setTimeout(r, 1000));
-
-      // Step 2: Seller Transferring
-      setEscrowStep("seller_transferring");
-      const { prepareTransferPosition } = await import("@/services/invoiceService");
-      const success2 = await tx.execute(
-        () => prepareTransferPosition(positionId, buyerAddress, sellerAddress),
-        {
-          successMessage: "Seller yield rights transferred!",
-          txType: "transfer",
-        }
-      );
-
-      if (!success2) {
-        setEscrowError("seller_transferring", "Seller transfer of position failed.");
-        return false;
-      }
-
-      setEscrowStep("seller_transferred");
-      await new Promise((r) => setTimeout(r, 1000));
-
-      // Complete
-      setEscrowStep("settled");
-      return true;
-    },
-    [tx, resetEscrow, setEscrowStep, setEscrowError]
-  );
-
-  const retryEscrow = useCallback(
-    async (positionId: string, buyerAddress: string, sellerAddress: string, amount: number) => {
-      const currentErrorStep = escrowState.errorStep;
-      setEscrowError(null, null);
-
-      if (currentErrorStep === "buyer_funding") {
-        return startEscrow(positionId, buyerAddress, sellerAddress, amount);
-      }
-
-      if (currentErrorStep === "seller_transferring") {
-        setEscrowStep("seller_transferring");
-        const { prepareTransferPosition } = await import("@/services/invoiceService");
-        const success = await tx.execute(
-          () => prepareTransferPosition(positionId, buyerAddress, sellerAddress),
-          {
-            successMessage: "Seller yield rights transferred on retry!",
-            txType: "transfer",
-          }
-        );
-
-        if (!success) {
-          setEscrowError("seller_transferring", "Seller transfer of position failed again.");
-          return false;
-        }
-
-        setEscrowStep("seller_transferred");
-        await new Promise((r) => setTimeout(r, 1000));
-        setEscrowStep("settled");
-        return true;
-      }
-
-      return false;
-    },
-    [escrowState, startEscrow, tx, setEscrowStep, setEscrowError]
-  );
-
-  return {
-    escrowState,
-    startEscrow,
-    retryEscrow,
-    resetEscrow,
-  };
+/** Returns live-region messages for accessible transaction announcements (#441). */
+export function useTxAnnouncement(): { polite?: string; assertive?: string } {
+  const txState = useUIStore((s) => s.txState);
+  if (txState.status === "failed") {
+    return { assertive: txState.error || "Transaction failed" };
+  }
+  if (txState.status !== "idle" && txState.status !== "confirmed") {
+    return { polite: `Transaction ${txState.status}...` };
+  }
+  if (txState.status === "confirmed") {
+    return { polite: "Transaction confirmed" };
+  }
+  return {};
 }

@@ -874,6 +874,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     )}
 
                     <Button
+                      data-tour="fund-button"
                       className="w-full bg-kora-500 hover:bg-kora-600 text-white font-semibold shadow-lg shadow-kora-500/20"
                       size="lg"
                       onClick={handleFund}
