@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Keyboard, Search, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { SHORTCUT_DEFINITIONS } from "@/hooks/useKeyboardShortcuts";
+import { COMMAND_PALETTE_SHORTCUTS } from "@/hooks/useCommandPalette";
 import { cn } from "@/lib/utils";
 
 interface ShortcutReferenceModalProps {
@@ -12,7 +13,7 @@ interface ShortcutReferenceModalProps {
   onClose: () => void;
 }
 
-const CATEGORIES = ["Navigation", "Marketplace", "Dashboard"] as const;
+const CATEGORIES = ["Navigation", "Command Palette", "Marketplace", "Dashboard"] as const;
 
 function groupShortcuts() {
   const groups: Record<string, Array<{ key: string; label: string; description: string }>> = {};
@@ -20,6 +21,14 @@ function groupShortcuts() {
     if (!groups[def.category]) groups[def.category] = [];
     groups[def.category].push({ key, label: def.label, description: def.description });
   }
+  // Inject palette-specific shortcuts as a synthetic group so the modal shows
+  // them without requiring them to live in SHORTCUT_DEFINITIONS.
+  groups["Command Palette"] = [
+    ...(groups["Command Palette"] ?? []),
+    ...COMMAND_PALETTE_SHORTCUTS
+      .filter((s) => !groups["Command Palette"]?.some((g) => g.label === s.label))
+      .map((s) => ({ key: `palette-${s.label}`, label: s.label, description: s.description })),
+  ];
   return groups;
 }
 

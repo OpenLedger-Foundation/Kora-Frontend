@@ -35,8 +35,8 @@ export function NetworkStatusIndicator() {
   const rpcDegraded = health.soroban.status !== "operational";
   const badgeLabel = rpcDegraded
     ? health.soroban.status === "down"
-      ? "RPC Down"
-      : "RPC Degraded"
+      ? t("rpcDown")
+      : t("rpcDegraded")
     : networkLabel;
 
   return (
@@ -47,7 +47,7 @@ export function NetworkStatusIndicator() {
             className="flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/50"
             role="status"
             aria-live="polite"
-            aria-label={`Network status: ${statusLabel[health.overall]} on ${networkLabel}`}
+            aria-label={t("statusAriaLabel", { status: statusLabel[health.overall], network: networkLabel })}
           >
             <div className={cn("h-2 w-2 rounded-full", color)} aria-hidden="true" />
             <span className={cn("font-medium", rpcDegraded ? "text-amber-500" : "text-muted-foreground")}>

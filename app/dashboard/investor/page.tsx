@@ -33,6 +33,7 @@ import type { InvestorPosition, InvoicePosition } from "@/types/invoice";
 import { computeImpliedDiscount } from "@/types/invoice";
 import type { ColumnDef, DataTableProps } from "@/types/table";
 import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
+import { KycStatusCard } from "@/components/dashboard/KycStatusCard";
 
 const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
@@ -439,6 +440,8 @@ export default function InvestorDashboardPage() {
           </Button>
         </Link>
       </div>
+
+      <KycStatusCard />
 
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STATS.map((stat, i) => (

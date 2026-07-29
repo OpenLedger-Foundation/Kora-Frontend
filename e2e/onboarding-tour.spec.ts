@@ -2,7 +2,8 @@
  * E2E — Onboarding tour
  *
  * Covers:
- *  - First visit: tour auto-starts, user completes all steps, persistence set
+ *  - Investor persona: tour auto-starts, user completes all steps, persistence set
+ *  - SME persona: user switches role or selects SME persona, steps through mint path
  *  - Skip path: user skips at step 2, tour does not reappear on next visit
  *  - Deep link: tour does not auto-start on invoice detail pages
  */
@@ -17,12 +18,15 @@ function tourDialog(page: import("@playwright/test").Page) {
 
 test.describe("Onboarding tour", () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript((key) => {
-      localStorage.removeItem(key);
-    }, TOUR_STORAGE_KEY);
+    await page.addInitScript(() => {
+      localStorage.removeItem("kora-tour-done");
+      localStorage.removeItem("kora-settings-store");
+      localStorage.setItem("kora-changelog-seen-version", "0.1.0");
+      localStorage.setItem("kora:feature-flag-overrides", JSON.stringify({ "onboarding-tour": true }));
+    });
   });
 
-  test("auto-starts on first visit and completes all steps", async ({ page }) => {
+  test("investor tour auto-starts on first visit and completes all steps", async ({ page }) => {
     await page.goto("/marketplace");
 
     const tour = tourDialog(page);
@@ -37,6 +41,30 @@ test.describe("Onboarding tour", () => {
 
     await tour.getByRole("button", { name: "Next" }).click();
     await expect(tour.getByText("Track your portfolio")).toBeVisible();
+
+    await tour.getByRole("button", { name: "Finish" }).click();
+    await expect(tour).toBeHidden();
+
+    await expect
+      .poll(() => page.evaluate((key) => localStorage.getItem(key), TOUR_STORAGE_KEY))
+      .toBe("true");
+  });
+
+  test("SME tour steps through invoice minting and dashboard sequence", async ({ page }) => {
+    await page.goto("/marketplace");
+
+    const tour = tourDialog(page);
+    await expect(tour).toBeVisible({ timeout: 10_000 });
+
+    // Switch to SME persona
+    await tour.getByRole("button", { name: "SME" }).click();
+    await expect(tour.getByText("Mint an invoice")).toBeVisible();
+
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour.getByText("SME Dashboard")).toBeVisible();
+
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour.getByText("Marketplace listing")).toBeVisible();
 
     await tour.getByRole("button", { name: "Finish" }).click();
     await expect(tour).toBeHidden();
@@ -81,3 +109,4 @@ test.describe("Onboarding tour", () => {
       .toBeNull();
   });
 });
+

@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRef, useState, useCallback, memo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { useTranslations } from "next-intl";
 import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
@@ -48,15 +49,17 @@ const JURISDICTION_FLAGS: Record<string, string> = {
   GB: "🇬🇧",
 };
 
-const JURISDICTION_NAMES: Record<string, string> = {
-  KE: "Kenya",
-  NG: "Nigeria",
-  GH: "Ghana",
-  ZA: "South Africa",
-  US: "United States",
-  EU: "European Union",
-  UK: "United Kingdom",
-};
+// Names are resolved via the "marketplace" translation namespace
+// (marketplace.jurisdictionOptions.*) at render time.
+const getJurisdictionNames = (t: (key: string) => string): Record<string, string> => ({
+  KE: t("jurisdictionOptions.KE"),
+  NG: t("jurisdictionOptions.NG"),
+  GH: t("jurisdictionOptions.GH"),
+  ZA: t("jurisdictionOptions.ZA"),
+  US: t("jurisdictionOptions.US"),
+  EU: t("jurisdictionOptions.EU"),
+  UK: t("jurisdictionOptions.UK"),
+});
 
 function getFlagEmoji(countryCode: string) {
   if (JURISDICTION_FLAGS[countryCode]) {
@@ -74,11 +77,14 @@ function getFlagEmoji(countryCode: string) {
 }
 
 export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
+  const t = useTranslations("invoiceCard");
+  const tMarketplace = useTranslations("marketplace");
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const { formatCurrency, formatApr } = useFormatters();
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
-  const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
+  const jurisdictionNames = getJurisdictionNames(tMarketplace);
+  const countryName = jurisdictionNames[metadata.jurisdiction] || metadata.jurisdiction;
   const { prefetch: prefetchInvoice, cancelPrefetch } = usePrefetchInvoice();
   const { comparisonList, toggleComparison } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
@@ -154,6 +160,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
     <Link
       ref={cardRef}
       href={`/marketplace/${invoice.id}`}
+      data-tour={index === 0 ? "invoice-card" : undefined}
       className={cn("block group relative h-full", isExpired && "opacity-60")}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -226,7 +233,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
                 </Badge>
                 {isExpired && (
                   <Badge variant="default" className="font-semibold px-1.5 py-0.5 text-[10px] bg-muted text-muted-foreground">
-                    Expired
+                    {t("expired")}
                   </Badge>
                 )}
               </div>
@@ -240,7 +247,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               {formatCurrency(metadata.amount, metadata.currency, true)}
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Financing {formatCurrency(terms.financingAmount, metadata.currency, true)}
+              {t("financing", { amount: formatCurrency(terms.financingAmount, metadata.currency, true) })}
             </p>
           </div>
 
@@ -257,7 +264,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           <div className="mt-4 grid grid-cols-3 gap-3 border-t border-border pt-4">
             <div>
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <TrendingUp className="h-3 w-3 text-primary" aria-hidden="true" /> APR
+                <TrendingUp className="h-3 w-3 text-primary" aria-hidden="true" /> {t("aprLabel")}
               </p>
               <p className="mt-0.5 text-sm font-semibold text-primary">
                 {formatApr(terms.apr)}
@@ -265,15 +272,15 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
             </div>
             <div>
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" /> Tenor
+                <Calendar className="h-3 w-3 text-muted-foreground" aria-hidden="true" /> {t("tenorLabel")}
               </p>
               <p className="mt-0.5 text-sm font-medium text-foreground">
-                {terms.tenor}d
+                {t("tenorDays", { count: terms.tenor })}
               </p>
             </div>
             <div>
               <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                <Users className="h-3 w-3 text-muted-foreground" aria-hidden="true" /> Investors
+                <Users className="h-3 w-3 text-muted-foreground" aria-hidden="true" /> {t("investorsLabel")}
               </p>
               <p className="mt-0.5 text-sm font-medium text-foreground">
                 {funding.investorCount}
@@ -293,7 +300,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               {isExpired ? (
                 <>
                   <Clock className="h-3 w-3" aria-hidden="true" />
-                  Expired
+                  {t("expired")}
                 </>
               ) : listingExpiry ? (
                 <>
@@ -306,7 +313,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
 
           {!isExpired && (status === "listed" || status === "partially_funded") ? (
             <Button size="sm" className="mt-4 w-full relative z-20" onClick={(e) => e.preventDefault()}>
-              Fund Invoice
+              {t("fundInvoice")}
             </Button>
           ) : null}
 
@@ -325,22 +332,22 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
             )}
             aria-label={
               isInComparison
-                ? `Remove ${metadata.debtorName} from comparison`
+                ? t("removeFromCompare", { debtor: metadata.debtorName })
                 : comparisonFull
-                  ? `Comparison list is full (max ${MAX_COMPARISON_INVOICES})`
-                  : `Add ${metadata.debtorName} to comparison`
+                  ? t("comparisonFull")
+                  : t("addToCompare", { debtor: metadata.debtorName })
             }
             aria-pressed={isInComparison}
           >
             <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
-            {isInComparison ? "Remove from Compare" : "Add to Compare"}
+            {isInComparison ? t("removeFromCompareButton") : t("addToCompareButton")}
           </button>
           )}        </div>
 
         {/* Hover overlay CTA */}
         <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex items-center justify-center pointer-events-none">
           <div className="bg-primary text-primary-foreground font-semibold px-5 py-2.5 rounded-lg shadow-xl flex items-center gap-2 border border-primary/20 transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300 pointer-events-auto">
-            View Details
+            {t("viewDetails")}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </div>
         </div>

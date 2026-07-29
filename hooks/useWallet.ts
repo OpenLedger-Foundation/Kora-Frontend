@@ -81,6 +81,7 @@ export function useWallet() {
     isVerified,
     verifiedAt,
     kitSessionActive,
+    kycStatus,
     connect,
     disconnect,
     setBalance,
@@ -91,6 +92,7 @@ export function useWallet() {
     isSessionExpired,
     setKitSessionActive,
     setNetwork,
+    setKycStatus,
   } = useWalletStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -635,6 +637,8 @@ export function useWallet() {
     balance,
     isVerified: verificationValid,
     verifiedAt,
+    kycStatus,
+    setKycStatus,
     /** Whether the in-memory kit session is established (null = reconnect pending). */
     kitSessionActive,
     /** Whether to show the "reconnect your wallet" prompt in the UI. */

@@ -61,19 +61,41 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       testMatch: /components\/.*\.spec\.ts/,
     },
+
+    /* ── Mobile E2E (Issue #471) ──────────────────────────────────────────
+     *  Runs only the mobile marketplace spec against a Pixel 5 viewport so
+     *  touch events, bottom-sheet layout, and single-column grid are all
+     *  exercised with the real mobile user-agent and touch capabilities.
+     *
+     *  Scoped to marketplace-mobile.spec.ts — add further mobile-focused
+     *  spec files to the pattern as the suite grows.
+     * ─────────────────────────────────────────────────────────────────── */
+    {
+      name: "mobile-chrome",
+      use: {
+        ...devices["Pixel 5"],
+        // Ensure touch is enabled (Pixel 5 device preset includes this, but
+        // be explicit for clarity and future-proofing).
+        hasTouch: true,
+        isMobile: true,
+      },
+      testMatch: /marketplace-mobile\.spec\.ts/,
+    },
   ],
 
   /* Start Next.js before tests. Prefer production server in CI (after npm run build). */
   webServer: {
     command: process.env.CI ? "npm run start" : "npm run dev",
     url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 180_000,
     stdout: "pipe",
     stderr: "pipe",
     env: {
       ...process.env,
       NEXT_PUBLIC_ENABLE_MOCK_DATA: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA ?? "true",
+      NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR:
+        process.env.NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR ?? "true",
       NEXT_PUBLIC_STELLAR_NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? "testnet",
       NEXT_PUBLIC_STELLAR_RPC_URL:
         process.env.NEXT_PUBLIC_STELLAR_RPC_URL ?? "https://soroban-testnet.stellar.org",

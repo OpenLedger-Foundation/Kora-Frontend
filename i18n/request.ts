@@ -15,5 +15,10 @@ export default getRequestConfig(async () => {
   return {
     locale,
     messages: (await import(`../messages/${locale}.json`)).default,
+    // Fixed to UTC: Kora deals in on-chain timestamps (invoice due dates,
+    // transaction confirmations) that should read the same regardless of
+    // where the server or client happens to be, and an unset timeZone risks
+    // server/client hydration mismatches in next-intl's date formatting.
+    timeZone: "UTC",
   };
 });

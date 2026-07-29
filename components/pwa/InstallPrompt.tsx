@@ -161,7 +161,7 @@ export function InstallPrompt() {
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: "spring", damping: 24, stiffness: 280 }}
           role="dialog"
-          aria-label="Install Kora Protocol app"
+          aria-label={t("ariaLabel")}
           aria-modal="false"
           className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-sm rounded-2xl border border-zinc-700/60 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-xl sm:left-auto sm:right-6 sm:max-w-xs"
           data-testid="install-prompt"
@@ -171,7 +171,7 @@ export function InstallPrompt() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/icons/icon-192.png"
-              alt="Kora Protocol icon"
+              alt={t("iconAlt")}
               width={44}
               height={44}
               className="shrink-0 rounded-xl"
@@ -180,7 +180,7 @@ export function InstallPrompt() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-zinc-100">Kora Protocol</p>
               <p className="mt-0.5 text-xs text-zinc-400">
-                Install for faster access and offline support.
+                {t("description")}
               </p>
             </div>
 
@@ -189,7 +189,7 @@ export function InstallPrompt() {
               type="button"
               onClick={handleDismiss}
               className="shrink-0 rounded-lg p-1 text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/50"
-              aria-label="Dismiss install prompt"
+              aria-label={t("dismissLabel")}
               data-testid="install-prompt-dismiss-x"
             >
               <X className="h-4 w-4" aria-hidden="true" />
@@ -204,7 +204,7 @@ export function InstallPrompt() {
               data-testid="install-prompt-install"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              Install
+              {t("install")}
             </button>
             <button
               type="button"
@@ -212,7 +212,7 @@ export function InstallPrompt() {
               className="rounded-lg border border-zinc-700 px-3 py-2 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/50"
               data-testid="install-prompt-not-now"
             >
-              Not now
+              {t("notNow")}
             </button>
           </div>
         </motion.div>

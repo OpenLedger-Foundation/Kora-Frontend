@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import type { Invoice } from "@/types";
 import {
   Search,
@@ -9,9 +10,7 @@ import {
   ArrowUpDown,
   X,
   Check,
-  ChevronDown,
   RotateCcw,
-  FileQuestion,
   Clock,
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
@@ -31,36 +30,43 @@ import { useTranslations } from "next-intl";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
+import ActiveFilterChips from "@/components/marketplace/ActiveFilterChips";
 import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
-const CATEGORY_OPTIONS = [
-  { value: "technology", label: "Technology" },
-  { value: "agriculture", label: "Agriculture" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "construction", label: "Construction" },
-  { value: "energy", label: "Energy" },
-  { value: "logistics", label: "Logistics" },
-  { value: "retail", label: "Retail" },
-  { value: "manufacturing", label: "Manufacturing" },
-  { value: "finance", label: "Finance" },
-  { value: "other", label: "Other" },
+// Labels are resolved via the "marketplace" translation namespace at render
+// time (t is scoped to that namespace in MarketplaceContent).
+type TFunc = (key: string) => string;
+
+const getCategoryOptions = (t: TFunc) => [
+  { value: "technology", label: t("categoryOptions.technology") },
+  { value: "agriculture", label: t("categoryOptions.agriculture") },
+  { value: "healthcare", label: t("categoryOptions.healthcare") },
+  { value: "construction", label: t("categoryOptions.construction") },
+  { value: "energy", label: t("categoryOptions.energy") },
+  { value: "logistics", label: t("categoryOptions.logistics") },
+  { value: "retail", label: t("categoryOptions.retail") },
+  { value: "manufacturing", label: t("categoryOptions.manufacturing") },
+  { value: "finance", label: t("categoryOptions.finance") },
+  { value: "other", label: t("categoryOptions.other") },
 ];
 
-const JURISDICTION_OPTIONS = [
-  { value: "KE", label: "Kenya" },
-  { value: "NG", label: "Nigeria" },
-  { value: "GH", label: "Ghana" },
-  { value: "ZA", label: "South Africa" },
-  { value: "US", label: "United States" },
-  { value: "EU", label: "European Union" },
-  { value: "UK", label: "United Kingdom" },
-  { value: "OTHER", label: "Other" },
+const getJurisdictionOptions = (t: TFunc) => [
+  { value: "KE", label: t("jurisdictionOptions.KE") },
+  { value: "NG", label: t("jurisdictionOptions.NG") },
+  { value: "GH", label: t("jurisdictionOptions.GH") },
+  { value: "ZA", label: t("jurisdictionOptions.ZA") },
+  { value: "US", label: t("jurisdictionOptions.US") },
+  { value: "EU", label: t("jurisdictionOptions.EU") },
+  { value: "UK", label: t("jurisdictionOptions.UK") },
+  { value: "OTHER", label: t("jurisdictionOptions.OTHER") },
 ];
 
+// Risk-tier codes (AAA, AA, A, BBB, BB, B, CCC) are rating-agency codes, not
+// translatable text — intentionally left as-is.
 const RISK_OPTIONS = [
   { value: "AAA", label: "AAA" },
   { value: "AA", label: "AA" },
@@ -71,14 +77,14 @@ const RISK_OPTIONS = [
   { value: "CCC", label: "CCC" },
 ];
 
-const SORT_OPTIONS = [
-  { value: "apr_desc", label: "APR: High to Low" },
-  { value: "apr_asc", label: "APR: Low to High" },
-  { value: "amount_desc", label: "Amount: High to Low" },
-  { value: "amount_asc", label: "Amount: Low to High" },
-  { value: "due_soonest", label: "Due Date: Soonest" },
-  { value: "due_latest", label: "Due Date: Latest" },
-  { value: "newest", label: "Newest Listed" },
+const getSortOptions = (t: TFunc) => [
+  { value: "apr_desc", label: t("sort.aprDesc") },
+  { value: "apr_asc", label: t("sort.aprAsc") },
+  { value: "amount_desc", label: t("sort.amountDesc") },
+  { value: "amount_asc", label: t("sort.amountAsc") },
+  { value: "due_soonest", label: t("sort.dueSoonest") },
+  { value: "due_latest", label: t("sort.dueLatest") },
+  { value: "newest", label: t("sort.newest") },
 ];
 
 // ─── Custom UI Controls ──────────────────────────────────────────────────────
@@ -159,6 +165,7 @@ function DualSlider({
   value: [number, number];
   onChange: (val: [number, number]) => void;
 }) {
+  const t = useTranslations("marketplace");
   const [minVal, maxVal] = value;
   const minValRef = useRef(minVal);
   const maxValRef = useRef(maxVal);
@@ -295,10 +302,14 @@ function Switch({
 // ─── Marketplace Content (State & Layout) ───────────────────────────────────
 
 function MarketplaceContent() {
+  const t = useTranslations("marketplace");
   const comparisonEnabled = useFeatureFlag("comparison");
   const t = useTranslations("marketplace");
   const router = useRouter();
   const searchParams = useSearchParams();
+  const categoryOptions = useMemo(() => getCategoryOptions(t), [t]);
+  const jurisdictionOptions = useMemo(() => getJurisdictionOptions(t), [t]);
+  const sortOptions = useMemo(() => getSortOptions(t), [t]);
 
   // Zustand Store
   const {
@@ -478,10 +489,18 @@ function MarketplaceContent() {
 
   const virtualListRef = useRef<HTMLDivElement>(null);
 
+  // Estimate row height based on columns:
+  // - 1 col (mobile)  → cards are wider, less vertical wrapping → ~500px
+  // - 2 cols (tablet) → moderate height → ~460px
+  // - 3 cols (desktop) → narrower cards, more wrapping → ~510px
+  // measureElement corrects the estimate after render, so accuracy here only
+  // affects the initial scroll-height calculation (no layout thrashing on filter).
+  const estimatedRowHeight = columns === 1 ? 500 : columns === 2 ? 460 : 510;
+
   const rowVirtualizer = useWindowVirtualizer({
     count: virtualRows.length,
-    estimateSize: () => 450,
-    overscan: 2,
+    estimateSize: () => estimatedRowHeight,
+    overscan: columns === 1 ? 3 : 2,
     scrollMargin: virtualListRef.current?.offsetTop ?? 0,
   });
   // Active filters count for clearing badge
@@ -496,29 +515,29 @@ function MarketplaceContent() {
     <div className="flex flex-col gap-6">
       {/* Category Multi-select */}
       <Select
-        label="Categories"
-        options={CATEGORY_OPTIONS}
+        label={t("categories")}
+        options={categoryOptions}
         value={filters.categories || []}
         onChange={(val) => updateSingleFilter("categories", val)}
-        placeholder="All Categories"
+        placeholder={t("allCategories")}
         isMulti={true}
         isSearchable={true}
       />
 
       {/* Jurisdiction Multi-select */}
       <Select
-        label="Jurisdictions"
-        options={JURISDICTION_OPTIONS}
+        label={t("jurisdictions")}
+        options={jurisdictionOptions}
         value={filters.jurisdictions || []}
         onChange={(val) => updateSingleFilter("jurisdictions", val)}
-        placeholder="All Jurisdictions"
+        placeholder={t("allJurisdictions")}
         isMulti={true}
         isSearchable={true}
       />
 
       {/* Risk Tiers Checkbox Group */}
       <CheckboxGroup
-        label="Risk Tier"
+        label={t("riskTier")}
         options={RISK_OPTIONS}
         selected={filters.riskTiers || []}
         onChange={(val) => updateSingleFilter("riskTiers", val)}
@@ -536,8 +555,8 @@ function MarketplaceContent() {
       <Switch
         checked={!!filters.activeOnly}
         onChange={(val) => updateSingleFilter("activeOnly", val)}
-        label="Active Only"
-        description="Hide fully funded or defaulted invoices"
+        label={t("activeOnly")}
+        description={t("activeOnlyDesc")}
       />
 
       {/* Reset Button */}
@@ -547,7 +566,7 @@ function MarketplaceContent() {
           className="flex items-center justify-center gap-2 rounded-lg border border-zinc-800 py-2.5 text-xs font-semibold text-zinc-350 hover:bg-zinc-900/60 hover:text-zinc-200 transition-colors"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          Reset All Filters
+          {t("resetFilters")}
         </button>
       )}
     </div>
@@ -598,10 +617,10 @@ function MarketplaceContent() {
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-zinc-150 sm:text-4xl bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-              Invoice Marketplace
+              {t("title")}
             </h1>
             <p className="mt-2 text-sm text-zinc-400">
-              {isLoading ? "Discovering deals..." : `Showing ${filteredInvoices.length} listed invoices`}
+              {isLoading ? t("subtitle") : t("showing", { count: filteredInvoices.length })}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -610,7 +629,7 @@ function MarketplaceContent() {
               aria-label="Copy marketplace filter link to clipboard"
               className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
             >
-              Share Filters
+              {t("shareFilters")}
             </button>
           </div>
           {/* Metadata for peer-review tracking compliance: Closes #15 */}
@@ -622,7 +641,7 @@ function MarketplaceContent() {
           <div className="flex-1" ref={searchRef} data-tour="marketplace-search">
             <div className="relative">
               <Input
-                placeholder="Search by debtor, invoice number, or jurisdiction…"
+                placeholder={t("searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowHistory(true)}
@@ -634,7 +653,7 @@ function MarketplaceContent() {
                   type="button"
                   onClick={() => { setSearchQuery(""); setShowHistory(false); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                  aria-label="Clear search"
+                  aria-label={t("clearSearch")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -642,13 +661,13 @@ function MarketplaceContent() {
               {showHistory && searchHistory.length > 0 && !searchQuery && (
                 <div className="absolute top-full left-0 z-50 mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl">
                   <div className="flex items-center justify-between px-2 py-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Recent</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{t("recent")}</span>
                     <button
                       type="button"
                       onClick={clearSearchHistory}
                       className="text-[10px] text-zinc-500 hover:text-zinc-300"
                     >
-                      Clear
+                      {t("clear")}
                     </button>
                   </div>
                   {searchHistory.map((h) => (
@@ -674,7 +693,7 @@ function MarketplaceContent() {
               className="gap-2 border-zinc-850 hover:bg-zinc-900/60 lg:hidden"
             >
               <SlidersHorizontal className="h-4 w-4 text-zinc-400" />
-              Filters
+              {t("filters")}
               {activeFiltersCount > 0 && (
                 <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                   {activeFiltersCount}
@@ -689,7 +708,7 @@ function MarketplaceContent() {
               className="hidden lg:flex gap-2 border-zinc-850 hover:bg-zinc-900/60"
             >
               <SlidersHorizontal className="h-4 w-4 text-zinc-400" />
-              Quick Filters
+              {t("quickFilters")}
               {activeFiltersCount > 0 && (
                 <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse">
                   {activeFiltersCount}
@@ -707,7 +726,7 @@ function MarketplaceContent() {
                 onChange={(e) => setSortBy(e.target.value)}
                 className="h-10 w-48 rounded-lg border border-zinc-850 bg-zinc-950/40 pl-9 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 appearance-none cursor-pointer transition-all hover:bg-zinc-900/30"
               >
-                {SORT_OPTIONS.map((opt) => (
+                {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value} className="bg-zinc-950">
                     {opt.label}
                   </option>
@@ -730,11 +749,11 @@ function MarketplaceContent() {
               <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
                 <h2 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" />
-                  Marketplace Filters
+                  {t("marketplaceFilters")}
                 </h2>
                 {activeFiltersCount > 0 && (
                   <Badge variant="kora" className="text-[10px] py-0">
-                    {activeFiltersCount} active
+                    {t("active", { count: activeFiltersCount })}
                   </Badge>
                 )}
               </div>
@@ -752,9 +771,9 @@ function MarketplaceContent() {
               </div>
             ) : filteredInvoices.length === 0 ? (
               <EmptyState
-                title="No invoices match your filters"
-                description="We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities."
-                cta={{ label: "Clear All Filters", onClick: resetFilters }}
+                title={t("noResults")}
+                description={t("noResultsDesc")}
+                cta={{ label: t("clearAllFilters"), onClick: resetFilters }}
                 variant="marketplace"
               />
             ) : (
@@ -764,6 +783,8 @@ function MarketplaceContent() {
                   className="relative w-full"
                   style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
                   data-testid="virtual-invoice-list"
+                  data-virtualized="true"
+                  aria-label={`Invoice grid, ${filteredInvoices.length} invoices`}
                 >
                   {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const rowInvoices = virtualRows[virtualRow.index];
@@ -799,7 +820,7 @@ function MarketplaceContent() {
                     className="h-4 w-full"
                   />
                   {isFetchingNextPage && (
-                    <div className="mt-4 text-center text-sm text-muted-foreground">Loading more…</div>
+                    <div className="mt-4 text-center text-sm text-muted-foreground">{t("loadingMore")}</div>
                   )}
                   {!hasNextPage && filteredInvoices.length > 0 && (
                     <div className="mt-4 text-center text-sm text-muted-foreground">{t("allLoaded")}</div>
@@ -809,7 +830,7 @@ function MarketplaceContent() {
                     aria-label="Scroll back to top"
                     className="fixed right-4 bottom-12 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
                   >
-                    ↑ Top
+                    {t("backToTop")}
                   </button>
                 </div>
               </>
@@ -822,7 +843,7 @@ function MarketplaceContent() {
       <BottomSheet
         open={isMobileDrawerOpen}
         onOpenChange={setIsMobileDrawerOpen}
-        title="Filter Invoices"
+        title={t("filterInvoices")}
       >
         {renderFiltersList()}
       </BottomSheet>

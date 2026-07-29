@@ -107,6 +107,12 @@ const clientSchema = z.object({
     .string()
     .transform((v) => v === "true")
     .default("false"),
+
+  /** Configurable USDC threshold requiring KYC before funding above this limit. */
+  NEXT_PUBLIC_KYC_FUND_THRESHOLD: z
+    .string()
+    .transform((v) => parseInt(v, 10))
+    .default("10000"),
 });
 
 // ─── Server-only schema ───────────────────────────────────────────────────────
@@ -143,6 +149,7 @@ const clientEnv = {
   NEXT_PUBLIC_APP_DESCRIPTION: process.env.NEXT_PUBLIC_APP_DESCRIPTION,
   NEXT_PUBLIC_ENABLE_MOCK_DATA: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
   NEXT_PUBLIC_ENABLE_DEVTOOLS: process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS,
+  NEXT_PUBLIC_KYC_FUND_THRESHOLD: process.env.NEXT_PUBLIC_KYC_FUND_THRESHOLD,
 };
 
 // ─── Parse & validate ─────────────────────────────────────────────────────────

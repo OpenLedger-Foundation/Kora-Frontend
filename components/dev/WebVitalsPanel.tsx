@@ -155,7 +155,10 @@ function WebVitalsPanelInner() {
   const [collapsed, setCollapsed] = useState(false);
   const [visible, setVisible] = useState(true);
 
-  const { pos, onMouseDown } = useDraggable({ x: 16, y: window.innerHeight - 260 });
+  const { pos, onMouseDown } = useDraggable({
+    x: 16,
+    y: typeof window !== "undefined" ? window.innerHeight - 260 : 0,
+  });
 
   // Listen for vitals metrics via event bus
   useEffect(() => {

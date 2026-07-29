@@ -523,3 +523,53 @@ describe("Edge cases", () => {
     expect(fx.map((i) => i.id)).toEqual(original.map((i) => i.id));
   });
 });
+
+describe("Store state actions and filter updates", () => {
+  beforeEach(() => {
+    useInvoiceStore.setState({
+      invoices: [],
+      filters: DEFAULT_FILTERS,
+      sort: { sortBy: "apr", sortDir: "desc" },
+      sortBy: "apr_desc",
+      searchQuery: "",
+    });
+  });
+
+  it("updates individual filter via updateSingleFilter", () => {
+    const store = useInvoiceStore.getState();
+    store.updateSingleFilter("categories", ["technology"]);
+    expect(useInvoiceStore.getState().filters.categories).toEqual(["technology"]);
+
+    store.updateSingleFilter("aprRange", [10, 30]);
+    expect(useInvoiceStore.getState().filters.aprRange).toEqual([10, 30]);
+  });
+
+  it("updates multiple filters via setFilters", () => {
+    const store = useInvoiceStore.getState();
+    store.setFilters({ categories: ["healthcare"], riskTiers: ["AAA"] });
+    const current = useInvoiceStore.getState().filters;
+    expect(current.categories).toEqual(["healthcare"]);
+    expect(current.riskTiers).toEqual(["AAA"]);
+  });
+
+  it("resets all filters to default state", () => {
+    const store = useInvoiceStore.getState();
+    store.setFilters({ categories: ["logistics"], activeOnly: true });
+    store.setSearchQuery("debtor");
+    store.resetFilters();
+
+    const state = useInvoiceStore.getState();
+    expect(state.filters).toEqual(DEFAULT_FILTERS);
+    expect(state.searchQuery).toBe("");
+    expect(state.sortBy).toBe("apr_desc");
+  });
+
+  it("updates sort by option and direction", () => {
+    const store = useInvoiceStore.getState();
+    store.setSortBy("amount_asc");
+    const state = useInvoiceStore.getState();
+    expect(state.sortBy).toBe("amount_asc");
+    expect(state.sort.sortBy).toBe("amount");
+  });
+});
+

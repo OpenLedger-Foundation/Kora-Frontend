@@ -25,9 +25,17 @@ export function getLocaleCookieOptions(isProduction: boolean) {
 /** Validate and normalise a raw locale string. */
 export function parseLocale(value: string | undefined | null): Locale | null {
   if (!value) return null;
-  const base = value.split("-")[0].toLowerCase();
-  if (locales.includes(base as Locale)) return base as Locale;
-  return null;
+  const trimmed = value.trim();
+
+  // Exact match first (case-insensitive). Required for locales that are
+  // themselves region-qualified, e.g. "pt-BR" — stripping to the base
+  // subtag below would reduce it to "pt", which isn't a supported locale.
+  const exact = locales.find((l) => l.toLowerCase() === trimmed.toLowerCase());
+  if (exact) return exact;
+
+  // Otherwise fall back to the base language subtag (e.g. "en-US" -> "en").
+  const base = trimmed.split("-")[0].toLowerCase();
+  return locales.includes(base as Locale) ? (base as Locale) : null;
 }
 
 /**

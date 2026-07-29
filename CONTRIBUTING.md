@@ -12,6 +12,7 @@ This guide is written for first-time contributors. Follow it from top to bottom 
 - [Mock Data Mode](#mock-data-mode)
 - [Daily Development Commands](#daily-development-commands)
 - [Storybook](#storybook)
+- [Internationalization (i18n)](#internationalization-i18n)
 - [Your First Issue](#your-first-issue)
 - [Stellar Wave Quick Start](#stellar-wave-quick-start)
 - [Branch Naming](#branch-naming)
@@ -174,6 +175,120 @@ npx vitest run __tests__/stories.snapshot.test.tsx --updateSnapshot
 ```
 
 The generated snapshots are stored in `__tests__/__snapshots__/` and must be committed to the repository.
+
+## Internationalization (i18n)
+
+Kora ships in four locales, using [`next-intl`](https://next-intl.dev/): **English** (`en`, the source
+of truth), **Spanish** (`es`), **Arabic** (`ar`, right-to-left), and **Brazilian Portuguese** (`pt-BR`).
+All message catalogs live in `messages/`:
+
+```text
+messages/
+  en.json      # source of truth — every key originates here
+  es.json
+  ar.json
+  pt-BR.json
+```
+
+Each file is a nested JSON object grouped by feature/component namespace (`wallet`, `marketplace`,
+`createInvoice`, `invoiceCard`, `common`, and so on). **All four files must contain exactly the same set
+of keys**, in the same nested shape. This is enforced in CI — see [Checking parity](#checking-parity)
+below — so a PR that adds an English string without its translations will fail the build.
+
+### Adding or changing a string
+
+1. **Never hardcode user-facing text in a component.** Add a key under the relevant namespace in
+   `messages/en.json` first, then pull it in with `next-intl`:
+
+   ```tsx
+   import { useTranslations } from "next-intl";
+
+   const t = useTranslations("invoiceCard");
+   // ...
+   <button>{t("fundInvoice")}</button>
+   ```
+
+   For strings with dynamic values, use ICU placeholders and pass them as the second argument:
+
+   ```json
+   // messages/en.json
+   "showing": "Showing {count} listed invoices"
+   ```
+
+   ```tsx
+   t("showing", { count: invoices.length })
+   ```
+
+2. **Add the same key, translated, to `es.json`, `ar.json`, and `pt-BR.json`** — same nesting path,
+   same placeholder names (`{count}` must stay `{count}` in every locale; only the surrounding text
+   changes). Placeholder names are not translated.
+
+3. If you don't speak one of the target languages, it is fine to open the PR with the English string
+   copied into the other three files **as a temporary placeholder**, but say so explicitly in the PR
+   description (e.g. "es/ar/pt-BR strings for `feedback.newField` are untranslated placeholders —
+   need review from a native speaker") so a translator can follow up before merge. Do not let a
+   placeholder merge silently — this repo has previously had an entire locale (`ar.json`) sit almost
+   completely untranslated for a long time because placeholder copies went in without anyone flagging
+   them for follow-up.
+
+4. Keep proper nouns and technical/protocol terms consistent with the rest of the file you're editing —
+   e.g. Stellar, Soroban, Kora Protocol, USDC, XLM, IPFS, NFT, APR are generally left in Latin script
+   across all four locales, matching the existing convention in each file.
+
+### Checking parity
+
+Run the same check CI runs before opening a PR:
+
+```bash
+npm run check:i18n
+```
+
+This fails if any locale is missing a key, has an extra key not present in `en.json`, or has a
+translated string whose ICU placeholders don't match the English source (e.g. a translation that
+dropped `{amount}`). It's wired into the `test` GitHub Actions workflow, so a locale mismatch blocks
+merge the same way a failing type-check does.
+
+### Right-to-left (Arabic)
+
+`ar` is a right-to-left locale (see `rtlLocales` in `i18n/config.ts`). When building or editing UI:
+
+- Prefer logical Tailwind classes (`ps-*`/`pe-*`, `ms-*`/`me-*`, `text-start`/`text-end`) over
+  physical ones (`pl-*`/`pr-*`, `text-left`/`text-right`) so layout flips correctly under `dir="rtl"`.
+- Check components that position things absolutely (dropdowns, tooltips, badges) with the language
+  switcher set to Arabic — absolute positioning is the most common place RTL breaks silently.
+- Directional icons (arrows, chevrons) generally should flip; check `rtl:` variant classes are applied
+  where the codebase already uses them (e.g. chevrons in dropdowns).
+
+### Manually testing the language switcher
+
+The switcher lives in `components/layout/LanguageSwitcher.tsx` (rendered in the navbar) and persists
+the chosen locale via `i18n/LocaleProvider.tsx`. When testing a change, switch locales and click
+through at least:
+
+- The marketplace (`/marketplace`) — filters, sort labels, empty states, invoice cards.
+- The invoice-creation wizard (`/invoice/create`) — all three steps, validation messages, the live
+  preview panel, and the upload/mint confirmation screen.
+
+These two flows have the deepest, most frequently-touched translation surface in the app, so they're
+the fastest way to catch a missed `t()` call or a broken placeholder.
+
+### Known gaps / intentional exceptions
+
+- **Risk-tier codes** (`AAA`, `AA`, `A`, `BBB`, `BB`, `B`, `CCC` in the marketplace risk filter) are
+  rating-agency-style codes and are intentionally left untranslated in all locales.
+- **Network/protocol labels** (`Testnet`, `Mainnet`, `Soroban RPC`, `Horizon API`, `TESTNET` badge) are
+  kept in English across all locales to match Stellar's own tooling and documentation.
+- A handful of lower-level `components/ui/*` primitives (button, card, badge, pagination, data-table,
+  select, drawer, skeleton, etc.) intentionally take label text as props from their callers rather than
+  owning `useTranslations` themselves — that's expected, not a gap.
+- As of this writing, several larger page-level surfaces beyond the marketplace and invoice-creation
+  wizard — both dashboards (`app/dashboard/sme`, `app/dashboard/investor`), `app/analytics`,
+  `app/transactions`, and the landing page (`app/page.tsx`) — as well as some feature components
+  (e.g. `PortfolioDonut`, `ComparisonBar`/`ComparisonTable`, `CommandPalette`, `PositionDetailDrawer`)
+  still render hardcoded English strings even though matching keys already exist in `messages/en.json`
+  for most of them. This is tracked as follow-up work, not an intentional design decision — if you're
+  picking up an issue in one of those areas, wiring its strings to `useTranslations` while you're in
+  there is welcome.
 
 ## Your First Issue
 

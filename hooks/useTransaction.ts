@@ -13,7 +13,6 @@ import { mapSimulationError } from "@/lib/stellar/simulationErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
-import type { ServiceError, TxState } from "@/types";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -338,6 +337,18 @@ export function useTransaction() {
 }
 
 /**
+ * Feeds the visually-hidden live regions in `TransactionAnnouncer` (#441).
+ * `useTransaction()` state is local to each call site, so there is no
+ * existing global source of truth for "the current transaction's stage" to
+ * announce app-wide. This is a stub returning no announcements until that
+ * global tracking is built — it exists so `TransactionAnnouncer` (mounted
+ * once in app/providers.tsx) has something to import and render.
+ */
+export function useTxAnnouncement(): { polite: string | null; assertive: string | null } {
+  return { polite: null, assertive: null };
+}
+
+/**
  * P2P position transfer flow (#443) — combines useTransaction + the
  * simulation-preview gate (see hooks/useTxSimulation.ts) so callers get the
  * same "build → simulate → preview → sign → submit → poll" pipeline as
@@ -388,4 +399,19 @@ export function useTransferPositionFlow() {
     acceptTransfer,
     simulationDialogProps,
   };
+}
+
+/** Returns live-region messages for accessible transaction announcements (#441). */
+export function useTxAnnouncement(): { polite?: string; assertive?: string } {
+  const txState = useUIStore((s) => s.txState);
+  if (txState.status === "failed") {
+    return { assertive: txState.error || "Transaction failed" };
+  }
+  if (txState.status !== "idle" && txState.status !== "confirmed") {
+    return { polite: `Transaction ${txState.status}...` };
+  }
+  if (txState.status === "confirmed") {
+    return { polite: "Transaction confirmed" };
+  }
+  return {};
 }
