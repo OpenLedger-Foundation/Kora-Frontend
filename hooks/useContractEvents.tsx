@@ -242,7 +242,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
   const { health } = useNetworkStatus();
   const { updateInvoiceFunding } = useInvoiceStore();
   const { formatCurrency } = useFormatters();
-  const t = useTranslations("contractEventToast");
+  const t = useTranslations("contractEvents");
 
   const isOffline = health.overall === "down";
   const [mode, setMode] = useState<EventSubscriptionMode>(
@@ -264,9 +264,9 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
       case "invoice_funded":
         toast.success(
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">{t("fundedTitle")}</span>
+            <span className="font-semibold text-foreground">{t("invoiceFunded")}</span>
             <span className="text-xs text-muted-foreground">
-              {t("fundedDesc", { amount: amountStr, tokenId: event.tokenId })}
+              {t("invoiceFundedDesc", { amount: amountStr, tokenId: event.tokenId })}
             </span>
           </div>,
           { duration: 5000 }
@@ -276,9 +276,9 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
       case "invoice_repaid":
         toast.success(
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">{t("repaidTitle")}</span>
+            <span className="font-semibold text-foreground">{t("invoiceRepaid")}</span>
             <span className="text-xs text-muted-foreground">
-              {t("repaidDesc", { tokenId: event.tokenId })}
+              {t("invoiceRepaidDesc", { tokenId: event.tokenId })}
             </span>
           </div>,
           { duration: 5000 }
@@ -288,9 +288,9 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
       case "invoice_cancelled":
         toast.info(
           <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">{t("cancelledTitle")}</span>
+            <span className="font-semibold text-foreground">{t("invoiceCancelled")}</span>
             <span className="text-xs text-muted-foreground">
-              {t("cancelledDesc", { tokenId: event.tokenId })}
+              {t("invoiceCancelledDesc", { tokenId: event.tokenId })}
             </span>
           </div>,
           { duration: 5000 }

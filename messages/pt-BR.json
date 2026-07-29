@@ -1,7 +1,6 @@
 {
   "nav": {
     "marketplace": "Mercado",
-    "secondaryMarket": "Mercado Secundário",
     "invest": "Investir",
     "myInvoices": "Minhas Faturas",
     "createInvoice": "Criar Fatura",
@@ -45,7 +44,7 @@
     "connectGuardTitle": "Conecte sua carteira para continuar",
     "connectGuardDesc": "Esta página requer uma carteira conectada.",
     "sessionExpiredTitle": "Sessão da carteira inativa",
-    "sessionExpiredDesc": "Desbloqueie sua extensão de carteira ou reconecte-se para continuar.",
+    "sessionExpiredDesc": "Desbloqueie sua extensão de carteira ou reconecte para continuar.",
     "reconnect": "Reconectar Carteira",
     "reconnecting": "Reconectando...",
     "restoringSession": "Restaurando sessão da carteira..."
@@ -140,28 +139,6 @@
       "dueSoonest": "Vencimento: Mais Próximo",
       "dueLatest": "Vencimento: Mais Distante",
       "newest": "Listadas Mais Recentemente"
-    },
-    "categoryOptions": {
-      "technology": "Tecnologia",
-      "agriculture": "Agricultura",
-      "healthcare": "Saúde",
-      "construction": "Construção",
-      "energy": "Energia",
-      "logistics": "Logística",
-      "retail": "Varejo",
-      "manufacturing": "Manufatura",
-      "finance": "Finanças",
-      "other": "Outro"
-    },
-    "jurisdictionOptions": {
-      "KE": "Quênia",
-      "NG": "Nigéria",
-      "GH": "Gana",
-      "ZA": "África do Sul",
-      "US": "Estados Unidos",
-      "EU": "União Europeia",
-      "UK": "Reino Unido",
-      "OTHER": "Outro"
     }
   },
   "invoiceDetail": {
@@ -498,8 +475,7 @@
     "confirmed": "Transação confirmada!",
     "failed": "Transação falhou",
     "retry": "Tentar novamente",
-    "dismiss": "Fechar",
-    "txLink": "Link da Tx:"
+    "dismiss": "Fechar"
   },
   "txSimulation": {
     "title": "Pré-visualização da Transação",
@@ -535,10 +511,7 @@
     "lastChecked": "Última verificação: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Erro",
-    "rpcDown": "RPC Inativo",
-    "rpcDegraded": "RPC Degradado",
-    "statusAriaLabel": "Status da rede: {status} em {network}"
+    "error": "Erro"
   },
   "offline": {
     "title": "Você está offline",
@@ -579,15 +552,15 @@
     "add": "Adicionar",
     "submit": "Enviar",
     "retry": "Tentar novamente",
-    "dismiss": "Dispensar",
+    "dismiss": "Fechar",
     "processing": "Processando…",
     "noResults": "Nenhum resultado para \"{query}\""
   },
   "verification": {
     "title": "Verificar Propriedade da Carteira",
-    "descriptionWithAction": "Para {actionType}, comprove que você é o proprietário desta carteira assinando uma mensagem.",
-    "descriptionDefault": "Comprove que você é o proprietário desta carteira assinando uma mensagem. Sem transação ou taxas de gas.",
-    "messageToSign": "Mensagem a ser assinada:",
+    "descriptionWithAction": "Para {actionType}, prove que você é dono desta carteira assinando uma mensagem.",
+    "descriptionDefault": "Prove que você é dono desta carteira assinando uma mensagem. Sem transações ou taxas de gas.",
+    "messageToSign": "Mensagem para assinar:",
     "challengeLabel": "Mensagem de desafio a ser assinada",
     "signAndVerify": "Assinar e Verificar",
     "verifying": "Verificando…",
@@ -596,8 +569,8 @@
   "wrongNetwork": {
     "title": "Rede Incorreta",
     "message": "Rede Incorreta: Conectado a {current}, mas este aplicativo requer {expected}{passphrase}. Por favor, mude a rede da sua carteira para continuar.",
-    "passphraseMismatch": " (incompatibilidade de passphrase)",
-    "dismiss": "Dispensar aviso de rede incorreta"
+    "passphraseMismatch": " (incompatibilidade de frase secreta)",
+    "dismiss": "Fechar aviso de rede incorreta"
   },
   "addressBook": {
     "title": "Agenda de Endereços",
@@ -605,31 +578,31 @@
     "noSaved": "Nenhum endereço salvo",
     "addressPlaceholder": "Endereço Stellar (G...)",
     "labelPlaceholder": "Rótulo (opcional)",
-    "addButton": "Adicionar à Agenda de Endereços",
+    "addButton": "Adicionar à Agenda",
     "editLabel": "Rótulo:",
     "editButton": "Editar",
     "deleteButton": "Excluir",
     "invalidAddress": "Formato de endereço Stellar inválido"
   },
   "installPrompt": {
-    "ariaLabel": "Instalar o app Kora Protocol",
+    "ariaLabel": "Instalar aplicativo Kora Protocol",
     "iconAlt": "Ícone do Kora Protocol",
     "addToHomeScreen": "Adicionar à Tela Inicial",
     "description": "Instale o Kora para acesso mais rápido e suporte offline.",
-    "dismissLabel": "Dispensar aviso de instalação",
+    "dismissLabel": "Fechar aviso de instalação",
     "install": "Instalar",
     "notNow": "Agora não"
   },
   "changelog": {
     "latestBadge": "Mais Recente",
-    "noDetails": "Nenhum detalhe disponível.",
-    "loading": "Carregando notas de versão…",
-    "whatsNew": "Novidades",
+    "noDetails": "Sem detalhes disponíveis.",
+    "loading": "Carregando notas da versão…",
+    "whatsNew": "O que há de novo",
     "latestVersion": "Você está na versão mais recente.",
     "gotIt": "Entendi"
   },
   "shortcuts": {
-    "title": "Atalhos do Teclado",
+    "title": "Atalhos de Teclado",
     "closeLabel": "Fechar referência de atalhos",
     "hint": "Pressione {key} a qualquer momento para abrir esta referência. Os atalhos podem ser desativados em {settings}.",
     "hintKey": "?",
@@ -640,11 +613,11 @@
   },
   "commandPalette": {
     "ariaLabel": "Paleta de comandos",
-    "searchPlaceholder": "Buscar páginas, faturas, ações…",
-    "searchLabel": "Busca da paleta de comandos",
-    "clearSearch": "Limpar busca",
+    "searchPlaceholder": "Pesquisar páginas, faturas, ações…",
+    "searchLabel": "Pesquisa da paleta de comandos",
+    "clearSearch": "Limpar pesquisa",
     "noResults": "Nenhum resultado para \"{query}\"",
-    "recentLabel": "Recentes",
+    "recentLabel": "Recente",
     "pagesLabel": "Páginas",
     "invoicesLabel": "Faturas",
     "actionsLabel": "Ações",
@@ -666,14 +639,14 @@
     "fieldTitlePlaceholder": "Resumo breve…",
     "fieldDescription": "Descrição",
     "fieldDescriptionRequired": "Descrição *",
-    "fieldDescriptionPlaceholder": "Descreva o problema ou a ideia em detalhes…",
+    "fieldDescriptionPlaceholder": "Descreva o problema ou ideia em detalhes…",
     "screenshotLabel": "Captura de tela (opcional)",
     "captureScreen": "Capturar tela",
     "uploadImage": "Enviar imagem",
-    "screenshotAlt": "Prévia da captura de tela anexada",
+    "screenshotAlt": "Pré-visualização da captura de tela anexada",
     "removeScreenshot": "Remover captura de tela",
     "contextNote": "Sua URL atual, informações do navegador{wallet} serão incluídas automaticamente.",
-    "contextWallet": " e o endereço da carteira",
+    "contextWallet": " e endereço da carteira",
     "cancel": "Cancelar",
     "submit": "Enviar",
     "successMessage": "Feedback enviado — obrigado por ajudar a melhorar o Kora!",
@@ -685,24 +658,24 @@
   "onboarding": {
     "step": "Passo {current} de {total}",
     "skipTour": "Pular tour",
-    "skipLabel": "Pular tour de introdução",
+    "skipLabel": "Pular tour de integração",
     "back": "Voltar",
     "next": "Próximo",
     "finish": "Concluir",
     "steps": {
       "findOpportunityTitle": "Encontre a oportunidade certa",
-      "findOpportunityBody": "Busque por devedor, número de fatura ou jurisdição para refinar o mercado.",
+      "findOpportunityBody": "Pesquise por devedor, número de fatura ou jurisdição para filtrar o mercado.",
       "reviewDetailsTitle": "Revise os detalhes da fatura",
-      "reviewDetailsBody": "Cada cartão resume o valor, o retorno, o nível de risco, o progresso do financiamento e o vencimento.",
+      "reviewDetailsBody": "Cada cartão resume o valor, retorno, nível de risco, progresso do financiamento e vencimento.",
       "fundInvoiceTitle": "Financie uma fatura",
-      "fundInvoiceBody": "Abra uma listagem elegível a partir de sua ação de financiamento quando estiver pronto para investir.",
+      "fundInvoiceBody": "Abra uma listagem elegível pela sua ação de financiamento quando estiver pronto para investir.",
       "trackPortfolioTitle": "Acompanhe sua carteira",
-      "trackPortfolioBody": "Use o painel do investidor para monitorar posições, reembolsos e rendimento obtido."
+      "trackPortfolioBody": "Use o painel do investidor para monitorar posições, reembolsos e rendimentos obtidos."
     }
   },
   "invoiceCard": {
-    "expired": "Expirada",
-    "financing": "Financiando {amount}",
+    "expired": "Vencida",
+    "financing": "Financiamento {amount}",
     "aprLabel": "APR",
     "tenorLabel": "Prazo",
     "investorsLabel": "Investidores",
@@ -715,83 +688,22 @@
     "removeFromCompareButton": "Remover da Comparação",
     "viewDetails": "Ver Detalhes"
   },
-  "invoiceStatus": {
-    "draft": {
-      "label": "Pendente",
-      "description": "O rascunho da fatura está sendo preparado.",
-      "action": "Aguardando envio."
-    },
-    "pendingMint": {
-      "label": "Pendente",
-      "description": "A fatura está sendo criada on-chain.",
-      "action": "Aguardando confirmação na blockchain."
-    },
-    "listed": {
-      "label": "Ativa",
-      "description": "A fatura está ativa e aceitando financiamento.",
-      "action": "Disponível para investimento."
-    },
-    "partiallyFunded": {
-      "label": "Ativa",
-      "description": "A fatura está parcialmente financiada e ainda aberta.",
-      "action": "Aceitando financiamento restante."
-    },
-    "active": {
-      "label": "Ativa",
-      "description": "A fatura está atualmente ativa.",
-      "action": "Monitorando o reembolso."
-    },
-    "fullyFunded": {
-      "label": "Financiada",
-      "description": "A meta de financiamento foi atingida.",
-      "action": "Aguardando liquidação/reembolso final."
-    },
-    "repaid": {
-      "label": "Reembolsada",
-      "description": "A fatura foi totalmente reembolsada.",
-      "action": "Rendimento distribuído aos investidores."
-    },
-    "defaulted": {
-      "label": "Inadimplente",
-      "description": "A fatura entrou em inadimplência no reembolso.",
-      "action": "Processo de recuperação iniciado."
-    },
-    "cancelled": {
-      "label": "Cancelada",
-      "description": "O financiamento da fatura foi cancelado.",
-      "action": "Nenhuma ação adicional."
-    },
-    "expired": {
-      "label": "Expirada",
-      "description": "A listagem da fatura expirou.",
-      "action": "Não aceita mais financiamento."
-    },
-    "nextLabel": "Próximo: {action}"
-  },
   "transactionToast": {
     "doNotClose": "Não feche esta janela",
     "txLabel": "Tx:",
-    "retryLabel": "Tentar novamente a transação",
-    "dismissLabel": "Dispensar erro",
-    "retrySignatureLabel": "Tentar assinatura novamente",
-    "dismissSignatureLabel": "Dispensar",
+    "retryLabel": "Repetir transação",
+    "dismissLabel": "Fechar erro",
+    "retrySignatureLabel": "Repetir assinatura",
+    "dismissSignatureLabel": "Fechar",
     "signatureTimeout": "Tempo de assinatura esgotado",
     "signatureTimeoutDesc": "O popup da carteira não foi assinado a tempo. Você pode tentar novamente sem reconstruir.",
     "warningRetryLabel": "Tentar novamente",
-    "warningDismissLabel": "Dispensar"
-  },
-  "contractEventToast": {
-    "fundedTitle": "Fatura Financiada",
-    "fundedDesc": "{amount} investido · Fatura #{tokenId}",
-    "repaidTitle": "Fatura Reembolsada",
-    "repaidDesc": "A Fatura #{tokenId} foi totalmente reembolsada",
-    "cancelledTitle": "Fatura Cancelada",
-    "cancelledDesc": "A Fatura #{tokenId} foi cancelada"
+    "warningDismissLabel": "Fechar"
   },
   "statusTransition": {
     "confirmTitle": "Confirmar: {label}",
     "confirmBody": "A fatura {invoiceNumber} será movida de {from} para {to}.",
-    "onChainWarning": "Esta ação é registrada on-chain e não pode ser revertida.",
+    "onChainWarning": "Esta ação é registrada na blockchain e não pode ser revertida.",
     "goBack": "Voltar",
     "confirm": "Confirmar",
     "processing": "Processando…"
@@ -801,14 +713,11 @@
     "percentCompleted": "{percent}% concluído",
     "selectBulkActions": "Selecione ações para executar em lote",
     "exportCsv": "Exportar CSV",
-    "repay": "Reembolsar",
     "cancelInvoices": "Cancelar Faturas",
-    "retryFailedCount": "Tentar novamente {count} com falha",
-    "retryFailed": "Tentar novamente as com falha",
     "processing": "Processando...",
     "resultTotal": "Total",
     "resultSuccess": "Sucesso",
-    "resultFailed": "Falhas",
+    "resultFailed": "Falhou",
     "failureDetails": "Detalhes das Falhas",
     "batchComplete": "Operação em lote concluída. {success} faturas foram processadas com sucesso.",
     "batchPartialFail": " Algumas operações falharam e podem exigir intervenção manual.",
@@ -822,18 +731,26 @@
     "shareOnX": "Compartilhar no X",
     "shareOnLinkedIn": "LinkedIn",
     "qrCodeLabel": "Código QR",
-    "qrCodeAlt": "Código QR do link da fatura compartilhada",
+    "qrCodeAlt": "Código QR para o link da fatura compartilhada",
     "linkCopiedToast": "Link copiado",
     "unableToCopy": "Não foi possível copiar o link",
     "sharedSuccessfully": "Compartilhado com sucesso"
+  },
+  "contractEvents": {
+    "invoiceFunded": "Fatura Financiada",
+    "invoiceFundedDesc": "{amount} investido · Fatura #{tokenId}",
+    "invoiceRepaid": "Fatura Reembolsada",
+    "invoiceRepaidDesc": "A fatura #{tokenId} foi totalmente reembolsada",
+    "invoiceCancelled": "Fatura Cancelada",
+    "invoiceCancelledDesc": "A fatura #{tokenId} foi cancelada"
   },
   "language": {
     "label": "Idioma",
     "en": "English",
     "es": "Español",
-    "switchTo": "Mudar para {lang}",
+    "ar": "العربية",
     "pt-BR": "Português (BR)",
-    "ar": "العربية"
+    "switchTo": "Mudar para {lang}"
   },
   "validation": {
     "invoiceNumber": {
@@ -889,26 +806,6 @@
       "emailInvalid": "Endereço de e-mail inválido",
       "companyNameMinLength": "O nome da empresa deve ter pelo menos 2 caracteres",
       "walletAddressInvalid": "Formato de chave pública Stellar inválido"
-    }
-  },
-  "kyc": {
-    "title": "Status de Verificação KYC",
-    "status": {
-      "unverified": "Não verificado",
-      "pending": "Verificação pendente",
-      "verified": "Verificado",
-      "rejected": "Verificação rejeitada"
-    },
-    "desc": {
-      "unverified": "Verifique sua identidade para liberar limites de financiamento mais altos e negociações no mercado secundário.",
-      "pending": "Seus documentos estão sendo revisados. Isso geralmente leva menos de 5 minutos.",
-      "verified": "Você tem acesso total a todos os recursos e limites de investimento ilimitados.",
-      "rejected": "Sua verificação de identidade foi rejeitada. Revise seus dados e tente novamente."
-    },
-    "cta": {
-      "verify": "Verificar Identidade",
-      "reverify": "Reenviar documentos",
-      "close": "Fechar"
     }
   }
 }

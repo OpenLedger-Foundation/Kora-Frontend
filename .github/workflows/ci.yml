@@ -25,3 +25,18 @@ jobs:
 
       - name: Run dependency vulnerability scan
         run: node scripts/audit.js
+
+  i18n:
+    name: i18n Key Parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check i18n key parity across all locales
+        run: node scripts/check-i18n.mjs

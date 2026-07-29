@@ -26,6 +26,7 @@ import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
 import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
+import { useTranslations } from "next-intl";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
@@ -303,6 +304,7 @@ function Switch({
 function MarketplaceContent() {
   const t = useTranslations("marketplace");
   const comparisonEnabled = useFeatureFlag("comparison");
+  const t = useTranslations("marketplace");
   const router = useRouter();
   const searchParams = useSearchParams();
   const categoryOptions = useMemo(() => getCategoryOptions(t), [t]);

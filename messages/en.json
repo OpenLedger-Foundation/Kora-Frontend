@@ -1,7 +1,6 @@
 {
   "nav": {
     "marketplace": "Marketplace",
-    "secondaryMarket": "Secondary Market",
     "invest": "Invest",
     "myInvoices": "My Invoices",
     "createInvoice": "Create Invoice",
@@ -140,28 +139,6 @@
       "dueSoonest": "Due Date: Soonest",
       "dueLatest": "Due Date: Latest",
       "newest": "Newest Listed"
-    },
-    "categoryOptions": {
-      "technology": "Technology",
-      "agriculture": "Agriculture",
-      "healthcare": "Healthcare",
-      "construction": "Construction",
-      "energy": "Energy",
-      "logistics": "Logistics",
-      "retail": "Retail",
-      "manufacturing": "Manufacturing",
-      "finance": "Finance",
-      "other": "Other"
-    },
-    "jurisdictionOptions": {
-      "KE": "Kenya",
-      "NG": "Nigeria",
-      "GH": "Ghana",
-      "ZA": "South Africa",
-      "US": "United States",
-      "EU": "European Union",
-      "UK": "United Kingdom",
-      "OTHER": "Other"
     }
   },
   "invoiceDetail": {
@@ -498,8 +475,7 @@
     "confirmed": "Transaction confirmed!",
     "failed": "Transaction failed",
     "retry": "Retry",
-    "dismiss": "Dismiss",
-    "txLink": "Tx Link:"
+    "dismiss": "Dismiss"
   },
   "txSimulation": {
     "title": "Transaction Preview",
@@ -535,10 +511,7 @@
     "lastChecked": "Last checked: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Error",
-    "rpcDown": "RPC Down",
-    "rpcDegraded": "RPC Degraded",
-    "statusAriaLabel": "Network status: {status} on {network}"
+    "error": "Error"
   },
   "offline": {
     "title": "You're offline",
@@ -689,14 +662,6 @@
     "back": "Back",
     "next": "Next",
     "finish": "Finish",
-    "personaInvestor": "Investor",
-    "personaSme": "SME",
-    "selectPersona": "Select persona",
-    "restartTour": "Restart Tour",
-    "restartTourDesc": "Restart guided onboarding tour for your selected role.",
-    "tourCompleted": "Tour completed",
-    "tourSkipped": "Tour skipped",
-    "activePersona": "Active Role",
     "steps": {
       "findOpportunityTitle": "Find the right opportunity",
       "findOpportunityBody": "Search by debtor, invoice number, or jurisdiction to narrow the marketplace.",
@@ -705,13 +670,7 @@
       "fundInvoiceTitle": "Fund an invoice",
       "fundInvoiceBody": "Open an eligible listing from its funding action when you are ready to invest.",
       "trackPortfolioTitle": "Track your portfolio",
-      "trackPortfolioBody": "Use the investor dashboard to monitor positions, repayments, and earned yield.",
-      "mintInvoiceTitle": "Mint an invoice",
-      "mintInvoiceBody": "Upload unpaid invoice details and mint a Soroban NFT to request financing.",
-      "smeDashboardTitle": "SME Dashboard",
-      "smeDashboardBody": "Track your minted invoices, funding progress, and upcoming repayments.",
-      "marketplaceVisibilityTitle": "Marketplace listing",
-      "marketplaceVisibilityBody": "Your minted invoices appear on the public marketplace for investors to discover and fund."
+      "trackPortfolioBody": "Use the investor dashboard to monitor positions, repayments, and earned yield."
     }
   },
   "invoiceCard": {
@@ -729,59 +688,6 @@
     "removeFromCompareButton": "Remove from Compare",
     "viewDetails": "View Details"
   },
-  "invoiceStatus": {
-    "draft": {
-      "label": "Pending",
-      "description": "Invoice draft is being prepared.",
-      "action": "Awaiting submission."
-    },
-    "pendingMint": {
-      "label": "Pending",
-      "description": "Invoice is being minted on-chain.",
-      "action": "Awaiting blockchain confirmation."
-    },
-    "listed": {
-      "label": "Active",
-      "description": "Invoice is active and accepting funds.",
-      "action": "Available for investment."
-    },
-    "partiallyFunded": {
-      "label": "Active",
-      "description": "Invoice is partially funded and still open.",
-      "action": "Accepting remaining funds."
-    },
-    "active": {
-      "label": "Active",
-      "description": "Invoice is currently active.",
-      "action": "Monitoring for repayment."
-    },
-    "fullyFunded": {
-      "label": "Funded",
-      "description": "Financing target has been reached.",
-      "action": "Awaiting final settlement/repayment."
-    },
-    "repaid": {
-      "label": "Repaid",
-      "description": "Invoice has been fully repaid.",
-      "action": "Yield distributed to investors."
-    },
-    "defaulted": {
-      "label": "Defaulted",
-      "description": "Invoice has defaulted on repayment.",
-      "action": "Recovery process initiated."
-    },
-    "cancelled": {
-      "label": "Cancelled",
-      "description": "Invoice financing was cancelled.",
-      "action": "No further action."
-    },
-    "expired": {
-      "label": "Expired",
-      "description": "Invoice listing has expired.",
-      "action": "No longer accepting funds."
-    },
-    "nextLabel": "Next: {action}"
-  },
   "transactionToast": {
     "doNotClose": "Do not close this window",
     "txLabel": "Tx:",
@@ -793,14 +699,6 @@
     "signatureTimeoutDesc": "The wallet popup was not signed in time. You can retry without rebuilding.",
     "warningRetryLabel": "Retry",
     "warningDismissLabel": "Dismiss"
-  },
-  "contractEventToast": {
-    "fundedTitle": "Invoice Funded",
-    "fundedDesc": "{amount} invested · Invoice #{tokenId}",
-    "repaidTitle": "Invoice Repaid",
-    "repaidDesc": "Invoice #{tokenId} has been fully repaid",
-    "cancelledTitle": "Invoice Cancelled",
-    "cancelledDesc": "Invoice #{tokenId} has been cancelled"
   },
   "statusTransition": {
     "confirmTitle": "Confirm: {label}",
@@ -815,10 +713,7 @@
     "percentCompleted": "{percent}% completed",
     "selectBulkActions": "Select actions to perform in bulk",
     "exportCsv": "Export CSV",
-    "repay": "Repay",
     "cancelInvoices": "Cancel Invoices",
-    "retryFailedCount": "Retry {count} failed",
-    "retryFailed": "Retry failed",
     "processing": "Processing...",
     "resultTotal": "Total",
     "resultSuccess": "Success",
@@ -841,13 +736,21 @@
     "unableToCopy": "Unable to copy link",
     "sharedSuccessfully": "Shared successfully"
   },
+  "contractEvents": {
+    "invoiceFunded": "Invoice Funded",
+    "invoiceFundedDesc": "{amount} invested · Invoice #{tokenId}",
+    "invoiceRepaid": "Invoice Repaid",
+    "invoiceRepaidDesc": "Invoice #{tokenId} has been fully repaid",
+    "invoiceCancelled": "Invoice Cancelled",
+    "invoiceCancelledDesc": "Invoice #{tokenId} has been cancelled"
+  },
   "language": {
     "label": "Language",
     "en": "English",
     "es": "Español",
-    "switchTo": "Switch to {lang}",
     "ar": "العربية",
-    "pt-BR": "Português (BR)"
+    "pt-BR": "Português (BR)",
+    "switchTo": "Switch to {lang}"
   },
   "validation": {
     "invoiceNumber": {
@@ -903,26 +806,6 @@
       "emailInvalid": "Invalid email address",
       "companyNameMinLength": "Company name must be at least 2 characters",
       "walletAddressInvalid": "Invalid Stellar public key format"
-    }
-  },
-  "kyc": {
-    "title": "KYC Verification Status",
-    "status": {
-      "unverified": "Unverified",
-      "pending": "Verification Pending",
-      "verified": "Verified",
-      "rejected": "Verification Rejected"
-    },
-    "desc": {
-      "unverified": "Verify your identity to unlock higher funding limits and secondary market trades.",
-      "pending": "Your documents are being reviewed. This usually takes under 5 minutes.",
-      "verified": "You have full access to all features and unlimited investment limits.",
-      "rejected": "Your identity check was rejected. Please review your details and try again."
-    },
-    "cta": {
-      "verify": "Verify Identity",
-      "reverify": "Re-submit Documents",
-      "close": "Close"
     }
   }
 }

@@ -16,6 +16,7 @@ import { useFormatters } from "@/hooks/useFormatters";
 import { usePositions } from "@/hooks/usePositions";
 import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
 import { exportCsv, exportPdf } from "@/lib/export";
 import {
@@ -160,6 +161,8 @@ function PortfolioAnalyticsInner() {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { setFilters, resetFilters } = useInvoiceStore();
+  const t = useTranslations("analytics");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -283,12 +286,12 @@ function PortfolioAnalyticsInner() {
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           <BarChart3 className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h2 className="text-2xl font-semibold text-foreground">Connect your wallet</h2>
+        <h2 className="text-2xl font-semibold text-foreground">{t("connectTitle")}</h2>
         <p className="max-w-sm text-sm text-muted-foreground">
-          View your portfolio analytics, performance metrics, and investment data
+          {t("connectDesc")}
         </p>
         <Button onClick={() => setWalletModalOpen(true)} className="mt-4">
-          <span>Connect Wallet</span>
+          <span>{tCommon("connectWallet")}</span>
         </Button>
       </motion.div>
     );
@@ -301,9 +304,9 @@ function PortfolioAnalyticsInner() {
           {/* Header */}
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-zinc-100">Portfolio Analytics</h1>
+              <h1 className="text-2xl font-bold text-zinc-100">{t("title")}</h1>
               <p className="mt-1 text-sm text-zinc-500">
-                Performance overview of your invoice financing portfolio
+                {t("subtitle")}
               </p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
