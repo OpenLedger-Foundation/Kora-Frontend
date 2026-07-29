@@ -22,6 +22,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTransactionDetails } from "@/lib/stellar/client";
 import type { TransactionRecord } from "@/store/transactionHistoryStore";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
+import { safeStellarTxUrl } from "@/lib/security";
+import { exportCsv } from "@/lib/export";
 
 /**
  * TransactionHistoryDrawer
@@ -331,7 +334,7 @@ function TransactionDetail({
       {/* Links */}
       <div className="flex flex-col gap-2 mt-auto pt-4 border-t border-border/50">
         <a
-          href={`https://stellar.expert/explorer/${process.env.NEXT_PUBLIC_STELLAR_NETWORK === "mainnet" ? "public" : "testnet"}/tx/${tx.hash}`}
+          href={safeStellarTxUrl(tx.hash)}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
@@ -359,12 +362,22 @@ export function TransactionHistoryDrawer({
   limit = 15,
 }: TransactionHistoryDrawerProps) {
   const allTransactions = useTransactionHistoryStore((s) => s.transactions);
-  const transactions = useMemo(
-    () => allTransactions.slice(0, limit),
-    [allTransactions, limit],
-  );
+  const filterType = useTransactionHistoryStore((s) => s.filterType);
+  const filterStartDate = useTransactionHistoryStore((s) => s.filterStartDate);
+  const filterEndDate = useTransactionHistoryStore((s) => s.filterEndDate);
+  const setFilterType = useTransactionHistoryStore((s) => s.setFilterType);
+  const setFilterStartDate = useTransactionHistoryStore((s) => s.setFilterStartDate);
+  const setFilterEndDate = useTransactionHistoryStore((s) => s.setFilterEndDate);
+  const resetFilters = useTransactionHistoryStore((s) => s.resetFilters);
+  const getFilteredTransactions = useTransactionHistoryStore((s) => s.getFilteredTransactions);
   const clearHistory = useTransactionHistoryStore((s) => s.clearHistory);
   const [selectedTx, setSelectedTx] = useState<TransactionRecord | null>(null);
+
+  const filteredTransactions = getFilteredTransactions();
+  const transactions = useMemo(
+    () => filteredTransactions.slice(0, limit),
+    [filteredTransactions, limit],
+  );
 
   // The drawer declares aria-modal="true" but is a hand-rolled surface, not a
   // Radix Dialog, so it gets no focus management for free. Without this, Tab
@@ -375,40 +388,21 @@ export function TransactionHistoryDrawer({
   });
 
   const handleExport = () => {
-    if (transactions.length === 0) return;
+    if (filteredTransactions.length === 0) return;
 
-    const csv = [
-      [
-        "Hash",
-        "Type",
-        "Status",
-        "Amount",
-        "Asset",
-        "Timestamp",
-        "Description",
-        "Error",
-      ],
-      ...transactions.map((tx) => [
-        tx.hash,
-        tx.type,
-        tx.status,
-        tx.amount || "",
-        tx.assetCode || "",
-        new Date(tx.timestamp).toISOString(),
-        tx.description || "",
-        tx.error || "",
-      ]),
-    ]
-      .map((row) => row.map((cell) => `"${cell}"`).join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kora-transactions-${Date.now()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    exportCsv(
+      filteredTransactions.map((tx) => ({
+        hash: tx.hash,
+        type: tx.type,
+        status: tx.status,
+        amount: tx.amount || "",
+        asset: tx.assetCode || "",
+        timestamp: new Date(tx.timestamp).toISOString(),
+        description: tx.description || "",
+        error: tx.error || "",
+      })),
+      `kora-transactions-${Date.now()}.csv`
+    );
   };
 
   const handleClearHistory = () => {
@@ -468,25 +462,93 @@ export function TransactionHistoryDrawer({
               </button>
             </div>
 
+            {/* Filters */}
+            {(allTransactions.length > 0 || filterType !== "all" || filterStartDate || filterEndDate) && !selectedTx && (
+              <div className="px-4 py-3 border-b border-border/50 bg-card/40 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Filters
+                  </span>
+                  {(filterType !== "all" || filterStartDate || filterEndDate) && (
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="text-xs text-primary hover:underline font-medium"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <div className="col-span-2">
+                    <select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="w-full h-9 rounded-lg border border-input bg-card px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      aria-label="Filter by type"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="mint">Mints</option>
+                      <option value="fund">Funding</option>
+                      <option value="repay">Repayments</option>
+                      <option value="claim">Claims</option>
+                    </select>
+                  </div>
+                  <div>
+                    <DatePicker
+                      placeholder="Start date"
+                      value={filterStartDate || ""}
+                      onChange={(e) => setFilterStartDate(e.target.value || null)}
+                      aria-label="Start date filter"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <DatePicker
+                      placeholder="End date"
+                      value={filterEndDate || ""}
+                      onChange={(e) => setFilterEndDate(e.target.value || null)}
+                      aria-label="End date filter"
+                      className="h-9 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Content */}
-            <div className="flex-1 overflow-y-auto px-4 py-3">
+            <div className="flex-1 overflow-y-auto px-4 py-3 relative">
               {selectedTx ? (
                 <TransactionDetail
                   tx={selectedTx}
                   onClose={() => setSelectedTx(null)}
                 />
-              ) : transactions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
-                  <Clock className="h-8 w-8 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      No transactions yet
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Transactions will appear here
-                    </p>
+              ) : filteredTransactions.length === 0 ? (
+                allTransactions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                    <Clock className="h-8 w-8 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        No transactions yet
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Transactions will appear here
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                    <Clock className="h-8 w-8 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">
+                        No results
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Try adjusting your filters
+                      </p>
+                    </div>
+                  </div>
+                )
               ) : (
                 <div className="space-y-2">
                   {transactions.map((tx) => (
@@ -501,25 +563,28 @@ export function TransactionHistoryDrawer({
             </div>
 
             {/* Footer */}
-            {transactions.length > 0 && (
+            {(allTransactions.length > 0 || filteredTransactions.length > 0) && (
               <div className="flex items-center gap-2 px-4 py-3 border-t border-border/50">
                 <button
                   type="button"
                   onClick={handleExport}
+                  disabled={filteredTransactions.length === 0}
                   aria-label="Export transactions to CSV"
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors text-sm font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                 >
                   <Download className="h-4 w-4" />
                   Export
                 </button>
-                <button
-                  type="button"
-                  onClick={handleClearHistory}
-                  aria-label="Clear transaction history"
-                  className="flex items-center justify-center px-3 py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {allTransactions.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearHistory}
+                    aria-label="Clear transaction history"
+                    className="flex items-center justify-center px-3 py-2 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             )}
           </motion.div>
