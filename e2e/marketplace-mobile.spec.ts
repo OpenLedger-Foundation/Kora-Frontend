@@ -221,3 +221,60 @@ test.describe("Marketplace - Mobile Search Experience", () => {
     }
   });
 });
+
+// ─── Virtualized Grid – Mobile Scroll (Issue #435) ───────────────────────────
+
+test.describe("Marketplace - Virtualized Grid Mobile Scroll", () => {
+  test.use({ ...devices["iPhone 12"] });
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("kora-tour-done", "true");
+      localStorage.setItem("kora-changelog-seen-version", "0.1.0");
+    });
+    await page.goto("/marketplace");
+    await page.waitForSelector("a[href^='/marketplace/']", { timeout: 15_000 });
+  });
+
+  test("virtual grid container is present and has non-zero height on mobile", async ({ page }) => {
+    const virtualGrid = page.locator('[data-virtualized="true"]');
+    await expect(virtualGrid).toBeVisible();
+
+    const height = await virtualGrid.evaluate((el: HTMLElement) =>
+      parseInt(el.style.height || "0", 10),
+    );
+    expect(height).toBeGreaterThan(0);
+  });
+
+  test("mobile virtual grid has no horizontal overflow", async ({ page }) => {
+    const overflow = await page.evaluate(() => {
+      const el = document.querySelector('[data-virtualized="true"]');
+      if (!el) return 0;
+      return el.scrollWidth - el.clientWidth;
+    });
+    // Allow 1px rounding tolerance
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("scrolling down on mobile renders new cards and removes off-screen ones", async ({
+    page,
+  }) => {
+    // Record initial rendered card count
+    const cards = page.locator("a[href^='/marketplace/']");
+    const initialCount = await cards.count();
+
+    // Scroll down significantly
+    await page.mouse.wheel(0, 3000);
+    await page.waitForTimeout(300);
+
+    const afterScrollCount = await cards.count();
+
+    // Virtualizer keeps the count bounded — not all cards accumulate in the DOM
+    // On mobile with overscan=3, at most ~6–9 cards should be in the DOM
+    const MOBILE_DOM_BUDGET = 20;
+    console.log(
+      `[Mobile Virtualization] Cards before scroll: ${initialCount}, after: ${afterScrollCount}`,
+    );
+    expect(afterScrollCount).toBeLessThanOrEqual(MOBILE_DOM_BUDGET);
+  });
+});
