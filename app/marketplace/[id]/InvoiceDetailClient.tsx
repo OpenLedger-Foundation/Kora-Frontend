@@ -32,6 +32,7 @@ import { useInvoice } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
 import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { useToast } from "@/hooks/useToast";
+import { env } from "@/lib/env";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
@@ -71,7 +72,7 @@ import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
   const { data: invoice, isLoading, error, dataUpdatedAt } = useInvoice(id);
-  const { isConnected, address, balance } = useWallet();
+  const { isConnected, address, balance, kycStatus } = useWallet();
   const { data: queriedUsdcBalance, refetch: refetchUsdcBalance } =
     useUsdcBalance(address ?? undefined);
   const toast = useToast();
@@ -197,12 +198,15 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   })();
 
   // Input validations for min-investment and remaining capacities
+  const kycThreshold = env.NEXT_PUBLIC_KYC_FUND_THRESHOLD;
   let inputError = "";
   if (amountNum > 0) {
     if (amountNum < terms.minInvestment) {
       inputError = `Minimum investment is ${formatCurrency(terms.minInvestment, metadata.currency)}`;
     } else if (amountNum > fundingState.remainingCapacity) {
       inputError = `Amount exceeds remaining capacity of ${formatCurrency(fundingState.remainingCapacity, metadata.currency)}`;
+    } else if (amountNum > kycThreshold && kycStatus !== "verified") {
+      inputError = `Investments above ${formatCurrency(kycThreshold, "USDC")} require KYC identity verification.`;
     }
   }
   const insufficientBalanceMessage =
@@ -225,6 +229,15 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       amountNum > fundingState.remainingCapacity
     )
       return;
+    const kycThreshold = env.NEXT_PUBLIC_KYC_FUND_THRESHOLD;
+    if (amountNum > kycThreshold && kycStatus !== "verified") {
+      toast.error(
+        "KYC Verification Required",
+        `Under regulatory compliance rules, investments exceeding ${formatCurrency(kycThreshold, "USDC")} require full identity verification. Please verify your KYC in settings to proceed.`
+      );
+      return;
+    }
+
     if (usdcBalance !== null && amountNum > usdcBalance) {
       toast.error(
         "Insufficient balance",
