@@ -1,9 +1,10 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAccountBalances, getUSDCBalance } from "@/lib/stellar/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { getUSDCBalance } from "@/lib/stellar/client";
 import { queryKeys } from "@/lib/queryKeys";
 import { env } from "@/lib/env";
+import { useAccountBalanceQuery } from "@/hooks/useWalletBalances";
 
 const USE_MOCK = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
 
@@ -106,25 +107,19 @@ export function useUsdcBalance(
 ) {
   const queryClient = useQueryClient();
   const { refetchInterval = false } = options;
-
-  const query = useQuery({
-    queryKey: queryKeys.account.usdcBalance(address ?? ""),
-    enabled: !!address,
-    staleTime: 15_000,
+  const query = useAccountBalanceQuery(address, {
     refetchInterval,
-    refetchIntervalInBackground: false,
-    queryFn: async () => {
-      if (USE_MOCK || !address) return 999_999;
-      const balances = await getAccountBalances(address);
-      return parseFloat(balances.usdc ?? "0");
-    },
   });
 
   return {
     ...query,
+    data: query.data ? Number.parseFloat(query.data.usdc ?? "0") : query.data,
     /** Invalidate + refetch the USDC balance query for this address. */
     invalidate: async () => {
       if (!address) return;
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.account.balances(address),
+      });
       await queryClient.invalidateQueries({
         queryKey: queryKeys.account.usdcBalance(address),
       });

@@ -8,6 +8,7 @@ import QRCode from "qrcode";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
+import { AddressBookPicker } from "@/components/wallet/AddressBookPicker";
 
 type Props = {
   /** App-level invoice id (e.g. inv_001). Used as fallback when tokenId is absent. */
@@ -57,8 +58,10 @@ export default function ShareInvoiceButton({
   className,
 }: Props): JSX.Element {
   const t = useTranslations("shareInvoice");
+  const tAB = useTranslations("addressBook");
   const [open, setOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [selectedRecipient, setSelectedRecipient] = useState<{ address: string; label: string } | null>(null);
   const { copy, copied } = useCopyToClipboard();
 
   const shareId = useMemo(() => resolveShareTokenId(id, tokenId), [id, tokenId]);
@@ -102,6 +105,26 @@ export default function ShareInvoiceButton({
     }
   };
 
+  const handleSelectRecipient = (entry: { id: string; address: string; label: string }) => {
+    setSelectedRecipient({ address: entry.address, label: entry.label });
+  };
+
+  const copyWithRecipient = async () => {
+    if (selectedRecipient) {
+      const recipient = selectedRecipient.label || selectedRecipient.address;
+      const message = `${invoiceTitle ?? "Invoice"} — ${invoiceUrl}\nRecipient: ${recipient}`;
+      const success = await copy(message);
+      if (success) {
+        toast.success(t("linkCopiedToast"));
+        setOpen(true);
+      } else {
+        toast.error(t("unableToCopy"));
+      }
+    } else {
+      await copyShareLink();
+    }
+  };
+
   const handlePrimaryShare = async () => {
     if (supportsMobileShare()) {
       try {
@@ -139,14 +162,41 @@ export default function ShareInvoiceButton({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className="z-50 w-[260px] rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl"
+          className="z-50 w-[280px] rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl"
           sideOffset={8}
         >
           <div className="flex flex-col gap-2 p-2">
-            <Button size="sm" variant="ghost" onClick={() => void copyShareLink()} className="w-full">
+            <Button size="sm" variant="ghost" onClick={() => void copyWithRecipient()} className="w-full">
               <Copy className="mr-2 h-4 w-4" />
               {copied ? t("linkCopied") : t("copyLink")}
             </Button>
+
+            {/* Address Book picker for recipient selection */}
+            <div className="border-t border-border pt-2">
+              <div className="mb-1 text-xs font-medium text-muted-foreground">
+                {tAB("pickFromAddressBook")}
+              </div>
+              <AddressBookPicker
+                onSelect={handleSelectRecipient}
+                buttonLabel={tAB("pickContact")}
+                name="share-recipient"
+              />
+              {selectedRecipient && (
+                <div className="mt-1.5 rounded-md bg-primary/10 px-2 py-1.5 text-xs">
+                  <span className="text-primary">
+                    {selectedRecipient.label || selectedRecipient.address.slice(0, 12) + "..."}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRecipient(null)}
+                    className="ml-2 text-muted-foreground hover:text-foreground"
+                    aria-label={tAB("clearSearch")}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               <a href={twitterUrl} target="_blank" rel="noopener noreferrer" className="flex-1">

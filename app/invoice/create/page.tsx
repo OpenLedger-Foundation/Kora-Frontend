@@ -42,6 +42,9 @@ import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { usePinataHealth } from "@/hooks/usePinataHealth";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
+import { useFeatureFlag } from "@/lib/featureFlags";
+import { useWalletKycStatus } from "@/store/walletStore";
+import { KybGateScreen } from "@/components/invoice/KybGateScreen";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
@@ -85,6 +88,11 @@ export default function CreateInvoicePage() {
   const [step, setStep] = useState(0);
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  // ── KYB gate state (Issue #489) ───────────────────────────────────────────
+  const [showKybGate, setShowKybGate] = useState(false);
+  const kybGateEnabled = useFeatureFlag("kyb-mint-gate");
+  const kycStatus = useWalletKycStatus();
+  // ─────────────────────────────────────────────────────────────────────────
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { createDraft, setCreateDraft, clearCreateDraft } = useInvoiceStore();
@@ -234,7 +242,18 @@ export default function CreateInvoicePage() {
       [],
     ];
     const valid = await trigger(fieldsPerStep[step]);
-    if (valid) setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    if (!valid) return;
+
+    // ── KYB Gate: intercept step 1 → step 2 (Issue #489) ─────────────────
+    // When the feature flag is on and the user is not yet KYB-verified,
+    // show the gate screen instead of advancing to the Upload & Review step.
+    if (kybGateEnabled && step === 1 && kycStatus !== "verified") {
+      setShowKybGate(true);
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
   };
 
   const goBack = () => {
@@ -450,10 +469,21 @@ export default function CreateInvoicePage() {
               ))}
             </div>
 
-            <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)}>
         <AnimatePresence mode="wait">
+          {/* ── KYB Gate Screen (Issue #489) ────────────────────────────── */}
+          {showKybGate && (
+            <KybGateScreen
+              onVerified={() => {
+                setShowKybGate(false);
+                setStep(2);
+              }}
+              onBack={() => setShowKybGate(false)}
+            />
+          )}
+
           {/* ── Step 0: Invoice Details ─────────────────────────────────── */}
-          {step === 0 && (
+          {!showKybGate && step === 0 && (
             <motion.div
               key="step0"
               initial={{ opacity: 0, x: 20 }}
@@ -621,7 +651,7 @@ export default function CreateInvoicePage() {
           )}
 
           {/* ── Step 1: Financing Terms ─────────────────────────────────── */}
-          {step === 1 && (
+          {!showKybGate && step === 1 && (
             <motion.div
               key="step1"
               initial={{ opacity: 0, x: 20 }}
@@ -816,7 +846,7 @@ export default function CreateInvoicePage() {
           )}
 
           {/* ── Step 2: Upload & Review ─────────────────────────────────── */}
-          {step === 2 && (
+          {!showKybGate && step === 2 && (
             <motion.div
               key="step2"
               initial={{ opacity: 0, x: 20 }}

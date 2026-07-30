@@ -6,6 +6,7 @@
  * Appears when 1+ invoices are in the comparison list. Shows invoice chips
  * with remove buttons and a "Compare" CTA that opens the ComparisonTable.
  * Supports shareable URLs with comparison invoice IDs (?compare=id1,id2,...).
+ * Gated behind the "comparison" feature flag.
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { cn } from "@/lib/utils";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
+import { isEnabled } from "@/lib/featureFlags";
 import { ComparisonTable } from "./ComparisonTable";
 
 export function ComparisonBar() {
@@ -36,6 +38,10 @@ export function ComparisonBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const hydratedFromUrl = useRef(false);
+
+  // ─── Feature flag ────────────────────────────────────────────────────────
+  const isComparisonEnabled = isEnabled("comparison");
+  if (!isComparisonEnabled) return null;
 
   // Resolve selected invoices from store list + token map (live indexer shape)
   const invoiceIndex = [
@@ -104,6 +110,9 @@ export function ComparisonBar() {
 
   if (comparisonList.length === 0) return null;
 
+  // ─── Mobile: show only count + compare button ──────────────────────────
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+
   return (
     <>
       <AnimatePresence>
@@ -133,6 +142,7 @@ export function ComparisonBar() {
             </span>
           </div>
 
+          {/* ─── Mobile: show chips in horizontal scroll ────────────────── */}
           <div className="flex flex-1 items-center gap-2 overflow-x-auto pb-0.5">
             {selectedInvoices.map((invoice) => (
               <motion.div
@@ -143,7 +153,7 @@ export function ComparisonBar() {
                 exit={{ opacity: 0, scale: 0.8 }}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-foreground"
               >
-                <span className="max-w-[100px] truncate sm:max-w-[120px]">
+                <span className="max-w-[80px] truncate sm:max-w-[120px]">
                   {invoice.metadata.debtorName}
                 </span>
                 <span className="text-primary font-semibold">
@@ -174,6 +184,7 @@ export function ComparisonBar() {
                 </div>
               ))}
 
+            {/* Empty slots - hidden on mobile */}
             {Array.from({
               length: Math.max(0, MAX_COMPARISON_INVOICES - comparisonList.length),
             }).map((_, i) => (
@@ -200,13 +211,15 @@ export function ComparisonBar() {
               <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
             </button>
 
-            <button
-              onClick={clearComparison}
-              className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              aria-label="Clear all comparisons"
-            >
-              {tMarketplace("clear")}
-            </button>
+            {!isMobile && (
+              <button
+                onClick={clearComparison}
+                className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label="Clear all comparisons"
+              >
+                {tMarketplace("clear")}
+              </button>
+            )}
 
             <Button
               size="sm"

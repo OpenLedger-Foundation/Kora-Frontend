@@ -343,10 +343,6 @@ export function useTransaction() {
  * announce app-wide. This is a stub returning no announcements until that
  * global tracking is built — it exists so `TransactionAnnouncer` (mounted
  * once in app/providers.tsx) has something to import and render.
- */
-export function useTxAnnouncement(): { polite: string | null; assertive: string | null } {
-  return { polite: null, assertive: null };
-}
 
 /**
  * P2P position transfer flow (#443) — combines useTransaction + the
@@ -405,7 +401,8 @@ export function useTransferPositionFlow() {
 export function useTxAnnouncement(): { polite?: string; assertive?: string } {
   const txState = useUIStore((s) => s.txState);
   if (txState.status === "failed") {
-    return { assertive: txState.error || "Transaction failed" };
+    const errorMsg = typeof txState.error === "string" ? txState.error : (txState.error as any)?.message || "Transaction failed";
+    return { assertive: errorMsg };
   }
   if (txState.status !== "idle" && txState.status !== "confirmed") {
     return { polite: `Transaction ${txState.status}...` };

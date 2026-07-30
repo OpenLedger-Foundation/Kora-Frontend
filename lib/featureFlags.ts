@@ -22,13 +22,15 @@ import { useSyncExternalStore } from "react";
  * | comparison        | NEXT_PUBLIC_ENABLE_COMPARISON          | Invoice comparison bar in marketplace          |
  * | onboarding-tour   | NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR     | Guided onboarding tour for new users           |
  * | batch-actions     | NEXT_PUBLIC_ENABLE_BATCH_ACTIONS       | Batch cancel/repay in SME dashboard            |
+ * | kyb-mint-gate     | NEXT_PUBLIC_ENABLE_KYB_MINT_GATE       | Gate invoice minting behind KYB verification   |
  */
 export type FeatureFlag =
   | "mock-data"
   | "devtools"
   | "comparison"
   | "onboarding-tour"
-  | "batch-actions";
+  | "batch-actions"
+  | "kyb-mint-gate";
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "mock-data",
@@ -36,6 +38,7 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "comparison",
   "onboarding-tour",
   "batch-actions",
+  "kyb-mint-gate",
 ];
 
 export type FeatureFlagState = Record<FeatureFlag, boolean>;
@@ -51,6 +54,7 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   comparison: "NEXT_PUBLIC_ENABLE_COMPARISON",
   "onboarding-tour": "NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR",
   "batch-actions": "NEXT_PUBLIC_ENABLE_BATCH_ACTIONS",
+  "kyb-mint-gate": "NEXT_PUBLIC_ENABLE_KYB_MINT_GATE",
 };
 
 function readEnvFlag(flag: FeatureFlag): boolean {
