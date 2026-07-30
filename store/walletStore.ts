@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { WalletBalance, WalletNetwork, WalletProvider } from "@/types";
 import { env } from "@/lib/env";
+import { isValidStellarAddress } from "@/lib/utils";
 import { createPersistentJSONStorage } from "./storageAdapter";
 
 const EMPTY_BALANCE: WalletBalance = {
@@ -156,18 +157,36 @@ export const useWalletStore = create<WalletStore>()(
       setKitSessionActive: (active) =>
         set({ kitSessionActive: active }),
 
-      addAddressBookEntry: (address, label = "") =>
+      addAddressBookEntry: (address, label = "") => {
+        if (!address || typeof address !== "string") return;
+        const trimmed = address.trim();
+        if (!trimmed || !isValidStellarAddress(trimmed)) return;
+        const existing = get().addressBook.find(
+          (e) => e.address.toLowerCase() === trimmed.toLowerCase()
+        );
+        if (existing) return; // silently skip duplicates
         set((s) => ({
           addressBook: [
             ...s.addressBook,
-            { id: String(Date.now()) + Math.random().toString(36).slice(2, 8), address, label },
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim() },
           ],
-        })),
+        }));
+      },
 
-      updateAddressBookEntry: (id, updates) =>
+      updateAddressBookEntry: (id, updates) => {
+        if (updates.address !== undefined) {
+          const trimmed = updates.address.trim();
+          if (!trimmed || !isValidStellarAddress(trimmed)) return;
+          const duplicate = get().addressBook.find(
+            (e) => e.id !== id && e.address.toLowerCase() === trimmed.toLowerCase()
+          );
+          if (duplicate) return;
+          updates = { ...updates, address: trimmed };
+        }
         set((s) => ({
-          addressBook: s.addressBook.map((e) => (e.id === id ? { ...e, ...updates } : e)),
-        })),
+          addressBook: s.addressBook.map((e) => (e.id === id ? { ...e, ...updates, label: updates.label?.trim() ?? e.label } : e)),
+        }));
+      },
 
       removeAddressBookEntry: (id) =>
         set((s) => ({ addressBook: s.addressBook.filter((e) => e.id !== id) })),
