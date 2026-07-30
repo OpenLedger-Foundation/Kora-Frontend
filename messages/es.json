@@ -503,6 +503,11 @@
     "operational": "Operacional",
     "degraded": "Degradado",
     "down": "Caído",
+    "offline": "Sin conexión",
+    "offlineDesc": "No tienes conexión. Los datos del mercado en caché aún pueden estar disponibles.",
+    "offlineCached": "Sin conexión - mostrando datos en caché",
+    "offlineCachedShort": "Datos en caché",
+    "lastUpdated": "Última actualización {time}",
     "operationalDesc": "Todos los servicios funcionando normalmente",
     "degradedDesc": "Algunos servicios experimentando retrasos",
     "downDesc": "Servicios no disponibles",
@@ -511,7 +516,10 @@
     "lastChecked": "Última verificación: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Error"
+    "error": "Error",
+    "rpcDown": "RPC caído",
+    "rpcDegraded": "RPC degradado",
+    "statusAriaLabel": "Estado de la red: {status} en {network}"
   },
   "offline": {
     "title": "Estás sin conexión",
