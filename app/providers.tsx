@@ -2,6 +2,10 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import {
+  persistQueryClientRestore,
+  persistQueryClientSubscribe,
+} from "@tanstack/query-persist-client-core";
 import { Toaster } from "sonner";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
@@ -44,6 +48,11 @@ import { VerificationProvider } from "@/components/wallet/VerificationProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
 import { useFeatureFlag } from "@/lib/featureFlags";
+import {
+  createIndexedDbPersister,
+  MARKETPLACE_CACHE_MAX_AGE_MS,
+  shouldPersistMarketplaceQuery,
+} from "@/lib/queryPersistence";
 
 // Pre-load both locale message files at the module level so they are
 // bundled and available synchronously on the client.
@@ -92,6 +101,7 @@ function ThemedToaster() {
 export function Providers({ children }: { children: React.ReactNode }) {
   const onboardingTourEnabled = useFeatureFlag("onboarding-tour");
   const devtoolsEnabled = useFeatureFlag("devtools");
+  const [isPersistenceReady, setIsPersistenceReady] = useState(typeof window === "undefined");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -100,6 +110,51 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setIsPersistenceReady(true);
+      return;
+    }
+
+    const persister = createIndexedDbPersister();
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    const setupPersistence = async () => {
+      try {
+        await persistQueryClientRestore({
+          queryClient,
+          persister,
+          maxAge: MARKETPLACE_CACHE_MAX_AGE_MS,
+        });
+
+        if (cancelled) return;
+
+        unsubscribe = persistQueryClientSubscribe({
+          queryClient,
+          persister,
+          maxAge: MARKETPLACE_CACHE_MAX_AGE_MS,
+          dehydrateOptions: {
+            shouldDehydrateQuery: shouldPersistMarketplaceQuery,
+          },
+        });
+      } catch (error) {
+        console.warn("[QueryPersistence] Failed to restore marketplace cache.", error);
+      } finally {
+        if (!cancelled) {
+          setIsPersistenceReady(true);
+        }
+      }
+    };
+
+    void setupPersistence();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [queryClient]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
@@ -121,6 +176,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {!isPersistenceReady ? null : (
       <LocaleProvider allMessages={ALL_MESSAGES}>
         <ThemeProvider>
           {children}
@@ -140,6 +196,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           )}
         </ThemeProvider>
       </LocaleProvider>
+      )}
     </QueryClientProvider>
   );
 }

@@ -503,6 +503,11 @@
     "operational": "تعمل بشكل طبيعي",
     "degraded": "أداء منخفض",
     "down": "متوقفة",
+    "offline": "غير متصل",
+    "offlineDesc": "أنت غير متصل. قد تظل بيانات السوق المخزنة مؤقتًا متاحة.",
+    "offlineCached": "غير متصل - يتم عرض البيانات المخزنة مؤقتًا",
+    "offlineCachedShort": "بيانات مخزنة",
+    "lastUpdated": "آخر تحديث {time}",
     "operationalDesc": "جميع الخدمات تعمل بشكل طبيعي",
     "degradedDesc": "بعض الخدمات تعاني من تأخيرات",
     "downDesc": "الخدمات غير متاحة",
@@ -511,7 +516,10 @@
     "lastChecked": "آخر فحص: {time}",
     "testnet": "شبكة الاختبار",
     "mainnet": "الشبكة الرئيسية",
-    "error": "خطأ"
+    "error": "خطأ",
+    "rpcDown": "تعطل RPC",
+    "rpcDegraded": "RPC متدهور",
+    "statusAriaLabel": "حالة الشبكة: {status} على {network}"
   },
   "offline": {
     "title": "أنت غير متصل بالإنترنت",

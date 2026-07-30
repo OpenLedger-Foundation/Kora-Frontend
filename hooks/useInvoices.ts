@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useQueryTuning } from "@/lib/featureFlags";
+import { MARKETPLACE_CACHE_GC_TIME_MS } from "@/lib/queryPersistence";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import {
   fetchInvoices,
@@ -85,7 +86,8 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
         page
       ),
     staleTime: tuning.staleTime,
-    gcTime: tuning.gcTime,
+    gcTime: Math.max(tuning.gcTime, MARKETPLACE_CACHE_GC_TIME_MS),
+    meta: { persistOffline: true },
     // An explicit caller-supplied interval wins over the mode default; before
     // this it was computed and then silently ignored by a hard-coded 15 s.
     refetchInterval: () => whenVisible(refetchInterval ?? tuning.listRefetchInterval),
@@ -130,7 +132,8 @@ export function useInfiniteInvoices(options?: {
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     enabled,
     staleTime: tuning.staleTime,
-    gcTime: tuning.gcTime,
+    gcTime: Math.max(tuning.gcTime, MARKETPLACE_CACHE_GC_TIME_MS),
+    meta: { persistOffline: true },
   });
 }
 
@@ -145,7 +148,8 @@ export function useInvoice(id: string, walletAddress?: string) {
     queryFn: () => fetchInvoiceById(id, walletAddress),
     enabled: !!id,
     staleTime: tuning.staleTime,
-    gcTime: tuning.gcTime,
+    gcTime: Math.max(tuning.gcTime, MARKETPLACE_CACHE_GC_TIME_MS),
+    meta: { persistOffline: true },
     refetchInterval: (query) => {
       // Only invoices that can still change are worth polling at all: a
       // settled or fully-funded invoice is terminal until an event says
@@ -291,7 +295,12 @@ export function useInvoiceMutation() {
       formData: CreateInvoiceFormData;
       ownerAddress: string;
       onProgress?: (p: number) => void;
-    }) => prepareCreateInvoice(formData, ownerAddress, onProgress),
+    }) => {
+      if (typeof window !== "undefined" && !window.navigator.onLine) {
+        return Promise.reject(new Error("You're offline. Reconnect to create an invoice."));
+      }
+      return prepareCreateInvoice(formData, ownerAddress, onProgress);
+    },
 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
@@ -315,7 +324,12 @@ export function useUpdateStatusMutation() {
       from: InvoiceStatus;
       to: InvoiceStatus;
       ownerAddress: string;
-    }) => prepareUpdateInvoiceStatus(tokenId, from, to, ownerAddress),
+    }) => {
+      if (typeof window !== "undefined" && !window.navigator.onLine) {
+        return Promise.reject(new Error("You're offline. Reconnect to update invoice status."));
+      }
+      return prepareUpdateInvoiceStatus(tokenId, from, to, ownerAddress);
+    },
 
     onSettled: (_data, _err, { tokenId, ownerAddress }) => {
       // Invalidate both the owner query and the individual detail so the UI
@@ -339,7 +353,12 @@ export function useFundInvoiceMutation() {
       tokenId: string;
       amount: number;
       investorAddress: string;
-    }) => prepareFundInvoice(tokenId, amount, investorAddress),
+    }) => {
+      if (typeof window !== "undefined" && !window.navigator.onLine) {
+        return Promise.reject(new Error("You're offline. Reconnect to fund this invoice."));
+      }
+      return prepareFundInvoice(tokenId, amount, investorAddress);
+    },
 
     onMutate: async ({ tokenId, amount }) => {
       const { invoices } = useInvoiceStore.getState();

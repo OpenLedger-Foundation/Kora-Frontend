@@ -503,6 +503,11 @@
     "operational": "Operational",
     "degraded": "Degraded",
     "down": "Down",
+    "offline": "Offline",
+    "offlineDesc": "You're offline. Cached marketplace data may still be available.",
+    "offlineCached": "Offline - showing cached data",
+    "offlineCachedShort": "Cached data",
+    "lastUpdated": "Last updated {time}",
     "operationalDesc": "All services running normally",
     "degradedDesc": "Some services experiencing delays",
     "downDesc": "Services unavailable",
@@ -511,7 +516,10 @@
     "lastChecked": "Last checked: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Error"
+    "error": "Error",
+    "rpcDown": "RPC Down",
+    "rpcDegraded": "RPC Degraded",
+    "statusAriaLabel": "Network status: {status} on {network}"
   },
   "offline": {
     "title": "You're offline",
