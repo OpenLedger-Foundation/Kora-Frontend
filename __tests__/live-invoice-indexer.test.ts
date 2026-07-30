@@ -6,9 +6,14 @@ import type { Invoice, ContractEvent } from "@/types";
 // Mock env to enable live mode for testing
 vi.mock("@/lib/env", () => ({
   env: {
+    NEXT_PUBLIC_STELLAR_NETWORK: "testnet",
+    NEXT_PUBLIC_STELLAR_RPC_URL: "https://soroban-testnet.stellar.org",
+    NEXT_PUBLIC_STELLAR_HORIZON_URL: "https://horizon-testnet.stellar.org",
+    NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
     NEXT_PUBLIC_ENABLE_MOCK_DATA: false,
-    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "C_INVOICE_TEST",
-    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "C_MARKETPLACE_TEST",
+    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4",
+    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
     NEXT_PUBLIC_IPFS_GATEWAY: "https://gateway.pinata.cloud/ipfs",
   },
 }));
@@ -33,7 +38,7 @@ describe("LiveInvoiceIndexer Integration Tests", () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.clearAllMocks();
   });
 
   // ─── 1. Live Listing with NEXT_PUBLIC_ENABLE_MOCK_DATA=false ────────────────

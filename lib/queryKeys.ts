@@ -25,24 +25,24 @@ export function getInvoiceDataSource(): InvoiceDataSource {
 export const queryKeys = {
   invoices: {
     all: ["invoices"] as const,
-    list: (filters: FilterState, sort: SortState, page: number) =>
-      ["invoices", "list", filters, sort, page] as const,
-    infinite: (filters: FilterState, sort: string | SortState, pageSize: number) =>
-      ["invoices", "infinite", filters, sort, pageSize] as const,
+    list: (filters: FilterState, sort: SortState, page: number, source: InvoiceDataSource = getInvoiceDataSource()) =>
+      ["invoices", "list", source, filters, sort, page] as const,
     /**
      * Infinite-scroll query key — includes filters, sortBy string, and page
      * size so any filter/sort change resets pagination automatically.
      */
-    infinite: (filters: FilterState, sortBy: string, pageSize: number) =>
-      ["invoices", "infinite", filters, sortBy, pageSize] as const,
+    infinite: (filters: FilterState, sortBy: string, pageSize: number, source: InvoiceDataSource = getInvoiceDataSource()) =>
+      ["invoices", "infinite", source, filters, sortBy, pageSize] as const,
     /**
      * Detail keys are namespaced by data source so mock and live indexer
      * responses never collide in the TanStack Query cache.
      */
     detail: (id: string, source: InvoiceDataSource = getInvoiceDataSource()) =>
       ["invoices", "detail", source, id] as const,
-    byOwner: (address: string) => ["invoices", "owner", address] as const,
-    positions: (address: string) => ["invoices", "positions", address] as const,
+    byOwner: (address: string, source: InvoiceDataSource = getInvoiceDataSource()) =>
+      ["invoices", "owner", source, address] as const,
+    positions: (address: string, source: InvoiceDataSource = getInvoiceDataSource()) =>
+      ["invoices", "positions", source, address] as const,
     batch: (tokenIds: string[]) =>
       ["invoices", "batch", [...tokenIds].sort().join(",")] as const,
   },
