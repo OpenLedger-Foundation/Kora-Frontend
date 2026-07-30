@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useWallet } from "@/hooks/useWallet";
+import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { useWalletStore } from "@/store";
 import { useToast } from "@/hooks/useToast";
 import { useUIStore } from "@/store";
@@ -41,6 +42,7 @@ export function WalletButton() {
   } = useWallet();
   const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
   const { setWalletModalOpen } = useUIStore();
+  const { balances: walletBalances, isLoading: balancesLoading } = useWalletBalances(address ?? undefined);
   const toast = useToast();
   const [open, setOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -203,21 +205,24 @@ export function WalletButton() {
             </div>
           )}
 
-          {balance && (
+          {address && (
             <div className="mb-3 space-y-1 rounded-lg bg-card p-3">
               <p className="text-xs text-muted-foreground">{t("balances")}</p>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">XLM</span>
-                <span className="font-medium text-foreground">
-                  {parseFloat(balance.xlm).toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">USDC</span>
-                <span className="font-medium text-foreground">
-                  {parseFloat(balance.usdc).toFixed(2)}
-                </span>
-              </div>
+              {balancesLoading && walletBalances.every((b) => b.rawAmount === 0) ? (
+                <div className="space-y-1.5 py-1">
+                  <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                </div>
+              ) : (
+                walletBalances.map((asset) => (
+                  <div key={asset.symbol} className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">{asset.symbol}</span>
+                    <span className="font-medium text-foreground font-mono tabular-nums">
+                      {asset.formattedAmount}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           )}
 
