@@ -8,6 +8,8 @@ node_modules/
 out/
 build/
 dist/
+target/
+**/target/
 
 # env
 .env
