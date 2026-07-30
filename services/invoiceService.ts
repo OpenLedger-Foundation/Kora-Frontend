@@ -27,6 +27,7 @@ import {
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { BadSequenceError, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
+import { indexerClient, RpcNetworkError } from "@/lib/stellar/indexerClient";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
 
@@ -361,6 +362,23 @@ class LiveInvoiceService implements IInvoiceService {
       const response = await indexerClient.getInvoices(filters, sort, page, pageSize);
       return success(response);
     } catch (error) {
+      if (error instanceof RpcNetworkError) {
+        const message = error.message;
+        const lowerMessage = message.toLowerCase();
+
+        if (lowerMessage.includes("rate limit") || lowerMessage.includes("429")) {
+          return failure("RATE_LIMITED", "Stellar Soroban RPC rate limit exceeded. Please try again in a few moments.");
+        }
+        if (lowerMessage.includes("timeout") || lowerMessage.includes("deadline")) {
+          return failure("NETWORK_ERROR", "Connection timed out while syncing with Soroban RPC. Please check your network connection and try again.");
+        }
+        if (lowerMessage.includes("connection refused") || lowerMessage.includes("fetch failed")) {
+          return failure("NETWORK_ERROR", "Unable to connect to the Stellar Soroban network. The RPC server might be temporarily down.");
+        }
+
+        return failure("NETWORK_ERROR", `Soroban RPC error: ${message}`, { cause: error.cause });
+      }
+
       const message = error instanceof Error ? error.message : String(error);
       return failure("FETCH_ERROR", `Failed to fetch live invoices: ${message}`, { cause: message });
     }

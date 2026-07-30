@@ -5,7 +5,7 @@
  * and provides paginated, filtered, and sorted query methods.
  */
 import { getContractEvents, type ContractEvent, type KoraEventType } from "./client";
-import type { Invoice, MarketplaceFilters, MarketplaceSort, PaginatedResponse } from "@/types";
+import type { Invoice, MarketplaceFilters, MarketplaceSort, PaginatedResponse, DebtorPrivacyLevel } from "@/types";
 import { fetchIpfsJsonWithFallback, isValidCID } from "@/lib/ipfs";
 import { sanitizeIpfsMetadata } from "@/lib/security";
 import { env } from "@/lib/env";
@@ -16,6 +16,13 @@ export interface IndexerQueryOptions {
   page?: number;
   pageSize?: number;
   cursor?: string;
+}
+
+export class RpcNetworkError extends Error {
+  constructor(message: string, public cause?: unknown) {
+    super(message);
+    this.name = "RpcNetworkError";
+  }
 }
 
 export class StellarIndexerClient {
@@ -83,6 +90,8 @@ export class StellarIndexerClient {
       if (process.env.NODE_ENV === "development") {
         console.warn("[StellarIndexerClient] Error syncing events:", err);
       }
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new RpcNetworkError(`Soroban RPC sync failed: ${msg}`, err);
     } finally {
       this.isIngesting = false;
     }
@@ -124,7 +133,22 @@ export class StellarIndexerClient {
 
   /**
    * Get all indexed invoices applying filters, sorting, and pagination.
-   * Supports both page/pageSize and cursor-based pagination.
+   *
+   * Pagination Translation Strategy:
+   * Soroban RPC event queries are cursor-based (using ledger numbers), whereas the frontend
+   * relies on standard page/pageSize offset-based pagination. To bridge these two models,
+   * this client implements sequential event syncing up to the latest ledger to fully rebuild
+   * the current state of all invoices in memory (`indexedInvoices`).
+   *
+   * Once the complete, up-to-date invoice collection is present in memory, it is post-filtered
+   * and sorted entirely client-side. Offset pagination is then performed by slicing the in-memory
+   * array at `(page - 1) * pageSize`. Alternatively, if a `cursor` (tokenId) is passed, we locate
+   * the index of the cursor invoice and slice from the subsequent entry.
+   *
+   * This design provides the following advantages:
+   * 1. Direct offset-based pagination is perfectly supported without requiring indexer API changes.
+   * 2. Supports multi-field post-filtering and sorting over live-synced events.
+   * 3. Avoids cursor drift when elements are added or modified.
    */
   async getInvoices(
     filters: MarketplaceFilters = {},
@@ -252,6 +276,7 @@ export class StellarIndexerClient {
       },
       riskTier: "A",
       riskScore: 0,
+      debtorPrivacy: (metadata.debtorPrivacy as DebtorPrivacyLevel) || "anonymized",
       status: "listed",
       createdAt: event.ledgerClosedAt || new Date().toISOString(),
       updatedAt: event.ledgerClosedAt || new Date().toISOString(),
