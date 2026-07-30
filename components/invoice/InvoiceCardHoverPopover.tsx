@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { TrendingUp, MapPin, Calendar, Zap } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { TrendingUp, MapPin, Calendar, Zap, Info, CircleAlert } from "lucide-react";
 import { daysUntil } from "@/lib/utils";
 import { useFormatters } from "@/hooks/useFormatters";
 import type { Invoice } from "@/types";
@@ -51,10 +51,12 @@ export function InvoiceCardHoverPopover({
   onPrefetch,
 }: InvoiceCardHoverPopoverProps) {
   const { terms, funding, riskTier, metadata } = invoice;
-  const { formatApr } = useFormatters();
+  const { formatApr, formatDate } = useFormatters();
   const popoverRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   // Detect touch device on mount
   useEffect(() => {
@@ -69,12 +71,13 @@ export function InvoiceCardHoverPopover({
     setIsTouchDevice(isTouchSupported());
   }, []);
 
-  // Notify parent when popover opens so marketplace can prefetch detail data
+  // Notify parent when popover opens so marketplace can prefetch detail data.
+  // Desktop uses the hover/focus path; touch uses the explicit quick-stats control.
   useEffect(() => {
-    if (isOpen && !isTouchDevice) {
+    if (isOpen || isMobileOpen) {
       onPrefetch?.(invoice.id);
     }
-  }, [isOpen, isTouchDevice, invoice.id, onPrefetch]);
+  }, [isMobileOpen, isOpen, invoice.id, onPrefetch]);
 
   // Close popover on Escape key
   useEffect(() => {
@@ -95,7 +98,8 @@ export function InvoiceCardHoverPopover({
 
   // Update popover position when open or trigger ref changes
   useEffect(() => {
-    if (!isOpen || !triggerRef.current || !popoverRef.current) return;
+    const isPopoverOpen = isTouchDevice ? isMobileOpen : isOpen;
+    if (!isPopoverOpen || !triggerRef.current || !popoverRef.current) return;
 
     const updatePosition = () => {
       const triggerRect = triggerRef.current!.getBoundingClientRect();
@@ -131,37 +135,50 @@ export function InvoiceCardHoverPopover({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [isOpen, triggerRef]);
-
-  if (isTouchDevice) {
-    return null;
-  }
+  }, [isMobileOpen, isOpen, isTouchDevice, triggerRef]);
 
   const jurisdictionName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
   const fundedPercent = Math.round((funding.fundingProgress || 0) * 100);
   const daysToMaturity = daysUntil(terms.repaymentDate);
 
   const popoverId = `invoice-popover-${invoice.id}`;
+  const shouldRenderPopover = isTouchDevice ? isMobileOpen : isOpen;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          ref={popoverRef}
-          id={popoverId}
-          role="tooltip"
-          aria-describedby={popoverId}
-          style={{
-            position: "fixed",
-            top: position.top,
-            left: position.left,
+    <>
+      {isTouchDevice ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onPrefetch?.(invoice.id);
+            setIsMobileOpen((prev) => !prev);
           }}
-          initial={{ opacity: 0, scale: 0.95, y: -4 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: -4 }}
-          transition={{ duration: 0.2 }}
-          className="z-50 w-64 rounded-lg border border-border bg-popover p-4 shadow-lg backdrop-blur-sm pointer-events-none"
+          className="absolute right-3 top-3 z-20 rounded-full border border-border/60 bg-background/80 p-2 text-muted-foreground shadow-sm backdrop-blur-sm transition hover:text-foreground"
+          aria-label="Show invoice quick stats"
         >
+          <Info className="h-4 w-4" />
+        </button>
+      ) : null}
+      <AnimatePresence>
+        {shouldRenderPopover && (
+          <motion.div
+            ref={popoverRef}
+            id={popoverId}
+            role="tooltip"
+            aria-describedby={popoverId}
+            style={{
+              position: "fixed",
+              top: position.top,
+              left: position.left,
+            }}
+            initial={reducedMotion ? false : { opacity: 0, scale: 0.95, y: -4 }}
+            animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: -4 }}
+            transition={reducedMotion ? { duration: 0 } : { duration: 0.2 }}
+            className="z-50 w-64 rounded-lg border border-border bg-popover p-4 shadow-lg backdrop-blur-sm pointer-events-none"
+          >
           {/* Header */}
           <div className="mb-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">
@@ -230,14 +247,26 @@ export function InvoiceCardHoverPopover({
                 {daysToMaturity}d
               </span>
             </div>
+
+            {/* Due date */}
+            <div className="flex items-start justify-between pt-1 border-t border-border">
+              <div className="flex items-center gap-2">
+                <CircleAlert className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-xs font-medium text-muted-foreground">Due</span>
+              </div>
+              <span className="text-sm font-semibold text-foreground">
+                {formatDate(terms.repaymentDate, "short")}
+              </span>
+            </div>
           </div>
 
           {/* Footer hint */}
           <p className="mt-3 text-xs text-muted-foreground/70 border-t border-border pt-2">
-            Click to view full details
+            {isTouchDevice ? "Tap again to continue" : "Click to view full details"}
           </p>
         </motion.div>
       )}
     </AnimatePresence>
+    </>
   );
 }
