@@ -52,6 +52,8 @@ import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
 import { useMaturityReminder } from "@/hooks/useMaturityReminder";
+import { useFundingReminder } from "@/hooks/useFundingReminder";
+import { useRepaymentReminder } from "@/hooks/useRepaymentReminder";
 import { useUIStore, useInvoiceStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
@@ -190,7 +192,7 @@ export default function SMEDashboardPage() {
   );
 
   useEffect(() => {
-    return queueRef.current.subscribe((snap) => {
+    const unsubscribe = queueRef.current.subscribe((snap) => {
       setBatchItems(snap.items);
       setIsBatchProcessing(snap.isRunning);
       setBatchProgress(
@@ -198,6 +200,9 @@ export default function SMEDashboardPage() {
       );
       persistBatchQueue(snap.items);
     });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const myInvoices: Invoice[] =
@@ -217,6 +222,10 @@ export default function SMEDashboardPage() {
   useMaturityReminder(
     allMyInvoices.filter((invoice) => ["listed", "partially_funded", "fully_funded"].includes(invoice.status))
   );
+
+  useFundingReminder(allMyInvoices);
+
+  useRepaymentReminder(allMyInvoices);
 
   // Must run before the early return below so hook order stays stable across renders.
   const { executeProtectedAction } = useVerifiedAction();

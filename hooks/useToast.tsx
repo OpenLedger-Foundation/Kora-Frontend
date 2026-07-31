@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { useUIStore } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
 
 export type NotificationPreferenceType =
   | "txConfirmed"
@@ -81,11 +82,21 @@ export function ErrorToast({
 }
 
 export function useToast() {
+  const { notifications } = useSettingsStore();
   const notificationPreferences = useUIStore((s) => s.notificationPreferences);
   const t = useTranslations("transaction");
 
   const shouldNotify = (type?: NotificationPreferenceType) => {
     if (!type) return true;
+    if (type === "maturityReminder") {
+      return notifications.maturityReminder;
+    }
+    if (type === "invoiceFunded") {
+      return notifications.fundingAlerts;
+    }
+    if (type === "yieldAvailable") {
+      return notifications.repaymentAlerts;
+    }
     return notificationPreferences[type];
   };
 

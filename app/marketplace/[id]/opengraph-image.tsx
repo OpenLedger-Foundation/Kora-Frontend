@@ -41,7 +41,7 @@ export default async function OpenGraphImage({ params }: Props) {
         subtitle = meta.debtor?.name || subtitle;
         amount = `${meta.currency} ${Number(meta.amount).toLocaleString()}`;
         apr = `${invoice.terms.apr}% APR`;
-        risk = meta.risk_tier;
+        risk = meta.risk_tier || "";
         due = meta.due_date ? `Due ${meta.due_date}` : "";
       }
     } catch {

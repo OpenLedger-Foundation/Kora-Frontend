@@ -21,6 +21,7 @@ import * as React from "react";
 import { FileInput } from "@/components/ui/file-input";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { DatePicker } from "@/components/ui/date-picker";
+import { NotificationSettings } from "@/components/settings/NotificationSettings";
 
 // ── FileInput fixture ────────────────────────────────────────────────────────
 
@@ -126,6 +127,12 @@ export default function TestComponentsPage() {
       <FileInputFixture />
       <RangeSliderFixture />
       <DatePickerFixture />
+      <section id="notification-settings-fixture" className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-400">
+          NotificationSettings
+        </h2>
+        <NotificationSettings />
+      </section>
     </main>
   );
 }

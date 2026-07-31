@@ -66,7 +66,6 @@ import {
   isTestnetUsdcFaucetEnabled,
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
-import { env } from "@/lib/env";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {

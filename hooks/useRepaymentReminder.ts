@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/useToast";
 import { useSettingsStore } from "@/store/settingsStore";
 import type { Invoice } from "@/types/invoice";
 
-const REMINDER_STORAGE_KEY = "kora-maturity-reminders";
+const REMINDER_STORAGE_KEY = "kora-repayment-reminders";
 
 function getReminderKeys(): string[] {
   if (typeof window === "undefined") return [];
@@ -24,38 +24,41 @@ function markReminderShown(key: string) {
   localStorage.setItem(REMINDER_STORAGE_KEY, JSON.stringify([key, ...keys].slice(0, 50)));
 }
 
-function daysUntilDate(date: string): number {
+function isOverdueOrDue(dateStr: string): boolean {
   const now = new Date();
-  const target = new Date(date);
-  const diff = target.getTime() - now.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  const target = new Date(dateStr);
+  now.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+  return target.getTime() <= now.getTime();
 }
 
-export function useMaturityReminder(invoices: Invoice[]) {
+export function useRepaymentReminder(invoices: Invoice[]) {
   const { notifications } = useSettingsStore();
   const toast = useToast();
 
   useEffect(() => {
-    if (!notifications.maturityReminder) {
-      toast.dismiss("maturityReminder");
+    if (!notifications.repaymentAlerts) {
+      toast.dismiss("repaymentAlert");
       return;
     }
     if (invoices.length === 0) return;
 
     invoices.forEach((invoice) => {
-      const daysLeft = daysUntilDate(invoice.terms.repaymentDate);
-      if (daysLeft !== notifications.maturityReminderDays) return;
+      const isDue = isOverdueOrDue(invoice.terms.repaymentDate);
+      const needsRepayment = ["fully_funded", "active", "partially_funded"].includes(invoice.status);
+      if (!isDue || !needsRepayment) return;
 
-      const reminderKey = `${invoice.id}:${notifications.maturityReminderDays}`;
+      const reminderKey = `${invoice.id}:repayment_due`;
       if (getReminderKeys().includes(reminderKey)) return;
 
-      toast.success(
-        `Maturity reminder: ${invoice.metadata.invoiceNumber} matures in ${daysLeft} day${daysLeft === 1 ? "" : "s"}.`,
+      toast.error(
+        `Repayment alert: Invoice ${invoice.metadata.invoiceNumber} is due or overdue for repayment!`,
         undefined,
-        "maturityReminder",
-        "maturityReminder"
+        undefined,
+        "repaymentAlert",
+        "yieldAvailable"
       );
       markReminderShown(reminderKey);
     });
-  }, [invoices, notifications.maturityReminder, notifications.maturityReminderDays, toast]);
+  }, [invoices, notifications.repaymentAlerts, toast]);
 }

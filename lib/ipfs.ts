@@ -16,7 +16,7 @@ import {
   type InvoiceMetadataV1,
   type InvoiceMetadataV1Input,
 } from "@/lib/invoiceMetadata";
-import { generateInvoiceSvg, svgToFile } from "@/lib/invoiceSvg";
+import { generateInvoiceSvg, svgToFile, rasterizeSvgToThumbnail } from "@/lib/invoiceSvg";
 import { createMockUploadToken } from "@/lib/security";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
@@ -550,7 +550,8 @@ export async function fetchIpfsJsonWithFallback<T = unknown>(
 export async function uploadValidatedInvoiceMetadata(
   input: InvoiceMetadataV1Input,
   walletAddress: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  authToken?: string
 ): Promise<{
   metadataCid: string;
   imageCid: string;
@@ -589,7 +590,7 @@ export async function uploadValidatedInvoiceMetadata(
   const imageCid = await uploadInvoicePDF(svgFile, walletAddress, (p) => {
     // Map SVG upload progress to 15–55% of total
     onProgress?.(15 + Math.round(p * 0.4));
-  });
+  }, authToken);
 
   onProgress?.(55);
 
@@ -612,7 +613,7 @@ export async function uploadValidatedInvoiceMetadata(
         `invoice-thumbnail-${input.invoice_number}.png`,
         { type: "image/png" }
       );
-      thumbnailCid = await uploadInvoicePDF(thumbnailFile, walletAddress);
+      thumbnailCid = await uploadInvoicePDF(thumbnailFile, walletAddress, undefined, authToken);
     } catch {
       // Pinning the thumbnail is not worth failing a mint over.
       thumbnailCid = undefined;
