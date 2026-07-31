@@ -710,6 +710,14 @@
     "back": "Back",
     "next": "Next",
     "finish": "Finish",
+    "restartTourDesc": "Restart the onboarding tour for a guided walkthrough of Kora's main features.",
+    "activePersona": "Active Persona",
+    "personaInvestor": "Investor",
+    "personaSme": "SME",
+    "tourCompleted": "Completed",
+    "tourSkipped": "Skipped",
+    "restartTour": "Restart Tour",
+    "selectPersona": "Select persona",
     "steps": {
       "findOpportunityTitle": "Find the right opportunity",
       "findOpportunityBody": "Search by debtor, invoice number, or jurisdiction to narrow the marketplace.",
@@ -718,7 +726,48 @@
       "fundInvoiceTitle": "Fund an invoice",
       "fundInvoiceBody": "Open an eligible listing from its funding action when you are ready to invest.",
       "trackPortfolioTitle": "Track your portfolio",
-      "trackPortfolioBody": "Use the investor dashboard to monitor positions, repayments, and earned yield."
+      "trackPortfolioBody": "Use the investor dashboard to monitor positions, repayments, and earned yield.",
+      "mintInvoiceTitle": "Mint an Invoice",
+      "mintInvoiceBody": "Tokenize your unpaid invoice to list it on the protocol and raise capital.",
+      "smeDashboardTitle": "Manage Your Capital",
+      "smeDashboardBody": "Monitor listed invoices, track funding progress, and distribute yield upon maturity.",
+      "marketplaceVisibilityTitle": "Marketplace Visibility",
+      "marketplaceVisibilityBody": "Check active listings on the public marketplace where global investors can fund them."
+    }
+  },
+  "settings": {
+    "title": "Notification Preferences",
+    "description": "Control which in-app alerts appear during your workflow.",
+    "resetDefaults": "Reset to defaults",
+    "maturityReminder": {
+      "label": "Maturity Reminders",
+      "descEnabled": "Remind you before invoice maturity date.",
+      "descDisabled": "You won't receive maturity reminders"
+    },
+    "fundingAlerts": {
+      "label": "Funding Alerts",
+      "descEnabled": "Notify when your invoice reaches funding milestones.",
+      "descDisabled": "You won't receive funding alerts"
+    },
+    "repaymentAlerts": {
+      "label": "Repayment Alerts",
+      "descEnabled": "Notify when repayment is due or completed.",
+      "descDisabled": "You won't receive repayment alerts"
+    },
+    "timing": {
+      "label": "Reminder timing",
+      "descEnabled": "Choose when to alert before maturity date.",
+      "descDisabled": "Maturity reminders are disabled. Enable them to configure timing.",
+      "oneDay": "1 day before maturity",
+      "threeDays": "3 days before maturity",
+      "sevenDays": "7 days before maturity"
+    },
+    "keyboard": {
+      "title": "Keyboard Shortcuts",
+      "desc": "Enable global keyboard shortcuts for faster navigation.",
+      "label": "Enable shortcuts",
+      "hintPrefix": "Press",
+      "hintSuffix": "to view all shortcuts."
     }
   },
   "invoiceCard": {

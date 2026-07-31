@@ -27,6 +27,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useWalletStore } from "@/store/walletStore";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { useUIStore } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { env } from "@/lib/env";
 import { useFormatters } from "@/hooks/useFormatters";
@@ -238,6 +239,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
 
   const queryClient = useQueryClient();
   const { address: walletAddress } = useWalletStore();
+  const { notifications } = useSettingsStore();
   const notificationPreferences = useUIStore((s) => s.notificationPreferences);
   const { health } = useNetworkStatus();
   const { updateInvoiceFunding } = useInvoiceStore();
@@ -313,8 +315,18 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
         processedEventIds.current.add(event.id);
         invalidateCachesForEvent(event, queryClient, updateInvoiceFunding);
 
-        if (walletAddress && notificationPreferences.invoiceFunded) {
-          showEventToast(event, walletAddress);
+        if (walletAddress) {
+          let shouldShow = false;
+          if (event.type === "invoice_funded") {
+            shouldShow = notifications.fundingAlerts;
+          } else if (event.type === "invoice_repaid") {
+            shouldShow = notifications.repaymentAlerts;
+          } else if (event.type === "invoice_cancelled") {
+            shouldShow = notifications.fundingAlerts || notifications.repaymentAlerts;
+          }
+          if (shouldShow) {
+            showEventToast(event, walletAddress);
+          }
         }
       }
 
@@ -323,7 +335,7 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
         processedEventIds.current = new Set(arr.slice(-250));
       }
     },
-    [queryClient, walletAddress, notificationPreferences.invoiceFunded, updateInvoiceFunding, showEventToast]
+    [queryClient, walletAddress, notifications.fundingAlerts, notifications.repaymentAlerts, updateInvoiceFunding, showEventToast]
   );
 
   const fetchOnce = useCallback(async () => {

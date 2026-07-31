@@ -44,7 +44,7 @@ interface TransactionHistoryStore {
 }
 
 export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
-  persist(
+  persist<TransactionHistoryStore, any>(
     (set, get) => ({
       transactions: [],
       filterType: "all",
@@ -124,7 +124,7 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
     }),
     {
       name: "kora-transaction-history",
-      partialize: (state) => ({
+      partialize: (state: any) => ({
         transactions: state.transactions,
       }),
       storage: {
@@ -189,6 +189,6 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
           }
         },
       },
-    }
+    } as any
   )
 );

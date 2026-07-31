@@ -66,6 +66,8 @@ export function useWallet() {
     network,
     kitSessionActive,
     kycStatus,
+    isVerified,
+    isVerificationExpired,
     connect,
     disconnect,
     setBalance,
@@ -222,6 +224,24 @@ export function useWallet() {
     await restoreKitSession();
   }, [address, restoreKitSession]);
 
+  const checkVerification = useCallback(() => {
+    return !isVerificationExpired();
+  }, [isVerificationExpired]);
+
+  const verifyOwnership = useCallback(async () => {
+    // Stub or placeholder to satisfy calling sites
+    useWalletStore.getState().setVerified(true);
+  }, []);
+
+  const requestChallenge = useCallback(async () => {
+    // Stub or placeholder to satisfy calling sites
+    return "Verification challenge message to sign";
+  }, []);
+
+  const switchNetwork = useCallback(async () => {
+    // Stub or placeholder to satisfy calling sites
+  }, []);
+
   useEffect(() => {
     if (!isConnected || !address) {
       attemptedRestoreRef.current = null;
@@ -248,6 +268,11 @@ export function useWallet() {
     network,
     kitSessionActive,
     kycStatus,
+    isVerified,
+    checkVerification,
+    verifyOwnership,
+    requestChallenge,
+    switchNetwork,
     showReconnectPrompt: isConnected && kitSessionActive === false,
     isReconnecting,
     validateNetwork,

@@ -9,7 +9,7 @@ const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: true,
 
   // ── Cache rules ────────────────────────────────────────────────────────────
   // Security: never cache wallet, transaction, or auth pages/APIs.

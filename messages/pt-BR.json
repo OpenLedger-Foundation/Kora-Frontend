@@ -687,6 +687,14 @@
     "back": "Voltar",
     "next": "Próximo",
     "finish": "Concluir",
+    "restartTourDesc": "Reinicie o tour de integração para um passo a passo guiado dos principais recursos do Kora.",
+    "activePersona": "Persona Ativa",
+    "personaInvestor": "Investidor",
+    "personaSme": "PME",
+    "tourCompleted": "Concluído",
+    "tourSkipped": "Ignorado",
+    "restartTour": "Reiniciar Tour",
+    "selectPersona": "Selecionar persona",
     "steps": {
       "findOpportunityTitle": "Encontre a oportunidade certa",
       "findOpportunityBody": "Pesquise por devedor, número de fatura ou jurisdição para filtrar o mercado.",
@@ -695,7 +703,48 @@
       "fundInvoiceTitle": "Financie uma fatura",
       "fundInvoiceBody": "Abra uma listagem elegível pela sua ação de financiamento quando estiver pronto para investir.",
       "trackPortfolioTitle": "Acompanhe sua carteira",
-      "trackPortfolioBody": "Use o painel do investidor para monitorar posições, reembolsos e rendimentos obtidos."
+      "trackPortfolioBody": "Use o painel do investidor para monitorar posições, reembolsos e rendimentos obtidos.",
+      "mintInvoiceTitle": "Tokenizar uma Fatura",
+      "mintInvoiceBody": "Tokenize sua fatura não paga para listá-la no protocolo e captar capital.",
+      "smeDashboardTitle": "Gerenciar Seu Capital",
+      "smeDashboardBody": "Monitore faturas listadas, acompanhe o progresso do financiamento e distribua o rendimento no vencimento.",
+      "marketplaceVisibilityTitle": "Visibilidade do Mercado",
+      "marketplaceVisibilityBody": "Verifique as ofertas ativas no mercado público onde investidores globais podem financiá-las."
+    }
+  },
+  "settings": {
+    "title": "Preferências de Notificação",
+    "description": "Controle quais alertas no aplicativo aparecem durante o seu fluxo de trabalho.",
+    "resetDefaults": "Redefinir para padrões",
+    "maturityReminder": {
+      "label": "Lembretes de Vencimento",
+      "descEnabled": "Lembra você antes da data de vencimento da fatura.",
+      "descDisabled": "Você não receberá lembretes de vencimento"
+    },
+    "fundingAlerts": {
+      "label": "Alertas de Financiamento",
+      "descEnabled": "Notifica quando sua fatura atinge marcos de financiamento.",
+      "descDisabled": "Você não receberá alertas de financiamento"
+    },
+    "repaymentAlerts": {
+      "label": "Alertas de Reembolso",
+      "descEnabled": "Notifica quando o reembolso estiver vencido ou concluído.",
+      "descDisabled": "Você não receberá alertas de reembolso"
+    },
+    "timing": {
+      "label": "Momento do lembrete",
+      "descEnabled": "Escolha quando alertar antes da data de vencimento.",
+      "descDisabled": "Os lembretes de vencimento estão desativados. Ative-os para configurar o momento.",
+      "oneDay": "1 dia antes do vencimento",
+      "threeDays": "3 dias antes do vencimento",
+      "sevenDays": "7 dias antes do vencimento"
+    },
+    "keyboard": {
+      "title": "Atalhos de Teclado",
+      "desc": "Ative atalhos de teclado globais para navegação mais rápida.",
+      "label": "Ativar atalhos",
+      "hintPrefix": "Pressione",
+      "hintSuffix": "para ver todos os atalhos."
     }
   },
   "invoiceCard": {

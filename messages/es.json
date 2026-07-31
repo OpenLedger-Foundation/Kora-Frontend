@@ -695,6 +695,14 @@
     "back": "Atrás",
     "next": "Siguiente",
     "finish": "Finalizar",
+    "restartTourDesc": "Reinicia el recorrido de incorporación para una guía paso a paso de las características principales de Kora.",
+    "activePersona": "Persona Activa",
+    "personaInvestor": "Inversor",
+    "personaSme": "Pyme",
+    "tourCompleted": "Completado",
+    "tourSkipped": "Omitido",
+    "restartTour": "Reiniciar Recorrido",
+    "selectPersona": "Seleccionar persona",
     "steps": {
       "findOpportunityTitle": "Encuentra la oportunidad correcta",
       "findOpportunityBody": "Busca por deudor, número de factura o jurisdicción para filtrar el mercado.",
@@ -703,7 +711,48 @@
       "fundInvoiceTitle": "Financia una factura",
       "fundInvoiceBody": "Abre un listado elegible desde su acción de financiamiento cuando estés listo para invertir.",
       "trackPortfolioTitle": "Sigue tu portafolio",
-      "trackPortfolioBody": "Usa el panel de inversor para monitorear posiciones, pagos y rendimiento generado."
+      "trackPortfolioBody": "Usa el panel de inversor para monitorear posiciones, pagos y rendimiento generado.",
+      "mintInvoiceTitle": "Tokenizar una Factura",
+      "mintInvoiceBody": "Tokeniza tu factura pendiente para listarla en el protocolo y recaudar capital.",
+      "smeDashboardTitle": "Gestiona tu Capital",
+      "smeDashboardBody": "Monitorea facturas listadas, sigue el progreso del financiamiento y distribuye el rendimiento al vencimiento.",
+      "marketplaceVisibilityTitle": "Visibilidad del Mercado",
+      "marketplaceVisibilityBody": "Revisa los listados activos en el mercado público donde los inversores globales pueden financiarlos."
+    }
+  },
+  "settings": {
+    "title": "Preferencias de Notificaciones",
+    "description": "Controla qué alertas de la aplicación aparecen durante tu flujo de trabajo.",
+    "resetDefaults": "Restablecer valores predeterminados",
+    "maturityReminder": {
+      "label": "Recordatorios de Vencimiento",
+      "descEnabled": "Te recuerda antes de la fecha de vencimiento de la factura.",
+      "descDisabled": "No recibirás recordatorios de vencimiento"
+    },
+    "fundingAlerts": {
+      "label": "Alertas de Financiamiento",
+      "descEnabled": "Te notifica cuando tu factura alcanza hitos de financiamiento.",
+      "descDisabled": "No recibirás alertas de financiamiento"
+    },
+    "repaymentAlerts": {
+      "label": "Alertas de Reembolso",
+      "descEnabled": "Te notifica cuando el reembolso está vencido o completado.",
+      "descDisabled": "No recibirás alertas de reembolso"
+    },
+    "timing": {
+      "label": "Momento del recordatorio",
+      "descEnabled": "Elige cuándo alertar antes de la fecha de vencimiento.",
+      "descDisabled": "Los recordatorios de vencimiento están desactivados. Actívalos para configurar el momento.",
+      "oneDay": "1 día antes del vencimiento",
+      "threeDays": "3 días antes del vencimiento",
+      "sevenDays": "7 días antes del vencimiento"
+    },
+    "keyboard": {
+      "title": "Atajos de Teclado",
+      "desc": "Activa atajos de teclado globales para una navegación más rápida.",
+      "label": "Activar atajos",
+      "hintPrefix": "Presiona",
+      "hintSuffix": "para ver todos los atajos."
     }
   },
   "invoiceCard": {

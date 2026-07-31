@@ -41,7 +41,6 @@ export function ComparisonBar() {
 
   // ─── Feature flag ────────────────────────────────────────────────────────
   const isComparisonEnabled = isEnabled("comparison");
-  if (!isComparisonEnabled) return null;
 
   // Resolve selected invoices from store list + token map (live indexer shape)
   const invoiceIndex = [
@@ -54,6 +53,7 @@ export function ComparisonBar() {
 
   // Hydrate comparison list from shareable URL once
   useEffect(() => {
+    if (!isComparisonEnabled) return;
     if (hydratedFromUrl.current) return;
     hydratedFromUrl.current = true;
 
@@ -75,6 +75,7 @@ export function ComparisonBar() {
 
   // Keep ?compare= in sync with selection for shareable URLs
   useEffect(() => {
+    if (!isComparisonEnabled) return;
     if (!hydratedFromUrl.current) return;
 
     const params = new URLSearchParams(searchParams.toString());
@@ -92,7 +93,7 @@ export function ComparisonBar() {
 
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [comparisonList, pathname, router, searchParams]);
+  }, [isComparisonEnabled, comparisonList, pathname, router, searchParams]);
 
   const handleShare = async () => {
     const url = new URL(window.location.href);
@@ -108,6 +109,7 @@ export function ComparisonBar() {
     }
   };
 
+  if (!isComparisonEnabled) return null;
   if (comparisonList.length === 0) return null;
 
   // ─── Mobile: show only count + compare button ──────────────────────────
