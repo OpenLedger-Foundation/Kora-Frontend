@@ -52,13 +52,14 @@ export function resolveDateRangeBounds(
     return { from, to };
   }
 
-  const days: Record<"7d" | "30d" | "90d", number> = {
+  const days: Record<"7d" | "30d" | "90d" | "1y", number> = {
     "7d": 7,
     "30d": 30,
     "90d": 90,
+    "1y": 365,
   };
   const from = new Date(now);
-  from.setUTCDate(from.getUTCDate() - (days[dateRange] ?? 30));
+  from.setUTCDate(from.getUTCDate() - (days[dateRange as "7d" | "30d" | "90d" | "1y"] ?? 30));
   from.setUTCHours(0, 0, 0, 0);
   return { from, to };
 }

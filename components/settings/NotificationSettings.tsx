@@ -8,23 +8,27 @@ import { Button } from "@/components/ui/button";
 
 const NOTIFICATION_ITEMS: Array<{
   key: "maturityReminder" | "fundingAlerts" | "repaymentAlerts";
-  label: string;
-  description: string;
+  labelKey: string;
+  descEnabledKey: string;
+  descDisabledKey: string;
 }> = [
   {
     key: "maturityReminder",
-    label: "Maturity Reminders",
-    description: "Remind you before invoice maturity date.",
+    labelKey: "maturityReminder.label",
+    descEnabledKey: "maturityReminder.descEnabled",
+    descDisabledKey: "maturityReminder.descDisabled",
   },
   {
     key: "fundingAlerts",
-    label: "Funding Alerts",
-    description: "Notify when your invoice reaches funding milestones.",
+    labelKey: "fundingAlerts.label",
+    descEnabledKey: "fundingAlerts.descEnabled",
+    descDisabledKey: "fundingAlerts.descDisabled",
   },
   {
     key: "repaymentAlerts",
-    label: "Repayment Alerts",
-    description: "Notify when repayment is due or completed.",
+    labelKey: "repaymentAlerts.label",
+    descEnabledKey: "repaymentAlerts.descEnabled",
+    descDisabledKey: "repaymentAlerts.descDisabled",
   },
 ];
 
@@ -60,7 +64,8 @@ function Toggle({
 }
 
 export function NotificationSettings() {
-  const t = useTranslations("onboarding");
+  const tOnboarding = useTranslations("onboarding");
+  const tSettings = useTranslations("settings");
   const { notifications, setNotifications, resetNotifications, tour, setTourSettings, restartTour } = useSettingsStore();
   const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
   const setShortcutsEnabled = useUIStore((s) => s.setShortcutsEnabled);
@@ -68,41 +73,48 @@ export function NotificationSettings() {
   return (
     <div className="space-y-5">
       <div className="space-y-1">
-        <h3 className="text-base font-semibold text-foreground">Notification Preferences</h3>
-        <p className="text-sm text-muted-foreground">Control which in-app alerts appear during your workflow.</p>
+        <h3 className="text-base font-semibold text-foreground">{tSettings("title")}</h3>
+        <p className="text-sm text-muted-foreground">{tSettings("description")}</p>
       </div>
 
       <div className="space-y-3">
-        {NOTIFICATION_ITEMS.map((item) => (
-          <div key={item.key} className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">{item.label}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
+        {NOTIFICATION_ITEMS.map((item) => {
+          const isChecked = notifications[item.key];
+          return (
+            <div key={item.key} className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{tSettings(item.labelKey)}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {isChecked ? tSettings(item.descEnabledKey) : tSettings(item.descDisabledKey)}
+                </p>
+              </div>
+              <Toggle
+                checked={isChecked}
+                onChange={(next) => setNotifications({ [item.key]: next })}
+                ariaLabel={`Toggle ${tSettings(item.labelKey)}`}
+              />
             </div>
-            <Toggle
-              checked={notifications[item.key]}
-              onChange={(next) => setNotifications({ [item.key]: next })}
-              ariaLabel={`Toggle ${item.label}`}
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="rounded-lg border border-border bg-card p-3">
         <label htmlFor="maturity-reminder-days" className="block text-sm font-medium text-foreground">
-          Reminder timing
+          {tSettings("timing.label")}
         </label>
-        <p className="mt-0.5 text-xs text-muted-foreground">Choose when to alert before maturity date.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          {notifications.maturityReminder ? tSettings("timing.descEnabled") : tSettings("timing.descDisabled")}
+        </p>
         <select
           id="maturity-reminder-days"
           value={notifications.maturityReminderDays}
           onChange={(e) => setNotifications({ maturityReminderDays: Number(e.target.value) as MaturityReminderDays })}
-          className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+          className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           disabled={!notifications.maturityReminder}
         >
-          <option value={1}>1 day before maturity</option>
-          <option value={3}>3 days before maturity</option>
-          <option value={7}>7 days before maturity</option>
+          <option value={1}>{tSettings("timing.oneDay")}</option>
+          <option value={3}>{tSettings("timing.threeDays")}</option>
+          <option value={7}>{tSettings("timing.sevenDays")}</option>
         </select>
       </div>
 
@@ -113,36 +125,36 @@ export function NotificationSettings() {
         leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
         onClick={resetNotifications}
       >
-        Reset to defaults
+        {tSettings("resetDefaults")}
       </Button>
 
       {/* ── Onboarding Tour Settings ────────────────────────────────────── */}
       <div className="space-y-1 pt-2">
-        <h3 className="text-base font-semibold text-foreground">Onboarding Tour</h3>
+        <h3 className="text-base font-semibold text-foreground">{tOnboarding("skipLabel")}</h3>
         <p className="text-sm text-muted-foreground">
-          {t("restartTourDesc")}
+          {tOnboarding("restartTourDesc")}
         </p>
       </div>
       <div className="space-y-3 rounded-lg border border-border bg-card p-3">
         <div>
           <label htmlFor="tour-persona-select" className="block text-xs font-medium text-foreground">
-            {t("activePersona")}
+            {tOnboarding("activePersona")}
           </label>
           <select
             id="tour-persona-select"
             value={tour.persona}
             onChange={(e) => setTourSettings({ persona: e.target.value as Persona })}
-            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="investor">{t("personaInvestor")}</option>
-            <option value="sme">{t("personaSme")}</option>
+            <option value="investor">{tOnboarding("personaInvestor")}</option>
+            <option value="sme">{tOnboarding("personaSme")}</option>
           </select>
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
           <span>Status:</span>
           <span className="font-medium text-foreground">
-            {tour.completed ? t("tourCompleted") : tour.skipped ? t("tourSkipped") : `Step ${(tour.stepIndex ?? 0) + 1}`}
+            {tour.completed ? tOnboarding("tourCompleted") : tour.skipped ? tOnboarding("tourSkipped") : tOnboarding("step", { current: (tour.stepIndex ?? 0) + 1, total: tour.persona === "sme" ? 3 : 4 })}
           </span>
         </div>
 
@@ -153,24 +165,26 @@ export function NotificationSettings() {
           leftIcon={<Compass className="h-3.5 w-3.5" />}
           onClick={() => restartTour(tour.persona)}
         >
-          {t("restartTour")}
+          {tOnboarding("restartTour")}
         </Button>
       </div>
 
       {/* ── Keyboard shortcuts toggle ──────────────────────────────────────── */}
       <div className="space-y-1 pt-2">
-        <h3 className="text-base font-semibold text-foreground">Keyboard Shortcuts</h3>
+        <h3 className="text-base font-semibold text-foreground">{tSettings("keyboard.title")}</h3>
         <p className="text-sm text-muted-foreground">
-          Enable global keyboard shortcuts for faster navigation.
+          {tSettings("keyboard.desc")}
         </p>
       </div>
       <div className="flex items-start justify-between gap-4 rounded-lg border border-border bg-card p-3">
         <div className="flex items-center gap-2">
           <Keyboard className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <div>
-            <p className="text-sm font-medium text-foreground">Enable shortcuts</p>
+            <p className="text-sm font-medium text-foreground">{tSettings("keyboard.label")}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Press <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">?</kbd> to view all shortcuts.
+              {tSettings("keyboard.hintPrefix")}{" "}
+              <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">?</kbd>{" "}
+              {tSettings("keyboard.hintSuffix")}
             </p>
           </div>
         </div>
@@ -183,4 +197,3 @@ export function NotificationSettings() {
     </div>
   );
 }
-

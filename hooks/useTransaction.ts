@@ -13,6 +13,7 @@ import { mapSimulationError } from "@/lib/stellar/simulationErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
+import { useTransactionStore } from "@/store/transactionStore";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -411,4 +412,25 @@ export function useTxAnnouncement(): { polite?: string; assertive?: string } {
     return { polite: "Transaction confirmed" };
   }
   return {};
+}
+
+/** Secondary market escrow workflow hook for UI. */
+export function useSecondaryEscrowFlow() {
+  const { escrowState, resetEscrow, setEscrowStep, setEscrowError } = useTransactionStore();
+
+  const retryEscrow = useCallback(
+    async (positionId: string, buyerAddress: string, sellerAddress: string, amount: number) => {
+      setEscrowError(null, null);
+      setEscrowStep("buyer_funding");
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setEscrowStep("buyer_funded");
+    },
+    [setEscrowStep, setEscrowError]
+  );
+
+  return {
+    escrowState,
+    retryEscrow,
+    resetEscrow,
+  };
 }

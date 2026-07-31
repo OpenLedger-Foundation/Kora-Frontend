@@ -51,7 +51,7 @@ export function InProgressOverlay() {
         label: "Buyer Deposit",
         desc: "Escrow funds locked in smart contract",
         active: escrowState.step === "buyer_funding",
-        success: escrowState.step !== "idle" && escrowState.step !== "buyer_funding" && escrowState.step !== "failed" && !(escrowState.errorStep === "buyer_funding"),
+        success: escrowState.step !== "idle" && escrowState.step !== "buyer_funding" && !(escrowState.errorStep === "buyer_funding"),
         failed: escrowState.errorStep === "buyer_funding",
       },
       {

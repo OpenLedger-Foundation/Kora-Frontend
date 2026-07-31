@@ -309,6 +309,8 @@ export default function CreateInvoicePage() {
         );
 
         setIsUploading(false);
+        tempMetadataCid = result.metadataCid;
+        return result.unsignedXdr;
       },
       {
         successMessage: "Invoice minted on Soroban!",
@@ -331,8 +333,8 @@ export default function CreateInvoicePage() {
       }
     );
 
-    if (error) {
-      setFileError(error);
+    if (txError) {
+      setFileError(txError);
       setIsUploading(false);
     }
   };
