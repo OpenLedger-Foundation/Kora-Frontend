@@ -32,6 +32,7 @@ import { useInvoice } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
 import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { useToast } from "@/hooks/useToast";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { env } from "@/lib/env";
 import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
@@ -72,6 +73,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
   const { data: invoice, isLoading, error, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address, balance, kycStatus } = useWallet();
+  const { isOnline } = useNetworkStatus();
   const { data: queriedUsdcBalance, refetch: refetchUsdcBalance } =
     useUsdcBalance(address ?? undefined);
   const toast = useToast();
@@ -219,6 +221,13 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       : "";
 
   const handleFund = async () => {
+    if (!isOnline) {
+      toast.error(
+        "You're offline",
+        "Reconnect to the internet to fund this invoice."
+      );
+      return;
+    }
     if (!isConnected) {
       setWalletModalOpen(true);
       return;
@@ -879,14 +888,22 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       onClick={handleFund}
                       loading={funding}
                       disabled={
+                        !isOnline ||
                         !canFund ||
                         !!inputError ||
                         !!insufficientBalanceMessage ||
                         !amountNum
                       }
                     >
-                      Fund Invoice
+                      {!isOnline ? "Offline — Reconnect to Fund" : "Fund Invoice"}
                     </Button>
+
+                    {!isOnline && (
+                      <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-amber-400">
+                        <span aria-hidden="true">⚡</span>
+                        You&apos;re offline. Reconnect to fund this invoice.
+                      </p>
+                    )}
 
                     <p className="text-center text-[10px] text-zinc-500 leading-normal">
                       Liquidity deposits are held securely in Soroban escrow

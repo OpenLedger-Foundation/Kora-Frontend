@@ -24,6 +24,8 @@ import { InvoiceCardHoverPopover } from "./InvoiceCardHoverPopover";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { useFeatureFlag } from "@/lib/featureFlags";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import {
   resolveThumbnailSrc,
   thumbnailBlurDataUri,
@@ -91,6 +93,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const comparisonFull = comparisonList.length >= MAX_COMPARISON_INVOICES && !isInComparison;
   const comparisonEnabled = useFeatureFlag("comparison");
   const reduced = useReducedMotion();
+  const { isOnline } = useNetworkStatus();
   
   // Hover popover state
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -240,6 +243,11 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               <InvoiceStatusBadge status={status} />
             </div>
           </div>
+
+          {/* Stale-cache badge — only shown when offline and cache timestamp is available */}
+          {!isOnline && updatedAt ? (
+            <StaleDataBadge updatedAt={updatedAt} compact className="mt-2 w-full justify-center" />
+          ) : null}
 
           {/* Amount */}
           <div className="mt-4">

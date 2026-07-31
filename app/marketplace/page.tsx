@@ -33,6 +33,7 @@ import ActiveFilterChips from "@/components/marketplace/ActiveFilterChips";
 import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -620,6 +621,8 @@ function MarketplaceContent() {
             <p className="mt-2 text-sm text-zinc-400">
               {isLoading ? t("subtitle") : t("showing", { count: filteredInvoices.length })}
             </p>
+            {/* Contextual stale badge — visible when offline and cache has data */}
+            <StaleDataBadge updatedAt={dataUpdatedAt || null} className="mt-2" />
           </div>
           <div className="flex items-center gap-2">
             <button

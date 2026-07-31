@@ -39,6 +39,39 @@ export function useNetworkStatus() {
     network: process.env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE?.includes("Test") ? "testnet" : "mainnet",
   });
 
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof window !== "undefined" ? window.navigator.onLine : true
+  );
+  const [wasOffline, setWasOffline] = useState<boolean>(
+    typeof window !== "undefined" ? !window.navigator.onLine : false
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleOnline = () => {
+      setIsOnline(true);
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setWasOffline(true);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    // Sync initial state
+    setIsOnline(window.navigator.onLine);
+    if (!window.navigator.onLine) {
+      setWasOffline(true);
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   const checkSorobanHealth = async (): Promise<ServiceHealth> => {
     const { ok, latencyMs } = await checkRpcHealth();
     if (!ok) {
@@ -119,5 +152,7 @@ export function useNetworkStatus() {
   return {
     health,
     refresh: performHealthCheck,
+    isOnline,
+    wasOffline,
   };
 }

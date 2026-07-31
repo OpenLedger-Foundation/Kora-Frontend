@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import { ReloadButton } from "./ReloadButton";
+import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+import { getLatestMarketplaceDataUpdatedAt } from "@/lib/queryPersistence";
 
 export default function OfflinePage() {
   const t = useTranslations("offline");
+  const queryClient = useQueryClient();
+  const cachedAt = getLatestMarketplaceDataUpdatedAt(queryClient);
 
   return (
     <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
@@ -82,6 +87,13 @@ export default function OfflinePage() {
           {t("browseCached")}
         </Link>
       </div>
+
+      {/* Show last-synced timestamp if marketplace data is in the cache */}
+      {cachedAt ? (
+        <div className="mt-4">
+          <StaleDataBadge updatedAt={cachedAt} />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -71,13 +71,15 @@ const withPWA = require("next-pwa")({
         cacheableResponse: { statuses: [0, 200] },
       },
     },
-    // 6. Marketplace page — stale-while-revalidate (safe to serve cached)
+    // 6. Marketplace page + detail pages — stale-while-revalidate (safe to serve cached).
+    // /marketplace and /marketplace/[id] are read-only views; no sensitive data.
+    // Wallet/signing routes are excluded by rule 0 above and never reach this rule.
     {
-      urlPattern: /^\/marketplace(\/)?$/i,
+      urlPattern: /^\/marketplace(\/[^/]+)?(\?.*)?$/i,
       handler: "StaleWhileRevalidate",
       options: {
         cacheName: "marketplace-page",
-        expiration: { maxEntries: 4, maxAgeSeconds: 5 * 60 },
+        expiration: { maxEntries: 32, maxAgeSeconds: 5 * 60 },
       },
     },
     // 7. Home page — stale-while-revalidate
@@ -105,6 +107,14 @@ const withPWA = require("next-pwa")({
   // Offline fallback — shown when a navigation request fails and no cache hit
   fallbacks: {
     document: "/offline",
+  },
+
+  // Security boundary: exclude wallet, dashboard, signing, and API routes from SW fallback intercept
+  // so they return a true browser network error instead of a stale cached page/shell offline.
+  workboxOptions: {
+    navigateFallbackDenylist: [
+      /^\/(?:dashboard|transactions|invoice\/create|api).*/i,
+    ],
   },
 });
 

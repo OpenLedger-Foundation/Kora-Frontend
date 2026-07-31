@@ -1,19 +1,16 @@
-/**
- * Persists the TanStack Query invoice cache to IndexedDB so cached invoice
- * listings survive reloads while offline, and exposes staleness metadata
- * (last-sync timestamp + a simple "is this stale" check) for UI badges.
- *
- * Usage (not wired into app/providers.tsx yet — opt-in):
- *   const persister = createIndexedDbPersister();
- *   persistQueryClient({ queryClient, persister, maxAge: ONE_DAY_MS });
- */
+import type { Query, QueryClient } from "@tanstack/react-query";
+import type { PersistedClient, Persister } from "@tanstack/query-persist-client-core";
 
 const DB_NAME = "kora-query-cache";
 const STORE_NAME = "queries";
-const CACHE_KEY = "invoice-query-cache";
-const LAST_SYNC_KEY = "kora-last-sync-at";
+const CACHE_KEY = "marketplace-query-cache";
 
-export const STALE_AFTER_MS = 5 * 60 * 1000; // 5 minutes
+export const MARKETPLACE_CACHE_GC_TIME_MS = 24 * 60 * 60 * 1000;
+export const MARKETPLACE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+interface OfflineQueryMeta {
+  persistOffline?: boolean;
+}
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -29,51 +26,67 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export interface PersistedQueryCache {
-  timestamp: number;
-  clientState: unknown;
-}
+async function withStore<T>(
+  mode: IDBTransactionMode,
+  run: (store: IDBObjectStore) => IDBRequest<T> | void,
+): Promise<T | void> {
+  if (typeof indexedDB === "undefined") return undefined;
 
-export async function saveQueryCache(clientState: unknown): Promise<void> {
-  if (typeof indexedDB === "undefined") return;
   const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readwrite");
-  const payload: PersistedQueryCache = { timestamp: Date.now(), clientState };
-  tx.objectStore(STORE_NAME).put(payload, CACHE_KEY);
-  try {
-    localStorage.setItem(LAST_SYNC_KEY, String(payload.timestamp));
-  } catch {
-    // localStorage may be unavailable — non-fatal, IndexedDB write still succeeds.
-  }
+  const tx = db.transaction(STORE_NAME, mode);
+  const store = tx.objectStore(STORE_NAME);
+  const request = run(store);
+
   return new Promise((resolve, reject) => {
+    if (request) {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      return;
+    }
+
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
   });
 }
 
-export async function loadQueryCache(): Promise<PersistedQueryCache | null> {
-  if (typeof indexedDB === "undefined") return null;
-  const db = await openDb();
-  const tx = db.transaction(STORE_NAME, "readonly");
-  const req = tx.objectStore(STORE_NAME).get(CACHE_KEY);
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve((req.result as PersistedQueryCache) ?? null);
-    req.onerror = () => reject(req.error);
+export function shouldPersistMarketplaceQuery(query: Query): boolean {
+  const meta = query.meta as OfflineQueryMeta | undefined;
+  return meta?.persistOffline === true;
+}
+
+export function createIndexedDbPersister(): Persister {
+  return {
+    persistClient: async (client: PersistedClient) => {
+      await withStore("readwrite", (store) => {
+        store.put(client, CACHE_KEY);
+      });
+    },
+    restoreClient: async () => {
+      const result = await withStore<PersistedClient | undefined>("readonly", (store) =>
+        store.get(CACHE_KEY),
+      );
+      return (result as PersistedClient | undefined) ?? undefined;
+    },
+    removeClient: async () => {
+      await withStore("readwrite", (store) => {
+        store.delete(CACHE_KEY);
+      });
+    },
+  };
+}
+
+export function getLatestMarketplaceDataUpdatedAt(queryClient: QueryClient): number | null {
+  const queries = queryClient.getQueryCache().findAll({
+    predicate: shouldPersistMarketplaceQuery,
   });
-}
 
-/** Timestamp (ms) of the last successful cache persist, or null if never synced. */
-export function getLastSyncTimestamp(): number | null {
-  try {
-    const raw = localStorage.getItem(LAST_SYNC_KEY);
-    return raw ? Number(raw) : null;
-  } catch {
-    return null;
-  }
-}
+  const latest = queries.reduce((maxUpdatedAt, query) => {
+    if (query.state.data === undefined) {
+      return maxUpdatedAt;
+    }
 
-/** Whether cached data older than STALE_AFTER_MS should show a "stale" badge. */
-export function isCacheStale(lastSync: number | null = getLastSyncTimestamp()): boolean {
-  if (lastSync === null) return false;
-  return Date.now() - lastSync > STALE_AFTER_MS;
+    return Math.max(maxUpdatedAt, query.state.dataUpdatedAt ?? 0);
+  }, 0);
+
+  return latest > 0 ? latest : null;
 }
