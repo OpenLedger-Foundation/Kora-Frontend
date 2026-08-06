@@ -356,15 +356,10 @@ export default function SecondaryMarketplacePage() {
                 <Clock className="h-4 w-4 text-zinc-400" />
                 <Select
                   value={tenorFilter}
-                  onChange={(e) => setTenorFilter(e.target.value)}
+                  onChange={(val) => setTenorFilter(val)}
+                  options={TENOR_OPTIONS}
                   className="w-40 bg-zinc-950/80 border-zinc-800 text-xs"
-                >
-                  {TENOR_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
+                />
               </div>
 
               {/* Yield Filter */}
@@ -372,15 +367,10 @@ export default function SecondaryMarketplacePage() {
                 <Percent className="h-4 w-4 text-zinc-400" />
                 <Select
                   value={yieldFilter}
-                  onChange={(e) => setYieldFilter(e.target.value)}
+                  onChange={(val) => setYieldFilter(val)}
+                  options={YIELD_OPTIONS}
                   className="w-36 bg-zinc-950/80 border-zinc-800 text-xs"
-                >
-                  {YIELD_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
+                />
               </div>
 
               {/* Seller Filter */}
@@ -418,7 +408,7 @@ export default function SecondaryMarketplacePage() {
                 <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-primary" />
                 Filter Positions
                 {hasActiveFilters && (
-                  <Badge variant="secondary" className="ml-2 bg-primary/20 text-primary text-[10px]">
+                  <Badge variant="outline" className="ml-2 bg-primary/20 text-primary text-[10px]">
                     Active
                   </Badge>
                 )}
@@ -432,8 +422,7 @@ export default function SecondaryMarketplacePage() {
           <EmptyState
             title="No Transferable Positions Found"
             description="No secondary market position listings match your filter criteria. Try expanding your tenor or yield requirements."
-            actionText="Clear All Filters"
-            onAction={resetFilters}
+            cta={{ label: "Clear All Filters", onClick: resetFilters }}
           />
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -540,39 +529,31 @@ export default function SecondaryMarketplacePage() {
         )}
 
         {/* Mobile Filter Bottom Sheet */}
-        <BottomSheet isOpen={mobileFilterOpen} onClose={() => setMobileFilterOpen(false)}>
+        <BottomSheet
+          open={mobileFilterOpen}
+          onOpenChange={setMobileFilterOpen}
+          title="Filter Secondary Positions"
+        >
           <div className="space-y-4 p-4 text-zinc-100">
-            <h3 className="text-base font-semibold text-white">Filter Secondary Positions</h3>
-
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-zinc-400 mb-1 block">Remaining Tenor</label>
                 <Select
                   value={tenorFilter}
-                  onChange={(e) => setTenorFilter(e.target.value)}
+                  onChange={(val) => setTenorFilter(val)}
+                  options={TENOR_OPTIONS}
                   className="w-full bg-zinc-900 border-zinc-800 text-xs"
-                >
-                  {TENOR_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
+                />
               </div>
 
               <div>
                 <label className="text-xs text-zinc-400 mb-1 block">Minimum Yield</label>
                 <Select
                   value={yieldFilter}
-                  onChange={(e) => setYieldFilter(e.target.value)}
+                  onChange={(val) => setYieldFilter(val)}
+                  options={YIELD_OPTIONS}
                   className="w-full bg-zinc-900 border-zinc-800 text-xs"
-                >
-                  {YIELD_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Select>
+                />
               </div>
 
               <div>

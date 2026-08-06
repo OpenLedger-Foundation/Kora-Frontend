@@ -25,9 +25,9 @@ import {
   IpfsUnavailableError,
 } from "@/lib/ipfs";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
+import { indexerClient, RpcNetworkError } from "@/lib/stellar/indexerClient";
 import { BadSequenceError, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
-import { indexerClient, RpcNetworkError } from "@/lib/stellar/indexerClient";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
 

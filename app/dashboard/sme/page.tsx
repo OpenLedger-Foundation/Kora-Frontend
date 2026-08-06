@@ -190,7 +190,7 @@ export default function SMEDashboardPage() {
   );
 
   useEffect(() => {
-    return queueRef.current.subscribe((snap) => {
+    const unsubscribe = queueRef.current.subscribe((snap) => {
       setBatchItems(snap.items);
       setIsBatchProcessing(snap.isRunning);
       setBatchProgress(
@@ -198,6 +198,7 @@ export default function SMEDashboardPage() {
       );
       persistBatchQueue(snap.items);
     });
+    return () => { unsubscribe(); };
   }, []);
 
   const myInvoices: Invoice[] =

@@ -12,6 +12,7 @@ import { env } from "@/lib/env";
 import { mapSimulationError } from "@/lib/stellar/simulationErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
+import { useTransactionStore } from "@/store/transactionStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 
 export type TxLifecycleStatus =
@@ -337,14 +338,6 @@ export function useTransaction() {
 }
 
 /**
- * Feeds the visually-hidden live regions in `TransactionAnnouncer` (#441).
- * `useTransaction()` state is local to each call site, so there is no
- * existing global source of truth for "the current transaction's stage" to
- * announce app-wide. This is a stub returning no announcements until that
- * global tracking is built — it exists so `TransactionAnnouncer` (mounted
- * once in app/providers.tsx) has something to import and render.
-
-/**
  * P2P position transfer flow (#443) — combines useTransaction + the
  * simulation-preview gate (see hooks/useTxSimulation.ts) so callers get the
  * same "build → simulate → preview → sign → submit → poll" pipeline as
@@ -397,12 +390,111 @@ export function useTransferPositionFlow() {
   };
 }
 
+export function useSecondaryEscrowFlow() {
+  const { escrowState, setEscrowStep, setEscrowError, resetEscrow } = useTransactionStore();
+  const tx = useTransaction();
+
+  const startEscrow = useCallback(
+    async (positionId: string, buyerAddress: string, sellerAddress: string, amount: number) => {
+      resetEscrow();
+
+      setEscrowStep("buyer_funding");
+      const success1 = await tx.execute(
+        async () => {
+          await new Promise((r) => setTimeout(r, 1500));
+          return "mock_buyer_funding_xdr";
+        },
+        {
+          successMessage: "Buyer funding escrow deposited!",
+          txType: "fund",
+        }
+      );
+
+      if (!success1) {
+        setEscrowError("buyer_funding", "Buyer funding failed or was cancelled.");
+        return false;
+      }
+
+      setEscrowStep("buyer_funded");
+      await new Promise((r) => setTimeout(r, 1000));
+
+      setEscrowStep("seller_transferring");
+      const { prepareTransferPosition } = await import("@/services/invoiceService");
+      const success2 = await tx.execute(
+        () => prepareTransferPosition(positionId, buyerAddress, sellerAddress),
+        {
+          successMessage: "Seller yield rights transferred!",
+          txType: "transfer",
+        }
+      );
+
+      if (!success2) {
+        setEscrowError("seller_transferring", "Seller transfer of position failed.");
+        return false;
+      }
+
+      setEscrowStep("seller_transferred");
+      await new Promise((r) => setTimeout(r, 1000));
+
+      setEscrowStep("settled");
+      return true;
+    },
+    [tx, resetEscrow, setEscrowStep, setEscrowError]
+  );
+
+  const retryEscrow = useCallback(
+    async (positionId: string, buyerAddress: string, sellerAddress: string, amount: number) => {
+      const currentErrorStep = escrowState.errorStep;
+      setEscrowError(null, null);
+
+      if (currentErrorStep === "buyer_funding") {
+        return startEscrow(positionId, buyerAddress, sellerAddress, amount);
+      }
+
+      if (currentErrorStep === "seller_transferring") {
+        setEscrowStep("seller_transferring");
+        const { prepareTransferPosition } = await import("@/services/invoiceService");
+        const success = await tx.execute(
+          () => prepareTransferPosition(positionId, buyerAddress, sellerAddress),
+          {
+            successMessage: "Seller yield rights transferred on retry!",
+            txType: "transfer",
+          }
+        );
+
+        if (!success) {
+          setEscrowError("seller_transferring", "Seller transfer of position failed again.");
+          return false;
+        }
+
+        setEscrowStep("seller_transferred");
+        await new Promise((r) => setTimeout(r, 1000));
+        setEscrowStep("settled");
+        return true;
+      }
+
+      return false;
+    },
+    [escrowState, startEscrow, tx, setEscrowStep, setEscrowError]
+  );
+
+  return {
+    escrowState,
+    startEscrow,
+    retryEscrow,
+    resetEscrow,
+  };
+}
+
 /** Returns live-region messages for accessible transaction announcements (#441). */
 export function useTxAnnouncement(): { polite?: string; assertive?: string } {
   const txState = useUIStore((s) => s.txState);
   if (txState.status === "failed") {
-    const errorMsg = typeof txState.error === "string" ? txState.error : (txState.error as any)?.message || "Transaction failed";
-    return { assertive: errorMsg };
+    const message =
+      typeof txState.error === "object" && txState.error !== null && "message" in txState.error
+        ? String(txState.error.message)
+        : "Transaction failed";
+    return { assertive: message };
   }
   if (txState.status !== "idle" && txState.status !== "confirmed") {
     return { polite: `Transaction ${txState.status}...` };

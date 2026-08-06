@@ -38,7 +38,7 @@ import { usePositions } from "@/hooks/usePositions";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
-import { useUIStore, useInvoiceStore } from "@/store";
+import { useUIStore, useInvoiceStore, useWalletKycStatus } from "@/store";
 import { prepareFundInvoice } from "@/services/invoiceService";
 import { RiskBadge } from "@/components/ui/badge";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
@@ -67,13 +67,13 @@ import {
   isTestnetUsdcFaucetEnabled,
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
-import { env } from "@/lib/env";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
   const { data: invoice, isLoading, error, dataUpdatedAt } = useInvoice(id);
-  const { isConnected, address, balance, kycStatus } = useWallet();
+  const { isConnected, address, balance } = useWallet();
+  const kycStatus = useWalletKycStatus();
   const { isOnline } = useNetworkStatus();
   const { data: queriedUsdcBalance, refetch: refetchUsdcBalance } =
     useUsdcBalance(address ?? undefined);

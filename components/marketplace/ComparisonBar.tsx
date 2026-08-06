@@ -41,20 +41,10 @@ export function ComparisonBar() {
 
   // ─── Feature flag ────────────────────────────────────────────────────────
   const isComparisonEnabled = isEnabled("comparison");
-  if (!isComparisonEnabled) return null;
-
-  // Resolve selected invoices from store list + token map (live indexer shape)
-  const invoiceIndex = [
-    ...invoices,
-    ...Object.values(invoicesByTokenId),
-  ];
-  const selectedInvoices = comparisonList
-    .map((id) => invoiceIndex.find((inv) => inv.id === id || inv.tokenId === id))
-    .filter(Boolean) as NonNullable<(typeof invoiceIndex)[number]>[];
 
   // Hydrate comparison list from shareable URL once
   useEffect(() => {
-    if (hydratedFromUrl.current) return;
+    if (!isComparisonEnabled || hydratedFromUrl.current) return;
     hydratedFromUrl.current = true;
 
     const compareParam = searchParams.get("compare");
@@ -71,11 +61,11 @@ export function ComparisonBar() {
     setComparisonList(ids);
     if (ids.length >= 2) setTableOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isComparisonEnabled]);
 
   // Keep ?compare= in sync with selection for shareable URLs
   useEffect(() => {
-    if (!hydratedFromUrl.current) return;
+    if (!isComparisonEnabled || !hydratedFromUrl.current) return;
 
     const params = new URLSearchParams(searchParams.toString());
     const current = params.get("compare") ?? "";
@@ -92,7 +82,18 @@ export function ComparisonBar() {
 
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [comparisonList, pathname, router, searchParams]);
+  }, [comparisonList, isComparisonEnabled, pathname, router, searchParams]);
+
+  if (!isComparisonEnabled) return null;
+
+  // Resolve selected invoices from store list + token map (live indexer shape)
+  const invoiceIndex = [
+    ...invoices,
+    ...Object.values(invoicesByTokenId),
+  ];
+  const selectedInvoices = comparisonList
+    .map((id) => invoiceIndex.find((inv) => inv.id === id || inv.tokenId === id))
+    .filter(Boolean) as NonNullable<(typeof invoiceIndex)[number]>[];
 
   const handleShare = async () => {
     const url = new URL(window.location.href);

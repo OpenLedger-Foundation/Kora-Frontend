@@ -85,7 +85,7 @@ export function useFormatters() {
       options?: Intl.NumberFormatOptions,
     ): string => {
       const n = value ?? 0;
-      return intl.number(n, options);
+      return intl.number(n, options as Parameters<typeof intl.number>[1]);
     };
 
     const formatCompactNumber = (value: number | null | undefined): string => {

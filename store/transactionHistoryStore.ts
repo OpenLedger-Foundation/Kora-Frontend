@@ -126,6 +126,9 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
       name: "kora-transaction-history",
       partialize: (state) => ({
         transactions: state.transactions,
+        filterType: state.filterType,
+        filterStartDate: state.filterStartDate,
+        filterEndDate: state.filterEndDate,
       }),
       storage: {
         getItem: (name: string) => {
@@ -162,18 +165,23 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
             return {
               state: {
                 transactions,
-                filterType: "all",
-                filterStartDate: null,
-                filterEndDate: null,
+                filterType:
+                  typeof state?.filterType === "string" ? state.filterType : "all",
+                filterStartDate:
+                  typeof state?.filterStartDate === "string"
+                    ? state.filterStartDate
+                    : null,
+                filterEndDate:
+                  typeof state?.filterEndDate === "string" ? state.filterEndDate : null,
               },
             };
           } catch {
             return {
               state: {
                 transactions: [],
-                filterType: "all",
-                filterStartDate: null,
-                filterEndDate: null,
+                filterType: "all" as string,
+                filterStartDate: null as string | null,
+                filterEndDate: null as string | null,
               },
             };
           }

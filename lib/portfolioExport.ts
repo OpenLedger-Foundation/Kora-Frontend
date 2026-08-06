@@ -52,6 +52,13 @@ export function resolveDateRangeBounds(
     return { from, to };
   }
 
+  if (dateRange === "1y") {
+    const from = new Date(now);
+    from.setUTCFullYear(from.getUTCFullYear() - 1);
+    from.setUTCHours(0, 0, 0, 0);
+    return { from, to };
+  }
+
   const days: Record<"7d" | "30d" | "90d", number> = {
     "7d": 7,
     "30d": 30,

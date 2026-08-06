@@ -20,6 +20,7 @@ const FLAG_DESCRIPTIONS: Record<FeatureFlag, string> = {
   comparison: "Enable marketplace invoice comparison UI.",
   "onboarding-tour": "Mount the guided onboarding tour overlay.",
   "batch-actions": "Expose batch invoice management actions.",
+  "kyb-mint-gate": "Gate invoice minting behind KYB verification.",
 };
 
 export function FeatureFlagPanel() {

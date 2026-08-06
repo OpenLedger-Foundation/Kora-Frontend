@@ -45,6 +45,8 @@
     "**/__tests__/**",
     "**/*.test.ts",
     "**/*.test.tsx",
-    "e2e"
+    "**/*.stories.tsx",
+    "playwright.config.ts",
+    ".storybook"
   ]
 }

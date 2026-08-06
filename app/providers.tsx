@@ -134,7 +134,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         unsubscribe = persistQueryClientSubscribe({
           queryClient,
           persister,
-          maxAge: MARKETPLACE_CACHE_MAX_AGE_MS,
           dehydrateOptions: {
             shouldDehydrateQuery: shouldPersistMarketplaceQuery,
           },

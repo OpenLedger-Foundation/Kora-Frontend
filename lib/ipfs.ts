@@ -16,7 +16,7 @@ import {
   type InvoiceMetadataV1,
   type InvoiceMetadataV1Input,
 } from "@/lib/invoiceMetadata";
-import { generateInvoiceSvg, svgToFile } from "@/lib/invoiceSvg";
+import { generateInvoiceSvg, svgToFile, rasterizeSvgToThumbnail } from "@/lib/invoiceSvg";
 import { createMockUploadToken } from "@/lib/security";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
@@ -630,7 +630,7 @@ export async function uploadValidatedInvoiceMetadata(
   onProgress?.(60);
 
   // Step 5: Upload metadata JSON to IPFS
-  const token = authToken || createMockUploadToken(walletAddress);
+  const token = createMockUploadToken(walletAddress);
   const metadataCid = await withRetry(
     () =>
       fetch(`/api/upload`, {
