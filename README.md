@@ -24,7 +24,8 @@
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
 - [Project Structure](#project-structure)
-- [Design System](./DESIGN_SYSTEM.md)
+- [Documentation](#documentation)
+- [Getting Started](#getting-started)
 - [Environment Variables](#environment-variables)
 - [Core User Flows](#core-user-flows)
 - [Smart Contract Integration](#smart-contract-integration)
@@ -126,7 +127,19 @@ The Kora frontend uses a semantic Tailwind-based design system with CSS custom p
 - The app is dark-mode-first and supports light mode through theme overrides.
 - Reusable primitives live under `components/ui`.
 
-Read the full design system documentation in [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
+See [docs/design-system.md](./docs/design-system.md) for the full guide.
+
+---
+
+## Documentation
+
+| Doc | Path |
+| --- | ---- |
+| Architecture | [docs/architecture.md](./docs/architecture.md) |
+| Design system | [docs/design-system.md](./docs/design-system.md) |
+| Contributing | [CONTRIBUTING.md](./CONTRIBUTING.md) |
+| Security | [SECURITY.md](./SECURITY.md) |
+| Doc index | [docs/README.md](./docs/README.md) |
 
 ---
 
@@ -280,6 +293,11 @@ kora-frontend/
 │   ├── user.ts                   # WalletState, UserProfile, etc.
 │   ├── contract.ts               # ContractConfig, TxState, etc.
 │   └── index.ts
+│
+├── docs/                         # Architecture, design system, doc index
+│   ├── README.md
+│   ├── architecture.md
+│   └── design-system.md
 │
 ├── .env.example                  # Environment variable template
 ├── next.config.js
