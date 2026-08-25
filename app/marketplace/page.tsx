@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import type { Invoice } from "@/types";
 import {
   Search,
@@ -10,59 +10,66 @@ import {
   ArrowUpDown,
   X,
   Check,
-  ChevronDown,
   RotateCcw,
-  FileQuestion,
   Clock,
   LayoutGrid,
   Map,
   Star,
 } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pagination } from "@/components/ui/pagination";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
-import { JurisdictionMapView } from "@/components/marketplace/JurisdictionMapView";
-import { useInvoices } from "@/hooks/useInvoices";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useInfiniteInvoices, MARKETPLACE_PAGE_SIZE } from "@/hooks/useInvoices";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
-import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
-import { WatchlistDrawer } from "@/components/marketplace/WatchlistDrawer";
-import { ActiveFilterChips } from "@/components/marketplace/ActiveFilterChips";
-import { queryKeys } from "@/lib/queryKeys";
-
-/** True when the NEXT_PUBLIC_ENABLE_MAP_VIEW env var is set to "true". */
-const MAP_VIEW_ENABLED =
-  process.env.NEXT_PUBLIC_ENABLE_MAP_VIEW === "true";
+import { sanitizeQueryParam } from "@/lib/security";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { RangeSlider } from "@/components/ui/range-slider";
+import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
+import ActiveFilterChips from "@/components/marketplace/ActiveFilterChips";
+import { useFeatureFlag } from "@/lib/featureFlags";
+import { useDebounce } from "@/hooks/useDebounce";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
-const CATEGORY_OPTIONS = [
-  { value: "technology", label: "Technology" },
-  { value: "agriculture", label: "Agriculture" },
-  { value: "healthcare", label: "Healthcare" },
-  { value: "construction", label: "Construction" },
-  { value: "energy", label: "Energy" },
-  { value: "logistics", label: "Logistics" },
-  { value: "retail", label: "Retail" },
-  { value: "manufacturing", label: "Manufacturing" },
-  { value: "finance", label: "Finance" },
-  { value: "other", label: "Other" },
+// Labels are resolved via the "marketplace" translation namespace at render
+// time (t is scoped to that namespace in MarketplaceContent).
+type TFunc = (key: string) => string;
+
+const getCategoryOptions = (t: TFunc) => [
+  { value: "technology", label: t("categoryOptions.technology") },
+  { value: "agriculture", label: t("categoryOptions.agriculture") },
+  { value: "healthcare", label: t("categoryOptions.healthcare") },
+  { value: "construction", label: t("categoryOptions.construction") },
+  { value: "energy", label: t("categoryOptions.energy") },
+  { value: "logistics", label: t("categoryOptions.logistics") },
+  { value: "retail", label: t("categoryOptions.retail") },
+  { value: "manufacturing", label: t("categoryOptions.manufacturing") },
+  { value: "finance", label: t("categoryOptions.finance") },
+  { value: "other", label: t("categoryOptions.other") },
 ];
 
-const JURISDICTION_OPTIONS = [
-  { value: "KE", label: "Kenya" },
-  { value: "NG", label: "Nigeria" },
-  { value: "GH", label: "Ghana" },
-  { value: "ZA", label: "South Africa" },
-  { value: "US", label: "United States" },
-  { value: "EU", label: "European Union" },
-  { value: "UK", label: "United Kingdom" },
-  { value: "OTHER", label: "Other" },
+const getJurisdictionOptions = (t: TFunc) => [
+  { value: "KE", label: t("jurisdictionOptions.KE") },
+  { value: "NG", label: t("jurisdictionOptions.NG") },
+  { value: "GH", label: t("jurisdictionOptions.GH") },
+  { value: "ZA", label: t("jurisdictionOptions.ZA") },
+  { value: "US", label: t("jurisdictionOptions.US") },
+  { value: "EU", label: t("jurisdictionOptions.EU") },
+  { value: "UK", label: t("jurisdictionOptions.UK") },
+  { value: "OTHER", label: t("jurisdictionOptions.OTHER") },
 ];
 
+// Risk-tier codes (AAA, AA, A, BBB, BB, B, CCC) are rating-agency codes, not
+// translatable text — intentionally left as-is.
 const RISK_OPTIONS = [
   { value: "AAA", label: "AAA" },
   { value: "AA", label: "AA" },
@@ -73,114 +80,19 @@ const RISK_OPTIONS = [
   { value: "CCC", label: "CCC" },
 ];
 
-const SORT_OPTIONS = [
-  { value: "apr_desc", label: "APR: High to Low" },
-  { value: "apr_asc", label: "APR: Low to High" },
-  { value: "amount_desc", label: "Amount: High to Low" },
-  { value: "amount_asc", label: "Amount: Low to High" },
-  { value: "due_soonest", label: "Due Date: Soonest" },
-  { value: "due_latest", label: "Due Date: Latest" },
-  { value: "newest", label: "Newest Listed" },
+const getSortOptions = (t: TFunc) => [
+  { value: "apr_desc", label: t("sort.aprDesc") },
+  { value: "apr_asc", label: t("sort.aprAsc") },
+  { value: "amount_desc", label: t("sort.amountDesc") },
+  { value: "amount_asc", label: t("sort.amountAsc") },
+  { value: "due_soonest", label: t("sort.dueSoonest") },
+  { value: "due_latest", label: t("sort.dueLatest") },
+  { value: "newest", label: t("sort.newest") },
 ];
 
 // ─── Custom UI Controls ──────────────────────────────────────────────────────
 
-// 1. Custom Multi-Select Dropdown with Badges
-function MultiSelect({
-  label,
-  options,
-  selected,
-  onChange,
-  placeholder = "Select options...",
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-  selected: string[];
-  onChange: (val: string[]) => void;
-  placeholder?: string;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
-
-  const toggleOption = (val: string) => {
-    if (selected.includes(val)) {
-      onChange(selected.filter((item) => item !== val));
-    } else {
-      onChange([...selected, val]);
-    }
-  };
-
-  const removeOption = (val: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange(selected.filter((item) => item !== val));
-  };
-
-  return (
-    <div ref={containerRef} className="flex flex-col gap-2 relative w-full">
-      <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
-        {label}
-      </label>
-      <div
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex min-h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-1.5 text-sm text-foreground transition-colors hover:border-zinc-700"
-      >
-        <div className="flex flex-wrap gap-1 max-w-[90%]">
-          {selected.length === 0 ? (
-            <span className="text-zinc-500">{placeholder}</span>
-          ) : (
-            selected.map((val) => {
-              const labelText = options.find((o) => o.value === val)?.label || val;
-              return (
-                <span
-                  key={val}
-                  className="inline-flex items-center gap-1 rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-200 border border-zinc-700 transition-all hover:bg-zinc-750"
-                >
-                  {labelText}
-                  <button
-                    type="button"
-                    onClick={(e) => removeOption(val, e)}
-                    className="rounded-full hover:bg-zinc-750 p-0.5 text-zinc-400 hover:text-zinc-200"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
-                </span>
-              );
-            })
-          )}
-        </div>
-        <ChevronDown className="h-4 w-4 text-zinc-500 shrink-0" />
-      </div>
-
-      {isOpen && (
-        <div className="absolute top-[100%] left-0 z-50 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-2xl backdrop-blur-md">
-          {options.map((opt) => {
-            const isSelected = selected.includes(opt.value);
-            return (
-              <div
-                key={opt.value}
-                onClick={() => toggleOption(opt.value)}
-                className="flex cursor-pointer items-center justify-between rounded px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100 transition-colors"
-              >
-                <span>{opt.label}</span>
-                {isSelected && <Check className="h-4 w-4 text-primary" />}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // 2. Custom Checkbox Group for Risk Tiers
 function CheckboxGroup({
@@ -203,10 +115,10 @@ function CheckboxGroup({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
         {label}
-      </span>
+      </legend>
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => {
           const isChecked = selected.includes(opt.value);
@@ -226,6 +138,7 @@ function CheckboxGroup({
                 className="sr-only"
               />
               <div
+                aria-hidden="true"
                 className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
                   isChecked
                     ? "border-primary bg-primary text-primary-foreground"
@@ -239,7 +152,7 @@ function CheckboxGroup({
           );
         })}
       </div>
-    </div>
+    </fieldset>
   );
 }
 
@@ -255,6 +168,7 @@ function DualSlider({
   value: [number, number];
   onChange: (val: [number, number]) => void;
 }) {
+  const t = useTranslations("marketplace");
   const [minVal, maxVal] = value;
   const minValRef = useRef(minVal);
   const maxValRef = useRef(maxVal);
@@ -287,17 +201,21 @@ function DualSlider({
   return (
     <div className="relative flex w-full flex-col gap-2">
       <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
-        <span>APR Range</span>
-        <span className="text-primary font-mono lowercase">
+        <span id="apr-range-label">{t("aprRange")}</span>
+        <span className="text-primary font-mono lowercase" aria-live="polite" aria-atomic="true">
           {minVal}% - {maxVal}%
         </span>
       </div>
-      <div className="relative h-6 flex items-center">
+      <div className="relative h-6 flex items-center" role="group" aria-labelledby="apr-range-label">
         <input
           type="range"
           min={min}
           max={max}
           value={minVal}
+          aria-label={`Minimum APR: ${minVal}%`}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={minVal}
           onChange={(event) => {
             const val = Math.min(Number(event.target.value), maxVal - 1);
             onChange([val, maxVal]);
@@ -311,6 +229,10 @@ function DualSlider({
           min={min}
           max={max}
           value={maxVal}
+          aria-label={`Maximum APR: ${maxVal}%`}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={maxVal}
           onChange={(event) => {
             const val = Math.max(Number(event.target.value), minVal + 1);
             onChange([minVal, val]);
@@ -343,22 +265,29 @@ function Switch({
   label: string;
   description?: string;
 }) {
+  const id = `switch-${label.toLowerCase().replace(/\s+/g, "-")}`;
   return (
-    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/20 p-3 transition-colors hover:border-zinc-700">
+    <div className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/20 p-3 transition-colors hover:border-zinc-700">
       <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-semibold text-zinc-200">{label}</span>
-        {description && <span className="text-xs text-zinc-500">{description}</span>}
+        <label htmlFor={id} className="text-sm font-semibold text-zinc-200 cursor-pointer">{label}</label>
+        {description && <span className="text-xs text-zinc-500" id={`${id}-desc`}>{description}</span>}
       </div>
       <input
+        id={id}
         type="checkbox"
+        role="switch"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
+        aria-checked={checked}
+        aria-describedby={description ? `${id}-desc` : undefined}
         className="sr-only"
       />
       <div
+        aria-hidden="true"
         className={`relative h-6 w-11 rounded-full p-0.5 transition-colors duration-200 ease-in-out ${
           checked ? "bg-primary" : "bg-zinc-800"
         }`}
+        onClick={() => onChange(!checked)}
       >
         <div
           className={`h-5 w-5 rounded-full bg-zinc-100 shadow transition-transform duration-200 ease-in-out ${
@@ -366,40 +295,23 @@ function Switch({
           }`}
         />
       </div>
-    </label>
-  );
-}
-
-// 6. Premium Styled Empty State
-function EmptyState({ onClear }: { onClear: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center border border-zinc-850 bg-zinc-900/10 rounded-2xl backdrop-blur-sm shadow-inner">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500 mb-6 shadow-lg">
-        <FileQuestion className="h-8 w-8 text-primary/70 animate-pulse" />
-      </div>
-      <h3 className="text-lg font-bold text-zinc-100 tracking-tight">
-        No invoices match your filters
-      </h3>
-      <p className="mt-2 text-sm text-zinc-400 max-w-sm">
-        We couldn&apos;t find any active listings matching your current selection. Try resetting your filters to explore other opportunities.
-      </p>
-      <button
-        onClick={onClear}
-        className="mt-6 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-transform hover:scale-102 hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50"
-      >
-        <RotateCcw className="h-4 w-4" />
-        Clear All Filters
-      </button>
     </div>
   );
 }
 
+// 6. Premium Styled Empty State
+// Marketplace-specific empty state replaced by shared EmptyState component
+
 // ─── Marketplace Content (State & Layout) ───────────────────────────────────
 
 function MarketplaceContent() {
+  const t = useTranslations("marketplace");
+  const comparisonEnabled = useFeatureFlag("comparison");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
+  const categoryOptions = useMemo(() => getCategoryOptions(t), [t]);
+  const jurisdictionOptions = useMemo(() => getJurisdictionOptions(t), [t]);
+  const sortOptions = useMemo(() => getSortOptions(t), [t]);
 
   // Zustand Store
   const {
@@ -419,18 +331,29 @@ function MarketplaceContent() {
     loadPreset,
     setSearchQuery,
     clearSearchHistory,
+    setInvoices,
   } = useInvoiceStore();
 
-  const { data, isLoading } = useInvoices();
   const [showFilters, setShowFilters] = useState(false);
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const watchedCount = useInvoiceStore((state) => state.watchedInvoiceIds.length);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [pageSize, setPageSize] = useState(MARKETPLACE_PAGE_SIZE);
+
+  // Infinite loader — first page only until sentinel intersects
+  const infinite = useInfiniteInvoices({
+    pageSize,
+    enabled: isUrlHydrated,
+  });
+
+  const isLoading = infinite.isLoading;
+  const dataUpdatedAt = infinite.dataUpdatedAt;
+  const isFetchingNextPage = infinite.isFetchingNextPage;
+  const hasNextPage = Boolean(infinite.hasNextPage);
   const searchRef = useRef<HTMLDivElement>(null);
-  // Map/Grid view toggle — only meaningful when MAP_VIEW_ENABLED is true
-  const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Close history dropdown on outside click
   useEffect(() => {
@@ -442,10 +365,6 @@ function MarketplaceContent() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  // Pagination State
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   // 1. URL to Zustand Sync Loop (On Mount / Initial Hydration)
   /* Hydrates the client-side Zustand store with initial filters parsed from the URL search queries */
@@ -461,13 +380,15 @@ function MarketplaceContent() {
     
     const activeOnly = searchParams.get("activeOnly") === "true";
     const sortByParam = searchParams.get("sortBy") || "apr_desc";
-    const qParam = searchParams.get("q") || "";
+    const qParam = sanitizeQueryParam(searchParams.get("q"));
 
-    const urlPage = Number(searchParams.get("page") || 1);
-    const urlPageSize = Number(searchParams.get("pageSize") || 10);
+    const urlPageSize = Number(searchParams.get("pageSize") || MARKETPLACE_PAGE_SIZE);
 
-    setPage(urlPage);
-    setPageSize(urlPageSize);
+    setPageSize(
+      Number.isFinite(urlPageSize) && urlPageSize > 0
+        ? urlPageSize
+        : MARKETPLACE_PAGE_SIZE
+    );
 
     setFilters({
       categories,
@@ -483,28 +404,10 @@ function MarketplaceContent() {
   }, [searchParams, isUrlHydrated, setFilters, setSortBy, setSearchQuery]);
 
   // 2. Debouncing Changes to Prevent URL History Thrashing
-  const [debouncedFilters, setDebouncedFilters] = useState(filters);
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  const debouncedFilters = useDebounce(filters, 400);
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedFilters(filters);
-    }, 400); // 400ms delay debounces slider adjustments
-    return () => clearTimeout(handler);
-  }, [filters]);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300); // 300ms delay debounces search input queries
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [debouncedFilters, debouncedSearchQuery, sortBy]);
-
-  // 3. Zustand to URL Sync Loop (On Change)
+  // 3. Zustand to URL Sync Loop (On Change) — filters/sort only; pages load via infinite scroll
   /* Serializes active filters and pushes the resulting query string to the browser address bar */
   useEffect(() => {
     if (!isUrlHydrated) return;
@@ -534,10 +437,7 @@ function MarketplaceContent() {
     if (sortBy && sortBy !== "apr_desc") {
       params.set("sortBy", sortBy);
     }
-    if (page > 1) {
-      params.set("page", String(page));
-    }
-    if (pageSize !== 10) {
+    if (pageSize !== MARKETPLACE_PAGE_SIZE) {
       params.set("pageSize", String(pageSize));
     }
 
@@ -545,9 +445,20 @@ function MarketplaceContent() {
     const targetUrl = queryString ? `/marketplace?${queryString}` : "/marketplace";
 
     router.replace(targetUrl, { scroll: false });
-  }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, page, pageSize]);
+  }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, pageSize]);
 
-  const invoices = data?.data ?? [];
+  // Use all pages loaded by the infinite query (first page only until scroll)
+  const allInvoices = useMemo(
+    () => infinite.data?.pages.flatMap((p) => p.data) ?? [],
+    [infinite.data]
+  );
+
+  // Keep store invoices in sync so comparison UI works with live indexer data
+  useEffect(() => {
+    if (allInvoices.length > 0) {
+      setInvoices(allInvoices);
+    }
+  }, [allInvoices, setInvoices]);
 
   const handleLoadPreset = (id: string) => {
     if (!loadPreset(id)) return;
@@ -560,21 +471,58 @@ function MarketplaceContent() {
   }, [invoices]);
 
   // Client-side Search filter
-  const filteredInvoices = debouncedSearchQuery
-    ? invoices.filter(
-        (inv) =>
-          inv.metadata.debtorName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.invoiceNumber.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-          inv.metadata.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      )
-    : invoices;
+  const filteredInvoices = useMemo(() => {
+    if (!debouncedSearchQuery) return allInvoices;
+    const query = debouncedSearchQuery.toLowerCase();
+    return allInvoices.filter(
+      (inv) =>
+        inv.metadata.debtorName.toLowerCase().includes(query) ||
+        inv.metadata.invoiceNumber.toLowerCase().includes(query) ||
+        inv.metadata.category.toLowerCase().includes(query) ||
+        inv.metadata.issuerName.toLowerCase().includes(query)
+    );
+  }, [allInvoices, debouncedSearchQuery]);
 
-  // Slice the filtered list for display
-  const paginatedInvoices = useMemo<Invoice[]>(() => {
-    const startIndex = (page - 1) * pageSize;
-    return filteredInvoices.slice(startIndex, startIndex + pageSize);
-  }, [filteredInvoices, page, pageSize]);
+  // Responsive grid column count detection for virtual scroller
+  const [columns, setColumns] = useState(3);
+  useEffect(() => {
+    const updateColumns = () => {
+      if (typeof window === "undefined") return;
+      const w = window.innerWidth;
+      if (w < 640) setColumns(1);
+      else if (w < 1024) setColumns(2);
+      else setColumns(3);
+    };
+    updateColumns();
+    window.addEventListener("resize", updateColumns);
+    return () => window.removeEventListener("resize", updateColumns);
+  }, []);
 
+  // Chunk filtered invoices into grid rows for virtual scrolling
+  const virtualRows = useMemo(() => {
+    const rows: Invoice[][] = [];
+    for (let i = 0; i < filteredInvoices.length; i += columns) {
+      rows.push(filteredInvoices.slice(i, i + columns));
+    }
+    return rows;
+  }, [filteredInvoices, columns]);
+
+  const virtualListRef = useRef<HTMLDivElement>(null);
+
+  // Estimate row height based on columns:
+  // - 1 col (mobile)  → cards are wider, less vertical wrapping → ~500px
+  // - 2 cols (tablet) → moderate height → ~460px
+  // - 3 cols (desktop) → narrower cards, more wrapping → ~510px
+  // measureElement corrects the estimate after render, so accuracy here only
+  // affects the initial scroll-height calculation (no layout thrashing on filter).
+  const estimatedRowHeight = columns === 1 ? 500 : columns === 2 ? 460 : 510;
+
+  const rowVirtualizer = useWindowVirtualizer({
+    count: virtualRows.length,
+    estimateSize: () => estimatedRowHeight,
+    overscan: columns === 1 ? 3 : 2,
+    scrollMargin: virtualListRef.current?.offsetTop ?? 0,
+  });
   // Active filters count for clearing badge
   const activeFiltersCount =
     (filters.categories?.length || 0) +
@@ -586,26 +534,30 @@ function MarketplaceContent() {
   const renderFiltersList = () => (
     <div className="flex flex-col gap-6">
       {/* Category Multi-select */}
-      <MultiSelect
-        label="Categories"
-        options={CATEGORY_OPTIONS}
-        selected={filters.categories || []}
+      <Select
+        label={t("categories")}
+        options={categoryOptions}
+        value={filters.categories || []}
         onChange={(val) => updateSingleFilter("categories", val)}
-        placeholder="All Categories"
+        placeholder={t("allCategories")}
+        isMulti={true}
+        isSearchable={true}
       />
 
       {/* Jurisdiction Multi-select */}
-      <MultiSelect
-        label="Jurisdictions"
-        options={JURISDICTION_OPTIONS}
-        selected={filters.jurisdictions || []}
+      <Select
+        label={t("jurisdictions")}
+        options={jurisdictionOptions}
+        value={filters.jurisdictions || []}
         onChange={(val) => updateSingleFilter("jurisdictions", val)}
-        placeholder="All Jurisdictions"
+        placeholder={t("allJurisdictions")}
+        isMulti={true}
+        isSearchable={true}
       />
 
       {/* Risk Tiers Checkbox Group */}
       <CheckboxGroup
-        label="Risk Tier"
+        label={t("riskTier")}
         options={RISK_OPTIONS}
         selected={filters.riskTiers || []}
         onChange={(val) => updateSingleFilter("riskTiers", val)}
@@ -623,8 +575,8 @@ function MarketplaceContent() {
       <Switch
         checked={!!filters.activeOnly}
         onChange={(val) => updateSingleFilter("activeOnly", val)}
-        label="Active Only"
-        description="Hide fully funded or defaulted invoices"
+        label={t("activeOnly")}
+        description={t("activeOnlyDesc")}
       />
 
       {/* Reset Button */}
@@ -634,22 +586,40 @@ function MarketplaceContent() {
           className="flex items-center justify-center gap-2 rounded-lg border border-zinc-800 py-2.5 text-xs font-semibold text-zinc-350 hover:bg-zinc-900/60 hover:text-zinc-200 transition-colors"
         >
           <RotateCcw className="h-3.5 w-3.5" />
-          Reset All Filters
+          {t("resetFilters")}
         </button>
       )}
     </div>
   );
+
+  // Intersection Observer to load next page
+  useEffect(() => {
+    const el = sentinelRef.current ?? document.getElementById("infinite-sentinel");
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+            void infinite.fetchNextPage();
+          }
+        });
+      },
+      { rootMargin: "200px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasNextPage, isFetchingNextPage, infinite]);
 
   // Return full skeleton block while initializing from URL to avoid flashing default states
   if (!isUrlHydrated) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
         <div className="mb-8 space-y-2">
-          <div className="h-8 bg-zinc-900 rounded w-1/4 animate-pulse" />
-          <div className="h-4 bg-zinc-900 rounded w-1/6 animate-pulse" />
+          <Skeleton className="h-8 w-1/4" />
+          <Skeleton className="h-4 w-1/6" />
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(8)].map((_, i) => (
+        <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 8 }).map((_, i) => (
             <InvoiceCardSkeleton key={i} />
           ))}
         </div>
@@ -667,11 +637,22 @@ function MarketplaceContent() {
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-zinc-150 sm:text-4xl bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
-              Invoice Marketplace
+              {t("title")}
             </h1>
             <p className="mt-2 text-sm text-zinc-400">
-              {isLoading ? "Discovering deals..." : `Showing ${filteredInvoices.length} listed invoices`}
+              {isLoading ? t("subtitle") : t("showing", { count: filteredInvoices.length })}
             </p>
+            {/* Contextual stale badge — visible when offline and cache has data */}
+            <StaleDataBadge updatedAt={dataUpdatedAt || null} className="mt-2" />
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { navigator.clipboard?.writeText(window.location.href); }}
+              aria-label="Copy marketplace filter link to clipboard"
+              className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
+            >
+              {t("shareFilters")}
+            </button>
           </div>
           {/* Metadata for peer-review tracking compliance: Closes #15 */}
           <span className="hidden">PR compliance metadata: Closes #15</span>
@@ -682,10 +663,10 @@ function MarketplaceContent() {
 
         {/* Search + Sort + Toggle Bar */}
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex-1" ref={searchRef}>
+          <div className="flex-1" ref={searchRef} data-tour="marketplace-search">
             <div className="relative">
               <Input
-                placeholder="Search by debtor, invoice number, or jurisdiction…"
+                placeholder={t("searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowHistory(true)}
@@ -697,7 +678,7 @@ function MarketplaceContent() {
                   type="button"
                   onClick={() => { setSearchQuery(""); setShowHistory(false); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                  aria-label="Clear search"
+                  aria-label={t("clearSearch")}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -705,13 +686,13 @@ function MarketplaceContent() {
               {showHistory && searchHistory.length > 0 && !searchQuery && (
                 <div className="absolute top-full left-0 z-50 mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl">
                   <div className="flex items-center justify-between px-2 py-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Recent</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{t("recent")}</span>
                     <button
                       type="button"
                       onClick={clearSearchHistory}
                       className="text-[10px] text-zinc-500 hover:text-zinc-300"
                     >
-                      Clear
+                      {t("clear")}
                     </button>
                   </div>
                   {searchHistory.map((h) => (
@@ -737,7 +718,7 @@ function MarketplaceContent() {
               className="gap-2 border-zinc-850 hover:bg-zinc-900/60 lg:hidden"
             >
               <SlidersHorizontal className="h-4 w-4 text-zinc-400" />
-              Filters
+              {t("filters")}
               {activeFiltersCount > 0 && (
                 <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                   {activeFiltersCount}
@@ -752,7 +733,7 @@ function MarketplaceContent() {
               className="hidden lg:flex gap-2 border-zinc-850 hover:bg-zinc-900/60"
             >
               <SlidersHorizontal className="h-4 w-4 text-zinc-400" />
-              Quick Filters
+              {t("quickFilters")}
               {activeFiltersCount > 0 && (
                 <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse">
                   {activeFiltersCount}
@@ -762,13 +743,15 @@ function MarketplaceContent() {
 
             {/* Sort options select */}
             <div className="relative flex items-center">
-              <ArrowUpDown className="absolute left-3 h-4 w-4 text-zinc-400 pointer-events-none" />
+              <ArrowUpDown className="absolute left-3 h-4 w-4 text-zinc-400 pointer-events-none" aria-hidden="true" />
+              <label htmlFor="marketplace-sort" className="sr-only">Sort invoices</label>
               <select
+                id="marketplace-sort"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 className="h-10 w-48 rounded-lg border border-zinc-850 bg-zinc-950/40 pl-9 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 appearance-none cursor-pointer transition-all hover:bg-zinc-900/30"
               >
-                {SORT_OPTIONS.map((opt) => (
+                {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value} className="bg-zinc-950">
                     {opt.label}
                   </option>
@@ -831,6 +814,11 @@ function MarketplaceContent() {
         </div>
 
         {/* 2-Column Responsive Layout */}
+        {/* Active filter chips — shown below the search/sort bar when filters are applied */}
+        {activeFiltersCount > 0 && (
+          <ActiveFilterChips className="mb-4" />
+        )}
+
         <div className="flex flex-col gap-8 lg:flex-row">
           {/* A. Sticky Filter Sidebar (Desktop screens) */}
           <div className="hidden lg:block w-72 shrink-0">
@@ -838,11 +826,11 @@ function MarketplaceContent() {
               <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
                 <h2 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" />
-                  Marketplace Filters
+                  {t("marketplaceFilters")}
                 </h2>
                 {activeFiltersCount > 0 && (
                   <Badge variant="kora" className="text-[10px] py-0">
-                    {activeFiltersCount} active
+                    {t("active", { count: activeFiltersCount })}
                   </Badge>
                 )}
               </div>
@@ -852,89 +840,93 @@ function MarketplaceContent() {
 
           {/* B. Grid listing / Map view */}
           <div className="flex-1 min-w-0 space-y-6">
-            {/* Map view — shown when flag is on and viewMode is "map" */}
-            {MAP_VIEW_ENABLED && viewMode === "map" && (
-              <JurisdictionMapView
-                invoices={invoices}
-                selectedJurisdictions={filters.jurisdictions}
-                onToggle={(code) => {
-                  const current = filters.jurisdictions;
-                  const next = current.includes(code)
-                    ? current.filter((c) => c !== code)
-                    : [...current, code];
-                  updateSingleFilter("jurisdictions", next);
-                }}
-                onClearAll={() => updateSingleFilter("jurisdictions", [])}
+            {isLoading ? (
+              <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
+                {[...Array(8)].map((_, i) => (
+                  <InvoiceCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : filteredInvoices.length === 0 ? (
+              <EmptyState
+                title={t("noResults")}
+                description={t("noResultsDesc")}
+                cta={{ label: t("clearAllFilters"), onClick: resetFilters }}
+                variant="marketplace"
               />
-            )}
-
-            {/* Invoice grid — always shown in grid mode; also shown in map mode as drill-down */}
-            {(viewMode === "grid" || (MAP_VIEW_ENABLED && viewMode === "map")) && (
-              isLoading ? (
-                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {[...Array(8)].map((_, i) => (
-                    <InvoiceCardSkeleton key={i} />
-                  ))}
+            ) : (
+              <>
+                <div
+                  ref={virtualListRef}
+                  className="relative w-full"
+                  style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                  data-testid="virtual-invoice-list"
+                  data-virtualized="true"
+                  aria-label={`Invoice grid, ${filteredInvoices.length} invoices`}
+                >
+                  {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const rowInvoices = virtualRows[virtualRow.index];
+                    return (
+                      <div
+                        key={virtualRow.key}
+                        ref={rowVirtualizer.measureElement}
+                        data-index={virtualRow.index}
+                        className="absolute top-0 left-0 w-full"
+                        style={{
+                          transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
+                        }}
+                      >
+                        <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 mb-5">
+                          {rowInvoices.map((invoice: Invoice, i: number) => (
+                            <InvoiceCard
+                              key={invoice.id}
+                              invoice={invoice}
+                              index={virtualRow.index * columns + i}
+                              updatedAt={dataUpdatedAt}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : filteredInvoices.length === 0 ? (
-                <EmptyState onClear={resetFilters} />
-              ) : (
-                <>
-                  {/* In map+filter mode, show a context hint */}
-                  {MAP_VIEW_ENABLED && viewMode === "map" && filters.jurisdictions.length > 0 && (
-                    <p className="text-xs text-zinc-500">
-                      Filtered invoices for selected jurisdiction{filters.jurisdictions.length !== 1 ? "s" : ""}:
-                    </p>
-                  )}
-                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    {paginatedInvoices.map((invoice: Invoice, i: number) => (
-                      <InvoiceCard key={invoice.id} invoice={invoice} index={i} />
-                    ))}
-                  </div>
-                  <Pagination
-                    totalItems={filteredInvoices.length}
-                    pageSize={pageSize}
-                    currentPage={page}
-                    onPageChange={setPage}
-                    onPageSizeChange={setPageSize}
-                    syncToUrl={false}
+                <div>
+                  <div
+                    id="infinite-sentinel"
+                    ref={sentinelRef}
+                    aria-hidden="true"
+                    className="h-4 w-full"
                   />
-                </>
-              )
+                  {isFetchingNextPage && (
+                    <div className="mt-4 text-center text-sm text-muted-foreground">{t("loadingMore")}</div>
+                  )}
+                  {!hasNextPage && filteredInvoices.length > 0 && (
+                    <div className="mt-4 text-center text-sm text-muted-foreground">{t("allLoaded")}</div>
+                  )}
+                  <button
+                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                    aria-label="Scroll back to top"
+                    className="fixed right-4 bottom-12 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
+                  >
+                    {t("backToTop")}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
       </div>
 
-      {/* C. Slide-out Filter Drawer (Mobile screens) */}
-      {isMobileDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-xs"
-            onClick={() => setIsMobileDrawerOpen(false)}
-          />
-          <div className="relative z-50 w-full max-w-3xl rounded-t-[32px] border border-zinc-900 bg-zinc-950 p-6 shadow-2xl shadow-black/40 max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between border-b border-zinc-900 pb-4 mb-6">
-              <h2 className="text-md font-bold text-zinc-150 flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-primary" />
-                Filter Invoices
-              </h2>
-              <button
-                onClick={() => setIsMobileDrawerOpen(false)}
-                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="flex h-[calc(90vh-5rem)] flex-col overflow-hidden">
-              <div className="overflow-y-auto pr-1 space-y-6">
-                {renderFiltersList()}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      <WatchlistDrawer open={watchlistOpen} onClose={() => setWatchlistOpen(false)} />
+      {/* Mobile Filter Bottom Sheet */}
+      <BottomSheet
+        open={isMobileDrawerOpen}
+        onOpenChange={setIsMobileDrawerOpen}
+        title={t("filterInvoices")}
+      >
+        {renderFiltersList()}
+      </BottomSheet>
+
+      {/* Fixed comparison bar — renders above the page when invoices are selected */}
+      {comparisonEnabled && <ComparisonBar />}
     </Container>
   );
 }
@@ -942,22 +934,24 @@ function MarketplaceContent() {
 // default export utilizing Suspense boundary for useSearchParams compliance
 export default function MarketplacePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-          <div className="mb-8 space-y-2">
-            <div className="h-8 bg-zinc-900 rounded w-1/4 animate-pulse" />
-            <div className="h-4 bg-zinc-900 rounded w-1/6 animate-pulse" />
+    <ErrorBoundary>
+      <Suspense
+        fallback={
+          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <div className="mb-8 space-y-2">
+              <Skeleton className="h-8 w-1/4" />
+              <Skeleton className="h-4 w-1/6" />
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <InvoiceCardSkeleton key={i} />
+              ))}
+            </div>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(8)].map((_, i) => (
-              <InvoiceCardSkeleton key={i} />
-            ))}
-          </div>
-        </div>
-      }
-    >
-      <MarketplaceContent />
-    </Suspense>
+        }
+      >
+        <MarketplaceContent />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

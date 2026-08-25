@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -96,7 +97,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     const isLoading = isLoadingProp ?? loading ?? false;
     const isDisabled = disabled || isLoading;
-    const Comp = asChild ? Slot : "button";
+    // Use motion.button for native buttons; Slot for asChild (can't animate third-party roots)
+    const Comp = asChild ? Slot : (motion.button as unknown as React.ElementType);
 
     const resolvedVariant =
       variant === "default" || variant === "destructive" || variant === "link"
@@ -153,6 +155,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={isLoading || undefined}
         aria-disabled={isDisabled || undefined}
         aria-label={isIconOnly ? iconLabel : props["aria-label"]}
+        {...(!asChild && !isDisabled && {
+          whileHover: { y: -1, opacity: 0.92 },
+          whileTap: { scale: 0.97 },
+          transition: { duration: 0.15, ease: "easeOut" },
+        })}
         {...props}
       >
         {content}

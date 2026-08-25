@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -13,28 +13,79 @@ import {
   Sun,
   Moon,
   History,
+  Keyboard,
+  Search,
+  Tag,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
+
+const AddressBook = dynamic(
+  () => import("@/components/wallet/AddressBook").then((m) => m.AddressBook),
+  { ssr: false }
+);
+const TransactionHistoryDrawer = dynamic(
+  () => import("@/components/transactions").then((m) => m.TransactionHistoryDrawer),
+  { ssr: false }
+);
+
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { WalletBalance } from "@/components/wallet/WalletBalance";
+import { NetworkStatusIndicator } from "@/components/layout/NetworkStatusIndicator";
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { useUIStore } from "@/store/uiStore";
+import { useWalletStore } from "@/store/walletStore";
+import { ShortcutBadge } from "@/components/ui/ShortcutBadge";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-  { href: "/marketplace", label: "Marketplace", icon: Store },
-  { href: "/dashboard/investor", label: "Invest", icon: BarChart3 },
-  { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard },
-  { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle },
-  { href: "/transactions", label: "History", icon: History },
+  { href: "/marketplace", label: "Marketplace", icon: Store, shortcut: "G M" },
+  { href: "/secondary", label: "Secondary", icon: Tag, shortcut: "G S" },
+  { href: "/dashboard/investor", label: "Invest", icon: BarChart3, shortcut: "G D" },
+  { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard, shortcut: null },
+  { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle, shortcut: "G C" },
+  { href: "/transactions", label: "History", icon: History, shortcut: "G T" },
 ];
 
 const MENU_ID = "mobile-nav-menu";
 
 export function Navbar() {
   const pathname = usePathname();
+  const t = useTranslations("nav");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Granular selectors — Navbar only subscribes to the slices it renders.
+  // Balance display is delegated to <WalletBalance> which has its own selector,
+  // so balance polling never causes the navbar body to re-render.
+  const isConnected = useWalletStore((s) => s.isConnected);
+  const address = useWalletStore((s) => s.address);
+
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
+  const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
+  const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const navRef = useRef<HTMLElement>(null);
+  const [addressBookOpen, setAddressBookOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const resolvedTheme = theme === "system"
+    ? (mounted && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : theme;
+
+  // Nav links defined inside component so labels are translated
+  const NAV_LINKS = [
+    { href: "/marketplace", label: t("marketplace"), icon: Store, shortcut: "G M" },
+    { href: "/secondary", label: t("secondaryMarket"), icon: Tag, shortcut: "G S" },
+    { href: "/dashboard/investor", label: t("invest"), icon: BarChart3, shortcut: "G D" },
+    { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard, shortcut: null },
+    { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle, shortcut: "G C" },
+    { href: "/transactions", label: t("history"), icon: History, shortcut: "G T" },
+  ];
 
   // Close on route change
   useEffect(() => {
@@ -76,25 +127,45 @@ export function Navbar() {
           </div>
           <span className="text-base font-semibold text-foreground">Kora</span>
           <span className="hidden rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary sm:block">
-            TESTNET
+            {t("testnet")}
           </span>
         </Link>
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main navigation">
-          {NAV_LINKS.map(({ href, label }) => {
+          {NAV_LINKS.map(({ href, label, shortcut }) => {
             const active = pathname.startsWith(href);
+            let tourAttr = "";
+            if (href === "/marketplace") tourAttr = "data-tour='marketplace-link'";
+            else if (href === "/dashboard/sme") tourAttr = "data-tour='dashboard-link'";
+            else if (href === "/dashboard/investor") tourAttr = "data-tour='investor-dashboard'";
+            else if (href === "/invoice/create") tourAttr = "data-tour='create-invoice-btn'";
+            else if (href === "/analytics") tourAttr = "data-tour='analytics-link'";
+
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={cn(
-                  "relative rounded-lg px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground/80"
-                )}
+                data-tour={
+                  href === "/marketplace"
+                    ? "marketplace-link"
+                    : href === "/dashboard/sme"
+                      ? "dashboard-link"
+                      : href === "/dashboard/investor"
+                        ? "investor-dashboard"
+                        : href === "/invoice/create"
+                          ? "create-invoice-btn"
+                          : href === "/analytics"
+                            ? "analytics-link"
+                            : undefined
+                }
+            className={cn(
+              "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              active
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground/80"
+            )}
               >
                 {active && (
                   <motion.span
@@ -104,36 +175,103 @@ export function Navbar() {
                   />
                 )}
                 <span className="relative">{label}</span>
+                {shortcut && shortcutsEnabled && (
+                  <ShortcutBadge keys={shortcut} className="relative" />
+                )}
               </Link>
             );
           })}
         </nav>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <NetworkStatusIndicator />
+
+          {/* Command palette trigger */}
+          <button
+            type="button"
+            onClick={() => setCommandPaletteOpen(true)}
+            className="hidden sm:flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            aria-label="Open command palette (Ctrl+K)"
+          >
+            <Search className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden md:inline">Search…</span>
+            <kbd className="hidden md:flex items-center gap-0.5 rounded border border-border bg-background px-1 py-0.5 text-[10px] font-medium">
+              ⌘K
+            </kbd>
+          </button>
+          <button
+            type="button"
+            onClick={() => setCommandPaletteOpen(true)}
+            className="flex sm:hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            aria-label="Open command palette"
+          >
+            <Search className="h-5 w-5" aria-hidden="true" />
+          </button>
+
+          {/* Language switcher */}
+          <LanguageSwitcher />
+
+          {/* Theme toggle */}
           <button
             type="button"
             onClick={toggleTheme}
-            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             aria-label={
-              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
+              theme === "dark" ? t("switchToLight") : t("switchToDark")
             }
           >
             {theme === "dark" ? (
-              <Sun className="h-5 w-5" />
+              <Sun className="h-5 w-5" aria-hidden="true" />
             ) : (
-              <Moon className="h-5 w-5" />
+              <Moon className="h-5 w-5" aria-hidden="true" />
             )}
           </button>
 
-          <WalletButton />
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="View transaction history"
+          >
+            <History className="h-5 w-5" />
+          </button>
+
+          {/* Keyboard shortcut hint — desktop only */}
+          {shortcutsEnabled && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("kora:open-shortcut-modal"))}
+              className="hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex"
+              aria-label="Open keyboard shortcuts reference"
+              title="Keyboard shortcuts (?)"
+            >
+              <Keyboard className="h-4 w-4" />
+            </button>
+          )}
+
+          <button
+            onClick={() => setAddressBookOpen(true)}
+            className="hidden rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground md:block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            {t("addressBook")}
+          </button>
+
+          {/* WalletBalance subscribes only to balance; isolated from navbar re-renders */}
+          {isConnected && address && (
+            <WalletBalance />
+          )}
+
+          <div data-tour="wallet-button">
+            <WalletButton />
+          </div>
 
           {/* Hamburger — mobile only */}
           <button
             type="button"
-            className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground md:hidden"
+            className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background md:hidden"
             onClick={() => setMobileOpen((v) => !v)}
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-label={mobileOpen ? t("closeMenu") : t("openMenu")}
             aria-expanded={mobileOpen}
             aria-controls={MENU_ID}
           >
@@ -167,8 +305,21 @@ export function Navbar() {
                     key={href}
                     href={href}
                     aria-current={active ? "page" : undefined}
+                    data-tour={
+                      href === "/marketplace"
+                        ? "marketplace-link"
+                        : href === "/dashboard/sme"
+                          ? "dashboard-link"
+                          : href === "/dashboard/investor"
+                            ? "investor-dashboard"
+                            : href === "/invoice/create"
+                              ? "create-invoice-btn"
+                              : href === "/analytics"
+                                ? "analytics-link"
+                                : undefined
+                    }
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors",
+                      "flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                       active
                         ? "bg-muted text-foreground"
                         : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -180,13 +331,18 @@ export function Navbar() {
                 );
               })}
 
-              <div className="pt-2 border-t border-border">
+              <div className="pt-2 border-t border-border space-y-2" data-tour="wallet-button">
                 <WalletButton />
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {addressBookOpen && (
+        <AddressBook onClose={() => setAddressBookOpen(false)} />
+      )}
+      <TransactionHistoryDrawer open={historyOpen} onOpenChange={setHistoryOpen} />
     </header>
   );
 }

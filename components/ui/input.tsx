@@ -1,4 +1,5 @@
 import * as React from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -30,7 +31,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     },
     ref
   ) => {
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || React.useId();
+    const generatedId = React.useId();
+    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
 
@@ -50,6 +52,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         onChange(e);
       }
     };
+
+    const [focused, setFocused] = React.useState(false);
 
     const ariaDescribedBy = [
       error ? errorId : null,
@@ -81,6 +85,10 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               {leftIcon}
             </div>
           )}
+          <motion.div
+            animate={focused ? { scale: 1.005 } : { scale: 1 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+          >
           <input
             id={inputId}
             ref={ref}
@@ -89,6 +97,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             defaultValue={defaultValue}
             aria-describedby={ariaDescribedBy || undefined}
             aria-invalid={!!error}
+            onFocus={(e) => { setFocused(true); props.onFocus?.(e); }}
+            onBlur={(e) => { setFocused(false); props.onBlur?.(e); }}
             className={cn(
               "h-10 w-full rounded-lg border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground",
               "border-input transition-colors",
@@ -102,6 +112,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             )}
             {...props}
           />
+          </motion.div>
           {rightIcon && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               {rightIcon}

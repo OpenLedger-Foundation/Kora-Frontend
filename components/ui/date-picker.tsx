@@ -48,7 +48,8 @@ const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
     },
     ref
   ) => {
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || React.useId();
+    const generatedId = React.useId();
+    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
 
@@ -203,7 +204,6 @@ const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
               type="button"
               disabled={disabled}
               aria-describedby={ariaDescribedBy || undefined}
-              aria-invalid={!!error}
               className={cn(
                 "h-10 w-full rounded-lg border bg-card px-3 text-sm text-foreground flex items-center justify-between transition-colors",
                 "border-input cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-ring/50 focus:border-ring",

@@ -1,92 +1,207 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Pencil, Save, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import type { FilterState, SavedMarketplacePreset, SortState } from "@/store/invoiceStore";
+/**
+ * ActiveFilterChips — renders a dismissible chip for each active filter.
+ *
+ * Constraints:
+ *  - × button removes only that specific filter from invoiceStore immediately
+ *  - "Clear all" removes all active filters at once
+ *  - Must NOT cause full-page re-render — only the grid updates via store subscription
+ *  - Chip removals are announced to screen readers via aria-live="polite"
+ */
 
-interface ActiveFilterChipsProps {
-  filters: FilterState;
-  sort: SortState;
-  presets: SavedMarketplacePreset[];
-  onSave: (name: string) => void;
-  onLoad: (id: string) => void;
-  onRename: (id: string, name: string) => void;
-  onDelete: (id: string) => void;
+import React, { useId } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useTranslations } from "next-intl";
+import { X } from "lucide-react";
+import { useInvoiceStore } from "@/store/invoiceStore";
+import { cn } from "@/lib/utils";
+
+export interface FilterChip {
+  /** Stable unique key, e.g. "category:technology" */
+  key: string;
+  /** Human-readable label, e.g. "Technology" */
+  label: string;
+  /** Which store filter key this chip belongs to */
+  filterKey: keyof import("@/store/invoiceStore").FilterState;
+  /** The value to remove from the filter array (undefined for boolean filters) */
+  value?: string;
 }
 
-export function ActiveFilterChips({
-  filters,
-  sort,
-  presets,
-  onSave,
-  onLoad,
-  onRename,
-  onDelete,
+interface ActiveFilterChipsProps {
+  /** Chips derived from the current filter state — passed in so the parent
+   *  controls label formatting, but removal is handled by the store directly. */
+  chips?: FilterChip[];
+  /** Additional className for the wrapper */
+  className?: string;
+}
+
+/**
+ * Derives chips from the Zustand filter state.
+ * Exported so consumers can reuse without duplicating logic.
+ */
+export function deriveChips(
+  filters: import("@/store/invoiceStore").FilterState,
+  t?: (key: string) => string
+): FilterChip[] {
+  const chips: FilterChip[] = [];
+
+  for (const cat of filters.categories) {
+    chips.push({
+      key: `category:${cat}`,
+      label: cat.charAt(0).toUpperCase() + cat.slice(1),
+      filterKey: "categories",
+      value: cat,
+    });
+  }
+
+  for (const jur of filters.jurisdictions) {
+    chips.push({
+      key: `jurisdiction:${jur}`,
+      label: jur,
+      filterKey: "jurisdictions",
+      value: jur,
+    });
+  }
+
+  for (const tier of filters.riskTiers) {
+    chips.push({
+      key: `riskTier:${tier}`,
+      label: `Risk: ${tier}`,
+      filterKey: "riskTiers",
+      value: tier,
+    });
+  }
+
+  if (filters.aprRange[0] > 0 || filters.aprRange[1] < 50) {
+    chips.push({
+      key: "aprRange",
+      label: `APR: ${filters.aprRange[0]}%–${filters.aprRange[1]}%`,
+      filterKey: "aprRange",
+    });
+  }
+
+  if (filters.activeOnly) {
+    chips.push({
+      key: "activeOnly",
+      label: t ? t("activeOnly") : "Active Only",
+      filterKey: "activeOnly",
+    });
+  }
+
+  return chips;
+}
+
+export default function ActiveFilterChips({
+  chips: externalChips,
+  className,
 }: ActiveFilterChipsProps) {
-  const [name, setName] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState("");
-  const activeCount = filters.categories.length + filters.jurisdictions.length + filters.riskTiers.length +
-    (filters.aprRange[0] > 0 || filters.aprRange[1] < 50 ? 1 : 0) + (filters.activeOnly ? 1 : 0);
+  const t = useTranslations("marketplace");
+  const { filters, updateSingleFilter, resetFilters } = useInvoiceStore();
+  const announcerId = useId();
 
-  const save = () => {
-    if (!name.trim()) return;
-    onSave(name);
-    setName("");
+  // Derive chips from store if not provided externally
+  const chips = externalChips ?? deriveChips(filters, t);
+
+  const handleRemove = (chip: FilterChip) => {
+    const key = chip.filterKey;
+
+    if (key === "categories" || key === "jurisdictions" || key === "riskTiers") {
+      const current = filters[key] as string[];
+      updateSingleFilter(key, current.filter((v) => v !== chip.value));
+      return;
+    }
+
+    if (key === "aprRange") {
+      updateSingleFilter("aprRange", [0, 50]);
+      return;
+    }
+
+    if (key === "activeOnly") {
+      updateSingleFilter("activeOnly", false);
+      return;
+    }
+
+    if (key === "showExpired") {
+      updateSingleFilter("showExpired", false);
+    }
   };
 
-  const rename = (id: string) => {
-    if (editingName.trim()) onRename(id, editingName);
-    setEditingId(null);
-  };
+  if (chips.length === 0) return null;
 
   return (
-    <section className="flex flex-col gap-3 rounded-xl border border-zinc-900 bg-zinc-950/40 p-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Saved marketplace presets">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Presets</span>
-        {presets.map((preset) => (
-          <div key={preset.id} className="flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/70 pl-2.5 pr-1 py-1">
-            {editingId === preset.id ? (
-              <Input
-                autoFocus
-                value={editingName}
-                onChange={(event) => setEditingName(event.target.value)}
-                onKeyDown={(event) => { if (event.key === "Enter") rename(preset.id); if (event.key === "Escape") setEditingId(null); }}
-                className="h-6 w-28 border-zinc-700 bg-zinc-950 px-1.5 text-xs"
-                aria-label={`Rename ${preset.name}`}
-              />
-            ) : (
-              <button type="button" onClick={() => onLoad(preset.id)} className="max-w-36 truncate text-xs font-medium text-zinc-200 hover:text-primary" title={`Load ${preset.name}`}>
-                {preset.name}
+    <>
+      {/* Screen-reader live region — announces filter removals without page reload */}
+      <div
+        id={announcerId}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="filter-chips-announcer"
+      />
+
+      <div
+        className={cn("mt-3 flex flex-wrap items-center gap-2", className)}
+        role="group"
+        aria-label="Active filters"
+        data-testid="active-filter-chips"
+      >
+        <AnimatePresence initial={false}>
+          {chips.map((chip) => (
+            <motion.div
+              key={chip.key}
+              initial={{ opacity: 0, scale: 0.9, y: -4 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -4 }}
+              transition={{ duration: 0.15 }}
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
+            >
+              <span>{chip.label}</span>
+              <button
+                type="button"
+                aria-label={`Remove filter: ${chip.label}`}
+                onClick={() => {
+                  handleRemove(chip);
+                  // Announce to screen readers via the live region
+                  const el = document.getElementById(announcerId);
+                  if (el) el.textContent = `Filter "${chip.label}" removed`;
+                }}
+                className={cn(
+                  "flex h-4 w-4 items-center justify-center rounded-full",
+                  "text-primary/70 transition-colors",
+                  "hover:bg-primary/20 hover:text-primary",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                )}
+                data-testid={`remove-chip-${chip.key}`}
+              >
+                <X className="h-2.5 w-2.5" aria-hidden="true" />
               </button>
-            )}
-            {editingId === preset.id ? (
-              <button type="button" onClick={() => rename(preset.id)} className="p-1 text-primary hover:text-primary/80" aria-label="Save preset name"><Check className="h-3.5 w-3.5" /></button>
-            ) : (
-              <>
-                <button type="button" onClick={() => { setEditingId(preset.id); setEditingName(preset.name); }} className="p-1 text-zinc-500 hover:text-zinc-200" aria-label={`Rename ${preset.name}`}><Pencil className="h-3 w-3" /></button>
-                <button type="button" onClick={() => onDelete(preset.id)} className="p-1 text-zinc-500 hover:text-red-400" aria-label={`Delete ${preset.name}`}><Trash2 className="h-3 w-3" /></button>
-              </>
-            )}
-          </div>
-        ))}
-        {presets.length === 0 && <span className="text-xs text-zinc-600">No saved searches</span>}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        {/* Clear all */}
+        <motion.button
+          layout
+          type="button"
+          onClick={() => {
+            resetFilters();
+            const el = document.getElementById(announcerId);
+            if (el) el.textContent = "All filters cleared";
+          }}
+          className={cn(
+            "rounded-md px-3 py-1 text-xs font-medium",
+            "bg-destructive/10 text-destructive",
+            "hover:bg-destructive/20 transition-colors",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
+          )}
+          aria-label="Clear all active filters"
+          data-testid="clear-all-filters"
+        >
+          Clear all
+        </motion.button>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <Input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => { if (event.key === "Enter") save(); }}
-          placeholder={activeCount > 0 ? "Name current filters" : "Name search"}
-          aria-label="New preset name"
-          className="h-9 w-40 border-zinc-800 bg-zinc-950/60 text-xs"
-        />
-        <Button type="button" size="sm" variant="outline" onClick={save} disabled={!name.trim()} leftIcon={<Save className="h-3.5 w-3.5" />}>
-          Save
-        </Button>
-      </div>
-    </section>
+    </>
   );
 }
