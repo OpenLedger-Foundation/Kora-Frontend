@@ -308,7 +308,7 @@
       "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
       "ctaNone": "Start Verification",
       "ctaRejected": "Re-verify Business",
-      "ctaPending": "Checking verification status\u2026",
+      "ctaPending": "Checking verification status…",
       "backToWizard": "Go Back",
       "whatYouNeed": "What you will need:",
       "needIdDoc": "Government-issued ID or business registration document",
@@ -450,6 +450,30 @@
       "totalYield": "Total Yield Earned",
       "annualisedReturn": "Annualised Return",
       "defaultRate": "Default Rate"
+    },
+    "treemap": {
+      "title": "Allocation by Risk & Jurisdiction",
+      "empty": "No allocation data yet",
+      "concentration": "Largest concentration: {group} / {leaf} ({percent})"
+    },
+    "variance": {
+      "title": "Realized vs Expected Yield",
+      "expected": "Expected",
+      "realized": "Realized",
+      "variance": "Variance",
+      "pending": "{count} position(s) still active — shown as expected only",
+      "empty": "No settled positions yet",
+      "export": "Export variance CSV"
+    },
+    "benchmarks": {
+      "riskFree": "Risk-free rate",
+      "basket": "Basket APR",
+      "disclosure": "Benchmarks are static, operator-configured reference rates — not live market data. They are shown for context only and are not investment advice."
+    },
+    "digest": {
+      "button": "PDF digest",
+      "title": "Portfolio digest",
+      "share": "Share digest"
     }
   },
   "repaymentDialog": {
