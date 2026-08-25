@@ -440,6 +440,8 @@
     "title": "Confirmar Reembolso",
     "principal": "Principal (captado)",
     "interest": "Juros devidos",
+    "simulatedFee": "Taxa est. de rede",
+    "simulationError": "Simulação da transação falhou. Não é possível reembolsar.",
     "total": "Reembolso total",
     "insufficientBalance": "Saldo de USDC insuficiente. Você precisa de {amount}.",
     "cancel": "Cancelar",
@@ -449,6 +451,19 @@
   "cancelDialog": {
     "title": "Cancelar Fatura",
     "description": "Esta ação não pode ser desfeita. A fatura será cancelada permanentemente.",
+    "reasonLabel": "Motivo do cancelamento",
+    "selectReasonPlaceholder": "Selecione um motivo para cancelar",
+    "reasons": {
+      "duplicate_invoice": "Fatura duplicada criada",
+      "debtor_paid_directly": "Devedor pagou diretamente off-chain",
+      "terms_renegotiated": "Termos de financiamento renegociados",
+      "incorrect_amount": "Valor ou detalhes da fatura incorretos",
+      "other": "Outro motivo"
+    },
+    "notesLabel": "Notas adicionais (opcional)",
+    "notesPlaceholder": "Insira notas de conformidade ou suporte...",
+    "reasonRequired": "Por favor selecione um motivo de cancelamento antes de prosseguir",
+    "liveNote": "Nota: A transação on-chain marca o status como cancelado; o motivo é registrado na auditoria.",
     "partiallyFunded": "Parcialmente Financiada",
     "partiallyFundedDesc": "Esta fatura tem {amount} em financiamento. O cancelamento não é permitido para faturas parcialmente financiadas.",
     "effectsTitle": "Efeitos do Cancelamento",

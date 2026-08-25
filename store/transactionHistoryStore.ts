@@ -7,6 +7,7 @@ export type TxType =
   | "repay_invoice"
   | "claim_yield"
   | "transfer"
+  | "cancel_invoice"
   | "other";
 
 export type TxStatus = "pending" | "confirmed" | "failed";
@@ -21,6 +22,8 @@ export interface TransactionRecord {
   description?: string;
   invoiceId?: string;
   error?: string;
+  cancelReason?: string;
+  cancelNotes?: string;
 }
 
 interface TransactionHistoryStore {
@@ -149,6 +152,7 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
                   "repay_invoice",
                   "claim_yield",
                   "transfer",
+                  "cancel_invoice",
                   "other",
                 ].includes(tx.type)
                   ? (tx.type as TxType)
@@ -160,6 +164,8 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
                 description: typeof tx.description === "string" ? tx.description : undefined,
                 invoiceId: typeof tx.invoiceId === "string" ? tx.invoiceId : undefined,
                 error: typeof tx.error === "string" ? tx.error : undefined,
+                cancelReason: typeof tx.cancelReason === "string" ? tx.cancelReason : undefined,
+                cancelNotes: typeof tx.cancelNotes === "string" ? tx.cancelNotes : undefined,
               }))
               .slice(0, 100);
             return {

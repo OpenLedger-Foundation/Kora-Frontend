@@ -10,7 +10,7 @@ import { PageTransition } from "@/components/layout/PageTransition";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { env } from "@/lib/env";
 import { websiteSchema, organizationSchema, serializeSchema } from "@/lib/structuredData";
-import { handleWebVital } from "@/lib/webVitals";
+import { WebVitalsReporter } from "@/components/dev/WebVitalsReporter";
 import { WebVitalsPanel as WebVitalsPanelClient } from "@/components/dev/WebVitalsPanel";
 import { defaultLocale, locales, type Locale } from "@/i18n/config";
 
@@ -18,23 +18,6 @@ const WebVitalsPanel =
   process.env.NODE_ENV === "development"
     ? WebVitalsPanelClient
     : () => null;
-
-/**
- * reportWebVitals — called by Next.js for each Core Web Vital.
- * In development: logs to console with pass/fail colouring + fires a
- * CustomEvent so the WebVitalsPanel overlay can display live readings.
- * In production: batches and POSTs to /api/vitals.
- */
-export function reportWebVitals(metric: NextWebVitalsMetric): void {
-  handleWebVital(metric);
-
-  // Broadcast to the dev panel (no-op in production because the panel is not mounted)
-  if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("kora:webvital", { detail: metric })
-    );
-  }
-}
 
 // Optimised font loading: display=swap prevents render-blocking, subset limits
 // download size. Both fonts are preloaded by next/font automatically.
@@ -223,6 +206,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <Providers>
+          <WebVitalsReporter />
           <Navbar />
           <WrongNetworkBanner />
           <main id="main-content" className="min-h-screen">

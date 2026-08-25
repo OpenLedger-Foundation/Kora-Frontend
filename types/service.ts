@@ -56,7 +56,14 @@ export interface IInvoiceService {
 
   claimPosition(positionId: string, investorAddress: string): Promise<Result<string>>;
 
-  cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>>;
+  /**
+   * Cancel an active or listed invoice.
+   * Note on Live Mode On-Chain Limitations:
+   * The Soroban contract `cancel_invoice` entry point takes (token_id, owner).
+   * Structured cancellation reasons are captured for compliance/support and
+   * stored in local audit logs / transaction history.
+   */
+  cancelInvoice(tokenId: string, ownerAddress: string, reason?: string): Promise<Result<string>>;
 
   /**
    * Transfer an investor position to a new owner (P2P secondary-market

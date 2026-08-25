@@ -1,4 +1,9 @@
-// ─── Invoice Types ────────────────────────────────────────────────────────────
+export type CancellationReason =
+  | "duplicate_invoice"
+  | "debtor_paid_directly"
+  | "terms_renegotiated"
+  | "incorrect_amount"
+  | "other";
 
 export type InvoiceStatus =
   | "draft"

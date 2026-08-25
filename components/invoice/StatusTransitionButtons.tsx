@@ -40,7 +40,7 @@ import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { queryKeys } from "@/lib/queryKeys";
 import { CancelInvoiceDialog } from "@/components/invoice/CancelInvoiceDialog";
-import type { Invoice } from "@/types";
+import type { Invoice, CancellationReason } from "@/types";
 import type { InvoiceStatus } from "@/types/invoice";
 import type { StatusTransition } from "@/lib/invoiceStateMachine";
 
@@ -100,11 +100,13 @@ export function StatusTransitionButtons({
 
   // ── Core on-chain dispatcher ─────────────────────────────────────────────
 
-  async function fireTransition(transition: StatusTransition) {
+  async function fireTransition(
+    transition: StatusTransition,
+    cancelReason?: CancellationReason,
+    cancelNotes?: string
+  ) {
     if (!walletAddress) return;
 
-    // Legacy callback path — lets parent pages that still use onTransition
-    // continue to work without breaking.
     if (onTransition) {
       await onTransition(invoice, transition.to);
       return;
@@ -140,6 +142,9 @@ export function StatusTransitionButtons({
       {
         successMessage: `Invoice ${transition.to.replace(/_/g, " ")} successfully`,
         onSimulationPreview,
+        txType: transition.contractMethod === "cancel" ? "cancel_invoice" : undefined,
+        cancelReason: cancelReason,
+        cancelNotes: cancelNotes,
         onSuccess: () => {
           // Invalidate relevant TanStack Query caches so the UI refreshes
           queryClient.invalidateQueries({
@@ -150,7 +155,7 @@ export function StatusTransitionButtons({
           });
           onSuccess?.(invoice, transition.to);
         },
-      }
+      } as any
     );
   }
 
@@ -168,12 +173,12 @@ export function StatusTransitionButtons({
 
   // ── Cancel dialog confirm ────────────────────────────────────────────────
 
-  async function handleCancelConfirm() {
+  async function handleCancelConfirm(reason: CancellationReason, notes?: string) {
     const cancelTransition = transitions.find((t) => t.contractMethod === "cancel");
     if (!cancelTransition) return;
     setCancelError(undefined);
     try {
-      await fireTransition(cancelTransition);
+      await fireTransition(cancelTransition, reason, notes);
       setCancelDialogOpen(false);
     } catch (err) {
       setCancelError(err instanceof Error ? err.message : "Cancellation failed. Please try again.");

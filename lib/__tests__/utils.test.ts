@@ -42,6 +42,7 @@ import {
   STATUS_COLORS,
   withRetry,
   exportCsv,
+  calculateRepaymentSchedule,
 } from "../utils";
 
 // ─── 1. cn ────────────────────────────────────────────────────────────────────
@@ -691,3 +692,33 @@ describe("exportCsv", () => {
     expect(blobCall).toBeInstanceOf(Blob);
   });
 });
+
+describe("calculateRepaymentSchedule", () => {
+  it("calculates correct principal, yield, and total repayment", () => {
+    const invoice = {
+      funding: { totalRaised: 10000 },
+      terms: { financingAmount: 10000, discountRate: 0.1 },
+    };
+    const schedule = calculateRepaymentSchedule(invoice);
+    expect(schedule.principal).toBe(10000);
+    expect(schedule.yieldAmount).toBe(1000);
+    expect(schedule.totalRepayment).toBe(11000);
+    expect(schedule.discountRate).toBe(0.1);
+  });
+
+  it("handles null or undefined invoice gracefully", () => {
+    const schedule = calculateRepaymentSchedule(null);
+    expect(schedule).toEqual({ principal: 0, yieldAmount: 0, totalRepayment: 0, discountRate: 0 });
+  });
+
+  it("falls back to financingAmount if totalRaised is undefined", () => {
+    const invoice = {
+      terms: { financingAmount: 5000, discountRate: 0.05 },
+    };
+    const schedule = calculateRepaymentSchedule(invoice);
+    expect(schedule.principal).toBe(5000);
+    expect(schedule.yieldAmount).toBe(250);
+    expect(schedule.totalRepayment).toBe(5250);
+  });
+});
+

@@ -438,10 +438,12 @@
   },
   "repaymentDialog": {
     "title": "Confirmar Pago",
-    "principal": "Capital (recaudado)",
+    "principal": "Principal (recaudado)",
     "interest": "Interés adeudado",
+    "simulatedFee": "Tarifa est. de red",
+    "simulationError": "Error de simulación de transacción. Imposible pagar.",
     "total": "Pago total",
-    "insufficientBalance": "Saldo de USDC insuficiente. Necesitas {amount}.",
+    "insufficientBalance": "Saldo USDC insuficiente. Necesita {amount}.",
     "cancel": "Cancelar",
     "confirm": "Confirmar Pago",
     "processing": "Procesando…"
@@ -449,6 +451,19 @@
   "cancelDialog": {
     "title": "Cancelar Factura",
     "description": "Esta acción no se puede deshacer. La factura será cancelada permanentemente.",
+    "reasonLabel": "Motivo de cancelación",
+    "selectReasonPlaceholder": "Seleccione un motivo para cancelar",
+    "reasons": {
+      "duplicate_invoice": "Factura duplicada creada",
+      "debtor_paid_directly": "El deudor pagó directamente fuera de cadena",
+      "terms_renegotiated": "Términos de financiamiento renegociados",
+      "incorrect_amount": "Monto o detalles de factura incorrectos",
+      "other": "Otro motivo"
+    },
+    "notesLabel": "Notas adicionales (opcional)",
+    "notesPlaceholder": "Ingrese notas de cumplimiento o soporte...",
+    "reasonRequired": "Por favor seleccione un motivo de cancelación antes de continuar",
+    "liveNote": "Nota: La transacción en cadena marca el estado como cancelado; el motivo se registra en la auditoría.",
     "partiallyFunded": "Parcialmente Financiada",
     "partiallyFundedDesc": "Esta factura tiene {amount} en financiamiento. La cancelación no está permitida para facturas parcialmente financiadas.",
     "effectsTitle": "Efectos de la Cancelación",

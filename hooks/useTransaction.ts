@@ -274,6 +274,8 @@ export function useTransaction() {
           description: options?.txDescription,
           amount: options?.txAmount,
           assetCode: options?.txAssetCode,
+          cancelReason: (options as any)?.cancelReason,
+          cancelNotes: (options as any)?.cancelNotes,
         });
 
         // 5. Poll

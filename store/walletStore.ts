@@ -63,6 +63,10 @@ type WalletStoreActions = {
   addAddressBookEntry: (address: string, label?: string) => void;
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
   removeAddressBookEntry: (id: string) => void;
+  /**
+   * Switches active account without full disconnect; clears verification & resets balance.
+   */
+  switchAccount: (newAddress: string, newPublicKey?: string) => void;
   setNetwork: (network: WalletNetwork, walletPassphrase?: string) => void;
   setKycStatus: (kycStatus: "none" | "pending" | "verified" | "rejected") => void;
 };
@@ -116,6 +120,17 @@ export const useWalletStore = create<WalletStore>()(
           walletPassphrase: null,
           kitSessionActive: false,
         }),
+
+      switchAccount: (newAddress, newPublicKey) =>
+        set((state) => ({
+          address: newAddress,
+          publicKey: newPublicKey || newAddress,
+          balance: EMPTY_BALANCE,
+          isVerified: false,
+          verifiedAt: null,
+          lastActivityAt: Date.now(),
+          kitSessionActive: true,
+        })),
 
       setBalance: (balance) =>
         set((state) => (state.status === "connected" ? { balance } : {})),

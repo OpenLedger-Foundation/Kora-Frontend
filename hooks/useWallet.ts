@@ -140,9 +140,28 @@ export function useWallet() {
         const recoveredKey = await silentReconnect(provider);
         // Verify the recovered key matches the persisted one.
         if (recoveredKey !== address) {
-          // Address changed (user switched accounts) — treat as disconnected.
-          useWalletStore.getState().disconnect();
-          window.dispatchEvent(new CustomEvent("kora:session-expired"));
+          // Address changed (user switched accounts) — switch account safely without full disconnect.
+          useWalletStore.getState().switchAccount(recoveredKey);
+          setKitSessionActive(true);
+          setShowReconnectPrompt(false);
+          if (address) {
+            queryClient.removeQueries({
+              predicate: (q) => JSON.stringify(q.queryKey).includes(address),
+            });
+          }
+          queryClient.invalidateQueries({
+            predicate: (q) => JSON.stringify(q.queryKey).includes(recoveredKey),
+          });
+          try {
+            const raw = await getAccountBalances(recoveredKey);
+            useWalletStore.getState().setBalance({
+              xlm: raw.xlm,
+              usdc: raw.usdc,
+              eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
+            });
+          } catch {
+            // Silently ignore
+          }
           return;
         }
         setKitSessionActive(true);
@@ -253,6 +272,64 @@ export function useWallet() {
       silentReconnectAttemptedRef.current = false;
     }
   }, [isConnected]);
+
+  /**
+   * Seamlessly switches the active account in store and re-scopes query caches.
+   */
+  const switchAccount = useCallback(
+    async (newAddress: string, newPublicKey?: string) => {
+      const oldAddress = address;
+      useWalletStore.getState().switchAccount(newAddress, newPublicKey || newAddress);
+      setKitSessionActive(true);
+      setShowReconnectPrompt(false);
+
+      if (oldAddress) {
+        await queryClient.removeQueries({
+          predicate: (q) => JSON.stringify(q.queryKey).includes(oldAddress),
+        });
+      }
+      await queryClient.invalidateQueries({
+        predicate: (q) => JSON.stringify(q.queryKey).includes(newAddress),
+      });
+
+      try {
+        const raw = await getAccountBalances(newAddress);
+        useWalletStore.getState().setBalance({
+          xlm: raw.xlm,
+          usdc: raw.usdc,
+          eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
+        });
+      } catch {
+        // Silently ignore balance fetch error
+      }
+    },
+    [address, queryClient, setKitSessionActive]
+  );
+
+  // Listen for wallet extension account change events (Freighter / xBull)
+  useEffect(() => {
+    if (!isConnected || !provider) return;
+
+    const handleAccountChange = async (event?: any) => {
+      try {
+        const newKey = event?.detail?.publicKey || (await silentReconnect(provider));
+        if (newKey && newKey !== address) {
+          await switchAccount(newKey);
+        }
+      } catch {
+        // Ignore if extension is locked
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("freighter:accountChanged", handleAccountChange);
+    }
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("freighter:accountChanged", handleAccountChange);
+      }
+    };
+  }, [isConnected, provider, address, switchAccount]);
 
   const connectWallet = useCallback(
     async (walletId: string = FREIGHTER_ID) => {
@@ -654,6 +731,7 @@ export function useWallet() {
     isReconnecting,
     connectWallet,
     disconnectWallet,
+    switchAccount,
     manualReconnect,
     fundWalletOnTestnet,
     mintTestnetUsdc,

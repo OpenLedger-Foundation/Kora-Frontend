@@ -548,3 +548,36 @@ export function exportCsv(
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export interface RepaymentSchedule {
+  principal: number;
+  yieldAmount: number;
+  totalRepayment: number;
+  discountRate: number;
+}
+
+/**
+ * Calculate the repayment schedule (principal, yield/interest, total repayment).
+ */
+export function calculateRepaymentSchedule(
+  invoice: {
+    funding?: { totalRaised?: number };
+    terms?: { financingAmount?: number; discountRate?: number };
+  } | null | undefined,
+): RepaymentSchedule {
+  if (!invoice) {
+    return { principal: 0, yieldAmount: 0, totalRepayment: 0, discountRate: 0 };
+  }
+  const principal = invoice.funding?.totalRaised ?? invoice.terms?.financingAmount ?? 0;
+  const discountRate = invoice.terms?.discountRate ?? 0;
+  const yieldAmount = principal * discountRate;
+  const totalRepayment = principal + yieldAmount;
+
+  return {
+    principal,
+    yieldAmount,
+    totalRepayment,
+    discountRate,
+  };
+}
+
