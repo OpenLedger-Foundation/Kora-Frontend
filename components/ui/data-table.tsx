@@ -213,7 +213,7 @@ export function DataTable<T extends { id: string }>({
                   </div>
                 </div>
               );
-            }))}
+            })}
 
         {!isLoading && data.length > 0 && (
           <div className="flex flex-col gap-3">

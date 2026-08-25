@@ -13,17 +13,24 @@ import {
   RotateCcw,
   FileQuestion,
   Clock,
+  LayoutGrid,
+  Map,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
+import { JurisdictionMapView } from "@/components/marketplace/JurisdictionMapView";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
 import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
+
+/** True when the NEXT_PUBLIC_ENABLE_MAP_VIEW env var is set to "true". */
+const MAP_VIEW_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_MAP_VIEW === "true";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -408,6 +415,8 @@ function MarketplaceContent() {
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  // Map/Grid view toggle — only meaningful when MAP_VIEW_ENABLED is true
+  const [viewMode, setViewMode] = useState<"grid" | "map">("grid");
 
   // Close history dropdown on outside click
   useEffect(() => {
@@ -739,6 +748,46 @@ function MarketplaceContent() {
                 ))}
               </select>
             </div>
+
+            {/* Map / Grid view toggle — only shown when feature flag is on */}
+            {MAP_VIEW_ENABLED && (
+              <div
+                className="flex h-10 items-center rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5"
+                role="group"
+                aria-label="Switch between grid and map view"
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  aria-pressed={viewMode === "grid"}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+                    viewMode === "grid"
+                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("map")}
+                  aria-pressed={viewMode === "map"}
+                  aria-label="Map view"
+                  title="Map view"
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+                    viewMode === "map"
+                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <Map className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -762,32 +811,57 @@ function MarketplaceContent() {
             </div>
           </div>
 
-          {/* B. Grid listing and states */}
+          {/* B. Grid listing / Map view */}
           <div className="flex-1 min-w-0 space-y-6">
-            {isLoading ? (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {[...Array(8)].map((_, i) => (
-                  <InvoiceCardSkeleton key={i} />
-                ))}
-              </div>
-            ) : filteredInvoices.length === 0 ? (
-              <EmptyState onClear={resetFilters} />
-            ) : (
-              <>
+            {/* Map view — shown when flag is on and viewMode is "map" */}
+            {MAP_VIEW_ENABLED && viewMode === "map" && (
+              <JurisdictionMapView
+                invoices={invoices}
+                selectedJurisdictions={filters.jurisdictions}
+                onToggle={(code) => {
+                  const current = filters.jurisdictions;
+                  const next = current.includes(code)
+                    ? current.filter((c) => c !== code)
+                    : [...current, code];
+                  updateSingleFilter("jurisdictions", next);
+                }}
+                onClearAll={() => updateSingleFilter("jurisdictions", [])}
+              />
+            )}
+
+            {/* Invoice grid — always shown in grid mode; also shown in map mode as drill-down */}
+            {(viewMode === "grid" || (MAP_VIEW_ENABLED && viewMode === "map")) && (
+              isLoading ? (
                 <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {paginatedInvoices.map((invoice: Invoice, i: number) => (
-                    <InvoiceCard key={invoice.id} invoice={invoice} index={i} />
+                  {[...Array(8)].map((_, i) => (
+                    <InvoiceCardSkeleton key={i} />
                   ))}
                 </div>
-                <Pagination
-                  totalItems={filteredInvoices.length}
-                  pageSize={pageSize}
-                  currentPage={page}
-                  onPageChange={setPage}
-                  onPageSizeChange={setPageSize}
-                  syncToUrl={false}
-                />
-              </>
+              ) : filteredInvoices.length === 0 ? (
+                <EmptyState onClear={resetFilters} />
+              ) : (
+                <>
+                  {/* In map+filter mode, show a context hint */}
+                  {MAP_VIEW_ENABLED && viewMode === "map" && filters.jurisdictions.length > 0 && (
+                    <p className="text-xs text-zinc-500">
+                      Filtered invoices for selected jurisdiction{filters.jurisdictions.length !== 1 ? "s" : ""}:
+                    </p>
+                  )}
+                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {paginatedInvoices.map((invoice: Invoice, i: number) => (
+                      <InvoiceCard key={invoice.id} invoice={invoice} index={i} />
+                    ))}
+                  </div>
+                  <Pagination
+                    totalItems={filteredInvoices.length}
+                    pageSize={pageSize}
+                    currentPage={page}
+                    onPageChange={setPage}
+                    onPageSizeChange={setPageSize}
+                    syncToUrl={false}
+                  />
+                </>
+              )
             )}
           </div>
         </div>

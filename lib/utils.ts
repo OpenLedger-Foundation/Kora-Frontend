@@ -111,6 +111,78 @@ export async function withRetry<T>(
   throw lastError;
 }
 
+// ─── Jurisdiction Aggregation ─────────────────────────────────────────────────
+
+/**
+ * Per-jurisdiction aggregation result.
+ *
+ * - `count`       — number of invoices in this jurisdiction
+ * - `totalAmount` — sum of `metadata.amount` across all invoices
+ * - `avgApr`      — average `terms.apr` across all invoices (0 when count is 0)
+ * - `activeCount` — invoices with status `listed` or `partially_funded`
+ */
+export interface JurisdictionStats {
+  jurisdiction: string;
+  count: number;
+  totalAmount: number;
+  avgApr: number;
+  activeCount: number;
+}
+
+/**
+ * Aggregate an array of invoices by jurisdiction.
+ *
+ * Returns one `JurisdictionStats` entry per jurisdiction code that appears
+ * in the input, sorted by `totalAmount` descending so the highest-volume
+ * market appears first.
+ *
+ * Works with any `Invoice[]` — mock data, cached TanStack Query results, or
+ * live indexer data — without any network calls.
+ *
+ * @param invoices  Invoice array to aggregate (may be empty).
+ * @returns         Array of per-jurisdiction stats, sorted by `totalAmount` desc.
+ *
+ * @example
+ * const stats = aggregateByJurisdiction(invoices);
+ * // [{ jurisdiction: "KE", count: 3, totalAmount: 850000, avgApr: 22.1, activeCount: 2 }, ...]
+ */
+export function aggregateByJurisdiction(
+  invoices: import("@/types").Invoice[]
+): JurisdictionStats[] {
+  const map = new Map<
+    string,
+    { count: number; totalAmount: number; aprSum: number; activeCount: number }
+  >();
+
+  for (const inv of invoices) {
+    const key = inv.metadata.jurisdiction;
+    const existing = map.get(key) ?? {
+      count: 0,
+      totalAmount: 0,
+      aprSum: 0,
+      activeCount: 0,
+    };
+    const isActive =
+      inv.status === "listed" || inv.status === "partially_funded";
+    map.set(key, {
+      count: existing.count + 1,
+      totalAmount: existing.totalAmount + inv.metadata.amount,
+      aprSum: existing.aprSum + inv.terms.apr,
+      activeCount: existing.activeCount + (isActive ? 1 : 0),
+    });
+  }
+
+  return Array.from(map.entries())
+    .map(([jurisdiction, { count, totalAmount, aprSum, activeCount }]) => ({
+      jurisdiction,
+      count,
+      totalAmount,
+      avgApr: count > 0 ? aprSum / count : 0,
+      activeCount,
+    }))
+    .sort((a, b) => b.totalAmount - a.totalAmount);
+}
+
 /**
  * Convert an array of objects to a CSV file and trigger a browser download.
  * @param rows   Array of plain objects (all rows must share the same keys)
