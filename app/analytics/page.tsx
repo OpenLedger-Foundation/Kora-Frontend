@@ -1,9 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+const YieldVarianceChart = dynamic(() => import("@/components/analytics/YieldVarianceChart"), {
+  ssr: false,
+});
+
 const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCharts"), {
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
@@ -14,7 +18,13 @@ import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
 import { usePositions } from "@/hooks/usePositions";
-import { useUIStore, useInvoiceStore, DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS } from "@/store";
+import { buildDigestDocument, digestFilename } from "@/lib/portfolioDigest";
+import { renderDigestPdf } from "@/lib/portfolioDigestPdf";
+import {
+  useUIStore,
+  useInvoiceStore,
+  DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS,
+} from "@/store";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
@@ -76,17 +86,17 @@ const YIELD_HISTORY = [
 
 const MONTHLY_RETURNS = [
   { month: "Jan", return: 0 },
-  { month: "Feb", return: 1.50 },
+  { month: "Feb", return: 1.5 },
   { month: "Mar", return: 1.68 },
   { month: "Apr", return: 1.85 },
-  { month: "May", return: 2.00 },
+  { month: "May", return: 2.0 },
   { month: "Jun", return: 0 },
   { month: "Jul", return: 1.68 },
   { month: "Aug", return: 1.85 },
   { month: "Sep", return: 2.14 },
   { month: "Oct", return: 2.43 },
   { month: "Nov", return: 2.47 },
-  { month: "Dec", return: 2.60 },
+  { month: "Dec", return: 2.6 },
 ];
 
 // ── URL ↔ filter helpers ───────────────────────────────────────────────────────
@@ -98,7 +108,8 @@ function filtersFromParams(params: URLSearchParams): AnalyticsFilters {
 
   const result: AnalyticsFilters = {
     riskTier: (params.get("risk") as RiskTierFilter) ?? DEFAULT_FILTERS.riskTier,
-    jurisdiction: (params.get("jurisdiction") as JurisdictionFilter) ?? DEFAULT_FILTERS.jurisdiction,
+    jurisdiction:
+      (params.get("jurisdiction") as JurisdictionFilter) ?? DEFAULT_FILTERS.jurisdiction,
     category: (params.get("category") as CategoryFilter) ?? DEFAULT_FILTERS.category,
     dateRange,
   };
@@ -195,38 +206,68 @@ function PortfolioAnalyticsInner() {
     [resetFilters, setFilters, router]
   );
 
-  const positionsData = useMemo(
-    () => positionsQuery.data ?? [],
-    [positionsQuery.data]
-  );
+  const positionsData = useMemo(() => positionsQuery.data ?? [], [positionsQuery.data]);
   const filteredPositions = useMemo(
     () => filterPositionsForExport(positionsData, filters),
     [positionsData, filters]
   );
-  const exportRows = useMemo(
-    () => positionsToExportRows(filteredPositions),
-    [filteredPositions]
-  );
+  const exportRows = useMemo(() => positionsToExportRows(filteredPositions), [filteredPositions]);
   const hasExportData = exportRows.length > 0;
 
+  // ── PDF digest (#602) ─────────────────────────────────────────────────────
+  const [isGeneratingDigest, setIsGeneratingDigest] = useState(false);
+
+  const handleDownloadDigest = useCallback(async () => {
+    setIsGeneratingDigest(true);
+    try {
+      // Composed from the *unfiltered* list plus the active filters:
+      // `buildDigestDocument` re-applies them, so the PDF provably reflects
+      // the same rows the page is showing.
+      const doc = buildDigestDocument({
+        positions: positionsData,
+        filters,
+        formatCurrency: (value) => formatCurrency(value, "USDC"),
+        formatPercent: (value) => formatPercentage(value, 2),
+      });
+      await renderDigestPdf(doc, { filename: digestFilename() });
+    } catch (error) {
+      console.error("[analytics] digest generation failed", error);
+    } finally {
+      setIsGeneratingDigest(false);
+    }
+  }, [positionsData, filters, formatCurrency, formatPercentage]);
+
   // Slice chart series based on active date-range filters
-  const portfolio = useMemo(() => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange), [filters.dateRange]);
-  const yieldData = useMemo(() => sliceByRange(YIELD_HISTORY, filters.dateRange), [filters.dateRange]);
+  const portfolio = useMemo(
+    () => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange),
+    [filters.dateRange]
+  );
+  const yieldData = useMemo(
+    () => sliceByRange(YIELD_HISTORY, filters.dateRange),
+    [filters.dateRange]
+  );
   const risk = useMemo(() => {
-    const slices = aggregatePositions(filteredPositions, "riskTier").map(
-      (s) => ({
-        name: s.name,
-        value: Math.round(s.percent * 10) / 10,
-        color: s.color,
-      })
-    );
+    const slices = aggregatePositions(filteredPositions, "riskTier").map((s) => ({
+      name: s.name,
+      value: Math.round(s.percent * 10) / 10,
+      color: s.color,
+    }));
     if (filters.riskTier === "all") return slices;
     return slices.filter((d) => d.name === filters.riskTier);
   }, [filteredPositions, filters.riskTier]);
-  const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
+  const monthly = useMemo(
+    () => sliceByRange(MONTHLY_RETURNS, filters.dateRange),
+    [filters.dateRange]
+  );
 
-  const totalInvested = filteredPositions.reduce((sum, position) => sum + position.investedAmount, 0);
-  const totalExpected = filteredPositions.reduce((sum, position) => sum + position.expectedReturn, 0);
+  const totalInvested = filteredPositions.reduce(
+    (sum, position) => sum + position.investedAmount,
+    0
+  );
+  const totalExpected = filteredPositions.reduce(
+    (sum, position) => sum + position.expectedReturn,
+    0
+  );
   const totalYield = totalExpected - totalInvested;
   const averageApr = filteredPositions.length
     ? filteredPositions.reduce((sum, position) => sum + (position.invoice?.terms.apr ?? 0), 0) /
@@ -244,7 +285,10 @@ function PortfolioAnalyticsInner() {
     {
       label: "Expected Yield",
       value: formatCurrency(totalYield, "USDC", true),
-      change: totalInvested > 0 ? `${formatPercentage((totalYield / totalInvested) * 100, 1)} return` : "0.0% return",
+      change:
+        totalInvested > 0
+          ? `${formatPercentage((totalYield / totalInvested) * 100, 1)} return`
+          : "0.0% return",
       changePositive: true,
       icon: <TrendingUp className="h-4 w-4" />,
     },
@@ -264,11 +308,9 @@ function PortfolioAnalyticsInner() {
 
   const handleExportCsv = useCallback(() => {
     if (!hasExportData) return;
-    exportCsv(
-      exportRows as Record<string, unknown>[],
-      portfolioExportFilename(),
-      [...PORTFOLIO_EXPORT_HEADERS]
-    );
+    exportCsv(exportRows as Record<string, unknown>[], portfolioExportFilename(), [
+      ...PORTFOLIO_EXPORT_HEADERS,
+    ]);
   }, [exportRows, hasExportData]);
 
   const handleExportPdf = useCallback(() => {
@@ -287,9 +329,7 @@ function PortfolioAnalyticsInner() {
           <BarChart3 className="h-6 w-6 text-muted-foreground" />
         </div>
         <h2 className="text-2xl font-semibold text-foreground">{t("connectTitle")}</h2>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          {t("connectDesc")}
-        </p>
+        <p className="max-w-sm text-sm text-muted-foreground">{t("connectDesc")}</p>
         <Button onClick={() => setWalletModalOpen(true)} className="mt-4">
           <span>{tCommon("connectWallet")}</span>
         </Button>
@@ -299,22 +339,23 @@ function PortfolioAnalyticsInner() {
 
   return (
     <ErrorBoundary>
-      <PrintLayout title="Kora Portfolio Analytics" subtitle="Invoice financing portfolio performance">
+      <PrintLayout
+        title="Kora Portfolio Analytics"
+        subtitle="Invoice financing portfolio performance"
+      >
         <div id="analytics-report" className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
           {/* Header */}
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-bold text-zinc-100">{t("title")}</h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                {t("subtitle")}
-              </p>
+              <p className="mt-1 text-sm text-zinc-500">{t("subtitle")}</p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
               <button
                 type="button"
                 disabled={!hasExportData}
                 aria-disabled={!hasExportData}
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
                 onClick={handleExportCsv}
               >
                 Export CSV
@@ -323,10 +364,26 @@ function PortfolioAnalyticsInner() {
                 type="button"
                 disabled={!hasExportData}
                 aria-disabled={!hasExportData}
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
                 onClick={handleExportPdf}
               >
                 Export PDF
+              </button>
+              {/*
+                PDF digest (#602) — distinct from "Export PDF", which
+                screenshots this page. The digest is a branded, text-based
+                summary of the filtered portfolio with sensitive columns
+                redacted, meant to be filed or forwarded.
+              */}
+              <button
+                type="button"
+                disabled={!hasExportData || isGeneratingDigest}
+                aria-disabled={!hasExportData || isGeneratingDigest}
+                aria-label="Download portfolio PDF digest"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleDownloadDigest}
+              >
+                {isGeneratingDigest ? "Generating…" : "PDF Digest"}
               </button>
               <PrintButton />
             </div>
@@ -345,7 +402,19 @@ function PortfolioAnalyticsInner() {
             risk={risk}
             isLoading={positionsQuery.isLoading}
             onRiskSegmentClick={handleRiskSegmentClick}
+            positions={filteredPositions}
           />
+
+          {/* Realized vs expected yield (#601) */}
+          <div className="mt-6">
+            <YieldVarianceChart
+              positions={filteredPositions}
+              isLoading={positionsQuery.isLoading}
+              onExport={(rows, filename, headers) =>
+                exportCsv(rows, filename, headers as unknown as string[])
+              }
+            />
+          </div>
 
           {/* Filtered positions — included in PDF/print layout */}
           <section
