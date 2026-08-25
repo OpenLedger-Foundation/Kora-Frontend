@@ -6,6 +6,7 @@ export const queryKeys = {
     list: (filters: FilterState, sort: SortState, page: number) =>
       ["invoices", "list", filters, sort, page] as const,
     detail: (id: string) => ["invoices", "detail", id] as const,
+    similar: (id: string) => ["invoices", "similar", id] as const,
     byOwner: (address: string) => ["invoices", "owner", address] as const,
     positions: (address: string) => ["invoices", "positions", address] as const,
   },

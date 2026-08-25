@@ -30,6 +30,7 @@ import { useUIStore, useInvoiceStore } from "@/store";
 import { prepareFundInvoice } from "@/services/invoiceService";
 import { Badge, RiskBadge } from "@/components/ui/badge";
 import { MOCK_INVOICES } from "@/services/mockData";
+import { SimilarInvoices } from "./InvoiceDetailClient";
 import {
   formatCurrency,
   formatApr,
@@ -545,6 +546,9 @@ Stellar Testnet Transaction Hash: ${txHash}`);
           )}
         </div>
       </div>
+
+      {/* ── Similar Invoices ─────────────────────────────────────────────── */}
+      <SimilarInvoices referenceId={id} maxResults={6} />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   fetchInvoiceById,
   fetchInvoicesByOwner,
   fetchInvestorPositions,
+  fetchSimilarInvoices,
   prepareCreateInvoice,
   prepareFundInvoice,
 } from "@/services/invoiceService";
@@ -50,6 +51,28 @@ export function useInvoice(id: string) {
   return useQuery({
     queryKey: queryKeys.invoices.detail(id),
     queryFn: () => fetchInvoiceById(id),
+    enabled: !!id,
+    staleTime: STALE_30S,
+    gcTime: GC_5MIN,
+  });
+}
+
+// ─── Similar Invoices ─────────────────────────────────────────────────────────
+
+/**
+ * Returns up to `maxResults` investable invoices ranked by similarity to the
+ * given invoice `id`.
+ *
+ * Scoring is computed entirely client-side against the cached invoice list so
+ * the hook works offline or when the live indexer has few results.
+ *
+ * @param id          ID of the reference invoice (must be truthy to enable).
+ * @param maxResults  Max candidates returned (default 6).
+ */
+export function useSimilarInvoices(id: string, maxResults = 6) {
+  return useQuery({
+    queryKey: queryKeys.invoices.similar(id),
+    queryFn: () => fetchSimilarInvoices(id, maxResults),
     enabled: !!id,
     staleTime: STALE_30S,
     gcTime: GC_5MIN,

@@ -80,6 +80,32 @@ export async function fetchInvoiceById(id: string): Promise<Invoice | null> {
   throw new Error("Live data fetch not yet implemented");
 }
 
+/**
+ * Fetch invoices similar to the given reference invoice.
+ *
+ * Works entirely offline against the cached/mock invoice list so it
+ * degrades gracefully when the live indexer is sparse or unavailable.
+ *
+ * @param referenceId  ID of the invoice currently being viewed.
+ * @param maxResults   Maximum candidates to return (default 6).
+ */
+export async function fetchSimilarInvoices(
+  referenceId: string,
+  maxResults = 6
+): Promise<import("@/lib/comparison").SimilarInvoice[]> {
+  const { getSimilarInvoices } = await import("@/lib/comparison");
+
+  // Always resolve candidates from the mock list (or replace with live call).
+  const candidates = USE_MOCK
+    ? MOCK_INVOICES
+    : (await fetchInvoices({}, { key: "apr", direction: "desc" }, 1, 100)).data;
+
+  const reference = candidates.find((i) => i.id === referenceId);
+  if (!reference) return [];
+
+  return getSimilarInvoices(reference, candidates, maxResults);
+}
+
 export async function fetchInvoicesByOwner(ownerAddress: string): Promise<Invoice[]> {
   if (USE_MOCK) {
     return MOCK_INVOICES.filter((i) => i.ownerAddress === ownerAddress);
