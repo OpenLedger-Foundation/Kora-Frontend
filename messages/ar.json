@@ -197,7 +197,10 @@
     "errors": {
       "minInvestment": "الحد الأدنى للاستثمار هو {amount}",
       "exceedsCapacity": "يتجاوز المبلغ الطاقة الاستيعابية المتبقية البالغة {amount}",
-      "insufficientBalance": "رصيد USDC غير كافٍ. المتاح: {amount}"
+      "insufficientBalance": "رصيد USDC غير كافٍ. المتاح: {amount}",
+      "invalidAmount": "أدخل مبلغ تمويل صالحًا",
+      "maxInvestment": "الحد الأقصى للاستثمار هو {amount}",
+      "dustRemainder": "سيترك هذا مبلغًا أقل من الحد الأدنى للاستثمار دون تمويل. مَوِّل كامل المبلغ المتبقي {amount} أو اترك {min} على الأقل."
     },
     "hint": {
       "minRemaining": "الحد الأدنى: ${min} · الطاقة المتبقية: ${remaining}"
