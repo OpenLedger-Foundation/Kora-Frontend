@@ -197,7 +197,10 @@
     "errors": {
       "minInvestment": "La inversión mínima es {amount}",
       "exceedsCapacity": "El monto supera la capacidad restante de {amount}",
-      "insufficientBalance": "Saldo USDC insuficiente. Disponible: {amount}"
+      "insufficientBalance": "Saldo USDC insuficiente. Disponible: {amount}",
+      "invalidAmount": "Introduce un monto de financiación válido",
+      "maxInvestment": "La inversión máxima es {amount}",
+      "dustRemainder": "Esto dejaría sin financiar menos que el ticket mínimo. Financia el total restante de {amount} o deja al menos {min}."
     },
     "hint": {
       "minRemaining": "Mín: ${min} · Capacidad Restante: ${remaining}"
