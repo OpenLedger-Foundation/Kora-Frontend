@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense, useState, useMemo, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { PlusCircle, TrendingUp, FileText, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
@@ -7,58 +8,109 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
 import { Progress } from "@/components/ui/progress";
+import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
+import { DashboardSkeleton, Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { BatchResultSummary } from "@/components/dashboard/BatchActionToolbar";
+import {
+  prepareCancelInvoice,
+  prepareRepayInvoice,
+  submitAndConfirm,
+  fetchInvoicesByOwner,
+} from "@/services/invoiceService";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
-const DataTable = dynamic(() => import("@/components/ui/data-table").then((m) => m.DataTable), {
-  ssr: false,
-  loading: () => <div className="h-48 rounded bg-zinc-900/40" />,
-});
+import type { DataTableProps } from "@/types/table";
+import { isEnabled } from "@/lib/featureFlags";
+import {
+  createBatchTxQueue,
+  persistBatchQueue,
+  clearPersistedBatchQueue,
+  type BatchQueueItem,
+  type BatchActionType,
+} from "@/lib/batch/txQueue";
+import { isBatchCancelEligible, isBatchRepayEligible } from "@/lib/batch/eligibility";
+import { sequenceManager } from "@/lib/stellar/client";
+
+const BatchActionToolbar = dynamic(
+  () => import("@/components/dashboard/BatchActionToolbar").then((m) => m.BatchActionToolbar),
+  { ssr: false, loading: () => <div className="h-14 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" /> }
+);
+
+const DataTable = dynamic<DataTableProps<Invoice>>(
+  () => import("@/components/ui/data-table").then((m) => m.DataTable),
+  { ssr: false, loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={8} /> }
+);
 import { useWallet } from "@/hooks/useWallet";
+import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { useSMEInvoices } from "@/hooks/useInvoices";
 import { useTransaction } from "@/hooks/useTransaction";
-import { prepareRepayInvoice } from "@/services/invoiceService";
-import { useUIStore } from "@/store";
+import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
+import { useTranslations } from "next-intl";
+import { useUsdcBalance } from "@/hooks/useUsdcBalance";
+import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/queryKeys";
+import { useMaturityReminder } from "@/hooks/useMaturityReminder";
+import { useUIStore, useInvoiceStore } from "@/store";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
   formatCurrency,
   formatDate,
   formatApr,
-  STATUS_COLORS,
   cn,
 } from "@/lib/utils";
+import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
+import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import type { Invoice } from "@/types";
+import type { InvoiceStatus } from "@/types/invoice";
 import type { ColumnDef } from "@/types/table";
+import EmptyState from "@/components/ui/EmptyState";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
+import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 
+const STATUS_FILTER_OPTIONS: Array<{ value: InvoiceStatus | "all"; label: string }> = [
+  { value: "all", label: "All statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "pending_mint", label: "Pending mint" },
+  { value: "listed", label: "Listed" },
+  { value: "partially_funded", label: "Partially funded" },
+  { value: "fully_funded", label: "Fully funded" },
+  { value: "active", label: "Active" },
+  { value: "repaid", label: "Repaid" },
+  { value: "defaulted", label: "Defaulted" },
+  { value: "cancelled", label: "Cancelled" },
+];
 
-export default function SMEDashboardPage() {
-  const { isConnected, address } = useWallet();
-  const { setWalletModalOpen } = useUIStore();
-  const invoicesQuery = useSMEInvoices(address ?? undefined);
-  const { execute } = useTransaction();
+// ─── Skeleton for stats grid while data loads ─────────────────────────────────
 
-  if (!isConnected) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-          <FileText className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
-        <p className="text-sm text-muted-foreground">Connect to view and manage your invoices</p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
-      </div>
-    );
-  }
-  const myInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
+function StatsGridSkeleton() {
+  return (
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-28 rounded-xl" />
+      ))}
+    </div>
+  );
+}
+
+// ─── Stats grid — suspends until invoices are loaded ─────────────────────────
+
+function SMEStatsGrid({ address }: { address: string }) {
+  const { data: rawData } = useSuspenseQuery({
+    queryKey: queryKeys.invoices.byOwner(address),
+    queryFn: () => fetchInvoicesByOwner(address),
+    staleTime: 30_000,
+  });
+
+  const myInvoices: Invoice[] = (rawData ?? []).filter(
     (inv: Invoice) => inv.ownerAddress === address
   );
 
-  const STATS = [
+  const stats = [
     {
       label: "Total Financed",
-      value: formatCurrency(
-        myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0),
-        "USDC",
-        true
-      ),
+      value: formatCurrency(myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0), "USDC", true),
       change: "12.4% this month",
       changePositive: true,
       icon: <TrendingUp className="h-4 w-4" />,
@@ -86,48 +138,385 @@ export default function SMEDashboardPage() {
     },
   ];
 
+  return (
+    <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {stats.map((stat, i) => (
+        <motion.div
+          key={stat.label}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: i * 0.07 }}
+        >
+          <StatCard {...stat} />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+
+export default function SMEDashboardPage() {
+  const { isConnected, address, signTransaction } = useWallet();
+  const { setWalletModalOpen } = useUIStore();
+  const t = useTranslations("smeDashboard");
+  const tCommon = useTranslations("common");
+  const queryClient = useQueryClient();
+  const invoicesQuery = useSMEInvoices(address ?? undefined);
+  const { execute, status: txStatus } = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
+  const { data: usdcBalance = 0 } = useUsdcBalance(address ?? undefined);
+
+  const batchActionsEnabled = isEnabled("batch-actions");
+  const queueRef = useRef(createBatchTxQueue());
+
+  const [repayTarget, setRepayTarget] = useState<Invoice | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
+  const [batchItems, setBatchItems] = useState<BatchQueueItem[]>([]);
+  const [batchAction, setBatchAction] = useState<BatchActionType>("cancel");
+  const [batchResults, setBatchResults] = useState<{
+    total: number;
+    success: number;
+    failed: number;
+    errors: Array<{ id: string; error: string }>;
+  } | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [repayConfirmOpen, setRepayConfirmOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus | "all">("all");
+
+  const allMyInvoices: Invoice[] = (invoicesQuery.data || MOCK_INVOICES).filter(
+    (inv: Invoice) => inv.ownerAddress === address
+  );
+
+  useEffect(() => {
+    const unsubscribe = queueRef.current.subscribe((snap) => {
+      setBatchItems(snap.items);
+      setIsBatchProcessing(snap.isRunning);
+      setBatchProgress(
+        snap.items.length === 0 ? 0 : (snap.processed / snap.items.length) * 100
+      );
+      persistBatchQueue(snap.items);
+    });
+    return () => { unsubscribe(); };
+  }, []);
+
+  const myInvoices: Invoice[] =
+    statusFilter === "all"
+      ? allMyInvoices
+      : allMyInvoices.filter((inv) => inv.status === statusFilter);
+
+  const selectedCancelEligible = useMemo(
+    () => allMyInvoices.filter((inv) => selectedIds.includes(inv.id) && isBatchCancelEligible(inv)),
+    [allMyInvoices, selectedIds]
+  );
+  const selectedRepayEligible = useMemo(
+    () => allMyInvoices.filter((inv) => selectedIds.includes(inv.id) && isBatchRepayEligible(inv)),
+    [allMyInvoices, selectedIds]
+  );
+
+  useMaturityReminder(
+    allMyInvoices.filter((invoice) => ["listed", "partially_funded", "fully_funded"].includes(invoice.status))
+  );
+
+  // Must run before the early return below so hook order stays stable across renders.
+  const { executeProtectedAction } = useVerifiedAction();
+
+  // useCallback must also be called before any early return (Rules of Hooks).
+  const runBatchExecutor = useCallback(
+    async (item: BatchQueueItem) => {
+      if (!address) throw new Error("Wallet not connected");
+      // Ensure SequenceManager stays in the batch path (builders/submit use it).
+      void sequenceManager;
+
+      const unsignedXdr =
+        item.action === "cancel"
+          ? await prepareCancelInvoice(item.tokenId, address)
+          : await prepareRepayInvoice(item.tokenId, address, address);
+
+      const signedXdr = await signTransaction(unsignedXdr);
+      const txHash = await submitAndConfirm(signedXdr);
+      return { txHash };
+    },
+    [address, signTransaction]
+  );
+
+  if (!isConnected) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
+        <EmptyState
+          variant="no-invoices"
+          title={t("connectTitle")}
+          description={t("connectDesc")}
+          cta={{ label: tCommon("connectWallet"), onClick: () => setWalletModalOpen(true) }}
+        />
+      </div>
+    );
+  }
+
   const handleRepay = async (inv: Invoice) => {
     if (!address) return;
-    await execute(() => prepareRepayInvoice(inv.tokenId, address), {
-      successMessage: "Repayment submitted",
-      onSuccess: () => invoicesQuery.refetch(),
+
+    await executeProtectedAction(
+      async () => {
+        const rollback = () => {
+          useInvoiceStore.getState().rollbackInvoiceStatus(inv.id);
+          queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
+            if (!old) return old;
+            if (Array.isArray(old)) {
+              return old.map((invoice: Invoice) =>
+                invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
+              );
+            }
+            if (old?.data) {
+              return {
+                ...old,
+                data: old.data.map((invoice: Invoice) =>
+                  invoice.id === inv.id ? { ...invoice, status: inv.status } : invoice
+                ),
+              };
+            }
+            return old;
+          });
+        };
+
+        useInvoiceStore.getState().updateInvoiceStatus(inv.id, "repaid");
+        queryClient.setQueryData(queryKeys.invoices.byOwner(address), (old: any) => {
+          if (!old) return old;
+          if (Array.isArray(old)) {
+            return old.map((invoice: Invoice) =>
+              invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
+            );
+          }
+          if (old?.data) {
+            return {
+              ...old,
+              data: old.data.map((invoice: Invoice) =>
+                invoice.id === inv.id ? { ...invoice, status: "repaid" } : invoice
+              ),
+            };
+          }
+          return old;
+        });
+
+        const txHash = await execute(
+          () => prepareRepayInvoice(inv.tokenId, address, inv.ownerAddress),
+          {
+            successMessage: "Yield distributed to investors",
+            successNotificationType: "yieldAvailable",
+            onSimulationPreview,
+            onError: rollback,
+            onSuccess: () => {
+              invoicesQuery.refetch();
+              setRepayTarget(null);
+            },
+          }
+        );
+
+        if (!txHash) {
+          rollback();
+        }
+      },
+      "repayment"
+    );
+  };
+
+  const handleCancel = async (inv: Invoice) => {
+    if (!address) return;
+    await execute(
+      async () => {
+        const unsignedXdr = await prepareCancelInvoice(inv.tokenId, address);
+        return unsignedXdr;
+      },
+      {
+        successMessage: "Invoice cancellation submitted",
+        onSimulationPreview,
+        onSuccess: () => {
+          invoicesQuery.refetch();
+        },
+      }
+    );
+  };
+
+  const handleBatchCancel = async () => {
+    if (!address || !batchActionsEnabled || selectedIds.length === 0) return;
+
+    if (selectedCancelEligible.length === 0) {
+      toast.error(
+        "No eligible invoices selected. Only unfunded listed/pending invoices can be batch-cancelled."
+      );
+      return;
+    }
+
+    setBatchAction("cancel");
+    setCancelConfirmOpen(true);
+  };
+
+  const handleBatchRepay = async () => {
+    if (!address || !batchActionsEnabled || selectedIds.length === 0) return;
+
+    if (selectedRepayEligible.length === 0) {
+      toast.error(
+        "No eligible invoices selected. Only fully funded invoices past their due date can be batch-repaid."
+      );
+      return;
+    }
+
+    setBatchAction("repay");
+    setRepayConfirmOpen(true);
+  };
+
+  const finishBatch = (action: BatchActionType) => {
+    const snap = queueRef.current.getSnapshot();
+    setBatchResults({
+      total: snap.items.length,
+      success: snap.successCount,
+      failed: snap.failedCount,
+      errors: snap.items
+        .filter((i) => i.status === "failed")
+        .map((i) => ({ id: i.label, error: i.error ?? "Unknown error" })),
     });
+    if (snap.failedCount === 0) {
+      clearPersistedBatchQueue();
+      setSelectedIds([]);
+    }
+    invoicesQuery.refetch();
+    toast.message(
+      `Batch ${action} finished: ${snap.successCount} succeeded, ${snap.failedCount} failed`
+    );
+  };
+
+  /** Called after the user clicks "Confirm" in the cancel confirmation dialog */
+  const executeBatchCancel = async () => {
+    if (!address || selectedCancelEligible.length === 0) return;
+    setCancelConfirmOpen(false);
+
+    queueRef.current.load(
+      selectedCancelEligible.map((inv) => ({
+        id: inv.id,
+        tokenId: inv.tokenId,
+        label: inv.metadata.invoiceNumber,
+        action: "cancel" as const,
+      }))
+    );
+
+    await queueRef.current.start(runBatchExecutor);
+    finishBatch("cancel");
+  };
+
+  const executeBatchRepay = async () => {
+    if (!address || selectedRepayEligible.length === 0) return;
+    setRepayConfirmOpen(false);
+
+    queueRef.current.load(
+      selectedRepayEligible.map((inv) => ({
+        id: inv.id,
+        tokenId: inv.tokenId,
+        label: inv.metadata.invoiceNumber,
+        action: "repay" as const,
+      }))
+    );
+
+    await queueRef.current.start(runBatchExecutor);
+    finishBatch("repay");
+  };
+
+  const handleResumeFailed = async () => {
+    setBatchResults(null);
+    await queueRef.current.resumeFailed(runBatchExecutor);
+    finishBatch(batchAction);
+  };
+
+  const handleBatchExport = () => {
+    const selectedInvoices = allMyInvoices.filter((inv) => selectedIds.includes(inv.id));
+    if (selectedInvoices.length === 0) return;
+
+    const headers = [
+      "Invoice Number", "Debtor", "Amount", "Currency", 
+      "APR", "Status", "Due Date", "Created At"
+    ];
+
+    const rows = selectedInvoices.map(inv => [
+      inv.metadata.invoiceNumber,
+      inv.metadata.debtorName,
+      inv.metadata.amount,
+      inv.metadata.currency,
+      inv.terms.apr,
+      inv.status,
+      inv.metadata.dueDate,
+      inv.createdAt
+    ]);
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `invoices_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${selectedInvoices.length} invoices to CSV`);
   };
 
   return (
+    <ErrorBoundary>
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">SME Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Manage your invoice financing</p>
+          <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <Link href="/invoice/create">
           <Button>
-            <PlusCircle className="h-4 w-4" /> New Invoice
+            <PlusCircle className="h-4 w-4" /> {t("newInvoice")}
           </Button>
         </Link>
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {STATS.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.07 }}
-          >
-            <StatCard {...stat} />
-          </motion.div>
-        ))}
-      </div>
+      {address && (
+        <Suspense fallback={<StatsGridSkeleton />}>
+          <SMEStatsGrid address={address} />
+        </Suspense>
+      )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>My Invoices</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6">
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle>{t("myInvoices")}</CardTitle>
+              <div className="flex items-center gap-2">
+                <label htmlFor="sme-status-filter" className="text-xs text-muted-foreground">
+                  Status
+                </label>
+                <select
+                  id="sme-status-filter"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value as InvoiceStatus | "all");
+                    // Drop selections that the new filter may hide.
+                    setSelectedIds([]);
+                  }}
+                  className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {STATUS_FILTER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
           <DataTable
             data={myInvoices}
+            enableSelection={batchActionsEnabled}
+            onSelectionChange={setSelectedIds}
             columns={(() => {
               const cols: ColumnDef<Invoice>[] = [
                 {
@@ -145,7 +534,7 @@ export default function SMEDashboardPage() {
                   id: "debtor",
                   header: "Debtor",
                   accessor: (row) => row.metadata.debtorName,
-                  cell: (row) => <span className="text-muted-foreground">{row.metadata.debtorName}</span>,
+                  cell: (row) => <DebtorDisplay invoice={row} isFunded={true} />,
                 },
                 {
                   id: "amount",
@@ -179,9 +568,7 @@ export default function SMEDashboardPage() {
                   header: "Status",
                   accessor: (row) => row.status,
                   cell: (row) => (
-                    <span className={cn("rounded-md px-2 py-0.5 text-xs capitalize", STATUS_COLORS[row.status])}>
-                      {row.status.replace(/_/g, " ")}
-                    </span>
+                    <InvoiceStatusBadge status={row.status} />
                   ),
                 },
                 {
@@ -199,23 +586,26 @@ export default function SMEDashboardPage() {
                   cell: (row) => {
                     const isDue = new Date(row.terms.repaymentDate) <= new Date();
                     const canRepay = row.status === "fully_funded" && isDue;
-                    const canCancel = row.status === "listed" || row.status === "pending_mint";
+                    const canCancel = (row.status === "listed" || row.status === "pending_mint") && row.funding.totalRaised === 0;
 
                     return (
                       <div className="flex items-center gap-2">
                         {canRepay && (
-                          <Button size="sm" onClick={() => handleRepay(row)}>
+                          <Button size="sm" onClick={() => setRepayTarget(row)}>
                             Repay
                           </Button>
                         )}
                         {canCancel && (
-                          <Button size="sm" variant="ghost">
+                          <Button size="sm" variant="ghost" onClick={() => handleCancel(row)}>
                             Cancel
                           </Button>
                         )}
-                        <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
-                          View →
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <ShareInvoiceButton id={row.id} tokenId={row.tokenId} invoiceTitle={row.metadata.invoiceNumber} summary={row.metadata.description} />
+                          <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
+                            View →
+                          </Link>
+                        </div>
                       </div>
                     );
                   },
@@ -224,28 +614,37 @@ export default function SMEDashboardPage() {
               return cols;
             })()}
             pageSize={5}
-            enableSelection
             bulkActions={
               <Button type="button" variant="outline" size="sm">
                 Export selected
               </Button>
             }
             isLoading={invoicesQuery.isLoading}
-            emptyState={{
-              title: "No invoices yet",
-              message: "Create your first invoice to start raising liquidity.",
-              illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
-            }}
+            emptyState={
+              statusFilter === "all"
+                ? {
+                    title: t("empty.title"),
+                    message: t("empty.message"),
+                    illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
+                  }
+                : {
+                    title: "No matching invoices",
+                    message: "No invoices have this status. Choose “All statuses” to see everything.",
+                    illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
+                  }
+            }
           />
         </CardContent>
-      </Card>
+          </Card>
+        </div>
 
-      {myInvoices.some((i) => i.status === "fully_funded") && (
+        <div className="space-y-6">
+          {allMyInvoices.some((i) => i.status === "fully_funded") && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="mt-6 flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/5 p-4"
+          className="flex items-start gap-3 rounded-xl border border-warning/20 bg-warning/5 p-4"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
@@ -255,7 +654,145 @@ export default function SMEDashboardPage() {
             </p>
           </div>
         </motion.div>
+          )}
+        </div>
+      </div>
+
+      <RepaymentDialog
+        invoice={repayTarget}
+        open={!!repayTarget}
+        onOpenChange={(open) => { if (!open) setRepayTarget(null); }}
+        onConfirm={handleRepay}
+        isLoading={txStatus !== "idle" && txStatus !== "confirmed" && txStatus !== "failed"}
+        insufficientBalance={
+          !!repayTarget &&
+          usdcBalance <
+            repayTarget.funding.totalRaised * (1 + repayTarget.terms.discountRate)
+        }
+      />
+
+      {batchActionsEnabled && (
+        <BatchActionToolbar
+          selectedCount={selectedIds.length}
+          onCancel={handleBatchCancel}
+          onRepay={handleBatchRepay}
+          onExport={handleBatchExport}
+          isProcessing={isBatchProcessing}
+          progress={batchProgress}
+          processingLabel={
+            batchAction === "repay"
+              ? `Repaying ${batchItems.length || selectedIds.length} invoices...`
+              : `Cancelling ${batchItems.length || selectedIds.length} invoices...`
+          }
+          items={batchItems}
+          onResumeFailed={handleResumeFailed}
+          canCancel={selectedCancelEligible.length > 0}
+          canRepay={selectedRepayEligible.length > 0}
+        />
       )}
+
+      <Dialog open={!!batchResults} onOpenChange={(open) => !open && setBatchResults(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Batch Operation Summary</DialogTitle>
+          </DialogHeader>
+          {batchResults && (
+            <BatchResultSummary
+              total={batchResults.total}
+              successCount={batchResults.success}
+              failedCount={batchResults.failed}
+              errors={batchResults.errors}
+              onClose={() => setBatchResults(null)}
+              onResumeFailed={handleResumeFailed}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel confirmation dialog */}
+      <Dialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Cancel {selectedCancelEligible.length} Invoice
+              {selectedCancelEligible.length !== 1 ? "s" : ""}?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              You are about to cancel{" "}
+              <strong>
+                {selectedCancelEligible.length} unfunded invoice
+                {selectedCancelEligible.length !== 1 ? "s" : ""}
+              </strong>
+              . Transactions run sequentially; a failure will not block the rest of the queue.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCancelConfirmOpen(false)}
+                data-testid="cancel-confirm-dismiss"
+              >
+                Go Back
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={executeBatchCancel}
+                data-testid="cancel-confirm-proceed"
+              >
+                Yes, Cancel {selectedCancelEligible.length} Invoice
+                {selectedCancelEligible.length !== 1 ? "s" : ""}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Repay confirmation dialog */}
+      <Dialog open={repayConfirmOpen} onOpenChange={setRepayConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Repay {selectedRepayEligible.length} Invoice
+              {selectedRepayEligible.length !== 1 ? "s" : ""}?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              You are about to repay{" "}
+              <strong>
+                {selectedRepayEligible.length} matured invoice
+                {selectedRepayEligible.length !== 1 ? "s" : ""}
+              </strong>
+              . Each repayment is signed and submitted sequentially.
+            </p>
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRepayConfirmOpen(false)}
+                data-testid="repay-confirm-dismiss"
+              >
+                Go Back
+              </Button>
+              <Button
+                size="sm"
+                onClick={executeBatchRepay}
+                data-testid="repay-confirm-proceed"
+              >
+                Yes, Repay {selectedRepayEligible.length} Invoice
+                {selectedRepayEligible.length !== 1 ? "s" : ""}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Transaction simulation preview dialog */}
+      <TxSimulationPreview {...simulationDialogProps} />
     </div>
+    </ErrorBoundary>
   );
 }

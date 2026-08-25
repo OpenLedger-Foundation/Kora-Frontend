@@ -1,7 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Invoice } from "@/types";
+import { useMemo } from "react";
+import { useShallow } from "zustand/react/shallow";
+import type { Invoice, InvoiceFunding, InvoiceStatus } from "@/types";
 import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
+import {
+  createPersistentJSONStorage,
+  safeStorageGetItem,
+  safeStorageSetItem,
+} from "./storageAdapter";
+import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -11,6 +19,7 @@ export interface FilterState {
   riskTiers: string[];
   aprRange: [number, number];
   activeOnly: boolean;
+  showExpired: boolean;
 }
 
 export interface SortState {
@@ -35,6 +44,7 @@ export const DEFAULT_FILTERS: FilterState = {
   riskTiers: [],
   aprRange: [0, 50],
   activeOnly: false,
+  showExpired: false,
 };
 
 const DEFAULT_SORT: SortState = { sortBy: "apr", sortDir: "desc" };
@@ -76,6 +86,17 @@ export function getFilteredInvoices(
   if (filters.activeOnly) {
     result = result.filter((i) => i.status === "listed" || i.status === "partially_funded");
   }
+  
+  // Filter by expiry status
+  if (!filters.showExpired) {
+    const now = new Date();
+    result = result.filter((i) => {
+      if (i.status === "cancelled") return false;
+      if (!i.listingExpiry) return true;
+      return new Date(i.listingExpiry) > now;
+    });
+  }
+  
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
     result = result.filter(
@@ -106,9 +127,61 @@ export function getFilteredInvoices(
   });
 }
 
+type FilterCacheEntry = {
+  invoicesRef: Invoice[];
+  filters: FilterState;
+  sort: SortState;
+  searchQuery: string;
+  result: Invoice[];
+};
+
+let filterCache: FilterCacheEntry | null = null;
+
+function readFilteredInvoices(
+  invoices: Invoice[],
+  filters: FilterState,
+  sort: SortState,
+  searchQuery: string
+): Invoice[] {
+  if (
+    filterCache &&
+    filterCache.invoicesRef === invoices &&
+    filterCache.filters === filters &&
+    filterCache.sort === sort &&
+    filterCache.searchQuery === searchQuery
+  ) {
+    return filterCache.result;
+  }
+
+  const result = getFilteredInvoices(invoices, filters, sort, searchQuery);
+  filterCache = { invoicesRef: invoices, filters, sort, searchQuery, result };
+  return result;
+}
+
+/** React hook — memoized filtered invoice list keyed on store filter state. */
+export function useFilteredInvoices(): Invoice[] {
+  const { invoices, filters, sort, searchQuery } = useInvoiceStore(
+    useShallow((state) => ({
+      invoices: state.invoices,
+      filters: state.filters,
+      sort: state.sort,
+      searchQuery: state.searchQuery,
+    }))
+  );
+
+  return useMemo(
+    () => getFilteredInvoices(invoices, filters, sort, searchQuery),
+    [invoices, filters, sort, searchQuery]
+  );
+}
+
 // ─── URL serialization ────────────────────────────────────────────────────────
 
-export function toQueryParams(filters: FilterState, sort: SortState): URLSearchParams {
+export function toQueryParams(
+  filters: FilterState,
+  sort: SortState,
+  searchQuery = ""
+): URLSearchParams {
   const p = new URLSearchParams();
   if (filters.categories.length) p.set("categories", filters.categories.join(","));
   if (filters.jurisdictions.length) p.set("jurisdictions", filters.jurisdictions.join(","));
@@ -116,30 +189,46 @@ export function toQueryParams(filters: FilterState, sort: SortState): URLSearchP
   if (filters.aprRange[0] !== 0) p.set("aprMin", String(filters.aprRange[0]));
   if (filters.aprRange[1] !== 50) p.set("aprMax", String(filters.aprRange[1]));
   if (filters.activeOnly) p.set("activeOnly", "1");
+  if (filters.showExpired) p.set("showExpired", "1");
   if (sort.sortBy !== "apr") p.set("sortBy", sort.sortBy);
   if (sort.sortDir !== "desc") p.set("sortDir", sort.sortDir);
+  if (searchQuery.trim()) p.set("q", searchQuery.trim());
   return p;
+}
+
+/** Serialized filter state as a shareable `?a=b` string — empty when nothing is active. */
+export function toQueryString(
+  filters: FilterState,
+  sort: SortState,
+  searchQuery = ""
+): string {
+  return toQueryParams(filters, sort, searchQuery).toString();
 }
 
 export function fromQueryParams(params: URLSearchParams): {
   filters: FilterState;
   sort: SortState;
+  searchQuery: string;
 } {
+  const aprMin = Number(params.get("aprMin") ?? 0);
+  const aprMax = Number(params.get("aprMax") ?? 50);
   return {
     filters: {
       categories: params.get("categories")?.split(",").filter(Boolean) ?? [],
       jurisdictions: params.get("jurisdictions")?.split(",").filter(Boolean) ?? [],
       riskTiers: params.get("riskTiers")?.split(",").filter(Boolean) ?? [],
       aprRange: [
-        Number(params.get("aprMin") ?? 0),
-        Number(params.get("aprMax") ?? 50),
+        Number.isFinite(aprMin) ? aprMin : 0,
+        Number.isFinite(aprMax) ? aprMax : 50,
       ],
       activeOnly: params.get("activeOnly") === "1",
+      showExpired: params.get("showExpired") === "1",
     },
     sort: {
       sortBy: (params.get("sortBy") as SortState["sortBy"]) ?? "apr",
       sortDir: (params.get("sortDir") as SortState["sortDir"]) ?? "desc",
     },
+    searchQuery: params.get("q") ?? "",
   };
 }
 
@@ -149,21 +238,23 @@ const SEARCH_HISTORY_KEY = "kora-search-history";
 const MAX_HISTORY = 5;
 
 function loadSearchHistory(): string[] {
-  if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(SEARCH_HISTORY_KEY) || "[]");
+    return JSON.parse(safeStorageGetItem(SEARCH_HISTORY_KEY) || "[]");
   } catch {
     return [];
   }
 }
 
 function saveSearchHistory(history: string[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
+  safeStorageSetItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
 }
+
+type FundingBackup = InvoiceFunding & { status: InvoiceStatus };
 
 interface InvoiceStore {
   invoices: Invoice[];
+  /** tokenId → Invoice map, maintained by batch polling */
+  invoicesByTokenId: Record<string, Invoice>;
   filters: FilterState;
   sort: SortState;
   sortBy: string;
@@ -174,8 +265,13 @@ interface InvoiceStore {
   watchedInvoiceIds: string[];
   notificationPreferences: NotificationPreferences;
 
+  /** IDs of invoices selected for side-by-side comparison (max 4) */
+  comparisonList: string[];
+
   // Actions
   setInvoices: (invoices: Invoice[]) => void;
+  /** Merge a batch of invoices into invoicesByTokenId (and sync invoices array). */
+  mergeInvoicesBatch: (batch: Invoice[]) => void;
   setFilters: (filters: Partial<FilterState>) => void;
   updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
   resetFilters: () => void;
@@ -190,10 +286,22 @@ interface InvoiceStore {
   setNotificationPreferences: (preferences: Partial<NotificationPreferences>) => void;
   updateInvoiceFunding: (id: string, newAmount: number) => void;
   rollbackInvoiceFunding: (id: string) => void;
+  updateInvoiceStatus: (id: string, status: Invoice["status"]) => void;
+  rollbackInvoiceStatus: (id: string) => void;
   // internal backup map (not persisted)
-  _fundingBackup?: Record<string, any>;
+  _fundingBackup?: Record<string, FundingBackup>;
+  _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
+
+  /** Toggle an invoice in/out of the comparison list (max 4) */
+  toggleComparison: (id: string) => void;
+  /** Replace the comparison list (capped at max) */
+  setComparisonList: (ids: string[]) => void;
+  /** Remove a single invoice from the comparison list */
+  removeFromComparison: (id: string) => void;
+  /** Clear the entire comparison list */
+  clearComparison: () => void;
 
   // Derived
   getFiltered: () => Invoice[];
@@ -203,6 +311,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
   persist(
     (set, get) => ({
       invoices: [],
+      invoicesByTokenId: {},
       filters: DEFAULT_FILTERS,
       sort: DEFAULT_SORT,
       sortBy: "apr_desc",
@@ -210,10 +319,26 @@ export const useInvoiceStore = create<InvoiceStore>()(
       searchHistory: loadSearchHistory(),
       selectedInvoice: null,
       createDraft: { currency: "USDC" },
-      watchedInvoiceIds: [],
-      notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
+      comparisonList: [],
 
       setInvoices: (invoices) => set({ invoices }),
+
+      mergeInvoicesBatch: (batch) =>
+        set((s) => {
+          const byTokenId = { ...s.invoicesByTokenId };
+          for (const inv of batch) {
+            byTokenId[inv.tokenId] = inv;
+          }
+          // Merge into main invoices array: update existing entries, append new ones
+          const existingIds = new Set(s.invoices.map((i) => i.tokenId));
+          const merged = s.invoices.map((inv) =>
+            byTokenId[inv.tokenId] ? byTokenId[inv.tokenId] : inv
+          );
+          for (const inv of batch) {
+            if (!existingIds.has(inv.tokenId)) merged.push(inv);
+          }
+          return { invoicesByTokenId: byTokenId, invoices: merged };
+        }),
 
       setFilters: (filters) =>
         set((s) => ({ filters: { ...s.filters, ...filters } })),
@@ -225,9 +350,13 @@ export const useInvoiceStore = create<InvoiceStore>()(
         set({ filters: DEFAULT_FILTERS, searchQuery: "", sortBy: "apr_desc" }),
 
       setSort: (sort) =>
-        set((s) => ({ sort: { ...s.sort, ...sort } })),
+        set((s) => ({ sort: { ...s.sort, ...sort }, sortBy: sort.sortBy ?? s.sort.sortBy })),
 
-      setSortBy: (sortBy) => set({ sortBy }),
+      setSortBy: (sortBy) =>
+        set((s) => ({
+          sort: { ...s.sort, sortBy: sortBy.split("_")[0] as SortState["sortBy"] },
+          sortBy,
+        })),
 
       setSearchQuery: (searchQuery) =>
         set((s) => {
@@ -293,18 +422,18 @@ export const useInvoiceStore = create<InvoiceStore>()(
                 remainingCapacity: inv.funding.targetAmount - totalRaised,
                 investorCount: inv.funding.investorCount + 1,
               },
-            };
+            } as Invoice;
           });
           return {
             invoices: nextInvoices,
             _fundingBackup: backup ? { ...(s._fundingBackup || {}), [id]: backup } : s._fundingBackup,
-          } as any;
+          };
         }),
 
       rollbackInvoiceFunding: (id) =>
         set((s) => {
           const backup = s._fundingBackup?.[id];
-          if (!backup) return {} as any;
+          if (!backup) return {};
           const invoices = s.invoices.map((inv) => {
             if (inv.id !== id) return inv;
             return {
@@ -321,7 +450,32 @@ export const useInvoiceStore = create<InvoiceStore>()(
           });
           const nextBackup = { ...(s._fundingBackup || {}) };
           delete nextBackup[id];
-          return { invoices, _fundingBackup: nextBackup } as any;
+          return { invoices, _fundingBackup: nextBackup };
+        }),
+
+      updateInvoiceStatus: (id, status) =>
+        set((s) => {
+          const prev = s.invoices.find((i) => i.id === id);
+          const backup = prev ? { status: prev.status } : undefined;
+          const invoices = s.invoices.map((inv) =>
+            inv.id === id ? ({ ...inv, status } as Invoice) : inv
+          );
+          return {
+            invoices,
+            _statusBackup: backup ? { ...(s._statusBackup || {}), [id]: backup } : s._statusBackup,
+          };
+        }),
+
+      rollbackInvoiceStatus: (id) =>
+        set((s) => {
+          const backup = s._statusBackup?.[id];
+          if (!backup) return {};
+          const invoices = s.invoices.map((inv) =>
+            inv.id === id ? ({ ...inv, status: backup.status } as Invoice) : inv
+          );
+          const nextBackup = { ...(s._statusBackup || {}) };
+          delete nextBackup[id];
+          return { invoices, _statusBackup: nextBackup };
         }),
 
       setCreateDraft: (draft) =>
@@ -329,18 +483,38 @@ export const useInvoiceStore = create<InvoiceStore>()(
 
       clearCreateDraft: () => set({ createDraft: { currency: "USDC" } }),
 
+      toggleComparison: (id) =>
+        set((s) => {
+          const list = s.comparisonList;
+          if (list.includes(id)) {
+            return { comparisonList: list.filter((i) => i !== id) };
+          }
+          // When at max, replace oldest (first in list)
+          if (list.length >= MAX_COMPARISON_INVOICES) {
+            return { comparisonList: [...list.slice(1), id] };
+          }
+          return { comparisonList: [...list, id] };
+        }),
+
+      setComparisonList: (ids) =>
+        set({
+          comparisonList: [...new Set(ids)].slice(0, MAX_COMPARISON_INVOICES),
+        }),
+
+      removeFromComparison: (id) =>
+        set((s) => ({ comparisonList: s.comparisonList.filter((i) => i !== id) })),
+
+      clearComparison: () => set({ comparisonList: [] }),
+
       getFiltered: () => {
         const { invoices, filters, sort, searchQuery } = get();
-        return getFilteredInvoices(invoices, filters, sort, searchQuery);
+        return readFilteredInvoices(invoices, filters, sort, searchQuery);
       },
     }),
     {
       name: "kora-invoice-store",
-      partialize: (state) => ({
-        createDraft: state.createDraft,
-        watchedInvoiceIds: state.watchedInvoiceIds,
-        notificationPreferences: state.notificationPreferences,
-      }),
+      storage: createPersistentJSONStorage(),
+      partialize: (state) => ({ createDraft: state.createDraft }),
     }
   )
 );

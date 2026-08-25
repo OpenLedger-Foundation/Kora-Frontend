@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useDropzone } from "react-dropzone";
+import { type FileRejection, useDropzone } from "react-dropzone";
 import { UploadCloud, FileText, Trash2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { safeExternalUrl } from "@/lib/security";
 
 export interface FileInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "defaultValue"> {
   label?: string;
@@ -12,6 +13,18 @@ export interface FileInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   hint?: string;
   value?: File | string | null;
   maxSizeMB?: number;
+}
+
+type SelectedFile = File | {
+  name: string;
+  size: number;
+  type: "application/pdf";
+  isRemote: true;
+  url: string;
+};
+
+function isRemoteFile(file: SelectedFile): file is Extract<SelectedFile, { isRemote: true }> {
+  return "isRemote" in file;
 }
 
 const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
@@ -31,11 +44,12 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
     },
     ref
   ) => {
-    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || React.useId();
+    const generatedId = React.useId();
+    const inputId = id || label?.toLowerCase().replace(/\s+/g, "-") || generatedId;
     const errorId = `${inputId}-error`;
     const hintId = `${inputId}-hint`;
 
-    const [selectedFile, setSelectedFile] = React.useState<any>(null);
+    const [selectedFile, setSelectedFile] = React.useState<SelectedFile | null>(null);
     const [localError, setLocalError] = React.useState("");
 
     React.useEffect(() => {
@@ -57,7 +71,7 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
     }, [value]);
 
     const onDrop = React.useCallback(
-      (acceptedFiles: File[], rejectedFiles: any[]) => {
+      (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
         if (disabled) return;
 
         let errorMsg = "";
@@ -130,7 +144,7 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
 
     const fileUrl = React.useMemo(() => {
       if (!selectedFile) return "";
-      if (selectedFile.isRemote) return selectedFile.url;
+      if (isRemoteFile(selectedFile)) return selectedFile.url;
       try {
         return URL.createObjectURL(selectedFile);
       } catch (err) {
@@ -151,7 +165,7 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
     return (
       <div className="flex flex-col gap-1.5 w-full">
         {label && (
-          <label className="text-sm font-medium text-foreground">
+          <label htmlFor={inputId} className="text-sm font-medium text-foreground">
             {label}
           </label>
         )}
@@ -208,10 +222,10 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
               <div className="flex items-center gap-1 shrink-0">
                 {fileUrl && (
                   <a
-                    href={fileUrl}
+                    href={fileUrl.startsWith("blob:") ? fileUrl : safeExternalUrl(fileUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e: React.MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
                     className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-zinc-800 transition-colors"
                     title="Preview PDF"
                   >
