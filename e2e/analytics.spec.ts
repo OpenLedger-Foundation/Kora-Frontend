@@ -1,0 +1,63 @@
+/**
+ * E2E — Wallet-gated /analytics page.
+ *
+ * Covers:
+ *  - Disconnected: shows the "Connect your wallet" gate instead of analytics
+ *  - Disconnected: "Connect Wallet" CTA opens the wallet connect modal
+ *  - Connected: wallet gate is dismissed and the analytics page renders
+ *
+ * Wallet simulation strategy:
+ *   Inject a Zustand-compatible localStorage entry for `kora-wallet-store`
+ *   before navigating so the app rehydrates as connected, same approach as
+ *   e2e/dashboard.spec.ts.
+ */
+import { test, expect, type BrowserContext } from "@playwright/test";
+import { MOCK_ADDRESS } from "./helpers/mock-wallet";
+
+async function injectConnectedWallet(context: BrowserContext) {
+  await context.addInitScript((address) => {
+    const walletState = {
+      state: {
+        address,
+        publicKey: address,
+        isConnected: true,
+        provider: "freighter",
+        balance: "1000.00",
+        isVerified: false,
+        verifiedAt: null,
+      },
+      version: 0,
+    };
+    localStorage.setItem("kora-wallet-store", JSON.stringify(walletState));
+  }, MOCK_ADDRESS);
+}
+
+test.describe("Analytics page — disconnected", () => {
+  test("shows connect wallet gate when no wallet is connected", async ({ page }) => {
+    await page.goto("/analytics");
+
+    await expect(
+      page.getByRole("heading", { name: /connect your wallet/i })
+    ).toBeVisible();
+    await expect(page.getByText(/view your portfolio analytics/i)).toBeVisible();
+  });
+
+  test("connect wallet CTA opens the wallet connect modal", async ({ page }) => {
+    await page.goto("/analytics");
+
+    await page.getByRole("button", { name: /connect wallet/i }).click();
+
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+});
+
+test.describe("Analytics page — connected", () => {
+  test("renders analytics once a wallet is connected", async ({ page, context }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/analytics");
+
+    await expect(
+      page.getByRole("heading", { name: /connect your wallet/i })
+    ).not.toBeVisible();
+  });
+});

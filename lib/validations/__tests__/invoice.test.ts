@@ -4,7 +4,7 @@
  * Run with: npx tsx --test lib/validations/__tests__/invoice.test.ts
  * (requires tsx >= 4.x; no additional test runner needed)
  */
-import { describe, it } from "node:test";
+import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 import {
   invoiceDetailsSchema,
