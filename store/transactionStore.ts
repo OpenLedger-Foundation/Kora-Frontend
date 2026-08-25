@@ -25,6 +25,10 @@ export interface TxRecord {
   timestamp: string;
   /** Human-readable description */
   description?: string;
+  /** Cancellation reason for cancelled invoice transactions */
+  cancelReason?: string;
+  /** Additional cancellation notes */
+  cancelNotes?: string;
 }
 
 // ─── Store interface ──────────────────────────────────────────────────────────

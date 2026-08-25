@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw, UserCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -264,6 +264,17 @@ export function WalletButton() {
                 {isFunding ? t("funding") : t("fundTestnet")}
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                setWalletModalOpen(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              data-testid="switch-account-button"
+            >
+              <UserCheck className="h-3.5 w-3.5" /> Switch Account
+            </button>
             <button
               type="button"
               onClick={() => setConfirmDisconnectOpen(true)}

@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import type { Invoice } from "@/types";
+import type { Invoice, CancellationReason } from "@/types";
 import { useFormatters } from "@/hooks/useFormatters";
 
 interface CancelInvoiceDialogProps {
@@ -38,9 +38,17 @@ interface CancelInvoiceDialogProps {
   loading?: boolean;
   /** On-chain or service error message to surface inside the dialog. */
   error?: string;
-  onConfirm: () => void;
+  onConfirm: (reason: CancellationReason, notes?: string) => void;
   onCancel: () => void;
 }
+
+const CANCELLATION_REASONS: CancellationReason[] = [
+  "duplicate_invoice",
+  "debtor_paid_directly",
+  "terms_renegotiated",
+  "incorrect_amount",
+  "other",
+];
 
 export function CancelInvoiceDialog({
   invoice,
@@ -53,10 +61,31 @@ export function CancelInvoiceDialog({
   const t = useTranslations("cancelDialog");
   const { formatCurrency, formatDate } = useFormatters();
 
+  const [selectedReason, setSelectedReason] = React.useState<CancellationReason | "">("");
+  const [notes, setNotes] = React.useState<string>("");
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setSelectedReason("");
+      setNotes("");
+      setValidationError(null);
+    }
+  }, [open]);
+
   if (!invoice) return null;
 
   const { metadata, terms, funding, status } = invoice;
   const isFunded = funding.totalRaised > 0;
+
+  const handleConfirmClick = () => {
+    if (!selectedReason) {
+      setValidationError(t("reasonRequired"));
+      return;
+    }
+    setValidationError(null);
+    onConfirm(selectedReason as CancellationReason, notes.trim() || undefined);
+  };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
@@ -69,13 +98,13 @@ export function CancelInvoiceDialog({
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
-        {/* On-chain / service error */}
-        {error && (
+        {/* On-chain / service / validation error */}
+        {(error || validationError) && (
           <div
             role="alert"
             className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20"
           >
-            {error}
+            {error || validationError}
           </div>
         )}
 
@@ -125,6 +154,51 @@ export function CancelInvoiceDialog({
             </div>
           </div>
 
+          {/* Cancellation Reason Dropdown (Required) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+              <span>{t("reasonLabel")} *</span>
+            </label>
+            <select
+              value={selectedReason}
+              onChange={(e) => {
+                setSelectedReason(e.target.value as CancellationReason);
+                if (e.target.value) setValidationError(null);
+              }}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring"
+              data-testid="cancel-reason-select"
+            >
+              <option value="" disabled>
+                -- {t("selectReasonPlaceholder")} --
+              </option>
+              {CANCELLATION_REASONS.map((r) => (
+                <option key={r} value={r}>
+                  {t(`reasons.${r}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Additional Notes (Optional) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              {t("notesLabel")}
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder={t("notesPlaceholder")}
+              rows={2}
+              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              data-testid="cancel-notes-input"
+            />
+          </div>
+
+          {/* Live mode on-chain limitation note */}
+          <p className="text-[11px] text-muted-foreground italic">
+            {t("liveNote")}
+          </p>
+
           {/* Partial-funding warning */}
           {isFunded && (
             <div className="rounded-lg bg-amber-500/10 p-3 text-sm text-amber-700 border border-amber-500/20 dark:text-amber-400">
@@ -155,8 +229,8 @@ export function CancelInvoiceDialog({
           </Button>
           <Button
             variant="destructive"
-            onClick={onConfirm}
-            disabled={loading}
+            onClick={handleConfirmClick}
+            disabled={loading || !selectedReason}
             data-testid="cancel-invoice-confirm"
           >
             {loading ? (

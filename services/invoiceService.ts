@@ -308,7 +308,7 @@ class MockInvoiceService implements IInvoiceService {
     }
   }
 
-  async cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
+  async cancelInvoice(tokenId: string, ownerAddress: string, reason?: string): Promise<Result<string>> {
     try {
       await this.delay();
       return success(`mock_unsigned_xdr_cancel_${tokenId}_${ownerAddress}`);
@@ -583,7 +583,13 @@ class LiveInvoiceService implements IInvoiceService {
     }
   }
 
-  async cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
+  /**
+   * Note on Live Mode On-Chain Limitations:
+   * Soroban contract `cancel_invoice` takes (token_id, owner).
+   * The structured cancellation reason string is captured off-chain in audit logs
+   * and local transaction history.
+   */
+  async cancelInvoice(tokenId: string, ownerAddress: string, reason?: string): Promise<Result<string>> {
     try {
       const xdr = await invoiceContract.cancelInvoice(
         BigInt(tokenId),

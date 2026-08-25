@@ -111,8 +111,6 @@ export function WalletConnectModal() {
     if (activeWallet) handleConnect(activeWallet);
   };
 
-  if (isConnected) return null;
-
   return (
     <Dialog open={walletModalOpen} onOpenChange={setWalletModalOpen}>
       <DialogContent

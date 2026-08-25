@@ -24,6 +24,7 @@ import { Download, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useLocale } from "@/i18n/LocaleProvider";
+import { isRTL } from "@/i18n/config";
 
 const RISK_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
 
@@ -190,12 +191,14 @@ export function YieldProjectionCalculator() {
                     tickLine={false} 
                     tick={{ fill: "#71717a", fontSize: 12 }}
                     dy={10}
+                    reversed={isRTL(locale)}
                   />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fill: "#71717a", fontSize: 12 }}
                     tickFormatter={(v) => `${formatNumber(v / 1000, { maximumFractionDigits: 0 })}k`}
+                    orientation={isRTL(locale) ? "right" : "left"}
                   />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "8px" }}

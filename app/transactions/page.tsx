@@ -140,6 +140,13 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
           <p className="text-xs text-muted-foreground">{tx.description}</p>
         )}
 
+        {tx.cancelReason && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+            Reason: <span className="capitalize">{tx.cancelReason.replace(/_/g, " ")}</span>
+            {tx.cancelNotes ? ` — ${tx.cancelNotes}` : ""}
+          </p>
+        )}
+
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-xs text-muted-foreground">
           <span>{formatDate(tx.timestamp)}</span>
           <StellarTxLink hash={tx.hash} chars={6} size="sm" />

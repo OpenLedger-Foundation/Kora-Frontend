@@ -24,6 +24,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 import { Download, TrendingUp, TrendingDown } from "lucide-react";
 import { useFormatters } from "@/hooks/useFormatters";
+import { useLocale } from "@/i18n/LocaleProvider";
+import { isRTL } from "@/i18n/config";
 
 const TOOLTIP_STYLE = {
   contentStyle: {
@@ -133,6 +135,8 @@ export default function AnalyticsCharts({
   onRiskSegmentClick,
 }: AnalyticsChartsProps) {
   const chartHeight = compact ? 180 : 240;
+  const locale = useLocale();
+  const rtl = isRTL(locale);
   const { formatCurrency, formatNumber, formatPercentage } = useFormatters();
 
   return (
@@ -187,11 +191,13 @@ export default function AnalyticsCharts({
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
+                    reversed={rtl}
                   />
                   <YAxis
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
+                    orientation={rtl ? "right" : "left"}
                     tickFormatter={(v: number) => `${formatNumber(v / 1000, { maximumFractionDigits: 0 })}K`}
                   />
                   <Tooltip
