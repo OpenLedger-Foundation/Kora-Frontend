@@ -16,10 +16,20 @@ export const metadata: Metadata = {
     description:
       "Visualize portfolio growth, yield, and risk distribution across your invoice financing positions.",
     url: "/analytics",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Kora Protocol Portfolio Analytics",
+      },
+    ],
   },
   twitter: {
+    card: "summary_large_image",
     title: "Portfolio Analytics | Kora Protocol",
     description: "Track your invoice financing performance on Kora Protocol.",
+    images: ["/og-image.png"],
   },
   alternates: { canonical: "/analytics" },
   robots: { index: false, follow: false },

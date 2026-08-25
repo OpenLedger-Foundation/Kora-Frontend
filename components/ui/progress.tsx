@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as ProgressPrimitive from "@radix-ui/react-progress";
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +49,25 @@ interface InvoiceFundingProgressProps {
   target: number;
   currency?: string;
   className?: string;
+  /** Pass query dataUpdatedAt (ms) to show "Updated X ago" */
+  updatedAt?: number;
+}
+
+function useRelativeTime(updatedAt?: number) {
+  const [label, setLabel] = React.useState("");
+  React.useEffect(() => {
+    if (!updatedAt) return;
+    const update = () => {
+      const secs = Math.floor((Date.now() - updatedAt) / 1000);
+      if (secs < 5) setLabel("just now");
+      else if (secs < 60) setLabel(`${secs}s ago`);
+      else setLabel(`${Math.floor(secs / 60)}m ago`);
+    };
+    update();
+    const id = setInterval(update, 5000);
+    return () => clearInterval(id);
+  }, [updatedAt]);
+  return label;
 }
 
 function InvoiceFundingProgress({
@@ -56,11 +75,29 @@ function InvoiceFundingProgress({
   target,
   currency = "USDC",
   className,
+  updatedAt,
 }: InvoiceFundingProgressProps) {
   const pct = Math.min(100, target > 0 ? (funded / target) * 100 : 0);
   const isFullyFunded = pct >= 100;
   const color = interpolateColor(pct);
   const showInnerLabel = pct >= 30;
+  const relativeTime = useRelativeTime(updatedAt);
+
+  // Use Framer Motion's useReducedMotion for consistent SSR-safe behavior
+  const prefersReduced = useReducedMotion();
+
+  // Flash the bar when funded amount changes
+  const prevFunded = React.useRef(funded);
+  const [flash, setFlash] = React.useState(false);
+  React.useEffect(() => {
+    if (funded > prevFunded.current) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 600);
+      prevFunded.current = funded;
+      return () => clearTimeout(t);
+    }
+    prevFunded.current = funded;
+  }, [funded]);
 
   return (
     <Tooltip.Provider delayDuration={200}>
@@ -68,11 +105,11 @@ function InvoiceFundingProgress({
         {/* Bar */}
         <div className="relative h-5 w-full overflow-visible rounded-full bg-muted">
           <motion.div
-            className="absolute inset-y-0 left-0 rounded-full"
+            className={cn("absolute inset-y-0 left-0 rounded-full", flash && "brightness-125")}
             style={{ backgroundColor: color }}
-            initial={{ width: 0 }}
+            initial={prefersReduced ? false : { width: 0 }}
             animate={{ width: `${pct}%` }}
-            transition={{ type: "spring", stiffness: 60, damping: 18 }}
+            transition={prefersReduced ? { duration: 0 } : { duration: 0.6, ease: "easeOut" }}
           >
             {showInnerLabel && (
               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-white">
@@ -117,9 +154,16 @@ function InvoiceFundingProgress({
               {funded.toLocaleString()} {currency} of {target.toLocaleString()} {currency} funded
             </span>
           )}
-          {!showInnerLabel && (
-            <span className="font-medium text-foreground">{Math.round(pct)}%</span>
-          )}
+          <div className="flex items-center gap-2">
+            {relativeTime && (
+              <span className="text-[10px] text-muted-foreground/60">
+                Updated {relativeTime}
+              </span>
+            )}
+            {!showInnerLabel && (
+              <span className="font-medium text-foreground">{Math.round(pct)}%</span>
+            )}
+          </div>
         </div>
       </div>
     </Tooltip.Provider>

@@ -26,7 +26,12 @@ import { Container } from "@/components/layout/Container";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore, useTransactionStore } from "@/store";
 import type { TxRecord, TxType } from "@/store/transactionStore";
-import { formatCurrency, formatDate, shortenAddress, cn, exportCsv } from "@/lib/utils";
+import { cn, exportCsv } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
+import { StellarTxLink } from "@/components/ui/stellar-tx-link";
+import { safeStellarTxUrl } from "@/lib/security";
+import EmptyState from "@/components/ui/EmptyState";
+import { useTranslations } from "next-intl";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -102,24 +107,13 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function EmptyHistory() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card/40 px-6 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-        <History className="h-7 w-7 text-muted-foreground" aria-hidden />
-      </div>
-      <p className="mt-4 text-base font-semibold text-foreground">No transactions yet</p>
-      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-        Your on-chain activity will appear here once you mint, fund, or repay invoices.
-      </p>
-    </div>
-  );
-}
+// Replaced by shared EmptyState component in components/ui/EmptyState.tsx
 
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 
 function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => void }) {
   const config = TX_TYPE_CONFIG[tx.type];
+  const { formatDate, formatCurrency } = useFormatters();
 
   return (
     <motion.div
@@ -148,7 +142,7 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-xs text-muted-foreground">
           <span>{formatDate(tx.timestamp)}</span>
-          <span className="font-mono">{shortenAddress(tx.hash, 6)}</span>
+          <StellarTxLink hash={tx.hash} chars={6} size="sm" />
           {tx.amount != null && (
             <span className="font-medium text-foreground">
               {formatCurrency(tx.amount, tx.currency ?? "USDC", true)}
@@ -159,7 +153,7 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 
       <div className="flex shrink-0 items-center gap-1">
         <a
-          href={`https://stellar.expert/explorer/testnet/tx/${tx.hash}`}
+          href={safeStellarTxUrl(tx.hash)}
           target="_blank"
           rel="noopener noreferrer"
           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -188,6 +182,8 @@ export default function TransactionHistoryPage() {
   const { isConnected } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { transactions, removeTransaction, clearHistory } = useTransactionStore();
+  const { formatCurrency } = useFormatters();
+  const t = useTranslations("transactions");
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TxType | "all">("all");
@@ -258,11 +254,11 @@ export default function TransactionHistoryPage() {
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           <History className="h-6 w-6 text-muted-foreground" aria-hidden />
         </div>
-        <h2 className="text-xl font-semibold text-foreground">Connect your wallet</h2>
+        <h2 className="text-xl font-semibold text-foreground">{t("connectTitle")}</h2>
         <p className="text-sm text-muted-foreground">
-          Connect to view your on-chain transaction history
+          {t("connectDesc")}
         </p>
-        <Button onClick={() => setWalletModalOpen(true)}>Connect Wallet</Button>
+        <Button onClick={() => setWalletModalOpen(true)}>{t("connectTitle")}</Button>
       </div>
     );
   }
@@ -272,9 +268,9 @@ export default function TransactionHistoryPage() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Transaction History</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Your complete on-chain activity on Kora Protocol
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -286,7 +282,7 @@ export default function TransactionHistoryPage() {
             className="gap-2"
           >
             <Download className="h-4 w-4" aria-hidden />
-            Export CSV
+            {t("exportCsv")}
           </Button>
           {transactions.length > 0 && (
             <Button
@@ -296,7 +292,7 @@ export default function TransactionHistoryPage() {
               className="gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-4 w-4" aria-hidden />
-              Clear All
+              {t("clearAll")}
             </Button>
           )}
         </div>
@@ -309,11 +305,13 @@ export default function TransactionHistoryPage() {
             {
               label: "Total Transactions",
               value: stats.total.toString(),
+              valueRaw: stats.total,
               icon: <History className="h-4 w-4" />,
             },
             {
               label: "Confirmed",
               value: stats.confirmed.toString(),
+              valueRaw: stats.confirmed,
               change: `${stats.failed} failed`,
               changePositive: stats.failed === 0,
               icon: <CheckCircle2 className="h-4 w-4" />,
@@ -321,11 +319,13 @@ export default function TransactionHistoryPage() {
             {
               label: "Total Volume",
               value: formatCurrency(stats.totalVolume, "USDC", true),
+              valueRaw: stats.totalVolume,
               icon: <ArrowUpRight className="h-4 w-4" />,
             },
             {
               label: "Invoices Funded",
               value: stats.funds.toString(),
+              valueRaw: stats.funds,
               change: `${stats.mints} minted`,
               changePositive: true,
               icon: <Coins className="h-4 w-4" />,
@@ -425,13 +425,17 @@ export default function TransactionHistoryPage() {
         <CardContent className="space-y-3 p-4">
           {filtered.length === 0 ? (
             transactions.length === 0 ? (
-              <EmptyHistory />
+              <EmptyState
+                title={t("empty.title")}
+                description={t("empty.description")}
+                variant="transactions"
+              />
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Search className="h-8 w-8 text-muted-foreground" aria-hidden />
-                <p className="mt-3 text-sm font-medium text-foreground">No results</p>
+                <p className="mt-3 text-sm font-medium text-foreground">{t("noResults")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Try adjusting your search or filters
+                  {t("noResultsDesc")}
                 </p>
               </div>
             )
