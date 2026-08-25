@@ -11,6 +11,7 @@ const WalletConnectModal = dynamic(() => import("@/components/wallet/WalletConne
 });
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { useUIStore } from "@/store/uiStore";
+import { useWatchlistAlerts } from "@/hooks/useWatchlistAlerts";
 
 function ThemedToaster() {
   const theme = useUIStore((s) => s.theme);
@@ -28,6 +29,11 @@ function ThemedToaster() {
   );
 }
 
+function WatchlistAlertObserver() {
+  useWatchlistAlerts();
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -43,6 +49,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <ThemeProvider>
         {children}
         <WalletConnectModal />
+        <WatchlistAlertObserver />
         <ThemedToaster />
         {process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS === "true" && (
           <ReactQueryDevtools initialIsOpen={false} />

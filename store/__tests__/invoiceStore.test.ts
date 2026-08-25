@@ -4,8 +4,11 @@ import {
   toQueryParams,
   fromQueryParams,
   DEFAULT_FILTERS,
+  MAX_WATCHLIST_ITEMS,
+  useInvoiceStore,
 } from "@/store/invoiceStore";
 import type { Invoice } from "@/types";
+import { getAlertMessage } from "@/hooks/useWatchlistAlerts";
 
 // Minimal invoice factory
 function makeInvoice(overrides: Partial<Invoice> = {}): Invoice {
@@ -132,5 +135,36 @@ describe("URL serialization", () => {
     const { filters, sort } = fromQueryParams(new URLSearchParams());
     expect(filters).toEqual(DEFAULT_FILTERS);
     expect(sort).toEqual({ sortBy: "apr", sortDir: "desc" });
+  });
+});
+
+describe("watchlist", () => {
+  it("toggles invoices and caps the list", () => {
+    useInvoiceStore.setState({ watchedInvoiceIds: [] });
+    expect(useInvoiceStore.getState().toggleWatchedInvoice("mock-1")).toBe(true);
+    expect(useInvoiceStore.getState().isInvoiceWatched("mock-1")).toBe(true);
+    expect(useInvoiceStore.getState().toggleWatchedInvoice("mock-1")).toBe(false);
+
+    for (let index = 0; index < MAX_WATCHLIST_ITEMS + 1; index += 1) {
+      useInvoiceStore.getState().toggleWatchedInvoice(`invoice-${index}`);
+    }
+    expect(useInvoiceStore.getState().watchedInvoiceIds).toHaveLength(MAX_WATCHLIST_ITEMS);
+    expect(useInvoiceStore.getState().isInvoiceWatched("invoice-0")).toBe(false);
+  });
+
+  it("merges notification preferences", () => {
+    useInvoiceStore.setState({
+      notificationPreferences: { fundingProgress: true, status: true, apr: false },
+    });
+    useInvoiceStore.getState().setNotificationPreferences({ apr: true });
+    expect(useInvoiceStore.getState().notificationPreferences.apr).toBe(true);
+  });
+
+  it("gates alerts by preference and ignores the initial snapshot", () => {
+    const invoice = makeInvoice({ id: "watched", status: "fully_funded" });
+    const previous = { status: "partially_funded" as const, fundingProgress: 0.5, apr: 20 };
+    expect(getAlertMessage(invoice, undefined, { fundingProgress: true, status: true, apr: true })).toBeNull();
+    expect(getAlertMessage(invoice, previous, { fundingProgress: false, status: false, apr: false })).toBeNull();
+    expect(getAlertMessage(invoice, previous, { fundingProgress: true, status: true, apr: false })).toContain("fully funded");
   });
 });

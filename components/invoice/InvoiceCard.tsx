@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Calendar, Users, TrendingUp, MapPin } from "lucide-react";
-import { RiskBadge } from "@/components/ui/badge";
+import { Calendar, Users, TrendingUp, Star, ArrowRight } from "lucide-react";
+import { Badge, RiskBadge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +18,7 @@ import {
   cn,
 } from "@/lib/utils";
 import type { Invoice } from "@/types";
+import { useInvoiceStore } from "@/store";
 
 interface InvoiceCardProps {
   invoice: Invoice;
@@ -66,6 +67,8 @@ export function InvoiceCard({ invoice, index = 0 }: InvoiceCardProps) {
   const flag = getFlagEmoji(metadata.jurisdiction);
   const countryName = JURISDICTION_NAMES[metadata.jurisdiction] || metadata.jurisdiction;
   const queryClient = useQueryClient();
+  const watched = useInvoiceStore((state) => state.watchedInvoiceIds.includes(invoice.id));
+  const toggleWatched = useInvoiceStore((state) => state.toggleWatchedInvoice);
 
   const handleMouseEnter = () => {
     queryClient.prefetchQuery({
@@ -118,6 +121,14 @@ export function InvoiceCard({ invoice, index = 0 }: InvoiceCardProps) {
               </span>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatched(invoice.id); }}
+            className="absolute right-4 top-4 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
+            aria-label={watched ? `Unstar ${metadata.invoiceNumber}` : `Star ${metadata.invoiceNumber}`}
+          >
+            <Star className={cn("h-5 w-5", watched && "fill-primary text-primary")} />
+          </button>
 
           {/* Amount */}
           <div className="mt-4">

@@ -15,6 +15,7 @@ import {
   Clock,
   LayoutGrid,
   Map,
+  Star,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
 import { Container } from "@/components/layout/Container";
 import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
+import { WatchlistDrawer } from "@/components/marketplace/WatchlistDrawer";
 
 /** True when the NEXT_PUBLIC_ENABLE_MAP_VIEW env var is set to "true". */
 const MAP_VIEW_ENABLED =
@@ -411,6 +413,8 @@ function MarketplaceContent() {
 
   const { data, isLoading } = useInvoices();
   const [showFilters, setShowFilters] = useState(false);
+  const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const watchedCount = useInvoiceStore((state) => state.watchedInvoiceIds.length);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -535,6 +539,10 @@ function MarketplaceContent() {
 
   const invoices = data?.data ?? [];
 
+  useEffect(() => {
+    if (invoices.length > 0) useInvoiceStore.getState().setInvoices(invoices);
+  }, [invoices]);
+
   // Client-side Search filter
   const filteredInvoices = debouncedSearchQuery
     ? invoices.filter(
@@ -651,6 +659,9 @@ function MarketplaceContent() {
           </div>
           {/* Metadata for peer-review tracking compliance: Closes #15 */}
           <span className="hidden">PR compliance metadata: Closes #15</span>
+          <Button variant="outline" size="sm" onClick={() => setWatchlistOpen(true)} leftIcon={<Star className="h-4 w-4" />}>
+            Watchlist{watchedCount > 0 ? ` (${watchedCount})` : ""}
+          </Button>
         </div>
 
         {/* Search + Sort + Toggle Bar */}
@@ -895,6 +906,7 @@ function MarketplaceContent() {
           </div>
         </div>
       )}
+      <WatchlistDrawer open={watchlistOpen} onClose={() => setWatchlistOpen(false)} />
     </Container>
   );
 }

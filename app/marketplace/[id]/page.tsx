@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, notFound } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -16,6 +16,7 @@ import {
   Shield,
   CheckCircle2,
   AlertTriangle,
+  Star,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,12 @@ export default function InvoiceDetailPage() {
   const [amount, setAmount] = useState("");
   const [funding, setFunding] = useState(false);
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+  const watched = useInvoiceStore((state) => Boolean(invoice && state.watchedInvoiceIds.includes(invoice.id)));
+  const toggleWatched = useInvoiceStore((state) => state.toggleWatchedInvoice);
+
+  useEffect(() => {
+    if (invoice) useInvoiceStore.getState().upsertInvoice(invoice);
+  }, [invoice]);
 
   if (isLoading) return <DetailSkeleton />;
   if (!invoice) return notFound();
@@ -179,7 +186,18 @@ Stellar Testnet Transaction Hash: ${txHash}`);
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs text-zinc-500">{metadata.invoiceNumber}</p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-xs text-zinc-500">{metadata.invoiceNumber}</p>
+                      <button
+                        type="button"
+                        onClick={() => toggleWatched(invoice.id)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-zinc-700 px-2.5 py-1 text-xs font-semibold text-zinc-300 hover:border-kora-500 hover:text-kora-400"
+                        aria-label={watched ? `Unstar ${metadata.invoiceNumber}` : `Star ${metadata.invoiceNumber}`}
+                      >
+                        <Star className={cn("h-3.5 w-3.5", watched && "fill-kora-400 text-kora-400")} />
+                        {watched ? "Watched" : "Watch"}
+                      </button>
+                    </div>
                     <h1 className="mt-1 text-xl font-bold text-zinc-100">{metadata.debtorName}</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">{metadata.issuerName}</p>
                   </div>
