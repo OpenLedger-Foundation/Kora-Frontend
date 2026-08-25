@@ -126,6 +126,13 @@
     "noResults": "No invoices match your filters",
     "noResultsDesc": "We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities.",
     "clearAllFilters": "Clear All Filters",
+    "recovery": {
+      "clearRiskTiers": "Clear risk tiers",
+      "widenApr": "Widen APR range",
+      "clearJurisdictions": "Clear jurisdictions",
+      "clearCategories": "Clear categories",
+      "showAllStatuses": "Show all statuses"
+    },
     "loadingMore": "Loading more…",
     "allLoaded": "All invoices loaded",
     "backToTop": "↑ Top",
@@ -750,6 +757,24 @@
     "signatureTimeoutDesc": "The wallet popup was not signed in time. You can retry without rebuilding.",
     "warningRetryLabel": "Retry",
     "warningDismissLabel": "Dismiss"
+  },
+  "amendment": {
+    "title": "Amend Invoice Metadata",
+    "formAriaLabel": "Invoice amendment form",
+    "eligibleFields": "You may correct description and category. Financial terms (amount, rate, due date) cannot be changed after listing.",
+    "descriptionLabel": "Description / Memo",
+    "descriptionPlaceholder": "Updated description or memo for the invoice…",
+    "categoryLabel": "Industry Category",
+    "lockedFieldsNotice": "Amount, discount rate, due date, and invoice number are locked to protect investors who have reviewed these terms.",
+    "submit": "Submit Amendment",
+    "submitting": "Submitting…",
+    "cancel": "Cancel",
+    "noChanges": "No fields were changed. Update at least one field before submitting.",
+    "unknownError": "An unexpected error occurred. Please try again.",
+    "successTitle": "Amendment submitted",
+    "successDesc": "The metadata has been updated. The new CID is live on IPFS.",
+    "newCid": "New CID",
+    "blockedTitle": "Amendment not allowed"
   },
   "statusTransition": {
     "confirmTitle": "Confirm: {label}",

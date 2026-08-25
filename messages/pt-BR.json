@@ -126,6 +126,13 @@
     "noResults": "Nenhuma fatura corresponde aos seus filtros",
     "noResultsDesc": "Não encontramos nenhuma listagem ativa com sua seleção atual. Tente redefinir seus filtros para explorar outras oportunidades.",
     "clearAllFilters": "Limpar Todos os Filtros",
+    "recovery": {
+      "clearRiskTiers": "Limpar níveis de risco",
+      "widenApr": "Ampliar faixa de APR",
+      "clearJurisdictions": "Limpar jurisdições",
+      "clearCategories": "Limpar categorias",
+      "showAllStatuses": "Mostrar todos os status"
+    },
     "loadingMore": "Carregando mais…",
     "allLoaded": "Todas as faturas carregadas",
     "backToTop": "↑ Topo",
@@ -727,6 +734,24 @@
     "signatureTimeoutDesc": "O popup da carteira não foi assinado a tempo. Você pode tentar novamente sem reconstruir.",
     "warningRetryLabel": "Tentar novamente",
     "warningDismissLabel": "Fechar"
+  },
+  "amendment": {
+    "title": "Corrigir Metadados da Fatura",
+    "formAriaLabel": "Formulário de correção de fatura",
+    "eligibleFields": "Você pode corrigir a descrição e a categoria. Os termos financeiros não podem ser alterados após a publicação.",
+    "descriptionLabel": "Descrição / Memo",
+    "descriptionPlaceholder": "Descrição ou memo atualizado para a fatura…",
+    "categoryLabel": "Categoria do setor",
+    "lockedFieldsNotice": "O valor, taxa de desconto, data de vencimento e número da fatura estão bloqueados para proteger os investidores.",
+    "submit": "Enviar Correção",
+    "submitting": "Enviando…",
+    "cancel": "Cancelar",
+    "noChanges": "Nenhum campo foi alterado. Atualize pelo menos um campo antes de enviar.",
+    "unknownError": "Ocorreu um erro inesperado. Por favor, tente novamente.",
+    "successTitle": "Correção enviada",
+    "successDesc": "Os metadados foram atualizados. O novo CID está ativo no IPFS.",
+    "newCid": "Novo CID",
+    "blockedTitle": "Correção não permitida"
   },
   "statusTransition": {
     "confirmTitle": "Confirmar: {label}",

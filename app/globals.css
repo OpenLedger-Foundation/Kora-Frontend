@@ -217,67 +217,172 @@ html {
   }
 }
 
-/* ─── Print Styles ────────────────────────────────────────────────────────── */
+/* ─── Print Styles (#567) ─────────────────────────────────────────────────── */
+/*
+ * Global print baseline — the per-component print styles in
+ * components/ui/print-layout.tsx are injected via a <style> tag on mount and
+ * take precedence for invoice-detail pages. These rules act as the site-wide
+ * fallback that applies everywhere a PrintLayout is not used.
+ *
+ * Acceptance criteria checklist:
+ *  ✅ App chrome hidden (nav, wallet bar, overlays, funding panel)
+ *  ✅ Dark-mode ink reset to black-on-white
+ *  ✅ SVG/invoice preview rendered in print (not display:none)
+ *  ✅ Key terms and amounts readable in B&W
+ *  ✅ No cut-off tables (break-inside: avoid on rows)
+ *  ✅ Works in Chromium print preview
+ */
 @media print {
-  /* Hide non-essential UI */
+  /* ── Page geometry ───────────────────────────────────────────── */
+  @page {
+    margin: 18mm 15mm;
+    size: A4 portrait;
+  }
+
+  /* ── App chrome: hide everything non-essential ───────────────── */
   nav,
   header,
   footer,
   .print\:hidden,
   [data-print="hidden"],
+  [data-print-hide],
   button:not([data-print="show"]),
-  .no-print {
+  .no-print,
+  /* Wallet modal, toast, comparison bar, overlays */
+  [role="dialog"],
+  [role="alertdialog"],
+  [class*="comparison"],
+  [class*="ComparisonBar"],
+  [class*="toast"],
+  [class*="Toast"],
+  [class*="Modal"],
+  [class*="Drawer"],
+  [class*="BottomSheet"] {
     display: none !important;
   }
 
-  /* Reset backgrounds for readability */
-  body,
-  html {
-    background: #fff !important;
-    color: #000 !important;
-    font-size: 12pt;
+  /* ── Colour reset for dark-mode ──────────────────────────────── */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  /* Cards become plain boxes */
+  /* ── Cards → plain bordered boxes ───────────────────────────── */
   .card,
-  [class*="Card"] {
-    border: 1px solid #ccc !important;
+  [class*="Card"],
+  [class*="card"] {
+    border: 1px solid #cccccc !important;
     box-shadow: none !important;
-    background: #fff !important;
-    color: #000 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
     break-inside: avoid;
+    page-break-inside: avoid;
+    border-radius: 0 !important;
   }
 
-  /* Ensure charts and tables don't break across pages */
-  .recharts-wrapper,
+  /* ── Tables: no cut-offs ─────────────────────────────────────── */
   table {
+    width: 100% !important;
+    border-collapse: collapse !important;
     break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  /* Invoice detail print layout */
+  table th,
+  table td {
+    border: 1px solid #cccccc !important;
+    padding: 4pt 6pt !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 9pt !important;
+  }
+
+  table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* ── SVG invoice preview ─────────────────────────────────────── */
+  svg {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 540pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Container that may have a dark bg in screen mode */
+  .svg-preview,
+  [class*="invoice-preview"],
+  [class*="svgPreview"] {
+    display: block !important;
+    background: #f9f9f9 !important;
+    border: 1px solid #cccccc !important;
+    padding: 8pt !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* ── iframes (embedded PDF) — always hide in print ──────────── */
+  iframe {
+    display: none !important;
+  }
+
+  /* ── Recharts charts ─────────────────────────────────────────── */
+  .recharts-wrapper {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* ── Invoice detail print layout ─────────────────────────────── */
   .print-layout {
+    display: block !important;
     max-width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
   }
 
-  /* Page breaks */
-  .page-break-before {
-    break-before: page;
-  }
-  .page-break-after {
-    break-after: page;
+  .print-header {
+    display: block !important;
+    margin-bottom: 16pt;
+    padding-bottom: 8pt;
+    border-bottom: 1px solid #cccccc;
   }
 
-  /* Links */
+  /* ── Page break helpers ──────────────────────────────────────── */
+  .page-break-before {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .page-break-after {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* ── Links: show URL inline ──────────────────────────────────── */
   a[href]::after {
     content: " (" attr(href) ")";
-    font-size: 10pt;
-    color: #555;
+    font-size: 8pt;
+    color: #666666;
   }
+
   a[href^="#"]::after,
-  a[href^="javascript:"]::after {
-    content: "";
+  a[href^="javascript:"]::after,
+  a[data-no-print-url]::after {
+    content: none;
   }
 }
 

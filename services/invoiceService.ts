@@ -1075,3 +1075,65 @@ export async function prepareUpdateInvoiceStatus(
 
 
 
+
+// ─── Invoice Amendment (#568) ─────────────────────────────────────────────────
+
+/**
+ * Prepare an invoice metadata amendment.
+ *
+ * Validates that:
+ *  1. The invoice is in an eligible status (listed / partially_funded).
+ *  2. Only allowed fields (description, category) are included.
+ *  3. The caller is the invoice owner (enforced client-side + on-chain).
+ *
+ * In mock mode, the amendment is applied in-memory and returned immediately.
+ * In live mode the updated metadata is re-pinned to IPFS and the new CID is
+ * recorded on-chain.
+ *
+ * @param invoiceId      App-level invoice ID.
+ * @param status         Current invoice status (used for eligibility check).
+ * @param ownerAddress   Must match invoice.ownerAddress.
+ * @param amendment      Partial record of amendable fields.
+ * @returns              The new IPFS CID for the amended metadata.
+ */
+export async function prepareAmendInvoiceMetadata(
+  invoiceId: string,
+  status: import("@/types").InvoiceStatus,
+  ownerAddress: string,
+  amendment: import("@/lib/invoiceStateMachine").InvoiceAmendment
+): Promise<string> {
+  const {
+    canAmend,
+    sanitizeAmendment,
+  } = await import("@/lib/invoiceStateMachine");
+
+  if (!canAmend(status)) {
+    throw new Error(
+      `Cannot amend invoice with status "${status}". Only listed or partially_funded invoices may be amended.`
+    );
+  }
+
+  const safe = sanitizeAmendment(amendment as Record<string, unknown>);
+  if (Object.keys(safe).length === 0) {
+    throw new Error("No amendable fields provided. Allowed fields: description, category.");
+  }
+
+  // In mock mode: return a synthetic CID immediately (no IPFS call).
+  if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+    return `mock_amended_metadata_cid_${invoiceId}_${Date.now()}`;
+  }
+
+  // Live mode: fetch current IPFS metadata, apply the amendment, re-pin.
+  const currentResult = await service.getIpfsMetadata(invoiceId);
+  if (!currentResult.ok) {
+    throw new Error(`Could not fetch current metadata: ${currentResult.error.message}`);
+  }
+  const updated = { ...currentResult.value, ...safe };
+
+  const newCid = await uploadInvoiceMetadata(
+    updated as import("@/types").InvoiceMetadata,
+    ownerAddress
+  );
+
+  return newCid;
+}

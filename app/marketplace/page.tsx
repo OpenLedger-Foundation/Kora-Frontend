@@ -34,6 +34,17 @@ import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+import {
+  trackMarketplaceLand,
+  trackMarketplaceFilterApply,
+  trackMarketplaceCompareOpen,
+  trackMarketplaceFundCta,
+} from "@/lib/marketplaceAnalytics";
+import {
+  deriveRecoveryActions,
+  hasRestrictiveFilters,
+} from "@/lib/emptyStateRecovery";
+import type { RecoverySuggestion } from "@/components/ui/EmptyState";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -324,6 +335,15 @@ function MarketplaceContent() {
     clearSearchHistory,
     setInvoices,
   } = useInvoiceStore();
+  const comparisonList = useInvoiceStore((s) => s.comparisonList);
+
+  // Active filters count — computed early so analytics hooks can reference it.
+  const activeFiltersCount =
+    (filters.categories?.length || 0) +
+    (filters.jurisdictions?.length || 0) +
+    (filters.riskTiers?.length || 0) +
+    (filters.aprRange && (filters.aprRange[0] > 0 || filters.aprRange[1] < 50) ? 1 : 0) +
+    (filters.activeOnly ? 1 : 0);
 
   const [showFilters, setShowFilters] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
@@ -392,6 +412,15 @@ function MarketplaceContent() {
     setIsUrlHydrated(true);
   }, [searchParams, isUrlHydrated, setFilters, setSortBy, setSearchQuery]);
 
+  // ── Analytics: fire marketplace_land on deep-link visits (#563) ───────────
+  // Runs once after URL hydration so filter_count reflects the resolved state.
+  useEffect(() => {
+    if (!isUrlHydrated) return;
+    const currentParams = new URLSearchParams(window.location.search);
+    trackMarketplaceLand(currentParams, activeFiltersCount, sortBy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUrlHydrated]);
+
   // 2. Debouncing Changes to Prevent URL History Thrashing
   const debouncedFilters = useDebounce(filters, 400);
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
@@ -435,6 +464,24 @@ function MarketplaceContent() {
 
     router.replace(targetUrl, { scroll: false });
   }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, pageSize]);
+
+  // ── Analytics: fire marketplace_filter_apply when filters change (#563) ──
+  // Runs after the URL sync so the params reflect the current filter state.
+  useEffect(() => {
+    if (!isUrlHydrated) return;
+    const currentParams = new URLSearchParams(window.location.search);
+    trackMarketplaceFilterApply(currentParams, activeFiltersCount, sortBy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedFilters, sortBy]);
+
+  // ── Analytics: fire marketplace_compare_open when comparison bar opens (#563) ──
+  // Fire once when the list crosses the ≥2 threshold (bar becomes visible).
+  useEffect(() => {
+    if (!isUrlHydrated || comparisonList.length < 2) return;
+    const currentParams = new URLSearchParams(window.location.search);
+    trackMarketplaceCompareOpen(currentParams, activeFiltersCount, sortBy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparisonList.length]);
 
   // Use all pages loaded by the infinite query (first page only until scroll)
   const allInvoices = useMemo(
@@ -502,13 +549,7 @@ function MarketplaceContent() {
     overscan: columns === 1 ? 3 : 2,
     scrollMargin: virtualListRef.current?.offsetTop ?? 0,
   });
-  // Active filters count for clearing badge
-  const activeFiltersCount =
-    (filters.categories?.length || 0) +
-    (filters.jurisdictions?.length || 0) +
-    (filters.riskTiers?.length || 0) +
-    (filters.aprRange && (filters.aprRange[0] > 0 || filters.aprRange[1] < 50) ? 1 : 0) +
-    (filters.activeOnly ? 1 : 0);
+  // Active filters count for clearing badge — kept here for JSX use below
 
   const renderFiltersList = () => (
     <div className="flex flex-col gap-6">
@@ -763,7 +804,20 @@ function MarketplaceContent() {
           </div>
 
           {/* B. Grid listing and states */}
-          <div className="flex-1 min-w-0 space-y-6">
+          <div
+            className="flex-1 min-w-0 space-y-6"
+            onClick={(e) => {
+              // Analytics: capture Fund Invoice CTA clicks via event delegation (#563)
+              const target = e.target as HTMLElement;
+              const isFundBtn =
+                target.closest("[data-fund-cta]") !== null ||
+                target.closest("button")?.textContent?.toLowerCase().includes("fund") === true;
+              if (isFundBtn) {
+                const currentParams = new URLSearchParams(window.location.search);
+                trackMarketplaceFundCta(currentParams, activeFiltersCount, sortBy);
+              }
+            }}
+          >
             {isLoading ? (
               <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
                 {[...Array(8)].map((_, i) => (
@@ -776,6 +830,14 @@ function MarketplaceContent() {
                 description={t("noResultsDesc")}
                 cta={{ label: t("clearAllFilters"), onClick: resetFilters }}
                 variant="marketplace"
+                suggestions={
+                  hasRestrictiveFilters(filters)
+                    ? deriveRecoveryActions(filters).map((action): RecoverySuggestion => ({
+                        label: t(`recovery.${action.labelKey}` as Parameters<typeof t>[0]),
+                        onClick: () => setFilters(action.apply(filters)),
+                      }))
+                    : undefined
+                }
               />
             ) : (
               <>
