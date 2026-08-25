@@ -6,6 +6,9 @@ import {
   DEFAULT_FILTERS,
   MAX_WATCHLIST_ITEMS,
   useInvoiceStore,
+  hydratePresets,
+  serializePresets,
+  MAX_SAVED_PRESETS,
 } from "@/store/invoiceStore";
 import type { Invoice } from "@/types";
 import { getAlertMessage } from "@/hooks/useWatchlistAlerts";
@@ -135,6 +138,37 @@ describe("URL serialization", () => {
     const { filters, sort } = fromQueryParams(new URLSearchParams());
     expect(filters).toEqual(DEFAULT_FILTERS);
     expect(sort).toEqual({ sortBy: "apr", sortDir: "desc" });
+  });
+});
+
+describe("saved presets", () => {
+  it("saves, loads, renames, and deletes a preset", () => {
+    useInvoiceStore.setState({ savedPresets: [], filters: DEFAULT_FILTERS, sort: { sortBy: "apr", sortDir: "desc" } });
+    useInvoiceStore.getState().setFilters({ jurisdictions: ["NG"], aprRange: [10, 30] });
+    useInvoiceStore.getState().setSortBy("amount_asc");
+    const preset = useInvoiceStore.getState().savePreset("Nigeria deals");
+
+    expect(preset?.name).toBe("Nigeria deals");
+    useInvoiceStore.getState().setFilters({ jurisdictions: [] });
+    expect(useInvoiceStore.getState().loadPreset(preset!.id)).toBe(true);
+    expect(useInvoiceStore.getState().getFiltered).toBeTypeOf("function");
+    expect(useInvoiceStore.getState().filters.jurisdictions).toEqual(["NG"]);
+    expect(useInvoiceStore.getState().sort).toEqual({ sortBy: "amount", sortDir: "asc" });
+    useInvoiceStore.getState().renamePreset(preset!.id, "Renamed");
+    expect(useInvoiceStore.getState().savedPresets[0].name).toBe("Renamed");
+    useInvoiceStore.getState().deletePreset(preset!.id);
+    expect(useInvoiceStore.getState().savedPresets).toEqual([]);
+  });
+
+  it("handles empty, max-cap, and corrupt preset storage", () => {
+    expect(hydratePresets(null)).toEqual([]);
+    expect(hydratePresets("not-json")).toEqual([]);
+    const presets = Array.from({ length: MAX_SAVED_PRESETS + 3 }, (_, index) => ({
+      id: String(index), name: `Preset ${index}`, createdAt: new Date().toISOString(),
+      filters: DEFAULT_FILTERS, sort: { sortBy: "apr" as const, sortDir: "desc" as const },
+    }));
+    expect(hydratePresets(serializePresets(presets))).toHaveLength(MAX_SAVED_PRESETS);
+    expect(hydratePresets([presets[0], { corrupt: true }])).toHaveLength(1);
   });
 });
 

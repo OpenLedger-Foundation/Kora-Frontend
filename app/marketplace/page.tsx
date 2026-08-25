@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Invoice } from "@/types";
 import {
   Search,
@@ -29,6 +30,8 @@ import { Container } from "@/components/layout/Container";
 import { useBreakpoint } from "@/components/layout/useBreakpoint";
 import { cn } from "@/lib/utils";
 import { WatchlistDrawer } from "@/components/marketplace/WatchlistDrawer";
+import { ActiveFilterChips } from "@/components/marketplace/ActiveFilterChips";
+import { queryKeys } from "@/lib/queryKeys";
 
 /** True when the NEXT_PUBLIC_ENABLE_MAP_VIEW env var is set to "true". */
 const MAP_VIEW_ENABLED =
@@ -396,10 +399,12 @@ function EmptyState({ onClear }: { onClear: () => void }) {
 function MarketplaceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
   // Zustand Store
   const {
     filters,
+    sort,
     sortBy,
     searchQuery,
     searchHistory,
@@ -407,6 +412,11 @@ function MarketplaceContent() {
     updateSingleFilter,
     resetFilters,
     setSortBy,
+    savedPresets,
+    savePreset,
+    renamePreset,
+    deletePreset,
+    loadPreset,
     setSearchQuery,
     clearSearchHistory,
   } = useInvoiceStore();
@@ -538,6 +548,12 @@ function MarketplaceContent() {
   }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, page, pageSize]);
 
   const invoices = data?.data ?? [];
+
+  const handleLoadPreset = (id: string) => {
+    if (!loadPreset(id)) return;
+    setPage(1);
+    queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+  };
 
   useEffect(() => {
     if (invoices.length > 0) useInvoiceStore.getState().setInvoices(invoices);
@@ -800,6 +816,18 @@ function MarketplaceContent() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mb-8">
+          <ActiveFilterChips
+            filters={filters}
+            sort={sort}
+            presets={savedPresets}
+            onSave={savePreset}
+            onLoad={handleLoadPreset}
+            onRename={renamePreset}
+            onDelete={deletePreset}
+          />
         </div>
 
         {/* 2-Column Responsive Layout */}

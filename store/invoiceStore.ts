@@ -18,6 +18,14 @@ export interface SortState {
   sortDir: "asc" | "desc";
 }
 
+export interface SavedMarketplacePreset {
+  id: string;
+  name: string;
+  filters: FilterState;
+  sort: SortState;
+  createdAt: string;
+}
+
 export type InvoiceCreateDraft = Partial<InvoiceDetailsStepSchema> & {
   currency?: "USDC" | "EURC" | "XLM";
   issueDate?: string;
@@ -39,6 +47,7 @@ export const DEFAULT_FILTERS: FilterState = {
 
 const DEFAULT_SORT: SortState = { sortBy: "apr", sortDir: "desc" };
 export const MAX_WATCHLIST_ITEMS = 50;
+export const MAX_SAVED_PRESETS = 20;
 
 export interface NotificationPreferences {
   fundingProgress: boolean;
@@ -143,6 +152,41 @@ export function fromQueryParams(params: URLSearchParams): {
   };
 }
 
+export function serializePresets(presets: SavedMarketplacePreset[]): string {
+  return JSON.stringify(presets);
+}
+
+export function hydratePresets(value: unknown): SavedMarketplacePreset[] {
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.filter((preset): preset is SavedMarketplacePreset => {
+    if (!preset || typeof preset !== "object") return false;
+    const candidate = preset as SavedMarketplacePreset;
+    return (
+      typeof candidate.id === "string" &&
+      typeof candidate.name === "string" &&
+      typeof candidate.createdAt === "string" &&
+      !!candidate.filters &&
+      Array.isArray(candidate.filters.categories) &&
+      Array.isArray(candidate.filters.jurisdictions) &&
+      Array.isArray(candidate.filters.riskTiers) &&
+      Array.isArray(candidate.filters.aprRange) &&
+      typeof candidate.filters.activeOnly === "boolean" &&
+      !!candidate.sort &&
+      ["apr", "amount", "dueDate", "listed"].includes(candidate.sort.sortBy) &&
+      ["asc", "desc"].includes(candidate.sort.sortDir)
+    );
+  }).slice(0, MAX_SAVED_PRESETS);
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 const SEARCH_HISTORY_KEY = "kora-search-history";
@@ -173,6 +217,7 @@ interface InvoiceStore {
   createDraft: InvoiceCreateDraft;
   watchedInvoiceIds: string[];
   notificationPreferences: NotificationPreferences;
+  savedPresets: SavedMarketplacePreset[];
 
   // Actions
   setInvoices: (invoices: Invoice[]) => void;
@@ -181,6 +226,10 @@ interface InvoiceStore {
   resetFilters: () => void;
   setSort: (sort: Partial<SortState>) => void;
   setSortBy: (sortBy: string) => void;
+  savePreset: (name: string) => SavedMarketplacePreset | null;
+  renamePreset: (id: string, name: string) => void;
+  deletePreset: (id: string) => void;
+  loadPreset: (id: string) => boolean;
   setSearchQuery: (q: string) => void;
   clearSearchHistory: () => void;
   setSelectedInvoice: (invoice: Invoice | null) => void;
@@ -212,6 +261,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
       createDraft: { currency: "USDC" },
       watchedInvoiceIds: [],
       notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
+      savedPresets: [],
 
       setInvoices: (invoices) => set({ invoices }),
 
@@ -222,12 +272,70 @@ export const useInvoiceStore = create<InvoiceStore>()(
         set((s) => ({ filters: { ...s.filters, [key]: value } })),
 
       resetFilters: () =>
-        set({ filters: DEFAULT_FILTERS, searchQuery: "", sortBy: "apr_desc" }),
+        set({ filters: DEFAULT_FILTERS, searchQuery: "", sortBy: "apr_desc", sort: DEFAULT_SORT }),
 
       setSort: (sort) =>
         set((s) => ({ sort: { ...s.sort, ...sort } })),
 
-      setSortBy: (sortBy) => set({ sortBy }),
+      setSortBy: (sortBy) => {
+        const sortMap: Record<string, SortState> = {
+          apr_desc: { sortBy: "apr", sortDir: "desc" },
+          apr_asc: { sortBy: "apr", sortDir: "asc" },
+          amount_desc: { sortBy: "amount", sortDir: "desc" },
+          amount_asc: { sortBy: "amount", sortDir: "asc" },
+          due_soonest: { sortBy: "dueDate", sortDir: "asc" },
+          due_latest: { sortBy: "dueDate", sortDir: "desc" },
+          newest: { sortBy: "listed", sortDir: "desc" },
+        };
+        const canonicalSort = sortMap[sortBy];
+        if (canonicalSort) set({ sortBy, sort: canonicalSort });
+      },
+
+      savePreset: (name) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) return null;
+        const state = get();
+        const preset: SavedMarketplacePreset = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: trimmedName,
+          filters: {
+            ...state.filters,
+            categories: [...state.filters.categories],
+            jurisdictions: [...state.filters.jurisdictions],
+            riskTiers: [...state.filters.riskTiers],
+            aprRange: [...state.filters.aprRange] as [number, number],
+          },
+          sort: { ...state.sort },
+          createdAt: new Date().toISOString(),
+        };
+        set((current) => ({ savedPresets: [preset, ...current.savedPresets].slice(0, MAX_SAVED_PRESETS) }));
+        return preset;
+      },
+
+      renamePreset: (id, name) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) return;
+        set((state) => ({ savedPresets: state.savedPresets.map((preset) => preset.id === id ? { ...preset, name: trimmedName } : preset) }));
+      },
+
+      deletePreset: (id) => set((state) => ({ savedPresets: state.savedPresets.filter((preset) => preset.id !== id) })),
+
+      loadPreset: (id) => {
+        const preset = get().savedPresets.find((item) => item.id === id);
+        if (!preset) return false;
+        set({
+          filters: {
+            ...preset.filters,
+            categories: [...preset.filters.categories],
+            jurisdictions: [...preset.filters.jurisdictions],
+            riskTiers: [...preset.filters.riskTiers],
+            aprRange: [...preset.filters.aprRange] as [number, number],
+          },
+          sort: { ...preset.sort },
+          sortBy: `${preset.sort.sortBy}_${preset.sort.sortDir}`,
+        });
+        return true;
+      },
 
       setSearchQuery: (searchQuery) =>
         set((s) => {
@@ -340,6 +448,12 @@ export const useInvoiceStore = create<InvoiceStore>()(
         createDraft: state.createDraft,
         watchedInvoiceIds: state.watchedInvoiceIds,
         notificationPreferences: state.notificationPreferences,
+        savedPresets: state.savedPresets,
+      }),
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<InvoiceStore>),
+        savedPresets: hydratePresets((persisted as Partial<InvoiceStore>)?.savedPresets),
       }),
     }
   )
