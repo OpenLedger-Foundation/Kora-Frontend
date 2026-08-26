@@ -30,7 +30,8 @@ export type FeatureFlag =
   | "comparison"
   | "onboarding-tour"
   | "batch-actions"
-  | "kyb-mint-gate";
+  | "kyb-mint-gate"
+  | "category-taxonomy-preview";
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "mock-data",
@@ -39,6 +40,7 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "onboarding-tour",
   "batch-actions",
   "kyb-mint-gate",
+  "category-taxonomy-preview",
 ];
 
 export type FeatureFlagState = Record<FeatureFlag, boolean>;
@@ -55,6 +57,7 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "onboarding-tour": "NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR",
   "batch-actions": "NEXT_PUBLIC_ENABLE_BATCH_ACTIONS",
   "kyb-mint-gate": "NEXT_PUBLIC_ENABLE_KYB_MINT_GATE",
+  "category-taxonomy-preview": "NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW",
 };
 
 function readEnvFlag(flag: FeatureFlag): boolean {

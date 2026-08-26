@@ -259,6 +259,29 @@ merge the same way a failing type-check does.
 - Directional icons (arrows, chevrons) generally should flip; check `rtl:` variant classes are applied
   where the codebase already uses them (e.g. chevrons in dropdowns).
 
+### Category Taxonomy & Preview Mode
+
+Kora organizes marketplace invoices by industry taxonomy (e.g. `manufacturing`, `technology`, `agriculture`, `logistics`, `healthcare`, etc.). To keep category taxonomy definitions and translations synchronized across metadata schemas (`lib/invoiceMetadata.ts`), filters (`components/marketplace/filters.tsx`), and message catalogs (`messages/*.json`), Kora includes an interactive Developer Category Taxonomy Preview.
+
+#### Enabling the Preview Panel
+Set the feature flag in `.env.local`:
+```bash
+NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW=true
+```
+
+When enabled, a **Taxonomy Preview** pill appears in the marketplace category filter header. The preview panel allows contributors to:
+- View all active taxonomy keys, labels, and icons.
+- Check live invoice count distribution against current inventory.
+- Identify unused / zero-inventory categories requiring test seed data or review.
+- Inspect i18n translation parity across English (`en`), Spanish (`es`), Arabic (`ar`), and Portuguese (`pt-BR`).
+- Copy the canonical category taxonomy definition directly to clipboard.
+
+When adding or renaming an invoice category:
+1. Update `SUPPORTED_CATEGORIES` in `lib/invoiceMetadata.ts`.
+2. Add the category definition to `CATEGORIES` in `components/marketplace/filters.tsx`.
+3. Add translated strings to `marketplace.categoryLabels.<key>` across `en.json`, `es.json`, `ar.json`, and `pt-BR.json`.
+4. Run `npm run check:i18n` to ensure all locale catalogs maintain parity.
+
 ### Manually testing the language switcher
 
 The switcher lives in `components/layout/LanguageSwitcher.tsx` (rendered in the navbar) and persists
