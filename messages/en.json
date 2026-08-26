@@ -125,6 +125,7 @@
     "subtitle": "Discovering deals...",
     "showing": "Showing {count} listed invoices",
     "shareFilters": "Share Filters",
+    "shareFiltersCopied": "Filter link copied to clipboard",
     "searchPlaceholder": "Search by debtor, invoice number, or jurisdiction…",
     "clearSearch": "Clear search",
     "filters": "Filters",

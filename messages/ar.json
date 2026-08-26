@@ -125,6 +125,7 @@
     "subtitle": "جارٍ اكتشاف الصفقات...",
     "showing": "عرض {count} فاتورة مدرجة",
     "shareFilters": "مشاركة الفلاتر",
+    "shareFiltersCopied": "تم نسخ رابط الفلتر إلى الحافظة",
     "searchPlaceholder": "ابحث بالمدين أو رقم الفاتورة أو الجهة القضائية…",
     "clearSearch": "مسح البحث",
     "filters": "الفلاتر",

@@ -39,6 +39,7 @@ import {
   MarketplaceAprHistogram,
   MarketplaceRiskDistribution,
 } from "@/components/analytics/Charts";
+import { toast } from "sonner";
 import { exportCsv } from "@/lib/export";
 import {
   marketplaceInvoicesToExportRows,
@@ -696,7 +697,11 @@ function MarketplaceContent() {
               <span>Export CSV</span>
             </button>
             <button
-              onClick={() => { navigator.clipboard?.writeText(window.location.href); }}
+              onClick={() => {
+                navigator.clipboard?.writeText(window.location.href).then(() => {
+                  toast.success(t("shareFiltersCopied"));
+                });
+              }}
               aria-label="Copy marketplace filter link to clipboard"
               className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
             >
