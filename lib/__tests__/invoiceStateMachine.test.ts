@@ -4,6 +4,11 @@ import {
   getAllowedTransitions,
   getBlockedReason,
   isValidTransition,
+  canAmend,
+  getAmendBlockedReason,
+  sanitizeAmendment,
+  AMENDMENT_ELIGIBLE_STATUSES,
+  AMENDABLE_FIELDS,
 } from "../invoiceStateMachine";
 import type { InvoiceStatus } from "@/types/invoice";
 
@@ -174,6 +179,105 @@ describe("invoiceStateMachine", () => {
         defaulted: 6,
         cancelled: 7,
       });
+    });
+  });
+});
+
+// ─── Amendment tests (#568) ───────────────────────────────────────────────────
+
+describe("invoice amendment (#568)", () => {
+  describe("canAmend", () => {
+    it("returns true for listed", () => {
+      expect(canAmend("listed")).toBe(true);
+    });
+
+    it("returns true for partially_funded", () => {
+      expect(canAmend("partially_funded")).toBe(true);
+    });
+
+    it.each([
+      "fully_funded",
+      "active",
+      "repaid",
+      "defaulted",
+      "cancelled",
+      "draft",
+      "pending_mint",
+    ] as InvoiceStatus[])(
+      "returns false for %s",
+      (status) => {
+        expect(canAmend(status)).toBe(false);
+      }
+    );
+
+    it("AMENDMENT_ELIGIBLE_STATUSES matches canAmend for all statuses", () => {
+      for (const status of ALL_STATUSES) {
+        expect(canAmend(status)).toBe(AMENDMENT_ELIGIBLE_STATUSES.has(status));
+      }
+    });
+  });
+
+  describe("getAmendBlockedReason", () => {
+    it("returns null when owner and status is eligible", () => {
+      expect(getAmendBlockedReason("listed", true)).toBeNull();
+      expect(getAmendBlockedReason("partially_funded", true)).toBeNull();
+    });
+
+    it("returns wallet message when not connected", () => {
+      expect(getAmendBlockedReason("listed", true, false)).toMatch(/wallet/i);
+    });
+
+    it("returns ownership message for non-owner", () => {
+      expect(getAmendBlockedReason("listed", false)).toMatch(/owner/i);
+    });
+
+    it("returns status message for ineligible status", () => {
+      const reason = getAmendBlockedReason("fully_funded", true);
+      expect(reason).not.toBeNull();
+      expect(reason).toMatch(/fully funded/i);
+    });
+
+    it("funded invoices cannot amend critical fields — blocked at fully_funded", () => {
+      expect(getAmendBlockedReason("fully_funded", true)).not.toBeNull();
+      expect(getAmendBlockedReason("active", true)).not.toBeNull();
+      expect(getAmendBlockedReason("repaid", true)).not.toBeNull();
+    });
+  });
+
+  describe("sanitizeAmendment", () => {
+    it("keeps only amendable fields", () => {
+      const result = sanitizeAmendment({
+        description: "Updated memo",
+        category: "technology",
+        amount: 99999,          // should be stripped
+        discountRate: 0.5,      // should be stripped
+        dueDate: "2030-01-01",  // should be stripped
+        walletAddress: "GABC",  // should be stripped
+      });
+      expect(result).toEqual({
+        description: "Updated memo",
+        category: "technology",
+      });
+    });
+
+    it("returns empty object when no amendable fields are present", () => {
+      expect(sanitizeAmendment({ amount: 5000, dueDate: "2030-01-01" })).toEqual({});
+    });
+
+    it("handles empty input without throwing", () => {
+      expect(sanitizeAmendment({})).toEqual({});
+    });
+
+    it("AMENDABLE_FIELDS contains only description and category", () => {
+      expect([...AMENDABLE_FIELDS].sort()).toEqual(["category", "description"]);
+    });
+
+    it("strips non-string values for amendable keys", () => {
+      const result = sanitizeAmendment({
+        description: 42,    // not a string — should be excluded
+        category: "energy",
+      });
+      expect(result).toEqual({ category: "energy" });
     });
   });
 });

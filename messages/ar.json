@@ -127,6 +127,13 @@
     "noResults": "لا توجد فواتير تطابق الفلاتر",
     "noResultsDesc": "لم نعثر على إدراجات نشطة تطابق تحديدك الحالي. جرب إعادة تعيين الفلاتر لاستكشاف فرص أخرى.",
     "clearAllFilters": "مسح كل الفلاتر",
+    "recovery": {
+      "clearRiskTiers": "مسح مستويات المخاطر",
+      "widenApr": "توسيع نطاق APR",
+      "clearJurisdictions": "مسح الولايات القضائية",
+      "clearCategories": "مسح الفئات",
+      "showAllStatuses": "عرض جميع الحالات"
+    },
     "loadingMore": "جارٍ التحميل…",
     "allLoaded": "تم تحميل كل الفواتير",
     "backToTop": "↑ للأعلى",
@@ -816,6 +823,24 @@
     "signatureTimeoutDesc": "لم يتم توقيع نافذة المحفظة في الوقت المحدد. يمكنك إعادة المحاولة دون إعادة البناء.",
     "warningRetryLabel": "إعادة المحاولة",
     "warningDismissLabel": "تجاهل"
+  },
+  "amendment": {
+    "title": "تعديل بيانات الفاتورة",
+    "formAriaLabel": "نموذج تعديل الفاتورة",
+    "eligibleFields": "يمكنك تصحيح الوصف والفئة. لا يمكن تغيير الشروط المالية بعد الإدراج.",
+    "descriptionLabel": "الوصف / الملاحظة",
+    "descriptionPlaceholder": "وصف أو ملاحظة محدّثة للفاتورة…",
+    "categoryLabel": "فئة الصناعة",
+    "lockedFieldsNotice": "المبلغ ومعدل الخصم وتاريخ الاستحقاق ورقم الفاتورة مقفلة لحماية المستثمرين.",
+    "submit": "إرسال التعديل",
+    "submitting": "جارٍ الإرسال…",
+    "cancel": "إلغاء",
+    "noChanges": "لم يتم تعديل أي حقل. يرجى تحديث حقل واحد على الأقل قبل الإرسال.",
+    "unknownError": "حدث خطأ غير متوقع. يرجى المحاولة مجدداً.",
+    "successTitle": "تم إرسال التعديل",
+    "successDesc": "تم تحديث البيانات. المعرّف الجديد نشط على IPFS.",
+    "newCid": "المعرّف الجديد",
+    "blockedTitle": "التعديل غير مسموح"
   },
   "statusTransition": {
     "confirmTitle": "تأكيد: {label}",

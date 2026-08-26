@@ -68,6 +68,8 @@ import {
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
+import { InvoiceAmendmentForm } from "@/components/invoice/InvoiceAmendmentForm";
+import { canAmend } from "@/lib/invoiceStateMachine";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
@@ -88,6 +90,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
+  const [showAmendmentForm, setShowAmendmentForm] = useState(false);
   const { formatCurrency, formatApr, formatDate, formatRelativeTime, formatPercentage } = useFormatters();
 
   // Must be called before any early return so hook order is stable across renders.
@@ -813,6 +816,34 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     >
                       You cannot fund your own invoice
                     </Button>
+
+                    {/* Amendment panel — shown when invoice is still mutable (#568) */}
+                    {canAmend(status) && (
+                      <div className="mt-3 border-t border-yellow-500/10 pt-3">
+                        {showAmendmentForm ? (
+                          <InvoiceAmendmentForm
+                            invoice={invoice}
+                            ownerAddress={address ?? ""}
+                            onSuccess={(newCid) => {
+                              setShowAmendmentForm(false);
+                            }}
+                            onCancel={() => setShowAmendmentForm(false)}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowAmendmentForm(true)}
+                            className="flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-900/60 hover:text-zinc-100 transition-colors"
+                            data-testid="open-amendment-form"
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Correct metadata
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ) : isFullyFunded ? (
                   /* Already Fully Funded Lock Gate */

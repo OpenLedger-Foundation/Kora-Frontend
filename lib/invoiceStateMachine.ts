@@ -18,6 +18,10 @@
  *   active        → repaid        ("Mark as Repaid")
  *   listed        → cancelled     ("Cancel Invoice")
  *   partially_funded → cancelled  ("Cancel Invoice")
+ *
+ * Allowed amendment states (#568):
+ *   listed, partially_funded — may amend description + category (not amount/dueDate)
+ *   fully_funded, active, repaid, defaulted, cancelled — amend blocked
  */
 
 import type { InvoiceStatus } from "@/types/invoice";
@@ -196,4 +200,76 @@ export const TERMINAL_STATUSES: ReadonlySet<InvoiceStatus> = new Set([
 
 export function isTerminalStatus(status: InvoiceStatus): boolean {
   return TERMINAL_STATUSES.has(status);
+}
+
+// ─── Amendment eligibility (#568) ────────────────────────────────────────────
+
+/**
+ * Statuses in which an SME may propose a metadata amendment.
+ *
+ * Only pre-funding statuses are eligible — once investors have committed
+ * capital the financial terms cannot change, and funded/repaid/cancelled
+ * invoices are immutable.
+ */
+export const AMENDMENT_ELIGIBLE_STATUSES: ReadonlySet<InvoiceStatus> = new Set<InvoiceStatus>([
+  "listed",
+  "partially_funded",
+]);
+
+/**
+ * Fields that an SME is permitted to amend post-listing.
+ *
+ * Financial terms (amount, discountRate, dueDate) and identity fields
+ * (invoiceNumber, issuerAddress) are locked once the invoice is listed
+ * to protect investors who have reviewed those terms.
+ */
+export const AMENDABLE_FIELDS = ["description", "category"] as const;
+export type AmendableField = (typeof AMENDABLE_FIELDS)[number];
+
+/** Amendments the user can propose — a partial record of amendable fields. */
+export type InvoiceAmendment = Partial<Record<AmendableField, string>>;
+
+/**
+ * Returns `true` when the invoice is in a state that allows metadata amendment.
+ */
+export function canAmend(status: InvoiceStatus): boolean {
+  return AMENDMENT_ELIGIBLE_STATUSES.has(status);
+}
+
+/**
+ * Returns a human-readable reason why amendment is blocked, or `null` when
+ * amendment is allowed.
+ */
+export function getAmendBlockedReason(
+  status: InvoiceStatus,
+  isOwner: boolean,
+  walletConnected = true
+): string | null {
+  if (!walletConnected) {
+    return "Connect your wallet to amend this invoice.";
+  }
+  if (!isOwner) {
+    return "Only the invoice owner can amend metadata.";
+  }
+  if (!canAmend(status)) {
+    const label = status.replace(/_/g, " ");
+    return `Amendments are not allowed for invoices with status "${label}". Only listed or partially funded invoices may be amended.`;
+  }
+  return null;
+}
+
+/**
+ * Strip any non-amendable fields from a proposed amendment object.
+ * Returns only the fields that are safe to apply.
+ */
+export function sanitizeAmendment(
+  proposed: Record<string, unknown>
+): InvoiceAmendment {
+  const safe: InvoiceAmendment = {};
+  for (const field of AMENDABLE_FIELDS) {
+    if (typeof proposed[field] === "string") {
+      safe[field] = proposed[field] as string;
+    }
+  }
+  return safe;
 }

@@ -127,6 +127,13 @@
     "noResults": "Ninguna factura coincide con tus filtros",
     "noResultsDesc": "No encontramos listados activos que coincidan con tu selección actual. Intenta restablecer los filtros para explorar otras oportunidades.",
     "clearAllFilters": "Limpiar Todos los Filtros",
+    "recovery": {
+      "clearRiskTiers": "Limpiar niveles de riesgo",
+      "widenApr": "Ampliar rango de APR",
+      "clearJurisdictions": "Limpiar jurisdicciones",
+      "clearCategories": "Limpiar categorías",
+      "showAllStatuses": "Mostrar todos los estados"
+    },
     "loadingMore": "Cargando más…",
     "allLoaded": "Todas las facturas cargadas",
     "backToTop": "↑ Arriba",
@@ -816,6 +823,24 @@
     "signatureTimeoutDesc": "La ventana de la billetera no fue firmada a tiempo. Puedes reintentar sin reconstruir.",
     "warningRetryLabel": "Reintentar",
     "warningDismissLabel": "Descartar"
+  },
+  "amendment": {
+    "title": "Enmendar Metadatos de Factura",
+    "formAriaLabel": "Formulario de enmienda de factura",
+    "eligibleFields": "Puedes corregir la descripción y la categoría. Los términos financieros no se pueden cambiar después de la publicación.",
+    "descriptionLabel": "Descripción / Memo",
+    "descriptionPlaceholder": "Descripción o memo actualizado para la factura…",
+    "categoryLabel": "Categoría de industria",
+    "lockedFieldsNotice": "El monto, la tasa de descuento, la fecha de vencimiento y el número de factura están bloqueados para proteger a los inversores.",
+    "submit": "Enviar Enmienda",
+    "submitting": "Enviando…",
+    "cancel": "Cancelar",
+    "noChanges": "No se modificaron campos. Actualiza al menos uno antes de enviar.",
+    "unknownError": "Ocurrió un error inesperado. Por favor intenta de nuevo.",
+    "successTitle": "Enmienda enviada",
+    "successDesc": "Los metadatos han sido actualizados. El nuevo CID está activo en IPFS.",
+    "newCid": "Nuevo CID",
+    "blockedTitle": "Enmienda no permitida"
   },
   "statusTransition": {
     "confirmTitle": "Confirmar: {label}",
