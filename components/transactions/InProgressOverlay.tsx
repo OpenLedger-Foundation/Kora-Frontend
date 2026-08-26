@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, X, AlertTriangle, CheckCircle2, ShieldCheck, ArrowRight } from "lucide-react";
+import { Loader2, X, AlertTriangle, CheckCircle2, ShieldCheck, ArrowRight, Clock, RotateCcw } from "lucide-react";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionStore } from "@/store/transactionStore";
 import { useSecondaryEscrowFlow } from "@/hooks/useTransaction";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 /**
  * InProgressOverlay
@@ -113,7 +113,68 @@ export function InProgressOverlay() {
     );
   };
 
-  return (
+  // Retry ledger - shows attempt history for failed steps
+  const renderRetryLedger = () => {
+    const { escrowState: { attemptHistory } } = useTransactionStore();
+    if (!attemptHistory || attemptHistory.length === 0) return null;
+
+    return (
+      <div className="w-full space-y-2 pt-2 border-t border-border/30">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+            Retry History
+          </p>
+          <span className="text-xs text-muted-foreground">
+            {attemptHistory.length} attempt{attemptHistory.length > 1 ? "s" : ""}
+          </span>
+        </div>
+        <div className="space-y-1.5 max-h-32 overflow-y-auto">
+          {attemptHistory
+            .slice()
+            .reverse()
+            .map((attempt, index) => (
+              <div
+                key={`${attempt.step}-${attempt.attemptNumber}`}
+                className="flex items-center gap-2 p-2 rounded-lg border border-border/30 bg-muted/20"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="font-medium text-zinc-300">
+                      {attempt.step === "buyer_funding" ? "Buyer Funding" : "Seller Transfer"}
+                    </span>
+                    <span className="text-muted-foreground">Attempt #{attempt.attemptNumber}</span>
+                    {attempt.success ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-success/10 text-success border border-success/20">
+                        <span className="h-2.5 w-2.5 rounded-full bg-success" />
+                        Success
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/10 text-destructive border border-destructive/20">
+                        Failed
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <span>{formatDate(attempt.timestamp, "HH:mm:ss")}</span>
+                    {attempt.txHash && (
+                      <>
+                        <span>·</span>
+                        <span className="font-mono text-[9px]">{attempt.txHash.slice(0, 8)}...</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {attempt.errorMessage && (
+                  <div className="mt-1 text-[10px] text-destructive/80 break-words">
+                    {attempt.errorMessage}
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      </div>
+    );
+  };
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -181,7 +242,12 @@ export function InProgressOverlay() {
                   {escrowState.errorStep && (
                     <button
                       type="button"
-                      onClick={() => retryEscrow("mock_pos", "mock_buyer", "mock_seller", 5000)}
+                      onClick={() => {
+                        const ctx = escrowState.currentContext;
+                        if (ctx) {
+                          retryEscrow(ctx.positionId, ctx.buyerAddress, ctx.sellerAddress, ctx.amount);
+                        }
+                      }}
                       className={cn(
                         "flex-1 px-4 py-2.5 rounded-lg font-medium text-xs transition-all",
                         "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/10",
@@ -192,6 +258,8 @@ export function InProgressOverlay() {
                     </button>
                   )}
                 </div>
+
+                {renderRetryLedger()}
               </>
             ) : (
               // Standard Transaction signing Overlay Content
