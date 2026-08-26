@@ -12,7 +12,7 @@ import {
 } from "@creit.tech/stellar-wallets-kit";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useWalletStore, useUIStore } from "@/store";
-import { getConfiguredNetwork } from "@/store/walletStore";
+import { getConfiguredNetwork, clearAllUserState } from "@/store/walletStore";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -253,6 +253,8 @@ export function useWallet() {
     if (!isConnected) return;
     const checkExpiry = () => {
       if (isSessionExpired()) {
+        const walletAddress = useWalletStore.getState().address;
+        clearAllUserState(walletAddress);
         useWalletStore.getState().disconnect();
         if (typeof window !== "undefined") {
           window.dispatchEvent(new CustomEvent("kora:session-expired"));
@@ -396,9 +398,7 @@ export function useWallet() {
       searchQuery: "",
       createDraft: { currency: "USDC" },
     });
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("kora-wallet");
-    }
+    clearAllUserState(walletAddress);
     disconnect();
 
     if (

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { useQueryClient } from "@tanstack/react-query";
 import type { WalletBalance, WalletNetwork, WalletProvider } from "@/types";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
@@ -13,6 +14,34 @@ const EMPTY_BALANCE: WalletBalance = {
 
 /** Session expires after 24 hours of inactivity. Change this constant to adjust. */
 export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Clears all address-scoped caches: TanStack Query, zustand persisted data,
+ * and IndexedDB marketplace cache. Call on disconnect and session expiry.
+ */
+export function clearAllUserState(address?: string | null) {
+  // Clear localStorage wallet data
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("kora-wallet");
+    // Clear position listing cache
+    localStorage.removeItem("kora-position-listings");
+    // Clear IndexedDB marketplace cache
+    try {
+      const dbs = indexedDB.databases?.();
+      if (dbs) {
+        dbs.then((databases) => {
+          databases.forEach((db) => {
+            if (db.name?.includes("marketplace") || db.name?.includes("tanstack")) {
+              indexedDB.deleteDatabase(db.name);
+            }
+          });
+        });
+      }
+    } catch {
+      // Best-effort — ignore errors
+    }
+  }
+}
 
 export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
