@@ -123,10 +123,91 @@ function parseSimulationPreview(
   return { feeStroops, feeXlm, resourceFee: feeStroops, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
 
+export interface ProviderSigningConfig {
+  timeoutMs: number;
+  providerName: string;
+  category: "hardware" | "mobile" | "extension" | "default";
+  tips: string[];
+}
+
+export const PROVIDER_SIGNING_CONFIGS: Record<string, ProviderSigningConfig> = {
+  ledger: {
+    timeoutMs: 120_000,
+    providerName: "Hardware Wallet (Ledger)",
+    category: "hardware",
+    tips: [
+      "Ensure Ledger device is unlocked and connected via USB/Bluetooth",
+      "Open the Stellar app on your Ledger device",
+      "Ensure 'Blind Signing' / 'Hash Signing' is enabled in Stellar app settings",
+      "Review transaction parameters and approve on device screen",
+    ],
+  },
+  lobstr: {
+    timeoutMs: 90_000,
+    providerName: "Lobstr Mobile Wallet",
+    category: "mobile",
+    tips: [
+      "Open the Lobstr app on your mobile device",
+      "Check push notifications or scan the signing QR code",
+      "Approve the signature request before the timeout window expires",
+    ],
+  },
+  freighter: {
+    timeoutMs: 60_000,
+    providerName: "Freighter Wallet",
+    category: "extension",
+    tips: [
+      "Check browser toolbar for the Freighter popup window",
+      "Unlock extension if currently locked",
+      "Review transaction details and click Approve",
+    ],
+  },
+  xbull: {
+    timeoutMs: 60_000,
+    providerName: "xBull Wallet",
+    category: "extension",
+    tips: [
+      "Check for the xBull popup window or tab",
+      "Unlock your vault and select the active account",
+      "Approve the transaction signature request",
+    ],
+  },
+  albedo: {
+    timeoutMs: 60_000,
+    providerName: "Albedo",
+    category: "extension",
+    tips: [
+      "Confirm the signature in the Albedo browser popup window",
+      "Review transaction parameters and approve",
+    ],
+  },
+  default: {
+    timeoutMs: 60_000,
+    providerName: "Stellar Wallet",
+    category: "default",
+    tips: [
+      "Check your wallet extension or mobile app window",
+      "Review transaction details before approving",
+      "Keep this window open during signing",
+    ],
+  },
+};
+
+export function getProviderSigningConfig(provider?: string | null): ProviderSigningConfig {
+  if (!provider) return PROVIDER_SIGNING_CONFIGS.default;
+  const key = provider.toLowerCase();
+  if (key.includes("ledger")) return PROVIDER_SIGNING_CONFIGS.ledger;
+  if (key.includes("lobstr")) return PROVIDER_SIGNING_CONFIGS.lobstr;
+  if (key.includes("freighter")) return PROVIDER_SIGNING_CONFIGS.freighter;
+  if (key.includes("xbull")) return PROVIDER_SIGNING_CONFIGS.xbull;
+  if (key.includes("albedo")) return PROVIDER_SIGNING_CONFIGS.albedo;
+  return PROVIDER_SIGNING_CONFIGS[key] || PROVIDER_SIGNING_CONFIGS.default;
+}
+
 export function useTransaction() {
   const [state, setState] = useState<TxState>({ status: "idle" });
   const [simulationPreview, setSimulationPreview] = useState<SimulationPreview | null>(null);
-  const { signTransaction, publicKey } = useWallet();
+  const { signTransaction, publicKey, provider } = useWallet();
   const { isNetworkMismatch, errorMessage } = useNetworkValidation();
   const toast = useToast();
   const t = useTranslations("transaction");
@@ -134,13 +215,25 @@ export function useTransaction() {
   const addTransaction = useTransactionHistoryStore((s) => s.addTransaction);
   const updateTransactionStatus = useTransactionHistoryStore((s) => s.updateTransactionStatus);
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const timeoutResolverRef = useRef<((value: string) => void) | null>(null);
+  const timeoutRejecterRef = useRef<((reason?: any) => void) | null>(null);
+  const signingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearSigningTimer = useCallback(() => {
+    if (signingTimerRef.current) {
+      clearTimeout(signingTimerRef.current);
+      signingTimerRef.current = null;
+    }
+  }, []);
+
   const setStage = useCallback(
     (status: TxLifecycleStatus, extra?: Partial<TxState>) => {
       setState((s) => ({ ...s, status, ...extra }));
       if (status === "retrying") {
         setTxState({ status: "submitting" });
       } else {
-        setTxState({ status } as any);
+        setTxState({ status, ...extra } as any);
       }
       // Show loading toast for in-progress stages
       const inProgress: TxLifecycleStatus[] = ["building", "simulating", "signing", "submitting", "polling"];
@@ -156,6 +249,49 @@ export function useTransaction() {
       }
     },
     [t, toast, setTxState]
+  );
+
+  const cancel = useCallback(() => {
+    clearSigningTimer();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    if (timeoutRejecterRef.current) {
+      timeoutRejecterRef.current(new Error("SIGNING_CANCELLED"));
+      timeoutRejecterRef.current = null;
+    }
+    setState({ status: "idle" });
+    setSimulationPreview(null);
+    setTxState({ status: "idle" });
+    toast.dismiss(TOAST_ID);
+  }, [clearSigningTimer, setTxState, toast]);
+
+  const extendTimeout = useCallback(
+    (extraMs = 60_000) => {
+      clearSigningTimer();
+      const config = getProviderSigningConfig(provider);
+      const newTimeout = (config.timeoutMs || 60_000) + extraMs;
+
+      setTxState({
+        status: "signing",
+        startedAt: Date.now(),
+        provider: config.providerName,
+        timeoutMs: newTimeout,
+        tips: config.tips,
+        canExtend: true,
+      });
+
+      signingTimerRef.current = setTimeout(() => {
+        setTxState({
+          status: "timeout",
+          provider: config.providerName,
+          timeoutMs: newTimeout,
+          canExtend: true,
+        });
+      }, newTimeout);
+    },
+    [clearSigningTimer, provider, setTxState]
   );
 
   const execute = useCallback(
@@ -174,15 +310,22 @@ export function useTransaction() {
         txAssetCode?: string;
       }
     ): Promise<string | null> => {
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
       try {
         // Check network first
         if (isNetworkMismatch) {
           throw new Error(errorMessage);
         }
-        
+
         // 1. Build
         setStage("building");
         const unsignedXdr = await buildFn();
+
+        if (abortController.signal.aborted) {
+          throw new Error("SIGNING_CANCELLED");
+        }
 
         // 2. Simulate (skip for mock XDRs)
         if (!unsignedXdr.startsWith("mock_")) {
@@ -204,6 +347,10 @@ export function useTransaction() {
 
           const sim = await Promise.race([simPromise, timeoutPromise]);
 
+          if (abortController.signal.aborted) {
+            throw new Error("SIGNING_CANCELLED");
+          }
+
           if (StellarSdk.rpc.Api.isSimulationError(sim)) {
             const readableError = mapSimulationError(sim.error);
             const preview: SimulationPreview = {
@@ -218,7 +365,6 @@ export function useTransaction() {
             };
             setSimulationPreview(preview);
 
-            // If caller wants to show the preview dialog, let them handle the error
             if (options?.onSimulationPreview) {
               await options.onSimulationPreview(preview);
             }
@@ -231,24 +377,56 @@ export function useTransaction() {
           );
           setSimulationPreview(preview);
 
-          // If caller provided a preview handler, wait for user confirmation
           if (options?.onSimulationPreview) {
             const proceed = await options.onSimulationPreview(preview);
-            if (!proceed) {
+            if (!proceed || abortController.signal.aborted) {
               setState({ status: "idle" });
+              setTxState({ status: "idle" });
               toast.dismiss(TOAST_ID);
               return null;
             }
           }
         }
 
-        // 3. Sign
-        setStage("signing");
+        // 3. Sign (Provider-aware hardware/mobile timeouts)
+        const providerConfig = getProviderSigningConfig(provider);
+        setStage("signing", {
+          startedAt: Date.now(),
+          provider: providerConfig.providerName,
+          timeoutMs: providerConfig.timeoutMs,
+          tips: providerConfig.tips,
+          canExtend: true,
+        } as any);
+
         let signedXdr: string;
         if (unsignedXdr.startsWith("mock_")) {
-          signedXdr = unsignedXdr;
+          await new Promise((r) => setTimeout(r, 600));
+          signedXdr = `${unsignedXdr}_signed`;
         } else {
-          signedXdr = await signTransaction(unsignedXdr);
+          // Signing with timeout notification
+          const signPromise = signTransaction(unsignedXdr);
+          
+          const timeoutPromise = new Promise<string>((resolve, reject) => {
+            timeoutResolverRef.current = resolve;
+            timeoutRejecterRef.current = reject;
+
+            clearSigningTimer();
+            signingTimerRef.current = setTimeout(() => {
+              setTxState({
+                status: "timeout",
+                provider: providerConfig.providerName,
+                timeoutMs: providerConfig.timeoutMs,
+                canExtend: true,
+              });
+            }, providerConfig.timeoutMs);
+          });
+
+          signedXdr = await Promise.race([signPromise, timeoutPromise]);
+          clearSigningTimer();
+        }
+
+        if (abortController.signal.aborted) {
+          throw new Error("SIGNING_CANCELLED");
         }
 
         // 4. Submit
@@ -266,7 +444,7 @@ export function useTransaction() {
           hash = result.hash;
         }
 
-        // Add to history as pending
+        // Add to history as pending only AFTER submission succeeded
         addTransaction({
           hash,
           type: (options?.txType as any) || "other",
@@ -286,7 +464,7 @@ export function useTransaction() {
           await new Promise((r) => setTimeout(r, 1000));
         }
 
-        // ── Phase 5: done ──────────────────────────────────────────────────
+        // Phase 5: confirmed
         setState({ status: "confirmed", txHash: hash });
         setTxState({ status: "confirmed", txHash: hash });
         updateTransactionStatus(hash, "confirmed");
@@ -299,16 +477,23 @@ export function useTransaction() {
 
         options?.onSuccess?.(hash);
         return hash;
-      } catch (err) {
+      } catch (err: any) {
+        clearSigningTimer();
+        if (err?.message === "SIGNING_CANCELLED" || err?.message?.includes("cancelled")) {
+          setState({ status: "idle" });
+          setTxState({ status: "idle" });
+          toast.dismiss(TOAST_ID);
+          return null;
+        }
+
         const message = err instanceof Error ? err.message : t("failed");
         setState({ status: "failed", error: message });
         setTxState({ status: "failed", error: { code: "TRANSACTION_FAILED", message } });
-        
-        // Update history if we have a hash
+
         if (state.txHash) {
           updateTransactionStatus(state.txHash, "failed", message);
         }
-        
+
         toast.error(
           t("failed"),
           message,
@@ -318,20 +503,35 @@ export function useTransaction() {
         );
         options?.onError?.(err);
         return null;
+      } finally {
+        abortControllerRef.current = null;
       }
     },
-    [signTransaction, setStage, setTxState, addTransaction, updateTransactionStatus, t, toast, state.txHash, isNetworkMismatch, errorMessage]
+    [
+      isNetworkMismatch,
+      errorMessage,
+      setStage,
+      provider,
+      signTransaction,
+      clearSigningTimer,
+      setTxState,
+      addTransaction,
+      state.txHash,
+      updateTransactionStatus,
+      toast,
+      t,
+    ]
   );
 
   const reset = useCallback(() => {
-    setState({ status: "idle" });
-    setSimulationPreview(null);
-    setTxState({ status: "idle" });
-  }, [setTxState]);
+    cancel();
+  }, [cancel]);
 
   return {
     execute,
     reset,
+    cancel,
+    extendTimeout,
     status: state.status,
     txHash: state.txHash,
     error: state.error,
@@ -497,6 +697,15 @@ export function useTxAnnouncement(): { polite?: string; assertive?: string } {
         ? String(txState.error.message)
         : "Transaction failed";
     return { assertive: message };
+  }
+  if (txState.status === "timeout") {
+    return {
+      assertive: "Transaction signing timed out waiting for wallet response. You can extend time, retry, or cancel safely.",
+    };
+  }
+  if (txState.status === "signing") {
+    const providerName = "provider" in txState && txState.provider ? txState.provider : "your wallet";
+    return { polite: `Waiting for signature from ${providerName}. Please check and approve on your device.` };
   }
   if (txState.status !== "idle" && txState.status !== "confirmed") {
     return { polite: `Transaction ${txState.status}...` };

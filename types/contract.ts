@@ -23,12 +23,25 @@ export type TxState =
   | { status: "idle" }
   | { status: "building"; startedAt?: number }
   | { status: "simulating"; startedAt?: number }
-  | { status: "signing"; startedAt?: number }
+  | {
+      status: "signing";
+      startedAt?: number;
+      provider?: string;
+      timeoutMs?: number;
+      tips?: string[];
+      canExtend?: boolean;
+    }
   | { status: "submitting"; txHash?: string }
   | { status: "polling"; txHash: string }
   | { status: "confirmed"; txHash: string }
   | { status: "failed"; error: ServiceError; txHash?: string }
-  | { status: "timeout"; txHash?: string };
+  | {
+      status: "timeout";
+      txHash?: string;
+      provider?: string;
+      timeoutMs?: number;
+      canExtend?: boolean;
+    };
 
 export type ServiceErrorCode =
   | "NETWORK_ERROR"

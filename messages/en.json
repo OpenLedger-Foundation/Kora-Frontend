@@ -50,6 +50,23 @@
     "reconnecting": "Reconnecting...",
     "restoringSession": "Restoring wallet session..."
   },
+  "transaction": {
+    "building": "Building transaction...",
+    "simulating": "Simulating transaction...",
+    "signing": "Waiting for wallet signature...",
+    "submitting": "Submitting transaction...",
+    "polling": "Confirming transaction on-chain...",
+    "confirmed": "Transaction confirmed!",
+    "failed": "Transaction failed",
+    "cancelled": "Transaction signing cancelled",
+    "timedOut": "Transaction signing timed out",
+    "timeoutNotice": "Signing took too long to complete.",
+    "extendTime": "Extend Time (+60s)",
+    "retrySigning": "Retry Signing",
+    "cancelSigning": "Cancel Safely",
+    "hardwareTip": "Confirm on your hardware wallet",
+    "mobileTip": "Check your mobile wallet app"
+  },
   "landing": {
     "headline": "Invoice Financing, On-Chain",
     "badge": "Live on Stellar Testnet",
