@@ -851,5 +851,41 @@
       "companyNameMinLength": "O nome da empresa deve ter pelo menos 2 caracteres",
       "walletAddressInvalid": "Formato de chave pública Stellar inválido"
     }
+  },
+  "secondaryFees": {
+    "title": "Tabela de taxas",
+    "subtitle": "Todas as taxas são exibidas antes da confirmação.",
+    "subtotal": "Preço da posição",
+    "protocolFee": "Taxa do protocolo ({rate})",
+    "marketFee": "Taxa do mercado ({rate})",
+    "totalFees": "Taxas totais ({rate})",
+    "total": "Total a pagar",
+    "noFees": "Esta aquisição não possui taxas.",
+    "listingNote": "O comprador paga {rate} em taxas sobre o preço pedido."
+  },
+  "concentrationRisk": {
+    "title": "Risco de concentração",
+    "debtor": "{name} representa {percent}% da sua carteira",
+    "jurisdiction": "{name} representa {percent}% da sua carteira",
+    "riskTier": "O nível {name} representa {percent}% da sua carteira",
+    "thresholdNote": "Acima do seu limite de alerta de {threshold}%.",
+    "dismiss": "Dispensar",
+    "snoozeDay": "Adiar 1 dia",
+    "snoozeWeek": "Adiar 1 semana",
+    "settings": "Ajustar limites",
+    "critical": "Crítico",
+    "warning": "Aviso"
+  },
+  "vintageCohorts": {
+    "title": "Safras por mês",
+    "subtitle": "Posições agrupadas pelo mês em que foram financiadas.",
+    "month": "Safra",
+    "positions": "Posições",
+    "invested": "Investido",
+    "weightedApr": "APR ponderada",
+    "defaultRate": "Taxa de inadimplência",
+    "empty": "Nenhuma posição financiada neste mês",
+    "noData": "Ainda não há posições financiadas para agrupar.",
+    "export": "Exportar safras"
   }
 }

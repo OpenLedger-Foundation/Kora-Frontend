@@ -859,5 +859,41 @@
       "companyNameMinLength": "يجب أن يتكون اسم الشركة من حرفين على الأقل",
       "walletAddressInvalid": "تنسيق مفتاح Stellar العام غير صالح"
     }
+  },
+  "secondaryFees": {
+    "title": "جدول الرسوم",
+    "subtitle": "تُعرض جميع الرسوم قبل التأكيد.",
+    "subtotal": "سعر المركز",
+    "protocolFee": "رسوم البروتوكول ({rate})",
+    "marketFee": "رسوم السوق ({rate})",
+    "totalFees": "إجمالي الرسوم ({rate})",
+    "total": "المبلغ المستحق",
+    "noFees": "لا توجد رسوم على هذا الاستحواذ.",
+    "listingNote": "يدفع المشتري {rate} رسومًا فوق السعر المطلوب."
+  },
+  "concentrationRisk": {
+    "title": "مخاطر التركّز",
+    "debtor": "يمثل {name} نسبة {percent}% من محفظتك",
+    "jurisdiction": "يمثل {name} نسبة {percent}% من محفظتك",
+    "riskTier": "تمثل الفئة {name} نسبة {percent}% من محفظتك",
+    "thresholdNote": "أعلى من حد التنبيه {threshold}%.",
+    "dismiss": "تجاهل",
+    "snoozeDay": "تأجيل يوم واحد",
+    "snoozeWeek": "تأجيل أسبوع",
+    "settings": "ضبط الحدود",
+    "critical": "حرج",
+    "warning": "تحذير"
+  },
+  "vintageCohorts": {
+    "title": "مجموعات حسب شهر التمويل",
+    "subtitle": "المراكز مجمّعة حسب شهر تمويلها.",
+    "month": "الدفعة",
+    "positions": "المراكز",
+    "invested": "المستثمر",
+    "weightedApr": "العائد السنوي المرجّح",
+    "defaultRate": "معدل التعثر",
+    "empty": "لا توجد مراكز ممولة هذا الشهر",
+    "noData": "لا توجد مراكز ممولة للتجميع بعد.",
+    "export": "تصدير المجموعات"
   }
 }

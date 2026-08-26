@@ -308,7 +308,7 @@
       "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
       "ctaNone": "Start Verification",
       "ctaRejected": "Re-verify Business",
-      "ctaPending": "Checking verification status\u2026",
+      "ctaPending": "Checking verification status…",
       "backToWizard": "Go Back",
       "whatYouNeed": "What you will need:",
       "needIdDoc": "Government-issued ID or business registration document",
@@ -874,5 +874,41 @@
       "companyNameMinLength": "Company name must be at least 2 characters",
       "walletAddressInvalid": "Invalid Stellar public key format"
     }
+  },
+  "secondaryFees": {
+    "title": "Fee schedule",
+    "subtitle": "All fees are disclosed before you confirm.",
+    "subtotal": "Position price",
+    "protocolFee": "Protocol fee ({rate})",
+    "marketFee": "Marketplace fee ({rate})",
+    "totalFees": "Total fees ({rate})",
+    "total": "You pay",
+    "noFees": "No fees apply to this acquisition.",
+    "listingNote": "Buyer pays {rate} in fees on top of the ask price."
+  },
+  "concentrationRisk": {
+    "title": "Concentration risk",
+    "debtor": "{name} is {percent}% of your portfolio",
+    "jurisdiction": "{name} is {percent}% of your portfolio",
+    "riskTier": "Tier {name} is {percent}% of your portfolio",
+    "thresholdNote": "Above your {threshold}% alert threshold.",
+    "dismiss": "Dismiss",
+    "snoozeDay": "Snooze 1 day",
+    "snoozeWeek": "Snooze 1 week",
+    "settings": "Adjust thresholds",
+    "critical": "Critical",
+    "warning": "Warning"
+  },
+  "vintageCohorts": {
+    "title": "Vintage cohorts",
+    "subtitle": "Positions grouped by the month they were funded.",
+    "month": "Vintage",
+    "positions": "Positions",
+    "invested": "Invested",
+    "weightedApr": "Weighted APR",
+    "defaultRate": "Default rate",
+    "empty": "No positions funded this month",
+    "noData": "No funded positions to group yet.",
+    "export": "Export cohorts"
   }
 }

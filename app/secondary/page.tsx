@@ -19,6 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import EmptyState from "@/components/ui/EmptyState";
+import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
+import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
+import { useAcquirePositionFlow } from "@/hooks/useTransaction";
+import { useWallet } from "@/hooks/useWallet";
+import { env } from "@/lib/env";
+import { computeAcquisitionFees, getFeeSchedule } from "@/lib/secondaryFees";
 import { usePositionListingStore } from "@/store/positionListingStore";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MOCK_INVOICES } from "@/services/mockData";
@@ -221,6 +227,14 @@ const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = [
 ];
 
 export default function SecondaryMarketplacePage() {
+  // Issue #594: acquire runs through the same simulation gate as fund/transfer.
+  const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
+  const { publicKey } = useWallet();
+
+  // Issue #597: one schedule, read from validated env, shared by every figure
+  // on this page.
+  const feeSchedule = useMemo(() => getFeeSchedule(env), []);
+
   const { listings: storeListings } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
 
@@ -510,12 +524,23 @@ export default function SecondaryMarketplacePage() {
                         </div>
                       </div>
 
+                      {/* Issue #597: disclose fees before the buyer confirms. */}
+                      <FeeDisclosure
+                        className="mt-3 rounded-md border border-zinc-800 bg-zinc-900/40 p-2.5"
+                        fees={computeAcquisitionFees(item.listing.askPrice, feeSchedule)}
+                      />
+
                       {/* Action Button */}
                       <Button
                         className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
                         onClick={() => {
-                          alert(`Transfer position flow initiated for ${item.positionId}`);
+                          void acquirePosition(
+                            item.positionId,
+                            publicKey ?? "",
+                            item.sellerAddress
+                          );
                         }}
+                        disabled={!publicKey}
                       >
                         Acquire Position
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -527,6 +552,10 @@ export default function SecondaryMarketplacePage() {
             })}
           </div>
         )}
+
+        {/* Issue #594: preview before signing; the dialog blocks proceed when
+            the simulation fails. */}
+        <TxSimulationPreview {...simulationDialogProps} />
 
         {/* Mobile Filter Bottom Sheet */}
         <BottomSheet

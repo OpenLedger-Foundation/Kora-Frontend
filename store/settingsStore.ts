@@ -5,6 +5,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import {
+  DEFAULT_CONCENTRATION_THRESHOLDS,
+  SNOOZE_DURATIONS_MS,
+  type ConcentrationThresholds,
+  type SnoozeEntry,
+} from "@/lib/concentrationRisk";
+
 export type MaturityReminderDays = 1 | 3 | 7;
 export type Persona = "investor" | "sme";
 
@@ -38,6 +45,25 @@ export const DEFAULT_TOUR_SETTINGS: TourSettings = {
 
 const TOUR_STORAGE_KEY = "kora-tour-done";
 
+/**
+ * Concentration alert state (issue #604).
+ *
+ * Dismissals and snoozes are keyed by `dimension:bucket`, not by percentage, so
+ * a dismissal survives the number moving. Otherwise every recomputation would
+ * resurrect an alert the investor had already acknowledged.
+ */
+export interface ConcentrationSettings {
+  thresholds: ConcentrationThresholds;
+  dismissedKeys: string[];
+  snoozes: SnoozeEntry[];
+}
+
+export const DEFAULT_CONCENTRATION_SETTINGS: ConcentrationSettings = {
+  thresholds: DEFAULT_CONCENTRATION_THRESHOLDS,
+  dismissedKeys: [],
+  snoozes: [],
+};
+
 interface SettingsStore {
   notifications: NotificationPrefs;
   setNotifications: (prefs: Partial<NotificationPrefs>) => void;
@@ -46,6 +72,11 @@ interface SettingsStore {
   setTourSettings: (settings: Partial<TourSettings>) => void;
   resetTourSettings: () => void;
   restartTour: (persona?: Persona) => void;
+  concentration: ConcentrationSettings;
+  setConcentrationThresholds: (thresholds: Partial<ConcentrationThresholds>) => void;
+  dismissConcentrationAlert: (key: string) => void;
+  snoozeConcentrationAlert: (key: string, durationMs?: number) => void;
+  resetConcentrationAlerts: () => void;
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -80,6 +111,39 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         set({ tour: DEFAULT_TOUR_SETTINGS });
       },
+      concentration: DEFAULT_CONCENTRATION_SETTINGS,
+      setConcentrationThresholds: (thresholds) =>
+        set((s) => ({
+          concentration: {
+            ...s.concentration,
+            thresholds: { ...s.concentration.thresholds, ...thresholds },
+          },
+        })),
+      dismissConcentrationAlert: (key) =>
+        set((s) => ({
+          concentration: {
+            ...s.concentration,
+            dismissedKeys: s.concentration.dismissedKeys.includes(key)
+              ? s.concentration.dismissedKeys
+              : [...s.concentration.dismissedKeys, key],
+          },
+        })),
+      snoozeConcentrationAlert: (key, durationMs = SNOOZE_DURATIONS_MS.day) =>
+        set((s) => ({
+          concentration: {
+            ...s.concentration,
+            // Replace any existing snooze for this key rather than stacking, so
+            // snoozing twice does not silently double the delay.
+            snoozes: [
+              ...s.concentration.snoozes.filter((entry) => entry.key !== key),
+              { key, until: Date.now() + durationMs },
+            ],
+          },
+        })),
+      resetConcentrationAlerts: () =>
+        set((s) => ({
+          concentration: { ...s.concentration, dismissedKeys: [], snoozes: [] },
+        })),
       restartTour: (persona) => {
         if (typeof window !== "undefined") {
           try {

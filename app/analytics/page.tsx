@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
 import { exportCsv, exportPdf } from "@/lib/export";
+import { VintageCohortTable } from "@/components/analytics/VintageCohortTable";
 import {
   PORTFOLIO_EXPORT_HEADERS,
   filterPositionsForExport,
@@ -271,6 +272,22 @@ function PortfolioAnalyticsInner() {
     );
   }, [exportRows, hasExportData]);
 
+  /**
+   * Issue #605: cohorts export on their own axis. They are one row per month,
+   * not per position, so they cannot share the position CSV's headers.
+   */
+  const handleExportCohorts = useCallback(
+    (rows: Array<Record<string, string | number>>) => {
+      if (rows.length === 0) return;
+      exportCsv(
+        rows as Record<string, unknown>[],
+        portfolioExportFilename().replace(/\.csv$/, "-vintage-cohorts.csv"),
+        Object.keys(rows[0])
+      );
+    },
+    []
+  );
+
   const handleExportPdf = useCallback(() => {
     if (!hasExportData) return;
     void exportPdf("analytics-report", portfolioPdfFilename());
@@ -345,6 +362,15 @@ function PortfolioAnalyticsInner() {
             risk={risk}
             isLoading={positionsQuery.isLoading}
             onRiskSegmentClick={handleRiskSegmentClick}
+          />
+
+          {/* Issue #605: cohorts are built from the *filtered* positions, so the
+              vintage view respects the same date-range and risk filters as every
+              other panel on this page. */}
+          <VintageCohortTable
+            className="mt-10 rounded-xl border border-zinc-800 p-4"
+            positions={filteredPositions}
+            onExport={handleExportCohorts}
           />
 
           {/* Filtered positions — included in PDF/print layout */}

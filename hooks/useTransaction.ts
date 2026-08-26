@@ -392,6 +392,49 @@ export function useTransferPositionFlow() {
   };
 }
 
+/**
+ * Acquiring a listed position on the secondary market (issue #594).
+ *
+ * Funding already ran every transaction through
+ * "build -> simulate -> preview -> sign -> submit". Secondary acquire did not:
+ * the Acquire button on `app/secondary` was a placeholder `alert()`, so the one
+ * flow where a buyer commits capital against *someone else's* position had the
+ * weakest pre-signature safety of any flow in the app.
+ *
+ * This reuses the same gate rather than adding a parallel one, so acquire
+ * inherits the timeout handling, the readable simulation errors and the
+ * block-on-failure behaviour already proven for fund/transfer.
+ */
+export function useAcquirePositionFlow() {
+  const tx = useTransaction();
+  const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
+
+  const acquirePosition = useCallback(
+    async (positionId: string, buyerAddress: string, sellerAddress: string) => {
+      const { prepareTransferPosition } = await import(
+        "@/services/invoiceService"
+      );
+      return tx.execute(
+        () => prepareTransferPosition(positionId, buyerAddress, sellerAddress),
+        {
+          onSimulationPreview,
+          successMessage: "Position acquired successfully!",
+          txType: "acquire",
+          txDescription: `Acquire position ${positionId}`,
+        }
+      );
+    },
+    [tx, onSimulationPreview]
+  );
+
+  return {
+    acquirePosition,
+    simulationDialogProps,
+    status: tx.status,
+    error: tx.error,
+  };
+}
+
 export function useSecondaryEscrowFlow() {
   const { escrowState, setEscrowStep, setEscrowError, resetEscrow } = useTransactionStore();
   const tx = useTransaction();
