@@ -23,6 +23,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import EmptyState from "@/components/ui/EmptyState";
+import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
+import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
+import { useAcquirePositionFlow } from "@/hooks/useTransaction";
+import { useWallet } from "@/hooks/useWallet";
+import { env } from "@/lib/env";
+import { computeAcquisitionFees, getFeeSchedule } from "@/lib/secondaryFees";
 import { usePositionListingStore } from "@/store/positionListingStore";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MOCK_INVOICES } from "@/services/mockData";
@@ -233,7 +239,17 @@ const buildMockListings = (): SecondaryMarketItem[] => [
   },
 ];
 
-const MOCK_SECONDARY_LISTINGS = buildMockListings();
+export default function SecondaryMarketplacePage() {
+  // Issue #594: acquire runs through the same simulation gate as fund/transfer.
+  const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
+  const { publicKey } = useWallet();
+
+  // Issue #597: one schedule, read from validated env, shared by every figure
+  // on this page.
+  const feeSchedule = useMemo(() => getFeeSchedule(env), []);
+
+  const { listings: storeListings } = usePositionListingStore();
+  const { invoices } = useInvoiceStore();
 
 // ─── URL param keys ────────────────────────────────────────────────────────
 const PARAM_SEARCH = "q";
@@ -667,27 +683,27 @@ export default function SecondaryMarketplacePage() {
                         </div>
                       </div>
 
+                      {/* Issue #597: disclose fees before the buyer confirms. */}
+                      <FeeDisclosure
+                        className="mt-3 rounded-md border border-zinc-800 bg-zinc-900/40 p-2.5"
+                        fees={computeAcquisitionFees(item.listing.askPrice, feeSchedule)}
+                      />
+
                       {/* Action Button */}
-                      {isStale ? (
-                        <Button
-                          className="w-full mt-3 bg-red-500/10 text-red-400 border border-red-500/30 font-medium text-xs h-9 cursor-not-allowed"
-                          disabled
-                          aria-disabled="true"
-                          title="This position has already been transferred"
-                        >
-                          <ShieldAlert className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                          Unavailable — Already Transferred
-                        </Button>
-                      ) : (
-                        <Button
-                          className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
-                          onClick={() => handleAcquire(item)}
-                          aria-label={`Acquire position for ${item.invoice.metadata.invoiceNumber} at ${formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}`}
-                        >
-                          Acquire Position
-                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
-                        </Button>
-                      )}
+                      <Button
+                        className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
+                        onClick={() => {
+                          void acquirePosition(
+                            item.positionId,
+                            publicKey ?? "",
+                            item.sellerAddress
+                          );
+                        }}
+                        disabled={!publicKey}
+                      >
+                        Acquire Position
+                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -695,6 +711,10 @@ export default function SecondaryMarketplacePage() {
             })}
           </div>
         )}
+
+        {/* Issue #594: preview before signing; the dialog blocks proceed when
+            the simulation fails. */}
+        <TxSimulationPreview {...simulationDialogProps} />
 
         {/* Mobile Filter Bottom Sheet */}
         <BottomSheet

@@ -966,5 +966,41 @@
       "companyNameMinLength": "El nombre de la empresa debe tener al menos 2 caracteres",
       "walletAddressInvalid": "Formato de clave pública de Stellar inválido"
     }
+  },
+  "secondaryFees": {
+    "title": "Esquema de comisiones",
+    "subtitle": "Todas las comisiones se muestran antes de confirmar.",
+    "subtotal": "Precio de la posición",
+    "protocolFee": "Comisión del protocolo ({rate})",
+    "marketFee": "Comisión del mercado ({rate})",
+    "totalFees": "Comisiones totales ({rate})",
+    "total": "Total a pagar",
+    "noFees": "Esta adquisición no tiene comisiones.",
+    "listingNote": "El comprador paga {rate} en comisiones sobre el precio solicitado."
+  },
+  "concentrationRisk": {
+    "title": "Riesgo de concentración",
+    "debtor": "{name} representa el {percent}% de tu cartera",
+    "jurisdiction": "{name} representa el {percent}% de tu cartera",
+    "riskTier": "El nivel {name} representa el {percent}% de tu cartera",
+    "thresholdNote": "Por encima de tu umbral de alerta del {threshold}%.",
+    "dismiss": "Descartar",
+    "snoozeDay": "Posponer 1 día",
+    "snoozeWeek": "Posponer 1 semana",
+    "settings": "Ajustar umbrales",
+    "critical": "Crítico",
+    "warning": "Advertencia"
+  },
+  "vintageCohorts": {
+    "title": "Cohortes por añada",
+    "subtitle": "Posiciones agrupadas por el mes en que se financiaron.",
+    "month": "Añada",
+    "positions": "Posiciones",
+    "invested": "Invertido",
+    "weightedApr": "TAE ponderada",
+    "defaultRate": "Tasa de impago",
+    "empty": "Ninguna posición financiada este mes",
+    "noData": "Aún no hay posiciones financiadas para agrupar.",
+    "export": "Exportar cohortes"
   }
 }

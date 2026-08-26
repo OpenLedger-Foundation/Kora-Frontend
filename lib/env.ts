@@ -113,6 +113,29 @@ const clientSchema = z.object({
     .string()
     .transform((v) => parseInt(v, 10))
     .default("10000"),
+
+  // ─── Secondary market fees (issue #597) ────────────────────────────────────
+  // Expressed in basis points so the config carries no rounding of its own:
+  // 100 bps = 1%. Both are capped at 10_000 bps (100%) — a fee schedule that
+  // could exceed the trade value is a misconfiguration, not a business choice.
+
+  /** Protocol fee on a secondary acquisition, in basis points. */
+  NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS: z
+    .string()
+    .transform((v) => Number.parseInt(v, 10))
+    .refine((v) => Number.isFinite(v) && v >= 0 && v <= 10_000, {
+      message: "Protocol fee must be between 0 and 10000 bps",
+    })
+    .default("50"),
+
+  /** Marketplace/venue fee on a secondary acquisition, in basis points. */
+  NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS: z
+    .string()
+    .transform((v) => Number.parseInt(v, 10))
+    .refine((v) => Number.isFinite(v) && v >= 0 && v <= 10_000, {
+      message: "Market fee must be between 0 and 10000 bps",
+    })
+    .default("25"),
 });
 
 // ─── Server-only schema ───────────────────────────────────────────────────────
@@ -150,6 +173,10 @@ const clientEnv = {
   NEXT_PUBLIC_ENABLE_MOCK_DATA: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
   NEXT_PUBLIC_ENABLE_DEVTOOLS: process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS,
   NEXT_PUBLIC_KYC_FUND_THRESHOLD: process.env.NEXT_PUBLIC_KYC_FUND_THRESHOLD,
+  NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS:
+    process.env.NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS,
+  NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS:
+    process.env.NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS,
 };
 
 // ─── Parse & validate ─────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useUIStore, useInvoiceStore, usePositionListingStore, DEFAULT_FILTERS } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
+import { ConcentrationRiskAlerts } from "@/components/analytics/ConcentrationRiskAlerts";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { useTranslations } from "next-intl";
@@ -459,6 +460,11 @@ export default function InvestorDashboardPage() {
           </motion.div>
         ))}
       </div>
+
+      {/* Issue #604: the donut shows how the portfolio splits; this says when a
+          split has become a risk. Sits directly above it so the warning and the
+          chart it refers to are read together. */}
+      <ConcentrationRiskAlerts className="mb-6" positions={donutPositions} />
 
       <motion.div
         initial={{ opacity: 0, y: 12 }}
