@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet, ChevronRight, Loader2, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
+import { Wallet, ChevronRight, Loader2, CheckCircle2, AlertCircle, ExternalLink, Smartphone } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useUIStore } from "@/store";
 import { useWallet } from "@/hooks/useWallet";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { cn } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/security";
 import { getWalletIconSvg, sanitizeSvg } from "@/lib/svgHelper";
@@ -26,6 +27,7 @@ const WALLETS = [
     icon: "/wallets/freighter.svg",
     popular: true,
     installUrl: "https://www.freighter.app/",
+    deepLink: "https://freighter.app/connect",
     isAvailable: () =>
       typeof window !== "undefined" &&
       !!(window as Window & { freighter?: unknown }).freighter,
@@ -55,7 +57,7 @@ const WALLETS = [
   {
     id: "albedo",
     name: "Albedo",
-    description: "Web-based Stellar signer — no extension needed",
+    description: "Web-based Stellar signer - no extension needed",
     icon: "/wallets/albedo.svg",
     popular: false,
     installUrl: "https://albedo.link/",
@@ -69,17 +71,19 @@ export function WalletConnectModal() {
   const t = useTranslations("wallet");
   const { walletModalOpen, setWalletModalOpen } = useUIStore();
   const { connectWallet, isConnected } = useWallet();
+  const { isMobile } = useBreakpoint();
   const [walletState, setWalletState] = useState<WalletState>("idle");
   const [activeWallet, setActiveWallet] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [waitingForDeepLink, setWaitingForDeepLink] = useState(false);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
+  const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wallet = activeWallet ? WALLETS.find((w) => w.id === activeWallet) : null;
   const isConnecting = walletState === "connecting";
   const isSuccess = walletState === "success";
   const isError = walletState === "error";
   const installed = wallet ? wallet.isAvailable() : false;
-  const i = 0;
 
   useEffect(() => {
     if (walletModalOpen) {
@@ -88,13 +92,43 @@ export function WalletConnectModal() {
       setWalletState("idle");
       setActiveWallet(null);
       setErrorMsg(null);
+      setWaitingForDeepLink(false);
+      if (visibilityTimerRef.current) {
+        clearTimeout(visibilityTimerRef.current);
+        visibilityTimerRef.current = null;
+      }
     }
   }, [walletModalOpen]);
+
+  useEffect(() => {
+    if (!waitingForDeepLink) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (visibilityTimerRef.current) {
+          clearTimeout(visibilityTimerRef.current);
+        }
+        visibilityTimerRef.current = setTimeout(() => {
+          if (waitingForDeepLink && activeWallet) {
+            setWaitingForDeepLink(false);
+            handleConnect(activeWallet);
+          }
+        }, 800);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
+    };
+  }, [waitingForDeepLink, activeWallet]);
 
   const handleConnect = async (walletId: string) => {
     setActiveWallet(walletId);
     setWalletState("connecting");
     setErrorMsg(null);
+    setWaitingForDeepLink(false);
     try {
       await connectWallet(walletId);
       setWalletState("success");
@@ -105,6 +139,16 @@ export function WalletConnectModal() {
         err instanceof Error ? err.message : "Connection failed. Please try again."
       );
     }
+  };
+
+  const handleDeepLink = (walletId: string) => {
+    const walletEntry = WALLETS.find((w) => w.id === walletId);
+    if (!walletEntry?.deepLink) return;
+    setWaitingForDeepLink(true);
+    setWalletState("connecting");
+    setActiveWallet(walletId);
+    setErrorMsg(null);
+    window.location.href = walletEntry.deepLink;
   };
 
   const handleRetry = () => {
@@ -130,11 +174,6 @@ export function WalletConnectModal() {
           {walletState === "success" ? (() => {
             const wallet = WALLETS.find((w) => w.id === activeWallet);
             if (!wallet) return null;
-            const installed = wallet.isAvailable();
-            const i = WALLETS.indexOf(wallet);
-            const isConnecting = false;
-            const isSuccess = true;
-            const isError = false;
 
             return (
               <motion.div
@@ -144,18 +183,7 @@ export function WalletConnectModal() {
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="flex flex-col items-center justify-center py-8 gap-4"
               >
-                <motion.div
-                  key={wallet.id}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  className={cn(
-                    "relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-all",
-                    isConnecting && "border-primary/30 bg-kora-muted",
-                    isSuccess && "border-green-500/40 bg-green-500/5",
-                    isError && "border-destructive/40 bg-destructive/5"
-                  )}
-                >
+                <div className="flex w-full items-center gap-3 rounded-xl border border-green-500/40 bg-green-500/5 p-3.5">
                   {(() => {
                     const svg = getWalletIconSvg(wallet.id);
                     if (svg) {
@@ -178,95 +206,14 @@ export function WalletConnectModal() {
                     );
                   })()}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-foreground">
-                        {wallet.name}
-                      </span>
-                      {wallet.popular && (
-                        <span className="rounded bg-kora-muted px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                          {t("popular")}
-                        </span>
-                      )}
-                      {!installed && (
-                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                          {t("notInstalled")}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {wallet.description}
-                    </p>
-                    <AnimatePresence>
-                      {isError && (
-                        <motion.p
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="mt-1 text-xs text-destructive"
-                        >
-                          {errorMsg}
-                        </motion.p>
-                      )}
-                    </AnimatePresence>
+                    <span className="text-sm font-medium text-foreground">{wallet.name}</span>
                   </div>
-
-                  <div className="shrink-0 flex items-center gap-1.5">
-                    {isConnecting && (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    )}
-                    {isSuccess && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ type: "spring", stiffness: 300 }}
-                      >
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      </motion.div>
-                    )}
-                    {isError && (
-                      <button
-                        type="button"
-                        onClick={handleRetry}
-                        className="flex items-center gap-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive hover:bg-destructive/20"
-                      >
-                        <AlertCircle className="h-3 w-3" /> {t("retry")}
-                      </button>
-                    )}
-                    {!isConnecting && !isSuccess && !isError &&
-                      (installed ? (
-                        <button
-                          ref={i === 0 ? firstFocusRef : undefined}
-                          type="button"
-                          onClick={() => handleConnect(wallet.id)}
-                          disabled={isConnecting}
-                          aria-label={`Connect ${wallet.name}`}
-                          className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Connect <ChevronRight className="h-3 w-3" />
-                        </button>
-                      ) : (
-                        <a
-                          href={safeExternalUrl(wallet.installUrl)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={`Install ${wallet.name} extension`}
-                          className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          {t("install")} <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ))}
-                  </div>
-
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
-                  className="text-center"
-                >
-                  <p className="font-medium text-foreground">Wallet Connected!</p>
-                  <p className="text-sm text-muted-foreground mt-1">Redirecting…</p>
-                </motion.div>
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                </div>
+                <div className="text-center">
+                  <p className="font-medium text-foreground">{t("walletConnected")}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{t("redirecting")}</p>
+                </div>
               </motion.div>
             );
           })() : (
@@ -280,8 +227,8 @@ export function WalletConnectModal() {
               {WALLETS.map((wallet, i) => {
                 const installed = wallet.isAvailable();
                 const isActive = activeWallet === wallet.id;
-                const isConnecting = isActive && walletState === "connecting";
-                const isError = isActive && walletState === "error";
+                const isConnectingItem = isActive && walletState === "connecting";
+                const isErrorItem = isActive && walletState === "error";
 
                 return (
                   <motion.div
@@ -292,8 +239,8 @@ export function WalletConnectModal() {
                     className={cn(
                       "relative flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3.5",
                       "transition-all",
-                      isConnecting && "border-primary/30 bg-kora-muted",
-                      isError && "border-destructive/40 bg-destructive/5",
+                      isConnectingItem && "border-primary/30 bg-kora-muted",
+                      isErrorItem && "border-destructive/40 bg-destructive/5",
                     )}
                   >
                     {(() => {
@@ -325,15 +272,21 @@ export function WalletConnectModal() {
                             {t("popular")}
                           </span>
                         )}
-                        {!installed && (
+                        {!installed && !isMobile && (
                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {t("notInstalled")}
+                          </span>
+                        )}
+                        {isMobile && !installed && wallet.deepLink && (
+                          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                            <Smartphone className="inline h-2.5 w-2.5 mr-0.5" aria-hidden="true" />
+                            {t("mobileApp")}
                           </span>
                         )}
                       </div>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{wallet.description}</p>
                       <AnimatePresence>
-                        {isError && (
+                        {isErrorItem && (
                           <motion.p
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: "auto" }}
@@ -347,7 +300,7 @@ export function WalletConnectModal() {
                     </div>
 
                     <div className="shrink-0 flex items-center gap-1.5">
-                      {isConnecting && (
+                      {isConnectingItem && (
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -355,7 +308,7 @@ export function WalletConnectModal() {
                           <Loader2 className="h-4 w-4 text-primary" aria-hidden="true" />
                         </motion.div>
                       )}
-                      {isError && (
+                      {isErrorItem && (
                         <button
                           type="button"
                           onClick={handleRetry}
@@ -364,7 +317,7 @@ export function WalletConnectModal() {
                           <AlertCircle className="h-3 w-3" aria-hidden="true" /> {t("retry")}
                         </button>
                       )}
-                      {!isConnecting && !isError && (
+                      {!isConnectingItem && !isErrorItem && (
                         installed ? (
                           <button
                             ref={i === 0 ? firstFocusRef : undefined}
@@ -375,6 +328,18 @@ export function WalletConnectModal() {
                             className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                           >
                             Connect <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                          </button>
+                        ) : isMobile && wallet.deepLink ? (
+                          <button
+                            ref={i === 0 ? firstFocusRef : undefined}
+                            type="button"
+                            onClick={() => handleDeepLink(wallet.id)}
+                            disabled={walletState === "connecting"}
+                            aria-label={`Open ${wallet.name} mobile app`}
+                            className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                          >
+                            <Smartphone className="h-3 w-3" aria-hidden="true" />
+                            {t("openInApp")} <ExternalLink className="h-3 w-3" aria-hidden="true" />
                           </button>
                         ) : (
                           <a
@@ -392,6 +357,19 @@ export function WalletConnectModal() {
                   </motion.div>
                 );
               })}
+
+              {waitingForDeepLink && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  {t("deepLinkWaiting")}
+                </motion.div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
