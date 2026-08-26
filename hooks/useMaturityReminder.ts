@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { useToast } from "@/hooks/useToast";
 import { useSettingsStore } from "@/store/settingsStore";
+import { exportInvoiceCalendarIcs } from "@/lib/export";
 import type { Invoice } from "@/types";
 
 const REMINDER_STORAGE_KEY = "kora-maturity-reminders";
@@ -35,6 +36,10 @@ export function useMaturityReminder(invoices: Invoice[]) {
   const { notifications } = useSettingsStore();
   const toast = useToast();
 
+  const downloadCalendarForInvoice = useCallback((invoice: Invoice) => {
+    exportInvoiceCalendarIcs(invoice);
+  }, []);
+
   useEffect(() => {
     if (!notifications.maturityReminder || invoices.length === 0) return;
 
@@ -54,4 +59,7 @@ export function useMaturityReminder(invoices: Invoice[]) {
       markReminderShown(reminderKey);
     });
   }, [invoices, notifications.maturityReminder, notifications.maturityReminderDays, toast]);
+
+  return { downloadCalendarForInvoice };
 }
+

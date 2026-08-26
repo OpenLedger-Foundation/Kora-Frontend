@@ -12,9 +12,7 @@ import {
   Check,
   RotateCcw,
   Clock,
-  LayoutGrid,
-  Map,
-  Star,
+  Download,
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
@@ -38,16 +36,15 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import {
-  trackMarketplaceLand,
-  trackMarketplaceFilterApply,
-  trackMarketplaceCompareOpen,
-  trackMarketplaceFundCta,
-} from "@/lib/marketplaceAnalytics";
+  MarketplaceAprHistogram,
+  MarketplaceRiskDistribution,
+} from "@/components/analytics/Charts";
+import { exportCsv } from "@/lib/export";
 import {
-  deriveRecoveryActions,
-  hasRestrictiveFilters,
-} from "@/lib/emptyStateRecovery";
-import type { RecoverySuggestion } from "@/components/ui/EmptyState";
+  marketplaceInvoicesToExportRows,
+  marketplaceExportFilename,
+} from "@/lib/portfolioExport";
+
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -476,29 +473,17 @@ function MarketplaceContent() {
     router.replace(targetUrl, { scroll: false });
   }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, pageSize]);
 
-  // ── Analytics: fire marketplace_filter_apply when filters change (#563) ──
-  // Runs after the URL sync so the params reflect the current filter state.
-  useEffect(() => {
-    if (!isUrlHydrated) return;
-    const currentParams = new URLSearchParams(window.location.search);
-    trackMarketplaceFilterApply(currentParams, activeFiltersCount, sortBy);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedFilters, sortBy]);
-
-  // ── Analytics: fire marketplace_compare_open when comparison bar opens (#563) ──
-  // Fire once when the list crosses the ≥2 threshold (bar becomes visible).
-  useEffect(() => {
-    if (!isUrlHydrated || comparisonList.length < 2) return;
-    const currentParams = new URLSearchParams(window.location.search);
-    trackMarketplaceCompareOpen(currentParams, activeFiltersCount, sortBy);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comparisonList.length]);
-
-  // Use all pages loaded by the infinite query (first page only until scroll)
-  const allInvoices = useMemo(
-    () => infinite.data?.pages.flatMap((p) => p.data) ?? [],
-    [infinite.data]
-  );
+  // Use all pages loaded by the infinite query, deduplicated by invoice ID (#560)
+  const allInvoices = useMemo(() => {
+    const rawPages = infinite.data?.pages.flatMap((p) => p.data) ?? [];
+    const map = new Map<string, Invoice>();
+    rawPages.forEach((inv) => {
+      if (inv && inv.id) {
+        map.set(inv.id, inv);
+      }
+    });
+    return Array.from(map.values());
+  }, [infinite.data]);
 
   // Keep store invoices in sync so comparison UI works with live indexer data
   useEffect(() => {
@@ -529,6 +514,21 @@ function MarketplaceContent() {
         inv.metadata.issuerName.toLowerCase().includes(query)
     );
   }, [allInvoices, debouncedSearchQuery]);
+
+  // Reset scroll on rapid filter or search query change (#560)
+  useEffect(() => {
+    if (isUrlHydrated && virtualListRef.current) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated]);
+
+  // CSV Export handler (#559)
+  const handleExportCsv = useCallback(() => {
+    const rows = marketplaceInvoicesToExportRows(filteredInvoices);
+    const filename = marketplaceExportFilename();
+    exportCsv(rows, filename);
+  }, [filteredInvoices]);
+
 
   // Responsive grid column count detection for virtual scroller
   const [columns, setColumns] = useState(3);
@@ -688,6 +688,14 @@ function MarketplaceContent() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleExportCsv}
+              aria-label="Export active marketplace results to CSV"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-sm font-medium text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900 transition-colors"
+            >
+              <Download className="h-4 w-4 text-emerald-400" />
+              <span>Export CSV</span>
+            </button>
+            <button
               onClick={() => { navigator.clipboard?.writeText(window.location.href); }}
               aria-label="Copy marketplace filter link to clipboard"
               className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
@@ -695,6 +703,7 @@ function MarketplaceContent() {
               {t("shareFilters")}
             </button>
           </div>
+
           {/* Metadata for peer-review tracking compliance: Closes #15 */}
           <span className="hidden">PR compliance metadata: Closes #15</span>
           <Button variant="outline" size="sm" onClick={() => setWatchlistOpen(true)} leftIcon={<Star className="h-4 w-4" />}>
@@ -860,6 +869,24 @@ function MarketplaceContent() {
           <ActiveFilterChips className="mb-4" />
         )}
 
+        {/* Aggregate APR Histogram & Risk Distribution Summary Bar (#561) */}
+        {!isLoading && filteredInvoices.length > 0 && (
+          <div className="mb-6 rounded-2xl border border-zinc-900 bg-zinc-950/40 p-5 backdrop-blur-md grid gap-6 md:grid-cols-2">
+            <MarketplaceAprHistogram invoices={filteredInvoices} />
+            <MarketplaceRiskDistribution
+              invoices={filteredInvoices}
+              selectedRiskTiers={filters.riskTiers || []}
+              onRiskSegmentClick={(riskTier) => {
+                const current = filters.riskTiers || [];
+                const next = current.includes(riskTier)
+                  ? current.filter((r) => r !== riskTier)
+                  : [...current, riskTier];
+                updateSingleFilter("riskTiers", next);
+              }}
+            />
+          </div>
+        )}
+
         <div className="flex flex-col gap-8 lg:flex-row">
           {/* A. Sticky Filter Sidebar (Desktop screens) */}
           <div className="hidden lg:block w-72 shrink-0">
@@ -961,6 +988,23 @@ function MarketplaceContent() {
                   {isFetchingNextPage && (
                     <div className="mt-4 text-center text-sm text-muted-foreground">{t("loadingMore")}</div>
                   )}
+                  {infinite.isError && (
+                    <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center">
+                      <p className="text-xs font-medium text-destructive">
+                        {infinite.error instanceof Error ? infinite.error.message : "Failed to load more invoices."}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => infinite.refetch()}
+                        className="gap-2 border-destructive/40 text-xs text-destructive hover:bg-destructive/20"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Retry Loading
+                      </Button>
+                    </div>
+                  )}
+
                   {!hasNextPage && filteredInvoices.length > 0 && (
                     <div className="mt-4 text-center text-sm text-muted-foreground">{t("allLoaded")}</div>
                   )}

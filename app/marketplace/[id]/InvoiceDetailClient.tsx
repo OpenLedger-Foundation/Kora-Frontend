@@ -68,8 +68,8 @@ import {
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
-import { InvoiceAmendmentForm } from "@/components/invoice/InvoiceAmendmentForm";
-import { canAmend } from "@/lib/invoiceStateMachine";
+import { exportInvoiceCalendarIcs } from "@/lib/export";
+
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
@@ -409,6 +409,16 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                       <RiskBadge tier={riskTier} />
                       <div className="flex items-center gap-2">
                         <InvoiceStatusBadge status={status} />
+                        <button
+                          type="button"
+                          onClick={() => exportInvoiceCalendarIcs(invoice)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800 hover:text-white transition-colors"
+                          title="Add maturity date to calendar (.ics)"
+                          aria-label="Add maturity date to calendar"
+                        >
+                          <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+                          <span>Add to Calendar</span>
+                        </button>
                         <ShareInvoiceButton
                           id={invoice.tokenId || id}
                           tokenId={invoice.tokenId}
@@ -421,6 +431,7 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                           </span>
                         )}
                       </div>
+
                     </div>
                   </div>
                 </CardHeader>
