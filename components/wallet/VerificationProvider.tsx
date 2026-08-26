@@ -19,21 +19,47 @@ interface VerificationContextType {
 
 const VerificationContext = createContext<VerificationContextType | null>(null);
 
+/**
+ * Detects whether an error message indicates a replay or skew condition
+ * that should trigger a fresh challenge request rather than a retry.
+ */
+function isReplayOrSkewError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("already used") ||
+    lower.includes("nonce not found") ||
+    lower.includes("challenge expired") ||
+    lower.includes("skew")
+  );
+}
+
 export function VerificationProvider({ children }: { children: ReactNode }) {
   const wallet = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionType, setActionType] = useState<string>("");
-  const [challengeMessage, setChallengeMessage] = useState<string | undefined>(undefined);
+  const [challengeMessage, setChallengeMessage] = useState<string | undefined>(
+    undefined
+  );
   const [verificationPromise, setVerificationPromise] = useState<{
     resolve: () => void;
     reject: (reason: Error) => void;
   } | null>(null);
 
+  const fetchFreshChallenge = useCallback(async (): Promise<string | null> => {
+    try {
+      const challenge = await wallet.requestChallenge();
+      setChallengeMessage(challenge);
+      return challenge;
+    } catch {
+      setChallengeMessage(undefined);
+      return null;
+    }
+  }, [wallet]);
+
   const requireVerification = useCallback(
     async (type: string): Promise<void> => {
-      // Skip if already verified within the current session
       if (wallet.checkVerification()) {
         return;
       }
@@ -41,22 +67,14 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
       setActionType(type);
       setError(null);
 
-      // Pre-fetch the challenge so we can show the message to the user before they sign
-      let prefetchedChallenge: string | undefined;
-      try {
-        prefetchedChallenge = await wallet.requestChallenge();
-        setChallengeMessage(prefetchedChallenge);
-      } catch {
-        // Non-fatal: modal will just not show the message preview
-        setChallengeMessage(undefined);
-      }
+      const prefetchedChallenge = await fetchFreshChallenge();
 
       return new Promise((resolve, reject) => {
         setVerificationPromise({ resolve, reject });
         setIsOpen(true);
       });
     },
-    [wallet]
+    [wallet, fetchFreshChallenge]
   );
 
   const handleVerify = useCallback(async () => {
@@ -71,13 +89,24 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
       setVerificationPromise(null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Verification failed. Please try again.";
-      setError(message);
-      // Don't reject the promise on error — let the user retry
+        err instanceof Error
+          ? err.message
+          : "Verification failed. Please try again.";
+
+      if (isReplayOrSkewError(message)) {
+        setError(null);
+        setChallengeMessage(undefined);
+        const freshChallenge = await fetchFreshChallenge();
+        if (!freshChallenge) {
+          setError("Failed to refresh challenge. Please try again.");
+        }
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [wallet, verificationPromise]);
+  }, [wallet, verificationPromise, fetchFreshChallenge]);
 
   const handleCancel = useCallback(() => {
     setIsOpen(false);
@@ -86,7 +115,6 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
     setVerificationPromise(null);
   }, [verificationPromise]);
 
-  // Clear if wallet disconnects while modal is open
   useEffect(() => {
     if (!wallet.isConnected && isOpen) {
       handleCancel();
@@ -118,7 +146,9 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
 export function useVerification() {
   const context = useContext(VerificationContext);
   if (!context) {
-    throw new Error("useVerification must be used within VerificationProvider");
+    throw new Error(
+      "useVerification must be used within VerificationProvider"
+    );
   }
   return context;
 }
