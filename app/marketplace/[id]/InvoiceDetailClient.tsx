@@ -69,6 +69,7 @@ import {
 } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
@@ -366,12 +367,13 @@ Stellar Testnet Transaction Hash: ${txHash}`);
       {/* JSON-LD is rendered server-side in page.tsx for crawler-friendly SEO */}
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
-          <Link
-            href="/marketplace"
-            className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300"
-          >
-            <ArrowLeft className="h-4 w-4" /> {t("backToMarketplace")}
-          </Link>
+          <Breadcrumb
+            items={[
+              { label: "Home", href: "/" },
+              { label: "Marketplace", href: "/marketplace" },
+              { label: metadata.invoiceNumber },
+            ]}
+          />
           <PrintButton label="Print / Save PDF" />{" "}
         </div>
 
