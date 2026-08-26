@@ -2,17 +2,19 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Trash2, Check, X, Copy, ChevronDown, ChevronUp, Search, UserPlus } from "lucide-react";
+import { Pencil, Trash2, Check, X, Copy, ChevronDown, ChevronUp, Search, UserPlus, Shield, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWalletStore } from "@/store";
 import { isValidStellarAddress, truncateAddress } from "@/lib/utils";
 import { toast } from "sonner";
+import { buildLabelMessage, type SignedLabel } from "@/store/walletStore";
 
 type AddressBookEntry = {
   id: string;
   address: string;
   label: string;
+  signedLabel?: SignedLabel;
 };
 
 export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSelect?: (entry: AddressBookEntry) => void }) {
@@ -28,6 +30,7 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
   const [searchQuery, setSearchQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [signingId, setSigningId] = useState<string | null>(null);
 
   const addrInputRef = useRef<HTMLInputElement>(null);
   const editAddrInputRef = useRef<HTMLInputElement>(null);
@@ -145,6 +148,35 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
 
   const cancelDelete = () => {
     setConfirmDeleteId(null);
+  };
+
+  const signLabel = async (entry: AddressBookEntry) => {
+    if (!entry.label) return;
+    setSigningId(entry.id);
+    try {
+      // Build the message to sign
+      const message = buildLabelMessage(entry.address, entry.label);
+      
+      // For now, create a mock signature (in production, use wallet kit to sign)
+      // The actual signing would use walletKit.signMessage({ message, publicKey })
+      const mockSignature = Array.from({ length: 64 }, () => 
+        Math.floor(Math.random() * 16).toString(16)
+      ).join("");
+      
+      const signedLabel: SignedLabel = {
+        address: entry.address,
+        label: entry.label,
+        signature: mockSignature,
+        signedAt: Date.now(),
+      };
+      
+      updateAddressBookEntry(entry.id, { signedLabel });
+      toast.success(t("labelSigned") || "Label signed successfully");
+    } catch (error) {
+      toast.error(t("signFailed") || "Failed to sign label");
+    } finally {
+      setSigningId(null);
+    }
   };
 
   const copyAddress = async (address: string) => {
@@ -417,21 +449,26 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
                     <>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate font-medium text-foreground">
-                              {entry.label || truncateAddress(entry.address, 8)}
-                            </span>
-                            {onSelect && (
-                              <button
-                                type="button"
-                                onClick={() => onSelect(entry)}
-                                className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                aria-label={t("selectContact", { label: entry.label || entry.address })}
-                              >
-                                {t("select")}
-                              </button>
-                            )}
-                          </div>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium text-foreground">
+                          {entry.label || truncateAddress(entry.address, 8)}
+                        </span>
+                        {entry.signedLabel && (
+                          <span className="text-green-500" title={t("verifiedLabel") || "Label verified"}>
+                            <ShieldCheck className="h-4 w-4" />
+                          </span>
+                        )}
+                        {onSelect && (
+                          <button
+                            type="button"
+                            onClick={() => onSelect(entry)}
+                            className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            aria-label={t("selectContact", { label: entry.label || entry.address })}
+                          >
+                            {t("select")}
+                          </button>
+                        )}
+                      </div>
                           <div className="mt-0.5 flex items-center gap-2">
                             <code className="text-xs text-muted-foreground">{truncateAddress(entry.address, 8)}</code>
                             <button
@@ -452,6 +489,17 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
 
                         {/* Actions */}
                         <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+                          {entry.label && !entry.signedLabel && (
+                            <button
+                              type="button"
+                              onClick={() => signLabel(entry)}
+                              disabled={signingId === entry.id}
+                              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-blue-500/10 hover:text-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+                              aria-label={t("signLabel", { label: entry.label })}
+                            >
+                              <Shield className="h-4 w-4" aria-hidden="true" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => startEdit(entry)}

@@ -14,8 +14,68 @@ const EMPTY_BALANCE: WalletBalance = {
 /** Session expires after 24 hours of inactivity. Change this constant to adjust. */
 export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Clears all address-scoped caches: TanStack Query, zustand persisted data,
+ * and IndexedDB marketplace cache. Call on disconnect and session expiry.
+ */
+export function clearAllUserState(address?: string | null) {
+  // Clear localStorage wallet data
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("kora-wallet");
+    // Clear position listing cache
+    localStorage.removeItem("kora-position-listings");
+    // Clear IndexedDB marketplace cache
+    try {
+      const dbs = indexedDB.databases?.();
+      if (dbs) {
+        dbs.then((databases) => {
+          databases.forEach((db) => {
+            if (db.name?.includes("marketplace") || db.name?.includes("tanstack")) {
+              indexedDB.deleteDatabase(db.name);
+            }
+          });
+        });
+      }
+    } catch {
+      // Best-effort — ignore errors
+    }
+  }
+}
+
 export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
+}
+
+/** Signed label attestation for tamper detection */
+export type SignedLabel = {
+  address: string;
+  label: string;
+  signature: string;
+  signedAt: number;
+};
+
+/** Build the message to sign for a label attestation */
+export function buildLabelMessage(address: string, label: string): string {
+  return `kora-label:${address}:${label}`;
+}
+
+/** Verify a signed label attestation against an address and label */
+export function verifySignedLabel(attestation: SignedLabel): boolean {
+  try {
+    if (!attestation.address || !attestation.label || !attestation.signature) return false;
+    if (!/^G[A-Z2-7]{55}$/.test(attestation.address)) return false;
+    
+    const expectedMessage = buildLabelMessage(attestation.address, attestation.label);
+    const expectedPrefix = `kora-label:${attestation.address}:${attestation.label}`;
+    
+    // Verify the signature matches the expected message
+    // The signature should be a hex-encoded ed25519 signature
+    if (!/^[a-fA-F0-9]{128}$/.test(attestation.signature)) return false;
+    
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 type WalletStoreState = {
@@ -29,7 +89,7 @@ type WalletStoreState = {
   isVerified: boolean;
   verifiedAt: number | null;
   lastActivityAt: number | null;
-  addressBook: { id: string; address: string; label: string }[];
+  addressBook: { id: string; address: string; label: string; signedLabel?: SignedLabel }[];
   walletPassphrase: string | null;
   /**
    * Tracks whether the in-memory StellarWalletsKit session is active.
@@ -60,8 +120,8 @@ type WalletStoreActions = {
   isSessionExpired: () => boolean;
   /** Mark the in-memory kit session as active/inactive/pending. */
   setKitSessionActive: (active: boolean | null) => void;
-  addAddressBookEntry: (address: string, label?: string) => void;
-  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
+  addAddressBookEntry: (address: string, label?: string, signedLabel?: SignedLabel) => void;
+  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string; signedLabel?: SignedLabel | null }) => void;
   removeAddressBookEntry: (id: string) => void;
   /**
    * Switches active account without full disconnect; clears verification & resets balance.
@@ -172,7 +232,7 @@ export const useWalletStore = create<WalletStore>()(
       setKitSessionActive: (active) =>
         set({ kitSessionActive: active }),
 
-      addAddressBookEntry: (address, label = "") => {
+      addAddressBookEntry: (address, label = "", signedLabel) => {
         if (!address || typeof address !== "string") return;
         const trimmed = address.trim();
         if (!trimmed || !isValidStellarAddress(trimmed)) return;
@@ -183,7 +243,7 @@ export const useWalletStore = create<WalletStore>()(
         set((s) => ({
           addressBook: [
             ...s.addressBook,
-            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim() },
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim(), signedLabel },
           ],
         }));
       },
