@@ -18,6 +18,20 @@ export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
 
+export type AddressBookGroup = {
+  id: string;
+  name: string;
+  favorite: boolean;
+};
+
+export type AddressBookEntry = {
+  id: string;
+  address: string;
+  label: string;
+  groupIds: string[];
+  isFavorite: boolean;
+};
+
 type WalletStoreState = {
   status: "disconnected" | "connecting" | "connected";
   address: string | null;
@@ -29,7 +43,8 @@ type WalletStoreState = {
   isVerified: boolean;
   verifiedAt: number | null;
   lastActivityAt: number | null;
-  addressBook: { id: string; address: string; label: string }[];
+  addressBook: AddressBookEntry[];
+  addressBookGroups: AddressBookGroup[];
   walletPassphrase: string | null;
   /**
    * Tracks whether the in-memory StellarWalletsKit session is active.
@@ -60,9 +75,13 @@ type WalletStoreActions = {
   isSessionExpired: () => boolean;
   /** Mark the in-memory kit session as active/inactive/pending. */
   setKitSessionActive: (active: boolean | null) => void;
-  addAddressBookEntry: (address: string, label?: string) => void;
-  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
+  addAddressBookEntry: (address: string, label?: string, groupIds?: string[]) => void;
+  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string; groupIds?: string[] }) => void;
   removeAddressBookEntry: (id: string) => void;
+  toggleAddressBookFavorite: (id: string) => void;
+  addAddressBookGroup: (name: string) => void;
+  updateAddressBookGroup: (id: string, updates: { name?: string; favorite?: boolean }) => void;
+  removeAddressBookGroup: (id: string) => void;
   /**
    * Switches active account without full disconnect; clears verification & resets balance.
    */
@@ -87,6 +106,7 @@ export const useWalletStore = create<WalletStore>()(
       verifiedAt: null,
       lastActivityAt: null,
       addressBook: [],
+      addressBookGroups: [],
       walletPassphrase: null,
       kitSessionActive: false,
       kycStatus: "none",
@@ -172,7 +192,7 @@ export const useWalletStore = create<WalletStore>()(
       setKitSessionActive: (active) =>
         set({ kitSessionActive: active }),
 
-      addAddressBookEntry: (address, label = "") => {
+      addAddressBookEntry: (address, label = "", groupIds = []) => {
         if (!address || typeof address !== "string") return;
         const trimmed = address.trim();
         if (!trimmed || !isValidStellarAddress(trimmed)) return;
@@ -183,7 +203,7 @@ export const useWalletStore = create<WalletStore>()(
         set((s) => ({
           addressBook: [
             ...s.addressBook,
-            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim() },
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim(), groupIds, isFavorite: false },
           ],
         }));
       },
@@ -205,6 +225,45 @@ export const useWalletStore = create<WalletStore>()(
 
       removeAddressBookEntry: (id) =>
         set((s) => ({ addressBook: s.addressBook.filter((e) => e.id !== id) })),
+
+      toggleAddressBookFavorite: (id) =>
+        set((s) => ({
+          addressBook: s.addressBook.map((e) =>
+            e.id === id ? { ...e, isFavorite: !e.isFavorite } : e
+          ),
+        })),
+
+      addAddressBookGroup: (name) => {
+        if (!name || typeof name !== "string") return;
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const existing = get().addressBookGroups.find(
+          (g) => g.name.toLowerCase() === trimmed.toLowerCase()
+        );
+        if (existing) return;
+        set((s) => ({
+          addressBookGroups: [
+            ...s.addressBookGroups,
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), name: trimmed, favorite: false },
+          ],
+        }));
+      },
+
+      updateAddressBookGroup: (id, updates) =>
+        set((s) => ({
+          addressBookGroups: s.addressBookGroups.map((g) =>
+            g.id === id ? { ...g, ...updates, name: updates.name?.trim() ?? g.name } : g
+          ),
+        })),
+
+      removeAddressBookGroup: (id) =>
+        set((s) => ({
+          addressBookGroups: s.addressBookGroups.filter((g) => g.id !== id),
+          addressBook: s.addressBook.map((e) => ({
+            ...e,
+            groupIds: e.groupIds.filter((gid) => gid !== id),
+          })),
+        })),
         
       setNetwork: (network, walletPassphrase) =>
         set((s) => ({
@@ -225,6 +284,7 @@ export const useWalletStore = create<WalletStore>()(
         verifiedAt: s.verifiedAt,
         lastActivityAt: s.lastActivityAt,
         addressBook: s.addressBook,
+        addressBookGroups: s.addressBookGroups,
         walletPassphrase: s.walletPassphrase,
         kycStatus: s.kycStatus,
       }),

@@ -714,7 +714,14 @@
     "footerHint": "Contacts are saved locally in your browser.",
     "pickContact": "Pick a saved contact",
     "noContacts": "No saved contacts yet",
-    "pickFromAddressBook": "Pick from Address Book"
+    "pickFromAddressBook": "Pick from Address Book",
+    "all": "All",
+    "addFavorite": "Add to favorites",
+    "removeFavorite": "Remove from favorites",
+    "manageGroups": "Manage Groups",
+    "hideGroups": "Hide Groups",
+    "addGroup": "Add Group",
+    "groupNamePlaceholder": "Group name…"
   },
   "installPrompt": {
     "ariaLabel": "Install Kora Protocol app",

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Search, User, X, ChevronDown } from "lucide-react";
+import { Search, User, X, ChevronDown, Star } from "lucide-react";
 import { useWalletStore } from "@/store";
 import { truncateAddress } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,8 @@ type AddressBookEntry = {
   id: string;
   address: string;
   label: string;
+  groupIds: string[];
+  isFavorite: boolean;
 };
 
 type Props = {
@@ -24,6 +26,8 @@ type Props = {
   buttonLabel?: string;
   /** HTML input name attribute */
   name?: string;
+  /** Optional group ID to filter by */
+  filterGroupId?: string;
 };
 
 export function AddressBookPicker({
@@ -32,23 +36,34 @@ export function AddressBookPicker({
   className,
   buttonLabel,
   name,
+  filterGroupId,
 }: Props) {
   const t = useTranslations("addressBook");
   const addressBook = useWalletStore((s) => s.addressBook);
+  const addressBookGroups = useWalletStore((s) => s.addressBookGroups);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  const [activeGroupFilter, setActiveGroupFilter] = useState<string | null>(filterGroupId ?? null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   const filtered = addressBook.filter((e) => {
+    if (activeGroupFilter && !e.groupIds.includes(activeGroupFilter)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
       e.address.toLowerCase().includes(q) ||
       e.label.toLowerCase().includes(q)
     );
+  });
+
+  // Sort: favorites first
+  const sorted = [...filtered].sort((a, b) => {
+    if (a.isFavorite && !b.isFavorite) return -1;
+    if (!a.isFavorite && b.isFavorite) return 1;
+    return 0;
   });
 
   // Close on outside click
@@ -100,19 +115,19 @@ export function AddressBookPicker({
       case "ArrowDown":
         e.preventDefault();
         setHighlightIndex((prev) =>
-          prev < filtered.length - 1 ? prev + 1 : 0,
+          prev < sorted.length - 1 ? prev + 1 : 0,
         );
         break;
       case "ArrowUp":
         e.preventDefault();
         setHighlightIndex((prev) =>
-          prev > 0 ? prev - 1 : filtered.length - 1,
+          prev > 0 ? prev - 1 : sorted.length - 1,
         );
         break;
       case "Enter":
         e.preventDefault();
-        if (highlightIndex >= 0 && highlightIndex < filtered.length) {
-          handleSelect(filtered[highlightIndex]);
+        if (highlightIndex >= 0 && highlightIndex < sorted.length) {
+          handleSelect(sorted[highlightIndex]);
         }
         break;
       case "Escape":
@@ -188,6 +203,39 @@ export function AddressBookPicker({
             )}
           </div>
 
+          {/* Group filter tabs */}
+          {addressBookGroups.length > 0 && (
+            <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-3 py-1.5">
+              <button
+                type="button"
+                onClick={() => setActiveGroupFilter(null)}
+                className={cn(
+                  "shrink-0 rounded px-2 py-0.5 text-xs transition-colors",
+                  activeGroupFilter === null
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {t("all")}
+              </button>
+              {addressBookGroups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => setActiveGroupFilter(activeGroupFilter === group.id ? null : group.id)}
+                  className={cn(
+                    "shrink-0 rounded px-2 py-0.5 text-xs transition-colors",
+                    activeGroupFilter === group.id
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {group.name}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* List */}
           <ul
             ref={listRef}
@@ -195,12 +243,12 @@ export function AddressBookPicker({
             aria-label={t("savedContacts")}
             className="max-h-48 overflow-y-auto py-1"
           >
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
               <li className="px-3 py-3 text-center text-sm text-muted-foreground">
                 {search ? t("noSearchResults") : t("noSaved")}
               </li>
             ) : (
-              filtered.map((entry, index) => (
+              sorted.map((entry, index) => (
                 <li
                   key={entry.id}
                   role="option"
@@ -218,8 +266,13 @@ export function AddressBookPicker({
                     <User className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                   </div>
                   <div className="min-w-0 flex-1 text-left">
-                    <div className="truncate font-medium">
-                      {entry.label || truncateAddress(entry.address, 6)}
+                    <div className="flex items-center gap-1.5">
+                      {entry.isFavorite && (
+                        <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" aria-hidden="true" />
+                      )}
+                      <span className="truncate font-medium">
+                        {entry.label || truncateAddress(entry.address, 6)}
+                      </span>
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
                       {truncateAddress(entry.address, 8)}

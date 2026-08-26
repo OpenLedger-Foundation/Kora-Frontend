@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { Pencil, Trash2, Check, X, Copy, ChevronDown, ChevronUp, Search, UserPlus } from "lucide-react";
+import { Pencil, Trash2, Check, X, Copy, ChevronDown, ChevronUp, Search, UserPlus, Star, StarOff, FolderPlus, FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWalletStore } from "@/store";
@@ -13,21 +13,36 @@ type AddressBookEntry = {
   id: string;
   address: string;
   label: string;
+  groupIds: string[];
+  isFavorite: boolean;
+};
+
+type AddressBookGroup = {
+  id: string;
+  name: string;
+  favorite: boolean;
 };
 
 export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSelect?: (entry: AddressBookEntry) => void }) {
   const t = useTranslations("addressBook");
-  const { addressBook, addAddressBookEntry, updateAddressBookEntry, removeAddressBookEntry } = useWalletStore();
+  const { addressBook, addressBookGroups, addAddressBookEntry, updateAddressBookEntry, removeAddressBookEntry, toggleAddressBookFavorite, addAddressBookGroup, updateAddressBookGroup, removeAddressBookGroup } = useWalletStore();
   const [addr, setAddr] = useState("");
   const [label, setLabel] = useState("");
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editAddr, setEditAddr] = useState("");
   const [editLabel, setEditLabel] = useState("");
+  const [editGroups, setEditGroups] = useState<string[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expanded, setExpanded] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [filterGroup, setFilterGroup] = useState<string | null>(null);
+  const [showGroupManager, setShowGroupManager] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editGroupName, setEditGroupName] = useState("");
 
   const addrInputRef = useRef<HTMLInputElement>(null);
   const editAddrInputRef = useRef<HTMLInputElement>(null);
@@ -40,14 +55,22 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
     }
   }, [editingId]);
 
-  // Filter entries by search query
+  // Filter entries by search query and group
   const filteredEntries = addressBook.filter((e) => {
+    if (filterGroup && !e.groupIds.includes(filterGroup)) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
       e.address.toLowerCase().includes(q) ||
       e.label.toLowerCase().includes(q)
     );
+  });
+
+  // Sort: favorites first
+  const sortedEntries = [...filteredEntries].sort((a, b) => {
+    if (a.isFavorite && !b.isFavorite) return -1;
+    if (!a.isFavorite && b.isFavorite) return 1;
+    return 0;
   });
 
   const validateAddress = useCallback((address: string): string | null => {
@@ -89,9 +112,10 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
       setError(validationError);
       return;
     }
-    addAddressBookEntry(addr, label);
+    addAddressBookEntry(addr, label, selectedGroups);
     setAddr("");
     setLabel("");
+    setSelectedGroups([]);
     setError(null);
     addrInputRef.current?.focus();
   };
@@ -100,6 +124,7 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
     setEditingId(entry.id);
     setEditAddr(entry.address);
     setEditLabel(entry.label);
+    setEditGroups(entry.groupIds || []);
     setEditError(null);
   };
 
@@ -107,6 +132,7 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
     setEditingId(null);
     setEditAddr("");
     setEditLabel("");
+    setEditGroups([]);
     setEditError(null);
   };
 
@@ -117,10 +143,11 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
       setEditError(validationError);
       return;
     }
-    updateAddressBookEntry(editingId, { address: editAddr, label: editLabel });
+    updateAddressBookEntry(editingId, { address: editAddr, label: editLabel, groupIds: editGroups });
     setEditingId(null);
     setEditAddr("");
     setEditLabel("");
+    setEditGroups([]);
     setEditError(null);
   };
 
@@ -145,6 +172,29 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
 
   const cancelDelete = () => {
     setConfirmDeleteId(null);
+  };
+
+  const handleAddGroup = () => {
+    if (!newGroupName.trim()) return;
+    addAddressBookGroup(newGroupName);
+    setNewGroupName("");
+  };
+
+  const handleDeleteGroup = (id: string) => {
+    removeAddressBookGroup(id);
+    if (filterGroup === id) setFilterGroup(null);
+  };
+
+  const toggleGroupInEntry = (groupId: string, isEdit = false) => {
+    if (isEdit) {
+      setEditGroups((prev) =>
+        prev.includes(groupId) ? prev.filter((g) => g !== groupId) : [...prev, groupId]
+      );
+    } else {
+      setSelectedGroups((prev) =>
+        prev.includes(groupId) ? prev.filter((g) => g !== groupId) : [...prev, groupId]
+      );
+    }
   };
 
   const copyAddress = async (address: string) => {
@@ -185,7 +235,7 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [confirmDeleteId]);
 
-  const displayedCount = filteredEntries.length;
+  const displayedCount = sortedEntries.length;
   const totalCount = addressBook.length;
 
   return (
@@ -225,6 +275,95 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
 
         {/* Body */}
         <div className="px-6 py-4">
+          {/* Group Manager Toggle */}
+          {addressBookGroups.length > 0 && (
+            <div className="mb-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowGroupManager(!showGroupManager)}
+                className="flex items-center gap-1.5 rounded-md border border-border bg-muted/30 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{showGroupManager ? t("hideGroups") : t("manageGroups")}</span>
+              </button>
+            </div>
+          )}
+
+          {/* Group Manager */}
+          {showGroupManager && (
+            <div className="mb-4 rounded-lg border border-border bg-muted/20 p-3">
+              <div className="mb-2 flex items-center gap-2">
+                <Input
+                  placeholder={t("groupNamePlaceholder")}
+                  value={newGroupName}
+                  onChange={(e) => setNewGroupName(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddGroup()}
+                  className="flex-1"
+                />
+                <Button size="sm" onClick={handleAddGroup} disabled={!newGroupName.trim()}>
+                  {t("addGroup")}
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {addressBookGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                  >
+                    {editingGroupId === group.id ? (
+                      <>
+                        <Input
+                          value={editGroupName}
+                          onChange={(e) => setEditGroupName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              updateAddressBookGroup(group.id, { name: editGroupName });
+                              setEditingGroupId(null);
+                            }
+                            if (e.key === "Escape") setEditingGroupId(null);
+                          }}
+                          className="h-6 w-24 text-xs"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateAddressBookGroup(group.id, { name: editGroupName });
+                            setEditingGroupId(null);
+                          }}
+                          className="text-success hover:text-success/80"
+                        >
+                          <Check className="h-3 w-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span>{group.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingGroupId(group.id);
+                            setEditGroupName(group.name);
+                          }}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGroup(group.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Add new entry form */}
           <form
             onSubmit={(e) => { e.preventDefault(); add(); }}
@@ -270,7 +409,56 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
                 {t("addButton")}
               </Button>
             </div>
+            {addressBookGroups.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {addressBookGroups.map((group) => (
+                  <button
+                    key={group.id}
+                    type="button"
+                    onClick={() => toggleGroupInEntry(group.id)}
+                    className={`rounded-md px-2 py-0.5 text-xs transition-colors ${
+                      selectedGroups.includes(group.id)
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {group.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </form>
+
+          {/* Group filter tabs */}
+          {addressBookGroups.length > 0 && (
+            <div className="mt-3 flex items-center gap-1 overflow-x-auto">
+              <button
+                type="button"
+                onClick={() => setFilterGroup(null)}
+                className={`shrink-0 rounded-md px-2 py-1 text-xs transition-colors ${
+                  filterGroup === null
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {t("all")}
+              </button>
+              {addressBookGroups.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => setFilterGroup(filterGroup === group.id ? null : group.id)}
+                  className={`shrink-0 rounded-md px-2 py-1 text-xs transition-colors ${
+                    filterGroup === group.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  {group.name}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Search & expand controls */}
           {totalCount > 0 && (
@@ -320,12 +508,12 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
             role="list"
             aria-label={t("savedContacts")}
           >
-            {filteredEntries.length === 0 && (
+            {sortedEntries.length === 0 && (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 {searchQuery ? t("noSearchResults") : t("noSaved")}
               </p>
             )}
-            {filteredEntries.map((entry) => {
+            {sortedEntries.map((entry) => {
               const isEditing = editingId === entry.id;
               const isConfirmingDelete = confirmDeleteId === entry.id;
 
@@ -418,6 +606,18 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => toggleAddressBookFavorite(entry.id)}
+                              className="text-muted-foreground hover:text-yellow-500 transition-colors"
+                              aria-label={entry.isFavorite ? t("removeFavorite") : t("addFavorite")}
+                            >
+                              {entry.isFavorite ? (
+                                <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                              ) : (
+                                <StarOff className="h-4 w-4" />
+                              )}
+                            </button>
                             <span className="truncate font-medium text-foreground">
                               {entry.label || truncateAddress(entry.address, 8)}
                             </span>
@@ -446,6 +646,18 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
                           {expanded && (
                             <div className="mt-1">
                               <code className="text-xs text-muted-foreground/70 break-all">{entry.address}</code>
+                            </div>
+                          )}
+                          {entry.groupIds && entry.groupIds.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {entry.groupIds.map((gid) => {
+                                const group = addressBookGroups.find((g) => g.id === gid);
+                                return group ? (
+                                  <span key={gid} className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
+                                    {group.name}
+                                  </span>
+                                ) : null;
+                              })}
                             </div>
                           )}
                         </div>
