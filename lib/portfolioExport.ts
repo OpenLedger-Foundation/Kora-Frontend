@@ -174,3 +174,70 @@ export function portfolioPdfFilename(date: Date = new Date()): string {
   const dd = String(date.getUTCDate()).padStart(2, "0");
   return `kora-analytics-${yyyy}-${mm}-${dd}`;
 }
+
+export const MARKETPLACE_EXPORT_HEADERS = [
+  "Invoice ID",
+  "Debtor Name",
+  "Issuer Name",
+  "Amount",
+  "Currency",
+  "APR (%)",
+  "Risk Tier",
+  "Category",
+  "Jurisdiction",
+  "Status",
+  "Due Date",
+  "Repayment Date",
+] as const;
+
+export type MarketplaceExportHeader = (typeof MARKETPLACE_EXPORT_HEADERS)[number];
+export type MarketplaceExportRow = Record<MarketplaceExportHeader, string | number>;
+
+/** Convert active marketplace invoices into sanitized export rows. */
+export function marketplaceInvoicesToExportRows(
+  invoices: Array<{
+    id: string;
+    riskTier: string;
+    status: string;
+    metadata: {
+      invoiceNumber?: string;
+      debtorName?: string;
+      issuerName?: string;
+      amount: number;
+      currency: string;
+      category: string;
+      jurisdiction: string;
+      dueDate?: string;
+    };
+    terms: {
+      apr: number;
+      repaymentDate: string;
+    };
+  }>
+): MarketplaceExportRow[] {
+  return invoices.map((inv) => ({
+    "Invoice ID": inv.metadata.invoiceNumber || inv.id,
+    "Debtor Name": inv.metadata.debtorName || "Redacted",
+    "Issuer Name": inv.metadata.issuerName || "",
+    Amount: inv.metadata.amount,
+    Currency: inv.metadata.currency,
+    "APR (%)": inv.terms.apr,
+    "Risk Tier": inv.riskTier,
+    Category: inv.metadata.category,
+    Jurisdiction: inv.metadata.jurisdiction,
+    Status: inv.status,
+    "Due Date": inv.metadata.dueDate ? new Date(inv.metadata.dueDate).toISOString() : "",
+    "Repayment Date": inv.terms.repaymentDate
+      ? new Date(inv.terms.repaymentDate).toISOString()
+      : "",
+  }));
+}
+
+/** Build a dated marketplace CSV filename: `kora-marketplace-YYYY-MM-DD.csv`. */
+export function marketplaceExportFilename(date: Date = new Date()): string {
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return `kora-marketplace-${yyyy}-${mm}-${dd}.csv`;
+}
+
