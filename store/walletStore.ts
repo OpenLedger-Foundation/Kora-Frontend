@@ -89,6 +89,8 @@ type WalletStoreState = {
    */
   kitSessionActive: boolean | null;
   kycStatus: "none" | "pending" | "verified" | "rejected";
+  /** Read-only watch mode — pasted G-address without wallet signing. */
+  isWatchMode: boolean;
 };
 
 type WalletStoreActions = {
@@ -111,6 +113,10 @@ type WalletStoreActions = {
   addAddressBookGroup: (name: string) => void;
   updateAddressBookGroup: (id: string, updates: { name?: string; favorite?: boolean }) => void;
   removeAddressBookGroup: (id: string) => void;
+  /** Enter read-only watch mode for a given address (no wallet required). */
+  enterWatchMode: (address: string) => void;
+  /** Exit watch mode and fully disconnect. */
+  exitWatchMode: () => void;
   /**
    * Switches active account without full disconnect; clears verification & resets balance.
    */
@@ -139,6 +145,7 @@ export const useWalletStore = create<WalletStore>()(
       walletPassphrase: null,
       kitSessionActive: false,
       kycStatus: "none",
+      isWatchMode: false,
 
       connect: (provider, address, publicKey, walletPassphrase) =>
         set({
@@ -168,6 +175,7 @@ export const useWalletStore = create<WalletStore>()(
           lastActivityAt: null,
           walletPassphrase: null,
           kitSessionActive: false,
+          isWatchMode: false,
         }),
 
       switchAccount: (newAddress, newPublicKey) =>
@@ -180,6 +188,38 @@ export const useWalletStore = create<WalletStore>()(
           lastActivityAt: Date.now(),
           kitSessionActive: true,
         })),
+
+      enterWatchMode: (address) =>
+        set({
+          status: "connected",
+          address,
+          publicKey: null,
+          isConnected: true,
+          provider: null,
+          balance: EMPTY_BALANCE,
+          walletPassphrase: null,
+          lastActivityAt: Date.now(),
+          kitSessionActive: false,
+          isWatchMode: true,
+          isVerified: false,
+          verifiedAt: null,
+        }),
+
+      exitWatchMode: () =>
+        set({
+          status: "disconnected",
+          address: null,
+          publicKey: null,
+          isConnected: false,
+          provider: null,
+          balance: null,
+          isVerified: false,
+          verifiedAt: null,
+          lastActivityAt: null,
+          walletPassphrase: null,
+          kitSessionActive: false,
+          isWatchMode: false,
+        }),
 
       setBalance: (balance) =>
         set((state) => (state.status === "connected" ? { balance } : {})),

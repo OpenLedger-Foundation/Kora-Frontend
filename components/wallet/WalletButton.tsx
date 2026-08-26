@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw, UserCheck } from "lucide-react";
+import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw, UserCheck, Eye } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -35,7 +35,9 @@ export function WalletButton() {
     kitSessionActive,
     showReconnectPrompt,
     isReconnecting,
+    isWatchMode,
     disconnectWallet,
+    exitWatchMode,
     manualReconnect,
     fundWalletOnTestnet,
     refreshBalance,
@@ -207,7 +209,15 @@ export function WalletButton() {
 
           {address && (
             <div className="mb-3 space-y-1 rounded-lg bg-card p-3">
-              <p className="text-xs text-muted-foreground">{t("balances")}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">{t("balances")}</p>
+                {isWatchMode && (
+                  <span className="flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-xs text-blue-500">
+                    <Eye className="h-3 w-3" />
+                    Watch Only
+                  </span>
+                )}
+              </div>
               {balancesLoading && walletBalances.every((b) => b.rawAmount === 0) ? (
                 <div className="space-y-1.5 py-1">
                   <div className="h-4 w-20 rounded bg-muted animate-pulse" />
@@ -239,42 +249,57 @@ export function WalletButton() {
             >
               <ExternalLink className="h-3.5 w-3.5" /> {t("viewExplorer")}
             </a>
-            <button
-              type="button"
-              onClick={() => {
-                setSettingsOpen(true);
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <Bell className="h-3.5 w-3.5" /> {t("notificationSettings")}
-            </button>
-            {isTestnet && (
+            {isWatchMode ? (
               <button
                 type="button"
-                disabled={isFunding || hasNetworkMismatch}
-                onClick={handleFundTestnetAccount}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+                onClick={() => {
+                  exitWatchMode();
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-destructive hover:bg-destructive/10"
               >
-                {isFunding ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Coins className="h-3.5 w-3.5" />
-                )}
-                {isFunding ? t("funding") : t("fundTestnet")}
+                <LogOut className="h-3.5 w-3.5" /> Exit Watch Mode
               </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSettingsOpen(true);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <Bell className="h-3.5 w-3.5" /> {t("notificationSettings")}
+                </button>
+                {isTestnet && (
+                  <button
+                    type="button"
+                    disabled={isFunding || hasNetworkMismatch}
+                    onClick={handleFundTestnetAccount}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+                  >
+                    {isFunding ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Coins className="h-3.5 w-3.5" />
+                    )}
+                    {isFunding ? t("funding") : t("fundTestnet")}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    setWalletModalOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                  data-testid="switch-account-button"
+                >
+                  <UserCheck className="h-3.5 w-3.5" /> Switch Account
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setOpen(false);
-                setWalletModalOpen(true);
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-              data-testid="switch-account-button"
-            >
-              <UserCheck className="h-3.5 w-3.5" /> Switch Account
-            </button>
             <button
               type="button"
               onClick={() => setConfirmDisconnectOpen(true)}

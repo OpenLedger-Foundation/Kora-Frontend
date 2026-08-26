@@ -374,6 +374,35 @@ export function WalletConnectModal() {
           )}
         </AnimatePresence>
 
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="text-center">
+            <p className="mb-2 text-xs text-muted-foreground">Or browse in read-only mode</p>
+            <div className="flex items-center justify-center gap-2">
+              <input
+                type="text"
+                placeholder="Paste a G-address to watch..."
+                className="flex-1 rounded-md border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                id="watch-address-input"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.getElementById("watch-address-input") as HTMLInputElement;
+                  const addr = input?.value?.trim();
+                  if (addr && addr.startsWith("G") && addr.length === 56) {
+                    useWalletStore.getState().enterWatchMode(addr);
+                    setWalletModalOpen(false);
+                    input.value = "";
+                  }
+                }}
+                className="rounded-md bg-blue-500/10 px-3 py-1.5 text-xs text-blue-500 hover:bg-blue-500/20 transition-colors"
+              >
+                Watch
+              </button>
+            </div>
+          </div>
+        </div>
+
         <p className="mt-4 text-center text-xs text-muted-foreground">
           {t("termsPrefix")}{" "}
           <a href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
