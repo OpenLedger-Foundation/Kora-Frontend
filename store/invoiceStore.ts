@@ -27,6 +27,14 @@ export interface SortState {
   sortDir: "asc" | "desc";
 }
 
+export interface SavedMarketplacePreset {
+  id: string;
+  name: string;
+  filters: FilterState;
+  sort: SortState;
+  createdAt: string;
+}
+
 export type InvoiceCreateDraft = Partial<InvoiceDetailsStepSchema> & {
   currency?: "USDC" | "EURC" | "XLM";
   issueDate?: string;
@@ -49,6 +57,7 @@ export const DEFAULT_FILTERS: FilterState = {
 
 const DEFAULT_SORT: SortState = { sortBy: "apr", sortDir: "desc" };
 export const MAX_WATCHLIST_ITEMS = 50;
+export const MAX_SAVED_PRESETS = 20;
 
 export interface NotificationPreferences {
   fundingProgress: boolean;
@@ -232,6 +241,41 @@ export function fromQueryParams(params: URLSearchParams): {
   };
 }
 
+export function serializePresets(presets: SavedMarketplacePreset[]): string {
+  return JSON.stringify(presets);
+}
+
+export function hydratePresets(value: unknown): SavedMarketplacePreset[] {
+  let parsed: unknown = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.filter((preset): preset is SavedMarketplacePreset => {
+    if (!preset || typeof preset !== "object") return false;
+    const candidate = preset as SavedMarketplacePreset;
+    return (
+      typeof candidate.id === "string" &&
+      typeof candidate.name === "string" &&
+      typeof candidate.createdAt === "string" &&
+      !!candidate.filters &&
+      Array.isArray(candidate.filters.categories) &&
+      Array.isArray(candidate.filters.jurisdictions) &&
+      Array.isArray(candidate.filters.riskTiers) &&
+      Array.isArray(candidate.filters.aprRange) &&
+      typeof candidate.filters.activeOnly === "boolean" &&
+      !!candidate.sort &&
+      ["apr", "amount", "dueDate", "listed"].includes(candidate.sort.sortBy) &&
+      ["asc", "desc"].includes(candidate.sort.sortDir)
+    );
+  }).slice(0, MAX_SAVED_PRESETS);
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 const SEARCH_HISTORY_KEY = "kora-search-history";
@@ -264,6 +308,7 @@ interface InvoiceStore {
   createDraft: InvoiceCreateDraft;
   watchedInvoiceIds: string[];
   notificationPreferences: NotificationPreferences;
+  savedPresets: SavedMarketplacePreset[];
 
   /** IDs of invoices selected for side-by-side comparison (max 4) */
   comparisonList: string[];
@@ -277,6 +322,10 @@ interface InvoiceStore {
   resetFilters: () => void;
   setSort: (sort: Partial<SortState>) => void;
   setSortBy: (sortBy: string) => void;
+  savePreset: (name: string) => SavedMarketplacePreset | null;
+  renamePreset: (id: string, name: string) => void;
+  deletePreset: (id: string) => void;
+  loadPreset: (id: string) => boolean;
   setSearchQuery: (q: string) => void;
   clearSearchHistory: () => void;
   setSelectedInvoice: (invoice: Invoice | null) => void;
@@ -347,7 +396,7 @@ export const useInvoiceStore = create<InvoiceStore>()(
         set((s) => ({ filters: { ...s.filters, [key]: value } })),
 
       resetFilters: () =>
-        set({ filters: DEFAULT_FILTERS, searchQuery: "", sortBy: "apr_desc" }),
+        set({ filters: DEFAULT_FILTERS, searchQuery: "", sortBy: "apr_desc", sort: DEFAULT_SORT }),
 
       setSort: (sort) =>
         set((s) => ({ sort: { ...s.sort, ...sort }, sortBy: sort.sortBy ?? s.sort.sortBy })),

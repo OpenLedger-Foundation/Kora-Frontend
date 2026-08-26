@@ -316,6 +316,7 @@ function MarketplaceContent() {
   // Zustand Store
   const {
     filters,
+    sort,
     sortBy,
     searchQuery,
     searchHistory,
@@ -323,6 +324,11 @@ function MarketplaceContent() {
     updateSingleFilter,
     resetFilters,
     setSortBy,
+    savedPresets,
+    savePreset,
+    renamePreset,
+    deletePreset,
+    loadPreset,
     setSearchQuery,
     clearSearchHistory,
     setInvoices,
@@ -453,6 +459,12 @@ function MarketplaceContent() {
       setInvoices(allInvoices);
     }
   }, [allInvoices, setInvoices]);
+
+  const handleLoadPreset = (id: string) => {
+    if (!loadPreset(id)) return;
+    setPage(1);
+    queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
+  };
 
   useEffect(() => {
     if (invoices.length > 0) useInvoiceStore.getState().setInvoices(invoices);
@@ -787,6 +799,18 @@ function MarketplaceContent() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mb-8">
+          <ActiveFilterChips
+            filters={filters}
+            sort={sort}
+            presets={savedPresets}
+            onSave={savePreset}
+            onLoad={handleLoadPreset}
+            onRename={renamePreset}
+            onDelete={deletePreset}
+          />
         </div>
 
         {/* 2-Column Responsive Layout */}
