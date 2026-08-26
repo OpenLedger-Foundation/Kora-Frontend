@@ -229,6 +229,17 @@ export default function SecondaryMarketplacePage() {
   const [yieldFilter, setYieldFilter] = useState("0");
   const [sellerFilter, setSellerFilter] = useState("");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [acquireItem, setAcquireItem] = useState<SecondaryMarketItem | null>(null);
+
+  // Auto-remove expired listings on mount and periodically
+  useEffect(() => {
+    const checkExpired = () => {
+      usePositionListingStore.getState().checkAndRemoveExpired();
+    };
+    checkExpired();
+    const interval = setInterval(checkExpired, 60_000); // Check every minute
+    return () => clearInterval(interval);
+  }, []);
 
   // Combine store position listings with mock defaults
   const allItems: SecondaryMarketItem[] = useMemo(() => {
@@ -295,6 +306,11 @@ export default function SecondaryMarketplacePage() {
       if (sellerFilter.trim()) {
         const s = sellerFilter.toLowerCase();
         if (!item.sellerAddress.toLowerCase().includes(s)) return false;
+      }
+
+      // Filter out expired listings
+      if (item.listing.expiresAt && new Date(item.listing.expiresAt) <= new Date()) {
+        return false;
       }
 
       return true;
@@ -488,6 +504,24 @@ export default function SecondaryMarketplacePage() {
                             {item.remainingTenor} days remaining
                           </span>
                         </div>
+
+                        {item.listing.expiresAt && (
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-warning/80" />
+                              Listing Expires:
+                            </span>
+                            <span className={cn(
+                              "font-medium text-sm",
+                              new Date(item.listing.expiresAt!) <= new Date() ? "text-destructive" : "text-warning"
+                            )}>
+                              {formatDate(item.listing.expiresAt, "MMM d, HH:mm")}
+                              {new Date(item.listing.expiresAt!) <= new Date() && " (Expired)"}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between text-zinc-400">
 
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">

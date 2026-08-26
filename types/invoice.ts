@@ -158,12 +158,14 @@ export interface PositionListing {
   /** Price the seller is asking, in the position's invoice currency */
   askPrice: number;
   /**
-   * Discount implied by askPrice vs. the position's expectedReturn, 0–1.
+   * Discount implied by askPrice vs. the position's expectedReturn, 0-1.
    * Positive = selling below expected return (a discount for the buyer);
    * negative = selling at a premium.
    */
   impliedDiscount: number;
   listedAt: string; // ISO 8601
+  /** Optional expiry date for the listing. If set, listing auto-delists when expired. */
+  expiresAt?: string; // ISO 8601
 }
 
 /** Computes the discount (0–1) implied by an ask price vs. expected return. */
