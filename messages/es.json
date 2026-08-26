@@ -50,6 +50,23 @@
     "reconnecting": "Reconectando...",
     "restoringSession": "Restaurando sesión de billetera..."
   },
+  "transaction": {
+    "building": "Construyendo transacción...",
+    "simulating": "Simulando transacción...",
+    "signing": "Esperando firma de la billetera...",
+    "submitting": "Enviando transacción...",
+    "polling": "Confirmando transacción en la cadena...",
+    "confirmed": "¡Transacción confirmada!",
+    "failed": "Transacción fallida",
+    "cancelled": "Firma de transacción cancelada",
+    "timedOut": "Tiempo de espera de firma agotado",
+    "timeoutNotice": "La firma tardó demasiado tiempo en completarse.",
+    "extendTime": "Extender Tiempo (+60s)",
+    "retrySigning": "Reintentar Firma",
+    "cancelSigning": "Cancelar de Forma Segura",
+    "hardwareTip": "Confirma en tu billetera de hardware",
+    "mobileTip": "Revisa la app en tu móvil"
+  },
   "landing": {
     "headline": "Financiamiento de Facturas, En Cadena",
     "badge": "En vivo en Stellar Testnet",

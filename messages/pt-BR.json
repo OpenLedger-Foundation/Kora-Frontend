@@ -50,6 +50,23 @@
     "reconnecting": "Reconectando...",
     "restoringSession": "Restaurando sessão da carteira..."
   },
+  "transaction": {
+    "building": "Construindo transação...",
+    "simulating": "Simulando transação...",
+    "signing": "Aguardando assinatura da carteira...",
+    "submitting": "Enviando transação...",
+    "polling": "Confirmando transação na rede...",
+    "confirmed": "Transação confirmada!",
+    "failed": "Falha na transação",
+    "cancelled": "Assinatura da transação cancelada",
+    "timedOut": "Tempo limite de assinatura esgotado",
+    "timeoutNotice": "A assinatura demorou muito para ser concluída.",
+    "extendTime": "Estender Tempo (+60s)",
+    "retrySigning": "Tentar Assinar Novamente",
+    "cancelSigning": "Cancelar com Segurança",
+    "hardwareTip": "Confirme em sua carteira de hardware",
+    "mobileTip": "Verifique o app no celular"
+  },
   "landing": {
     "headline": "Financiamento de Faturas, On-Chain",
     "badge": "Ao vivo na Stellar Testnet",
