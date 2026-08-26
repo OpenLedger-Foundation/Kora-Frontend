@@ -1,6 +1,7 @@
 import React from "react";
 import { CATEGORIES } from "./filters";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
+import { CategoryTaxonomyPreview } from "./CategoryTaxonomyPreview";
 
 export default function CategoryFilter({ selected = [], onToggle }: any) {
   const { registerRef, handleKeyDown, getTabIndex, setActiveIndex } =
@@ -8,9 +9,12 @@ export default function CategoryFilter({ selected = [], onToggle }: any) {
 
   return (
     <div>
-      <h3 id="category-filter-label" className="mb-2 text-sm font-medium text-foreground">
-        Category
-      </h3>
+      <div className="flex items-center justify-between mb-2">
+        <h3 id="category-filter-label" className="text-sm font-medium text-foreground">
+          Category
+        </h3>
+        <CategoryTaxonomyPreview />
+      </div>
       <div
         role="group"
         aria-labelledby="category-filter-label"
