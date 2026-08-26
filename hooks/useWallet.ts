@@ -83,6 +83,7 @@ export function useWallet() {
     verifiedAt,
     kitSessionActive,
     kycStatus,
+    isWatchMode,
     connect,
     disconnect,
     setBalance,
@@ -94,6 +95,8 @@ export function useWallet() {
     setKitSessionActive,
     setNetwork,
     setKycStatus,
+    enterWatchMode,
+    exitWatchMode,
   } = useWalletStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -425,6 +428,7 @@ export function useWallet() {
   const signTransaction = useCallback(
     async (xdr: string): Promise<string> => {
       if (!isConnected) throw new Error("Wallet not connected");
+      if (isWatchMode) throw new Error("WATCH_MODE: Signing is disabled in read-only watch mode");
       updateActivity();
 
       if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA || xdr.startsWith("mock_")) {
@@ -729,6 +733,8 @@ export function useWallet() {
     showReconnectPrompt,
     /** Whether a manual reconnect attempt is currently in progress. */
     isReconnecting,
+    /** Whether in read-only watch mode (no signing capability). */
+    isWatchMode,
     connectWallet,
     disconnectWallet,
     switchAccount,
@@ -744,6 +750,8 @@ export function useWallet() {
     checkVerification,
     requireVerification,
     validateNetwork,
+    enterWatchMode,
+    exitWatchMode,
   };
 }
 

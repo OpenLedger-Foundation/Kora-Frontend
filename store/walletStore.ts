@@ -18,6 +18,20 @@ export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
 
+export type AddressBookGroup = {
+  id: string;
+  name: string;
+  favorite: boolean;
+};
+
+export type AddressBookEntry = {
+  id: string;
+  address: string;
+  label: string;
+  groupIds: string[];
+  isFavorite: boolean;
+};
+
 type WalletStoreState = {
   status: "disconnected" | "connecting" | "connected";
   address: string | null;
@@ -29,7 +43,8 @@ type WalletStoreState = {
   isVerified: boolean;
   verifiedAt: number | null;
   lastActivityAt: number | null;
-  addressBook: { id: string; address: string; label: string }[];
+  addressBook: AddressBookEntry[];
+  addressBookGroups: AddressBookGroup[];
   walletPassphrase: string | null;
   /**
    * Tracks whether the in-memory StellarWalletsKit session is active.
@@ -45,6 +60,8 @@ type WalletStoreState = {
    */
   kitSessionActive: boolean | null;
   kycStatus: "none" | "pending" | "verified" | "rejected";
+  /** Read-only watch mode — pasted G-address without wallet signing. */
+  isWatchMode: boolean;
 };
 
 type WalletStoreActions = {
@@ -60,9 +77,17 @@ type WalletStoreActions = {
   isSessionExpired: () => boolean;
   /** Mark the in-memory kit session as active/inactive/pending. */
   setKitSessionActive: (active: boolean | null) => void;
-  addAddressBookEntry: (address: string, label?: string) => void;
-  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
+  addAddressBookEntry: (address: string, label?: string, groupIds?: string[]) => void;
+  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string; groupIds?: string[] }) => void;
   removeAddressBookEntry: (id: string) => void;
+  toggleAddressBookFavorite: (id: string) => void;
+  addAddressBookGroup: (name: string) => void;
+  updateAddressBookGroup: (id: string, updates: { name?: string; favorite?: boolean }) => void;
+  removeAddressBookGroup: (id: string) => void;
+  /** Enter read-only watch mode for a given address (no wallet required). */
+  enterWatchMode: (address: string) => void;
+  /** Exit watch mode and fully disconnect. */
+  exitWatchMode: () => void;
   /**
    * Switches active account without full disconnect; clears verification & resets balance.
    */
@@ -87,9 +112,11 @@ export const useWalletStore = create<WalletStore>()(
       verifiedAt: null,
       lastActivityAt: null,
       addressBook: [],
+      addressBookGroups: [],
       walletPassphrase: null,
       kitSessionActive: false,
       kycStatus: "none",
+      isWatchMode: false,
 
       connect: (provider, address, publicKey, walletPassphrase) =>
         set({
@@ -119,6 +146,7 @@ export const useWalletStore = create<WalletStore>()(
           lastActivityAt: null,
           walletPassphrase: null,
           kitSessionActive: false,
+          isWatchMode: false,
         }),
 
       switchAccount: (newAddress, newPublicKey) =>
@@ -131,6 +159,38 @@ export const useWalletStore = create<WalletStore>()(
           lastActivityAt: Date.now(),
           kitSessionActive: true,
         })),
+
+      enterWatchMode: (address) =>
+        set({
+          status: "connected",
+          address,
+          publicKey: null,
+          isConnected: true,
+          provider: null,
+          balance: EMPTY_BALANCE,
+          walletPassphrase: null,
+          lastActivityAt: Date.now(),
+          kitSessionActive: false,
+          isWatchMode: true,
+          isVerified: false,
+          verifiedAt: null,
+        }),
+
+      exitWatchMode: () =>
+        set({
+          status: "disconnected",
+          address: null,
+          publicKey: null,
+          isConnected: false,
+          provider: null,
+          balance: null,
+          isVerified: false,
+          verifiedAt: null,
+          lastActivityAt: null,
+          walletPassphrase: null,
+          kitSessionActive: false,
+          isWatchMode: false,
+        }),
 
       setBalance: (balance) =>
         set((state) => (state.status === "connected" ? { balance } : {})),
@@ -225,6 +285,7 @@ export const useWalletStore = create<WalletStore>()(
         verifiedAt: s.verifiedAt,
         lastActivityAt: s.lastActivityAt,
         addressBook: s.addressBook,
+        addressBookGroups: s.addressBookGroups,
         walletPassphrase: s.walletPassphrase,
         kycStatus: s.kycStatus,
       }),
