@@ -19,6 +19,7 @@ import { useInvoiceStore } from "@/store/invoiceStore";
 import { cn } from "@/lib/utils";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { isEnabled } from "@/lib/featureFlags";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 import { ComparisonTable } from "./ComparisonTable";
 
 export function ComparisonBar() {
@@ -155,7 +156,7 @@ export function ComparisonBar() {
                 className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-foreground"
               >
                 <span className="max-w-[80px] truncate sm:max-w-[120px]">
-                  {invoice.metadata.debtorName}
+                  {getMaskedDebtorName(invoice)}
                 </span>
                 <span className="text-primary font-semibold">
                   {invoice.terms.apr.toFixed(1)}%
@@ -163,7 +164,7 @@ export function ComparisonBar() {
                 <button
                   onClick={() => removeFromComparison(invoice.id)}
                   className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  aria-label={tInvoiceCard("removeFromCompare", { debtor: invoice.metadata.debtorName })}
+                  aria-label={tInvoiceCard("removeFromCompare", { debtor: getMaskedDebtorName(invoice) })}
                 >
                   <X className="h-3 w-3" />
                 </button>

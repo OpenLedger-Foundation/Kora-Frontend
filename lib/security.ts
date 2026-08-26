@@ -322,3 +322,15 @@ export function sanitizeIpfsMetadata(raw: unknown): Record<string, unknown> {
 
   return result;
 }
+
+// ─── Debtor Privacy Re-exports (#562) ─────────────────────────────────────────
+export {
+  getEffectiveDebtorPrivacy,
+  getMaskedDebtorName,
+  getMaskedDebtorAddress,
+  getDebtorAriaLabel,
+  isDebtorAnonymized,
+  isDebtorPartial,
+  isDebtorFull,
+} from "./debtorPrivacy";
+

@@ -20,6 +20,7 @@ import useCountdown from "@/hooks/useCountdown";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 import { DebtorDisplay } from "./DebtorDisplay";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 import { InvoiceCardHoverPopover } from "./InvoiceCardHoverPopover";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
@@ -170,7 +171,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
       onFocus={handleFocus}
       onBlur={handleBlur}
       role="article"
-      aria-label={`Invoice for ${metadata.debtorName}, Amount: ${formatCurrency(metadata.amount, metadata.currency, true)}, Risk Tier: ${riskTier}, APR: ${formatApr(terms.apr)}`}
+      aria-label={`Invoice for ${getMaskedDebtorName(invoice)}, Amount: ${formatCurrency(metadata.amount, metadata.currency, true)}, Risk Tier: ${riskTier}, APR: ${formatApr(terms.apr)}`}
       aria-describedby={popoverOpen ? `invoice-popover-${invoice.id}` : undefined}
     >
       <motion.div
@@ -340,10 +341,10 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
             )}
             aria-label={
               isInComparison
-                ? t("removeFromCompare", { debtor: metadata.debtorName })
+                ? t("removeFromCompare", { debtor: getMaskedDebtorName(invoice) })
                 : comparisonFull
                   ? t("comparisonFull")
-                  : t("addToCompare", { debtor: metadata.debtorName })
+                  : t("addToCompare", { debtor: getMaskedDebtorName(invoice) })
             }
             aria-pressed={isInComparison}
           >
