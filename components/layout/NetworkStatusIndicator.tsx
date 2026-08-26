@@ -7,8 +7,10 @@ import { useNetworkStatus, type NetworkStatus } from "@/hooks/useNetworkStatus";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import { TooltipRoot, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getLatestMarketplaceDataUpdatedAt } from "@/lib/queryPersistence";
+import { listQueuedXdrDrafts } from "@/lib/xdrDraftQueue";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 
 const STATUS_COLOR: Record<NetworkStatus, string> = {
   operational: "bg-green-500",
@@ -23,6 +25,7 @@ export function NetworkStatusIndicator() {
   const [latestMarketplaceUpdatedAt, setLatestMarketplaceUpdatedAt] = useState<number | null>(() =>
     getLatestMarketplaceDataUpdatedAt(queryClient),
   );
+  const [queueCount, setQueueCount] = useState(0);
 
   useEffect(() => {
     setLatestMarketplaceUpdatedAt(getLatestMarketplaceDataUpdatedAt(queryClient));
@@ -31,6 +34,27 @@ export function NetworkStatusIndicator() {
       setLatestMarketplaceUpdatedAt(getLatestMarketplaceDataUpdatedAt(queryClient));
     });
   }, [queryClient]);
+
+  // Poll the IndexedDB queue count on mount and whenever online status changes
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const drafts = await listQueuedXdrDrafts();
+        if (!cancelled) setQueueCount(drafts.length);
+      } catch {
+        // IndexedDB may be unavailable (e.g. SSR, private browsing)
+      }
+    };
+    void load();
+    // Re-check on reconnect so the badge clears after auto-flush
+    const handler = () => void load();
+    window.addEventListener("online", handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", handler);
+    };
+  }, [isOnline]);
 
   const color = isOnline ? STATUS_COLOR[health.overall] : "bg-amber-500";
   const networkLabel = health.network === "testnet" ? t("testnet") : t("mainnet");
@@ -66,7 +90,7 @@ export function NetworkStatusIndicator() {
         <TooltipRoot>
           <TooltipTrigger asChild>
             <div
-              className="flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/50"
+              className="relative flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/50"
               role="status"
               aria-live="polite"
               aria-label={t("statusAriaLabel", {
@@ -83,6 +107,16 @@ export function NetworkStatusIndicator() {
               >
                 {badgeLabel}
               </span>
+              {/* Pending queue count badge */}
+              {queueCount > 0 && (
+                <span
+                  className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black"
+                  aria-label={`${queueCount} pending transaction(s)`}
+                  data-testid="queue-badge"
+                >
+                  {queueCount}
+                </span>
+              )}
             </div>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="max-w-xs">
@@ -115,6 +149,24 @@ export function NetworkStatusIndicator() {
                   time: formatDistanceToNow(health.soroban.lastChecked, { addSuffix: true }),
                 })}
               </div>
+
+              {/* Pending queue link inside tooltip */}
+              {queueCount > 0 && (
+                <div className="border-t pt-2">
+                  <Link
+                    href="/offline"
+                    className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    data-testid="queue-tooltip-link"
+                  >
+                    <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-black">
+                      {queueCount}
+                    </span>
+                    {queueCount === 1
+                      ? "1 signed transaction pending"
+                      : `${queueCount} signed transactions pending`}
+                  </Link>
+                </div>
+              )}
 
               {!isOnline && latestMarketplaceUpdatedAt ? (
                 <div className="border-t pt-2">
