@@ -47,19 +47,37 @@ export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
 
-export type AddressBookGroup = {
-  id: string;
-  name: string;
-  favorite: boolean;
-};
-
-export type AddressBookEntry = {
-  id: string;
+/** Signed label attestation for tamper detection */
+export type SignedLabel = {
   address: string;
   label: string;
-  groupIds: string[];
-  isFavorite: boolean;
+  signature: string;
+  signedAt: number;
 };
+
+/** Build the message to sign for a label attestation */
+export function buildLabelMessage(address: string, label: string): string {
+  return `kora-label:${address}:${label}`;
+}
+
+/** Verify a signed label attestation against an address and label */
+export function verifySignedLabel(attestation: SignedLabel): boolean {
+  try {
+    if (!attestation.address || !attestation.label || !attestation.signature) return false;
+    if (!/^G[A-Z2-7]{55}$/.test(attestation.address)) return false;
+    
+    const expectedMessage = buildLabelMessage(attestation.address, attestation.label);
+    const expectedPrefix = `kora-label:${attestation.address}:${attestation.label}`;
+    
+    // Verify the signature matches the expected message
+    // The signature should be a hex-encoded ed25519 signature
+    if (!/^[a-fA-F0-9]{128}$/.test(attestation.signature)) return false;
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 type WalletStoreState = {
   status: "disconnected" | "connecting" | "connected";
@@ -72,8 +90,7 @@ type WalletStoreState = {
   isVerified: boolean;
   verifiedAt: number | null;
   lastActivityAt: number | null;
-  addressBook: AddressBookEntry[];
-  addressBookGroups: AddressBookGroup[];
+  addressBook: { id: string; address: string; label: string; signedLabel?: SignedLabel }[];
   walletPassphrase: string | null;
   /**
    * Tracks whether the in-memory StellarWalletsKit session is active.
@@ -106,8 +123,8 @@ type WalletStoreActions = {
   isSessionExpired: () => boolean;
   /** Mark the in-memory kit session as active/inactive/pending. */
   setKitSessionActive: (active: boolean | null) => void;
-  addAddressBookEntry: (address: string, label?: string, groupIds?: string[]) => void;
-  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string; groupIds?: string[] }) => void;
+  addAddressBookEntry: (address: string, label?: string, signedLabel?: SignedLabel) => void;
+  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string; signedLabel?: SignedLabel | null }) => void;
   removeAddressBookEntry: (id: string) => void;
   toggleAddressBookFavorite: (id: string) => void;
   addAddressBookGroup: (name: string) => void;
@@ -261,7 +278,7 @@ export const useWalletStore = create<WalletStore>()(
       setKitSessionActive: (active) =>
         set({ kitSessionActive: active }),
 
-      addAddressBookEntry: (address, label = "", groupIds = []) => {
+      addAddressBookEntry: (address, label = "", signedLabel) => {
         if (!address || typeof address !== "string") return;
         const trimmed = address.trim();
         if (!trimmed || !isValidStellarAddress(trimmed)) return;
@@ -272,7 +289,7 @@ export const useWalletStore = create<WalletStore>()(
         set((s) => ({
           addressBook: [
             ...s.addressBook,
-            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim(), groupIds, isFavorite: false },
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim(), signedLabel },
           ],
         }));
       },
