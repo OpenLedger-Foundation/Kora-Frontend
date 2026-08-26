@@ -435,6 +435,30 @@
       "totalYield": "Total de Rendimentos Obtidos",
       "annualisedReturn": "Retorno Anualizado",
       "defaultRate": "Taxa de Inadimplência"
+    },
+    "treemap": {
+      "title": "Alocação por risco e jurisdição",
+      "empty": "Ainda não há dados de alocação",
+      "concentration": "Maior concentração: {group} / {leaf} ({percent})"
+    },
+    "variance": {
+      "title": "Rendimento realizado vs esperado",
+      "expected": "Esperado",
+      "realized": "Realizado",
+      "variance": "Variação",
+      "pending": "{count} posição(ões) ainda ativas — exibidas apenas como esperado",
+      "empty": "Ainda não há posições liquidadas",
+      "export": "Exportar CSV de variação"
+    },
+    "benchmarks": {
+      "riskFree": "Taxa livre de risco",
+      "basket": "TAE da cesta",
+      "disclosure": "Os benchmarks são taxas de referência estáticas configuradas pelo operador, não dados de mercado ao vivo. São exibidos apenas como contexto e não constituem recomendação de investimento."
+    },
+    "digest": {
+      "button": "Resumo em PDF",
+      "title": "Resumo da carteira",
+      "share": "Compartilhar resumo"
     }
   },
   "repaymentDialog": {

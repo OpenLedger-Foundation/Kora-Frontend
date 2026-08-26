@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Filter, Download, RotateCcw } from "lucide-react";
+import { Filter, Download, FileText, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,17 @@ interface AnalyticsControlsProps {
   onExportRisk?: () => void;
   onExportMonthly?: () => void;
   onReset?: () => void;
+  /**
+   * Download the branded PDF portfolio digest (#602).
+   *
+   * Given its own labelled button rather than another icon in the export row:
+   * the digest is a different artefact from the per-chart CSVs — one document
+   * covering the whole filtered portfolio — and burying it behind a fifth
+   * identical download glyph would make it undiscoverable.
+   */
+  onDownloadDigest?: () => void;
+  /** True while the PDF is being generated, to disable the button. */
+  isGeneratingDigest?: boolean;
 }
 
 export function AnalyticsControls({
@@ -27,6 +38,8 @@ export function AnalyticsControls({
   onExportRisk,
   onExportMonthly,
   onReset,
+  onDownloadDigest,
+  isGeneratingDigest = false,
 }: AnalyticsControlsProps) {
   const ranges: Array<{ value: DateRange; label: string; description: string }> = [
     { value: "7d", label: "7 Days", description: "Last week" },
@@ -60,7 +73,7 @@ export function AnalyticsControls({
                 range === r.value
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
+                "disabled:cursor-not-allowed disabled:opacity-50"
               )}
             >
               {r.label}
@@ -71,6 +84,22 @@ export function AnalyticsControls({
 
       {/* Export & Reset Controls */}
       <div className="flex items-center gap-2">
+        {onDownloadDigest && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onDownloadDigest}
+            disabled={isLoading || isGeneratingDigest}
+            className="gap-1.5"
+            aria-label="Download portfolio PDF digest"
+            title="Download a branded PDF summary of the filtered portfolio"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            <span className="text-xs">{isGeneratingDigest ? "Generating…" : "PDF digest"}</span>
+          </Button>
+        )}
+
         {onReset && (
           <motion.button
             type="button"
@@ -78,7 +107,7 @@ export function AnalyticsControls({
             disabled={isLoading}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="rounded-lg p-2 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-lg p-2 transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
             aria-label="Reset filters"
             title="Reset to default"
           >
@@ -87,7 +116,7 @@ export function AnalyticsControls({
         )}
 
         {/* Export Menu */}
-        <div className="hidden sm:flex gap-1 border-l border-border/50 pl-2">
+        <div className="hidden gap-1 border-l border-border/50 pl-2 sm:flex">
           {[
             { onClick: onExportPortfolio, label: "Portfolio" },
             { onClick: onExportYield, label: "Yield" },
@@ -103,7 +132,7 @@ export function AnalyticsControls({
                   disabled={isLoading}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="rounded-lg p-2 hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                  className="rounded-lg p-2 text-xs transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                   aria-label={`Export ${item.label} data`}
                   title={`Download ${item.label} as CSV`}
                 >

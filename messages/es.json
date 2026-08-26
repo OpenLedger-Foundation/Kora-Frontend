@@ -435,6 +435,30 @@
       "totalYield": "Rendimiento Total Ganado",
       "annualisedReturn": "Retorno Anualizado",
       "defaultRate": "Tasa de Mora"
+    },
+    "treemap": {
+      "title": "Asignación por riesgo y jurisdicción",
+      "empty": "Aún no hay datos de asignación",
+      "concentration": "Mayor concentración: {group} / {leaf} ({percent})"
+    },
+    "variance": {
+      "title": "Rendimiento realizado frente al esperado",
+      "expected": "Esperado",
+      "realized": "Realizado",
+      "variance": "Variación",
+      "pending": "{count} posición(es) aún activas — se muestran solo como esperado",
+      "empty": "Aún no hay posiciones liquidadas",
+      "export": "Exportar CSV de variación"
+    },
+    "benchmarks": {
+      "riskFree": "Tasa libre de riesgo",
+      "basket": "TAE de la cesta",
+      "disclosure": "Los índices de referencia son tasas estáticas configuradas por el operador, no datos de mercado en vivo. Se muestran solo como contexto y no constituyen asesoramiento de inversión."
+    },
+    "digest": {
+      "button": "Resumen PDF",
+      "title": "Resumen de cartera",
+      "share": "Compartir resumen"
     }
   },
   "repaymentDialog": {
