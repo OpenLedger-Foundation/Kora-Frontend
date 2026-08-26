@@ -24,6 +24,7 @@ import {
 import { useFormatters } from "@/hooks/useFormatters";
 import type { Invoice } from "@/types";
 import { isEnabled } from "@/lib/featureFlags";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -249,7 +250,7 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
                       <div className="flex items-start justify-between gap-1 sm:gap-2">
                         <div className="min-w-0">
                           <p className="truncate text-xs sm:text-sm font-semibold text-foreground">
-                            {invoice.metadata.debtorName}
+                            {getMaskedDebtorName(invoice)}
                           </p>
                           <p className="mt-0.5 truncate text-[8px] sm:text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                             {invoice.metadata.invoiceNumber}
@@ -258,7 +259,7 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
                         <button
                           onClick={() => removeFromComparison(invoice.id)}
                           className="shrink-0 rounded-full p-0.5 sm:p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                          aria-label={tInvoiceCard("removeFromCompare", { debtor: invoice.metadata.debtorName })}
+                          aria-label={tInvoiceCard("removeFromCompare", { debtor: getMaskedDebtorName(invoice) })}
                         >
                           <X className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </button>
