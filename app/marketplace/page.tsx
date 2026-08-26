@@ -12,6 +12,8 @@ import {
   Check,
   RotateCcw,
   Clock,
+  LayoutGrid,
+  Map,
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,10 @@ import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+
+/** True when the NEXT_PUBLIC_ENABLE_MAP_VIEW env var is set to "true". */
+const MAP_VIEW_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_MAP_VIEW === "true";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -734,6 +740,46 @@ function MarketplaceContent() {
                 ))}
               </select>
             </div>
+
+            {/* Map / Grid view toggle — only shown when feature flag is on */}
+            {MAP_VIEW_ENABLED && (
+              <div
+                className="flex h-10 items-center rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5"
+                role="group"
+                aria-label="Switch between grid and map view"
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  aria-pressed={viewMode === "grid"}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+                    viewMode === "grid"
+                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("map")}
+                  aria-pressed={viewMode === "map"}
+                  aria-label="Map view"
+                  title="Map view"
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
+                    viewMode === "map"
+                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  )}
+                >
+                  <Map className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -762,7 +808,7 @@ function MarketplaceContent() {
             </div>
           </div>
 
-          {/* B. Grid listing and states */}
+          {/* B. Grid listing / Map view */}
           <div className="flex-1 min-w-0 space-y-6">
             {isLoading ? (
               <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
