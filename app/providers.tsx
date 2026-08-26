@@ -98,6 +98,11 @@ function ThemedToaster() {
   );
 }
 
+function WatchlistAlertObserver() {
+  useWatchlistAlerts();
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const onboardingTourEnabled = useFeatureFlag("onboarding-tour");
   const devtoolsEnabled = useFeatureFlag("devtools");

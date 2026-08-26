@@ -1,3 +1,7 @@
+### Marketplace watchlist
+
+Investors can star invoices from marketplace cards or the invoice detail view. The Marketplace watchlist drawer keeps up to 50 watched invoices in durable browser storage and exposes independent preferences for funding progress, status, and APR alerts. Alerts are disabled for the initial snapshot and deduplicated per invoice change so refreshes do not produce notification spam.
+
 <div align="center">
   <img src="https://img.shields.io/badge/Stellar-Soroban-14b8a6?style=for-the-badge&logo=stellar&logoColor=white" alt="Stellar Soroban" />
   <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" alt="Next.js 15" />

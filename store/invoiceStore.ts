@@ -48,6 +48,19 @@ export const DEFAULT_FILTERS: FilterState = {
 };
 
 const DEFAULT_SORT: SortState = { sortBy: "apr", sortDir: "desc" };
+export const MAX_WATCHLIST_ITEMS = 50;
+
+export interface NotificationPreferences {
+  fundingProgress: boolean;
+  status: boolean;
+  apr: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  fundingProgress: true,
+  status: true,
+  apr: false,
+};
 
 // ─── Pure selector ────────────────────────────────────────────────────────────
 
@@ -249,6 +262,8 @@ interface InvoiceStore {
   searchHistory: string[];
   selectedInvoice: Invoice | null;
   createDraft: InvoiceCreateDraft;
+  watchedInvoiceIds: string[];
+  notificationPreferences: NotificationPreferences;
 
   /** IDs of invoices selected for side-by-side comparison (max 4) */
   comparisonList: string[];
@@ -265,6 +280,10 @@ interface InvoiceStore {
   setSearchQuery: (q: string) => void;
   clearSearchHistory: () => void;
   setSelectedInvoice: (invoice: Invoice | null) => void;
+  upsertInvoice: (invoice: Invoice) => void;
+  toggleWatchedInvoice: (id: string) => boolean;
+  isInvoiceWatched: (id: string) => boolean;
+  setNotificationPreferences: (preferences: Partial<NotificationPreferences>) => void;
   updateInvoiceFunding: (id: string, newAmount: number) => void;
   rollbackInvoiceFunding: (id: string) => void;
   updateInvoiceStatus: (id: string, status: Invoice["status"]) => void;
@@ -356,6 +375,33 @@ export const useInvoiceStore = create<InvoiceStore>()(
       },
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
+
+      upsertInvoice: (invoice) =>
+        set((s) => ({
+          invoices: s.invoices.some((item) => item.id === invoice.id)
+            ? s.invoices.map((item) => (item.id === invoice.id ? invoice : item))
+            : [...s.invoices, invoice],
+        })),
+
+      toggleWatchedInvoice: (id) => {
+        let watched = false;
+        set((s) => {
+          watched = s.watchedInvoiceIds.includes(id);
+          return {
+            watchedInvoiceIds: watched
+              ? s.watchedInvoiceIds.filter((item) => item !== id)
+              : [...s.watchedInvoiceIds, id].slice(-MAX_WATCHLIST_ITEMS),
+          };
+        });
+        return !watched;
+      },
+
+      isInvoiceWatched: (id) => get().watchedInvoiceIds.includes(id),
+
+      setNotificationPreferences: (preferences) =>
+        set((s) => ({
+          notificationPreferences: { ...s.notificationPreferences, ...preferences },
+        })),
 
       /** Optimistic update — instantly reflects new funding amount in UI */
       updateInvoiceFunding: (id, newAmount) =>

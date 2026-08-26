@@ -14,6 +14,7 @@ import {
   Clock,
   LayoutGrid,
   Map,
+  Star,
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
@@ -36,10 +37,6 @@ import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
-
-/** True when the NEXT_PUBLIC_ENABLE_MAP_VIEW env var is set to "true". */
-const MAP_VIEW_ENABLED =
-  process.env.NEXT_PUBLIC_ENABLE_MAP_VIEW === "true";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -332,6 +329,8 @@ function MarketplaceContent() {
   } = useInvoiceStore();
 
   const [showFilters, setShowFilters] = useState(false);
+  const [watchlistOpen, setWatchlistOpen] = useState(false);
+  const watchedCount = useInvoiceStore((state) => state.watchedInvoiceIds.length);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -454,6 +453,10 @@ function MarketplaceContent() {
       setInvoices(allInvoices);
     }
   }, [allInvoices, setInvoices]);
+
+  useEffect(() => {
+    if (invoices.length > 0) useInvoiceStore.getState().setInvoices(invoices);
+  }, [invoices]);
 
   // Client-side Search filter
   const filteredInvoices = useMemo(() => {
@@ -641,6 +644,9 @@ function MarketplaceContent() {
           </div>
           {/* Metadata for peer-review tracking compliance: Closes #15 */}
           <span className="hidden">PR compliance metadata: Closes #15</span>
+          <Button variant="outline" size="sm" onClick={() => setWatchlistOpen(true)} leftIcon={<Star className="h-4 w-4" />}>
+            Watchlist{watchedCount > 0 ? ` (${watchedCount})` : ""}
+          </Button>
         </div>
 
         {/* Search + Sort + Toggle Bar */}

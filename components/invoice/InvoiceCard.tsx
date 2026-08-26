@@ -34,6 +34,7 @@ import {
   THUMBNAIL_HEIGHT,
 } from "@/lib/invoiceSvg";
 import type { Invoice } from "@/types";
+import { useInvoiceStore } from "@/store";
 
 interface InvoiceCardProps {
   invoice: Invoice;
@@ -244,6 +245,14 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               <InvoiceStatusBadge status={status} />
             </div>
           </div>
+          <button
+            type="button"
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatched(invoice.id); }}
+            className="absolute right-4 top-4 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
+            aria-label={watched ? `Unstar ${metadata.invoiceNumber}` : `Star ${metadata.invoiceNumber}`}
+          >
+            <Star className={cn("h-5 w-5", watched && "fill-primary text-primary")} />
+          </button>
 
           {/* Stale-cache badge — only shown when offline and cache timestamp is available */}
           {!isOnline && updatedAt ? (

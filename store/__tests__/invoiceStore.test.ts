@@ -8,6 +8,7 @@ import {
   useInvoiceStore,
 } from "@/store/invoiceStore";
 import type { Invoice } from "@/types";
+import { getAlertMessage } from "@/hooks/useWatchlistAlerts";
 
 // Minimal invoice factory
 function makeInvoice(overrides: Partial<Invoice> = {}): Invoice {
