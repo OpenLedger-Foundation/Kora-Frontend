@@ -68,8 +68,7 @@ import {
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
-import { exportInvoiceCalendarIcs } from "@/lib/export";
-
+import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
@@ -741,6 +740,19 @@ Stellar Testnet Transaction Hash: ${txHash}`);
               transition={{ delay: 0.2 }}
             >
               <InvoiceMetadataViewer invoice={invoice} isFunded={isFunded} />
+            </motion.div>
+
+            {/* Secondary Market Order Book Depth (#595) */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.22 }}
+            >
+              <InvoiceOrderBookDepth
+                invoiceTokenId={invoice.tokenId}
+                currency={metadata.currency}
+                positionFaceValue={terms.financingAmount}
+              />
             </motion.div>
           </PrintLayout>
 

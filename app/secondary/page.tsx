@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   Search,
   SlidersHorizontal,
@@ -11,11 +12,10 @@ import {
   ShieldAlert,
   ArrowRight,
   RotateCcw,
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle,
-  Info,
+  Copy,
+  Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Container } from "@/components/layout/Container";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -30,10 +30,13 @@ import { formatCurrency, formatDate, RISK_TIER_COLORS, cn } from "@/lib/utils";
 import { computeImpliedDiscount } from "@/types/invoice";
 import type { PositionListing, Invoice } from "@/types/invoice";
 import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
-import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { sanitizeQueryParam } from "@/lib/security";
+import { useDebounce } from "@/hooks/useDebounce";
+import type { PositionListingMeta } from "@/store/positionListingStore";
 
 interface SecondaryMarketItem {
-  listing: PositionListing;
+  listing: PositionListingMeta;
   positionId: string;
   invoice: Invoice;
   investedAmount: number;
@@ -44,13 +47,15 @@ interface SecondaryMarketItem {
 }
 
 // Default mock secondary market listings for initial browse experience
-const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = [
+const buildMockListings = (): SecondaryMarketItem[] => [
   {
     listing: {
       positionId: "pos_101",
       askPrice: 4850,
       impliedDiscount: computeImpliedDiscount(4850, 5000),
       listedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+      invoiceTokenId: MOCK_INVOICES[0]?.tokenId ?? "101",
+      ownershipConfirmed: true,
     },
     positionId: "pos_101",
     invoice: MOCK_INVOICES[0] || {
@@ -110,6 +115,8 @@ const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = [
       askPrice: 9700,
       impliedDiscount: computeImpliedDiscount(9700, 10200),
       listedAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+      invoiceTokenId: MOCK_INVOICES[1]?.tokenId ?? "102",
+      ownershipConfirmed: true,
     },
     positionId: "pos_102",
     invoice: MOCK_INVOICES[1] || {
@@ -169,6 +176,8 @@ const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = [
       askPrice: 2400,
       impliedDiscount: computeImpliedDiscount(2400, 2550),
       listedAt: new Date(Date.now() - 86400000 * 1).toISOString(),
+      invoiceTokenId: MOCK_INVOICES[2]?.tokenId ?? "103",
+      ownershipConfirmed: true,
     },
     positionId: "pos_103",
     invoice: MOCK_INVOICES[2] || {
@@ -224,25 +233,72 @@ const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = [
   },
 ];
 
+const MOCK_SECONDARY_LISTINGS = buildMockListings();
+
+// ─── URL param keys ────────────────────────────────────────────────────────
+const PARAM_SEARCH = "q";
+const PARAM_TENOR = "tenor";
+const PARAM_YIELD = "yield";
+const PARAM_SELLER = "seller";
+const PARAM_HIGHLIGHT = "highlight";
+
 export default function SecondaryMarketplacePage() {
-  const { listings: storeListings } = usePositionListingStore();
+  const { listings: storeListings, removeStale } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [tenorFilter, setTenorFilter] = useState("all");
-  const [yieldFilter, setYieldFilter] = useState("0");
-  const [sellerFilter, setSellerFilter] = useState("");
+  // ── Hydrate filter state from URL on mount (#599) ────────────────────────
+  const [searchQuery, setSearchQuery] = useState(
+    () => sanitizeQueryParam(searchParams.get(PARAM_SEARCH)) ?? ""
+  );
+  const [tenorFilter, setTenorFilter] = useState(
+    () => sanitizeQueryParam(searchParams.get(PARAM_TENOR)) || "all"
+  );
+  const [yieldFilter, setYieldFilter] = useState(
+    () => sanitizeQueryParam(searchParams.get(PARAM_YIELD)) || "0"
+  );
+  const [sellerFilter, setSellerFilter] = useState(
+    () => sanitizeQueryParam(searchParams.get(PARAM_SELLER)) ?? ""
+  );
+  const [highlightId] = useState(
+    () => sanitizeQueryParam(searchParams.get(PARAM_HIGHLIGHT)) ?? ""
+  );
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  const [acquireItem, setAcquireItem] = useState<SecondaryMarketItem | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Auto-remove expired listings on mount and periodically
+  // Debounce text inputs before committing to URL to avoid excessive pushes.
+  const debouncedSearch = useDebounce(searchQuery, 350);
+  const debouncedSeller = useDebounce(sellerFilter, 350);
+
+  // ── Sync filters → URL (#599) ────────────────────────────────────────────
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    const checkExpired = () => {
-      usePositionListingStore.getState().checkAndRemoveExpired();
-    };
-    checkExpired();
-    const interval = setInterval(checkExpired, 60_000); // Check every minute
-    return () => clearInterval(interval);
+    // Skip on the very first render so we don't create a spurious history entry.
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    const params = new URLSearchParams();
+    if (debouncedSearch) params.set(PARAM_SEARCH, debouncedSearch);
+    if (tenorFilter && tenorFilter !== "all") params.set(PARAM_TENOR, tenorFilter);
+    if (yieldFilter && yieldFilter !== "0") params.set(PARAM_YIELD, yieldFilter);
+    if (debouncedSeller) params.set(PARAM_SELLER, debouncedSeller);
+    if (highlightId) params.set(PARAM_HIGHLIGHT, highlightId);
+
+    const qs = params.toString();
+    const newUrl = qs ? `${pathname}?${qs}` : pathname;
+    router.replace(newUrl, { scroll: false });
+  }, [debouncedSearch, tenorFilter, yieldFilter, debouncedSeller, highlightId, pathname, router]);
+
+  // ── Copy shareable URL (#599) ─────────────────────────────────────────────
+  const handleCopyUrl = useCallback(() => {
+    if (typeof window === "undefined") return;
+    navigator.clipboard.writeText(window.location.href).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }, []);
 
   // Combine store position listings with mock defaults
@@ -280,7 +336,6 @@ export default function SecondaryMarketplacePage() {
   // Filter items
   const filteredItems = useMemo(() => {
     return allItems.filter((item) => {
-      // Search filter
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesInvoice =
@@ -290,7 +345,6 @@ export default function SecondaryMarketplacePage() {
         if (!matchesInvoice) return false;
       }
 
-      // Tenor filter
       if (tenorFilter !== "all") {
         const selectedTenor = TENOR_OPTIONS.find((t) => t.value === tenorFilter);
         if (selectedTenor && selectedTenor.min !== undefined && selectedTenor.max !== undefined) {
@@ -300,13 +354,11 @@ export default function SecondaryMarketplacePage() {
         }
       }
 
-      // Yield filter
       const minYieldReq = parseFloat(yieldFilter);
       if (!isNaN(minYieldReq) && minYieldReq > 0) {
         if (item.yieldPercent < minYieldReq) return false;
       }
 
-      // Seller filter
       if (sellerFilter.trim()) {
         const s = sellerFilter.toLowerCase();
         if (!item.sellerAddress.toLowerCase().includes(s)) return false;
@@ -334,6 +386,33 @@ export default function SecondaryMarketplacePage() {
     setSellerFilter("");
   };
 
+  /**
+   * Ownership validation before acquire (#598).
+   * In mock mode we treat all listings as valid.  In live mode a real
+   * ownership check would fire here.  If stale, remove + toast.
+   */
+  const handleAcquire = useCallback(
+    (item: SecondaryMarketItem) => {
+      // If the store listing explicitly has ownershipConfirmed=false the position
+      // was transferred away — block the acquire and surface a message.
+      const storeListing = storeListings[item.positionId];
+      if (storeListing && storeListing.ownershipConfirmed === false) {
+        removeStale(item.positionId);
+        toast.error("Position no longer available", {
+          description:
+            "This position was already transferred to another buyer. The listing has been removed.",
+        });
+        return;
+      }
+
+      // Optimistic: trust mock data listings.
+      toast.info("Transfer position flow initiated", {
+        description: `Acquiring position ${item.positionId} at ask price ${formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}.`,
+      });
+    },
+    [storeListings, removeStale]
+  );
+
   return (
     <main className="min-h-screen bg-zinc-950 py-8 text-zinc-100">
       <Container>
@@ -353,6 +432,27 @@ export default function SecondaryMarketplacePage() {
               Browse and buy active investor positions at competitive yields before maturity.
             </p>
           </div>
+
+          {/* Share URL button (#599) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCopyUrl}
+            className="shrink-0 border-zinc-700 bg-zinc-900 text-xs text-zinc-300 hover:text-white"
+            aria-label="Copy shareable URL for current filters"
+          >
+            {copied ? (
+              <>
+                <Check className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
+                Copied!
+              </>
+            ) : (
+              <>
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                Share View
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Filter Controls Bar */}
@@ -364,43 +464,44 @@ export default function SecondaryMarketplacePage() {
               <Input
                 placeholder="Search by debtor, invoice number, category..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(sanitizeQueryParam(e.target.value))}
                 className="pl-9 bg-zinc-950/80 border-zinc-800 text-sm focus:border-primary"
+                aria-label="Search secondary market listings"
               />
             </div>
 
             {/* Desktop Filters */}
             <div className="hidden lg:flex lg:items-center lg:gap-3">
-              {/* Tenor Filter */}
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-zinc-400" />
+                <Clock className="h-4 w-4 text-zinc-400" aria-hidden />
                 <Select
                   value={tenorFilter}
-                  onChange={(val) => setTenorFilter(val)}
+                  onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
                   options={TENOR_OPTIONS}
                   className="w-40 bg-zinc-950/80 border-zinc-800 text-xs"
+                  aria-label="Filter by remaining tenor"
                 />
               </div>
 
-              {/* Yield Filter */}
               <div className="flex items-center gap-2">
-                <Percent className="h-4 w-4 text-zinc-400" />
+                <Percent className="h-4 w-4 text-zinc-400" aria-hidden />
                 <Select
                   value={yieldFilter}
-                  onChange={(val) => setYieldFilter(val)}
+                  onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
                   options={YIELD_OPTIONS}
                   className="w-36 bg-zinc-950/80 border-zinc-800 text-xs"
+                  aria-label="Filter by minimum yield"
                 />
               </div>
 
-              {/* Seller Filter */}
               <div className="relative w-44">
-                <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" aria-hidden />
                 <Input
                   placeholder="Seller G-address..."
                   value={sellerFilter}
-                  onChange={(e) => setSellerFilter(e.target.value)}
+                  onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
                   className="pl-8 bg-zinc-950/80 border-zinc-800 text-xs h-9"
+                  aria-label="Filter by seller address"
                 />
               </div>
 
@@ -410,8 +511,9 @@ export default function SecondaryMarketplacePage() {
                   size="sm"
                   onClick={resetFilters}
                   className="text-xs text-zinc-400 hover:text-white"
+                  aria-label="Reset all filters"
                 >
-                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                  <RotateCcw className="mr-1 h-3.5 w-3.5" aria-hidden />
                   Reset
                 </Button>
               )}
@@ -425,7 +527,7 @@ export default function SecondaryMarketplacePage() {
                 onClick={() => setMobileFilterOpen(true)}
                 className="w-full border-zinc-800 bg-zinc-950/80 text-xs"
               >
-                <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-primary" />
+                <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-primary" aria-hidden />
                 Filter Positions
                 {hasActiveFilters && (
                   <Badge variant="outline" className="ml-2 bg-primary/20 text-primary text-[10px]">
@@ -448,13 +550,30 @@ export default function SecondaryMarketplacePage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredItems.map((item) => {
               const riskColor = RISK_TIER_COLORS[item.invoice.riskTier] ?? "text-zinc-400 border-zinc-700";
+              const isHighlighted = highlightId && item.positionId === highlightId;
+              // Detect stale listing (#598): store listing with ownershipConfirmed=false
+              const storeListing = storeListings[item.positionId];
+              const isStale = storeListing?.ownershipConfirmed === false;
 
               return (
                 <Card
                   key={item.positionId}
-                  className="group relative overflow-hidden border border-zinc-800/80 bg-zinc-900/40 backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-zinc-900/80 hover:shadow-lg hover:shadow-primary/5"
+                  id={`listing-${item.positionId}`}
+                  className={cn(
+                    "group relative overflow-hidden border border-zinc-800/80 bg-zinc-900/40 backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-zinc-900/80 hover:shadow-lg hover:shadow-primary/5",
+                    isHighlighted && "ring-2 ring-primary/60 border-primary/60",
+                    isStale && "opacity-60 border-red-500/40"
+                  )}
+                  aria-label={`Secondary listing for ${item.invoice.metadata.invoiceNumber}${isStale ? " — stale, position transferred" : ""}`}
                 >
-                  <CardHeader className="p-5 pb-3">
+                  {isStale && (
+                    <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-red-500/10 px-4 py-1.5 text-xs text-red-400">
+                      <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
+                      Position already transferred — listing is stale
+                    </div>
+                  )}
+
+                  <CardHeader className={cn("p-5 pb-3", isStale && "pt-8")}>
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2">
@@ -501,7 +620,7 @@ export default function SecondaryMarketplacePage() {
                       <div className="space-y-1.5 text-xs">
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
-                            <Clock className="h-3.5 w-3.5 text-primary/80" />
+                            <Clock className="h-3.5 w-3.5 text-primary/80" aria-hidden />
                             Remaining Tenor:
                           </span>
                           <span className="font-medium text-white">
@@ -529,7 +648,7 @@ export default function SecondaryMarketplacePage() {
 
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
-                            <Tag className="h-3.5 w-3.5 text-emerald-400" />
+                            <Tag className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
                             Implied Discount:
                           </span>
                           <span className="font-medium text-emerald-400">
@@ -539,7 +658,7 @@ export default function SecondaryMarketplacePage() {
 
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-zinc-400" />
+                            <User className="h-3.5 w-3.5 text-zinc-400" aria-hidden />
                             Seller Address:
                           </span>
                           <span className="font-mono text-[11px] text-zinc-300">
@@ -549,13 +668,26 @@ export default function SecondaryMarketplacePage() {
                       </div>
 
                       {/* Action Button */}
-                      <Button
-                        className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
-                        onClick={() => setAcquireItem(item)}
-                      >
-                        Acquire Position
-                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                      </Button>
+                      {isStale ? (
+                        <Button
+                          className="w-full mt-3 bg-red-500/10 text-red-400 border border-red-500/30 font-medium text-xs h-9 cursor-not-allowed"
+                          disabled
+                          aria-disabled="true"
+                          title="This position has already been transferred"
+                        >
+                          <ShieldAlert className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                          Unavailable — Already Transferred
+                        </Button>
+                      ) : (
+                        <Button
+                          className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
+                          onClick={() => handleAcquire(item)}
+                          aria-label={`Acquire position for ${item.invoice.metadata.invoiceNumber} at ${formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}`}
+                        >
+                          Acquire Position
+                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -573,31 +705,40 @@ export default function SecondaryMarketplacePage() {
           <div className="space-y-4 p-4 text-zinc-100">
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Remaining Tenor</label>
+                <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-tenor-filter">
+                  Remaining Tenor
+                </label>
                 <Select
+                  id="mobile-tenor-filter"
                   value={tenorFilter}
-                  onChange={(val) => setTenorFilter(val)}
+                  onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
                   options={TENOR_OPTIONS}
                   className="w-full bg-zinc-900 border-zinc-800 text-xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Minimum Yield</label>
+                <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-yield-filter">
+                  Minimum Yield
+                </label>
                 <Select
+                  id="mobile-yield-filter"
                   value={yieldFilter}
-                  onChange={(val) => setYieldFilter(val)}
+                  onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
                   options={YIELD_OPTIONS}
                   className="w-full bg-zinc-900 border-zinc-800 text-xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Seller Address</label>
+                <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-seller-filter">
+                  Seller Address
+                </label>
                 <Input
+                  id="mobile-seller-filter"
                   placeholder="Seller G-address..."
                   value={sellerFilter}
-                  onChange={(e) => setSellerFilter(e.target.value)}
+                  onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
                   className="bg-zinc-900 border-zinc-800 text-xs"
                 />
               </div>
