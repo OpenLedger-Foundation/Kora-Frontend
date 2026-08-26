@@ -11,6 +11,10 @@ import {
   ShieldAlert,
   ArrowRight,
   RotateCcw,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Info,
 } from "lucide-react";
 import { Container } from "@/components/layout/Container";
 import { Input } from "@/components/ui/input";
@@ -26,7 +30,7 @@ import { formatCurrency, formatDate, RISK_TIER_COLORS, cn } from "@/lib/utils";
 import { computeImpliedDiscount } from "@/types/invoice";
 import type { PositionListing, Invoice } from "@/types/invoice";
 import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
 
 interface SecondaryMarketItem {
   listing: PositionListing;
@@ -229,6 +233,7 @@ export default function SecondaryMarketplacePage() {
   const [yieldFilter, setYieldFilter] = useState("0");
   const [sellerFilter, setSellerFilter] = useState("");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const [acquireItem, setAcquireItem] = useState<SecondaryMarketItem | null>(null);
 
   // Combine store position listings with mock defaults
   const allItems: SecondaryMarketItem[] = useMemo(() => {
@@ -513,9 +518,7 @@ export default function SecondaryMarketplacePage() {
                       {/* Action Button */}
                       <Button
                         className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
-                        onClick={() => {
-                          alert(`Transfer position flow initiated for ${item.positionId}`);
-                        }}
+                        onClick={() => setAcquireItem(item)}
                       >
                         Acquire Position
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -579,5 +582,13 @@ export default function SecondaryMarketplacePage() {
         </BottomSheet>
       </Container>
     </main>
+    <AcquirePositionDialog
+      item={acquireItem}
+      open={acquireItem !== null}
+      onOpenChange={() => setAcquireItem(null)}
+      onConfirm={() => {
+        alert(`Acquisition confirmed for ${acquireItem?.positionId}`);
+      }}
+    />
   );
 }
