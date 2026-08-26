@@ -2,15 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { animate, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import { ChevronDown, ShieldCheck, ShieldAlert, ShieldX, Info } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, Tooltip } from "recharts";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
+import { Drawer, DrawerContent, DrawerSection } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 interface RiskFactor {
   key: string;
   label: string;
   score: number;
+  weight?: number;
 }
 
 interface RiskScoreGaugeProps {
@@ -39,7 +42,7 @@ const RISK_BANDS = [
   {
     id: "low",
     label: "Low Risk",
-    range: "0–33",
+    range: "0-33",
     dot: "bg-green-700 dark:bg-green-500",
     text: "text-green-800 dark:text-green-300",
     icon: ShieldCheck,
@@ -49,7 +52,7 @@ const RISK_BANDS = [
   {
     id: "medium",
     label: "Medium Risk",
-    range: "34–66",
+    range: "34-66",
     dot: "bg-yellow-600 dark:bg-yellow-400",
     text: "text-yellow-800 dark:text-yellow-200",
     icon: ShieldAlert,
@@ -59,7 +62,7 @@ const RISK_BANDS = [
   {
     id: "high",
     label: "High Risk",
-    range: "67–100",
+    range: "67-100",
     dot: "bg-red-700 dark:bg-red-500",
     text: "text-red-800 dark:text-red-300",
     icon: ShieldX,
@@ -68,16 +71,23 @@ const RISK_BANDS = [
   },
 ] as const;
 
+function factorContribution(factor: RiskFactor): number {
+  const weight = factor.weight ?? 1 / 6;
+  return Math.round(factor.score * weight * 100) / 100;
+}
+
 export function RiskScoreGauge({
   score,
   tier,
   factors,
   trend,
 }: RiskScoreGaugeProps) {
+  const t = useTranslations("riskExplainer");
   const [expanded, setExpanded] = useState(false);
   const [displayScore, setDisplayScore] = useState(0);
   const [selectedBand, setSelectedBand] = useState<string | null>(null);
   const [hoveredBand, setHoveredBand] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const reduceMotion = useReducedMotion();
 
   const boundedScore = clamp(score);
@@ -104,8 +114,28 @@ export function RiskScoreGauge({
         index: idx + 1,
         score: clamp(value),
       })),
-    [trend],
+    [trend]
   );
+
+  const totalWeight = useMemo(
+    () => factors.reduce((sum, f) => sum + (f.weight ?? 1 / 6), 0),
+    [factors]
+  );
+
+  const tierConfig = useMemo(() => {
+    const configs: Record<string, { description: string; scoreRange: string }> = {
+      AAA: { description: "Exceptional quality - highest creditworthiness.", scoreRange: "95-100" },
+      AA: { description: "Very high quality - very low credit risk.", scoreRange: "85-94" },
+      A: { description: "Low risk - strong repayment history and creditworthiness.", scoreRange: "75-84" },
+      BBB: { description: "Medium grade - adequate capacity to meet obligations.", scoreRange: "55-69" },
+      BB: { description: "Speculative - faces ongoing uncertainties.", scoreRange: "40-54" },
+      B: { description: "Moderate risk - generally reliable with minor concerns.", scoreRange: "50-74" },
+      CCC: { description: "Very high risk - currently vulnerable to non-payment.", scoreRange: "0-24" },
+      C: { description: "Elevated risk - some repayment uncertainty.", scoreRange: "25-49" },
+      D: { description: "High risk - significant default probability.", scoreRange: "0-24" },
+    };
+    return configs[tier] ?? { description: "Risk tier assessment.", scoreRange: "N/A" };
+  }, [tier]);
 
   return (
     <div className="space-y-4">
@@ -166,6 +196,18 @@ export function RiskScoreGauge({
         </div>
       </div>
 
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          aria-label={t("title")}
+        >
+          <Info className="h-3.5 w-3.5" aria-hidden="true" />
+          {t("title")}
+        </button>
+      </div>
+
       <div
         className="rounded-xl border border-border bg-muted/30 p-3"
         aria-label="Risk score band legend"
@@ -184,13 +226,13 @@ export function RiskScoreGauge({
                   type="button"
                   className={cn(
                     "flex w-full items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-2 text-left text-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    band.text,
+                    band.text
                   )}
                   aria-describedby={shown ? `risk-band-${band.id}` : undefined}
                   aria-expanded={shown}
                   onClick={() =>
                     setSelectedBand((selected) =>
-                      selected === band.id ? null : band.id,
+                      selected === band.id ? null : band.id
                     )
                   }
                   onMouseEnter={() => setHoveredBand(band.id)}
@@ -202,7 +244,6 @@ export function RiskScoreGauge({
                     className={cn("h-3 w-3 shrink-0 rounded-full", band.dot)}
                     aria-hidden="true"
                   />
-                  {/* Icon supplements color — satisfies WCAG 1.4.1 */}
                   <BandIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span>
                     <span className="block font-semibold">{band.label}</span>
@@ -235,7 +276,7 @@ export function RiskScoreGauge({
         <ChevronDown
           className={cn(
             "h-4 w-4 transition-transform",
-            expanded && "rotate-180",
+            expanded && "rotate-180"
           )}
           aria-hidden="true"
         />
@@ -291,6 +332,104 @@ export function RiskScoreGauge({
           </ResponsiveContainer>
         </div>
       </div>
+
+      <Drawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        title={t("title")}
+        description={t("subtitle")}
+        size="md"
+      >
+        <DrawerContent>
+          <DrawerSection title={t("methodologyTitle")} description={t("methodologyDesc")}>
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{t("totalScoreTitle")}</span>
+                <span className="font-bold" style={{ color: scoreColor(boundedScore) }}>
+                  {boundedScore}/100
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <Badge variant={tierVariant(tier)} className="text-[11px]">
+                  Tier {tier}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {tierConfig.scoreRange}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {tierConfig.description}
+              </p>
+            </div>
+          </DrawerSection>
+
+          <DrawerSection title={t("factorsTitle")}>
+            <div className="space-y-3">
+              {factors.map((factor) => {
+                const weight = factor.weight ?? 1 / totalWeight;
+                const contribution = factorContribution(factor);
+                return (
+                  <div key={factor.key} className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-foreground">
+                        {factor.label}
+                      </span>
+                      <div className="flex items-center gap-3 text-muted-foreground">
+                        <span>{t("scoreLabel")}: {factor.score}/100</span>
+                        <span>{t("weightLabel")}: {Math.round(weight * 100)}%</span>
+                      </div>
+                    </div>
+                    <div className="h-2 w-full rounded bg-muted">
+                      <div
+                        className="h-2 rounded transition-all"
+                        style={{
+                          width: `${clamp(factor.score)}%`,
+                          backgroundColor: scoreColor(factor.score),
+                        }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("contributionLabel")}: {contribution.toFixed(1)} points
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </DrawerSection>
+
+          <DrawerSection title={t("weightsTitle")}>
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="grid grid-cols-3 gap-px bg-border text-xs">
+                <div className="bg-muted/50 px-3 py-2 font-medium text-foreground">
+                  {t("factorsTitle")}
+                </div>
+                <div className="bg-muted/50 px-3 py-2 font-medium text-foreground text-right">
+                  {t("weightLabel")}
+                </div>
+                <div className="bg-muted/50 px-3 py-2 font-medium text-foreground text-right">
+                  {t("scoreLabel")}
+                </div>
+                {factors.map((factor) => {
+                  const weight = factor.weight ?? 1 / totalWeight;
+                  return (
+                    <div key={factor.key} className="contents">
+                      <div className="bg-background px-3 py-2 text-foreground">
+                        {factor.label}
+                      </div>
+                      <div className="bg-background px-3 py-2 text-right text-muted-foreground">
+                        {Math.round(weight * 100)}%
+                      </div>
+                      <div className="bg-background px-3 py-2 text-right font-medium text-foreground">
+                        {factor.score}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </DrawerSection>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
