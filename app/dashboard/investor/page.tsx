@@ -34,6 +34,7 @@ import { computeImpliedDiscount } from "@/types/invoice";
 import type { ColumnDef, DataTableProps } from "@/types/table";
 import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
 import { KycStatusCard } from "@/components/dashboard/KycStatusCard";
+import { SellerAnalyticsDashboard } from "@/components/analytics/SellerAnalyticsDashboard";
 
 const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
@@ -167,6 +168,9 @@ export default function InvestorDashboardPage() {
       askPrice,
       impliedDiscount: computeImpliedDiscount(askPrice, listingTarget.expectedReturn),
       listedAt: new Date().toISOString(),
+      invoiceTokenId: listingTarget.invoice?.tokenId,
+      repaymentDate: listingTarget.invoice?.terms.repaymentDate,
+      ownershipConfirmed: true,
     });
     setListingTarget(null);
   };
@@ -567,6 +571,15 @@ export default function InvestorDashboardPage() {
         onOpenChange={(open) => !open && setListingTarget(null)}
         onSubmit={handleListSubmit}
       />
+
+      {/* Seller analytics (#593) — shown whenever the investor has active listings */}
+      {listedPositions.length > 0 && (
+        <SellerAnalyticsDashboard
+          listings={Object.values(listings)}
+          positions={positionsData}
+          className="mt-8"
+        />
+      )}
 
       <TxSimulationPreview {...simulationDialogProps} />
     </div>
