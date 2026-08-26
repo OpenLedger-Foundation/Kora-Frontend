@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Tag, AlertCircle, CheckCircle, Info } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Tag, AlertCircle, CheckCircle, Info, AlertTriangle, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -22,7 +21,7 @@ interface ListPositionDialogProps {
   position: InvestorPosition | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (askPrice: number) => void;
+  onSubmit: (askPrice: number, expiresAt?: string) => void;
 }
 
 /**
@@ -60,13 +59,16 @@ export function ListPositionDialog({
   const isAskPriceValid = askIsValid && priceIsReasonable;
   const showValidationWarnings = showValidation || askPrice.length > 0;
 
-  const handleSubmit = () => {
+  const [expiresAt, setExpiresAt] = useState<string>("");
+
+const handleSubmit = () => {
     if (!isAskPriceValid) {
       setShowValidation(true);
       return;
     }
-    onSubmit(parsedAsk);
+    onSubmit(parsedAsk, expiresAt || undefined);
     setAskPrice("");
+    setExpiresAt("");
     setShowValidation(false);
   };
 
@@ -150,6 +152,26 @@ export function ListPositionDialog({
                 {formatCurrency(position.expectedReturn * 2, "USDC")}
               </p>
             </div>
+          </div>
+
+          {/* Expiry Date Picker */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-zinc-300">
+              Listing Expiry (Optional)
+            </label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+              <input
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="pl-10 w-full rounded-lg border border-zinc-800 bg-zinc-900/80 text-sm text-white placeholder-zinc-500 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                min={new Date().toISOString().slice(0, 16)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Optional: listing will be automatically removed after this date
+            </p>
           </div>
 
           {/* Validation warnings */}
