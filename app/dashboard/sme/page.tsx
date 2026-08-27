@@ -51,8 +51,9 @@ import { useTranslations } from "next-intl";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
-import { useMaturityReminder } from "@/hooks/useMaturityReminder";
+import { shouldShowRepaymentDueBanner, useMaturityReminder } from "@/hooks/useMaturityReminder";
 import { useUIStore, useInvoiceStore } from "@/store";
+import { useSettingsStore } from "@/store/settingsStore";
 import { MOCK_INVOICES } from "@/services/mockData";
 import {
   formatCurrency,
@@ -165,6 +166,7 @@ export default function SMEDashboardPage() {
   const { execute, status: txStatus } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
   const { data: usdcBalance = 0 } = useUsdcBalance(address ?? undefined);
+  const repaymentAlerts = useSettingsStore((state) => state.notifications.repaymentAlerts);
 
   const batchActionsEnabled = isEnabled("batch-actions");
   const queueRef = useRef(createBatchTxQueue());
@@ -639,7 +641,7 @@ export default function SMEDashboardPage() {
         </div>
 
         <div className="space-y-6">
-          {allMyInvoices.some((i) => i.status === "fully_funded") && (
+          {shouldShowRepaymentDueBanner(allMyInvoices, repaymentAlerts) && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
