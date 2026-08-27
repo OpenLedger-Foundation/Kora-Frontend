@@ -39,6 +39,7 @@ import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { sanitizeQueryParam } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useFeatureFlag } from "@/lib/featureFlags";
 import type { PositionListingMeta } from "@/store/positionListingStore";
 
 interface SecondaryMarketItem {
@@ -239,17 +240,7 @@ const buildMockListings = (): SecondaryMarketItem[] => [
   },
 ];
 
-export default function SecondaryMarketplacePage() {
-  // Issue #594: acquire runs through the same simulation gate as fund/transfer.
-  const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
-  const { publicKey } = useWallet();
-
-  // Issue #597: one schedule, read from validated env, shared by every figure
-  // on this page.
-  const feeSchedule = useMemo(() => getFeeSchedule(env), []);
-
-  const { listings: storeListings } = usePositionListingStore();
-  const { invoices } = useInvoiceStore();
+const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = buildMockListings();
 
 // ─── URL param keys ────────────────────────────────────────────────────────
 const PARAM_SEARCH = "q";
@@ -259,6 +250,11 @@ const PARAM_SELLER = "seller";
 const PARAM_HIGHLIGHT = "highlight";
 
 export default function SecondaryMarketplacePage() {
+  const isFeatureEnabled = useFeatureFlag("secondary-market");
+  const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
+  const { publicKey } = useWallet();
+
+  const feeSchedule = useMemo(() => getFeeSchedule(env), []);
   const { listings: storeListings, removeStale } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
   const router = useRouter();
@@ -428,6 +424,24 @@ export default function SecondaryMarketplacePage() {
     },
     [storeListings, removeStale]
   );
+
+  if (!isFeatureEnabled) {
+    return (
+      <main className="min-h-screen bg-zinc-950 py-16 text-zinc-100">
+        <Container>
+          <EmptyState
+            variant="no-positions"
+            title="Secondary Market Disabled"
+            description="The secondary market feature is currently unavailable or disabled for maintenance. Please check back later or explore the primary marketplace."
+            cta={{
+              label: "Explore Marketplace",
+              onClick: () => router.push("/marketplace"),
+            }}
+          />
+        </Container>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-zinc-950 py-8 text-zinc-100">
@@ -661,8 +675,6 @@ export default function SecondaryMarketplacePage() {
                         )}
 
                         <div className="flex items-center justify-between text-zinc-400">
-
-                        <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
                             <Tag className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
                             Implied Discount:
@@ -776,13 +788,5 @@ export default function SecondaryMarketplacePage() {
         </BottomSheet>
       </Container>
     </main>
-    <AcquirePositionDialog
-      item={acquireItem}
-      open={acquireItem !== null}
-      onOpenChange={() => setAcquireItem(null)}
-      onConfirm={() => {
-        alert(`Acquisition confirmed for ${acquireItem?.positionId}`);
-      }}
-    />
   );
 }

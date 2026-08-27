@@ -21,6 +21,8 @@ const FLAG_DESCRIPTIONS: Record<FeatureFlag, string> = {
   "onboarding-tour": "Mount the guided onboarding tour overlay.",
   "batch-actions": "Expose batch invoice management actions.",
   "kyb-mint-gate": "Gate invoice minting behind KYB verification.",
+  "secondary-market": "Enable secondary market P2P trading route.",
+  "category-taxonomy-preview": "Preview enhanced category taxonomy filters.",
 };
 
 export function FeatureFlagPanel() {
