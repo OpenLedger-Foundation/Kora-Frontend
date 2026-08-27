@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import EmptyState from "@/components/ui/EmptyState";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
+import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
 import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
 import { useAcquirePositionFlow } from "@/hooks/useTransaction";
 import { useWallet } from "@/hooks/useWallet";
@@ -283,6 +284,7 @@ export default function SecondaryMarketplacePage() {
   );
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [acquireItem, setAcquireItem] = useState<SecondaryMarketItem | null>(null);
 
   // Debounce text inputs before committing to URL to avoid excessive pushes.
   const debouncedSearch = useDebounce(searchQuery, 350);
@@ -713,15 +715,16 @@ export default function SecondaryMarketplacePage() {
                       <Button
                         className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
                         onClick={() => {
-                          void acquirePosition(
-                            item.positionId,
-                            publicKey ?? "",
-                            item.sellerAddress
-                          );
+                          if (!publicKey) {
+                            toast.info(t("connectWalletToAcquire"), {
+                              description: "Please connect your wallet first.",
+                            });
+                            return;
+                          }
+                          setAcquireItem(item);
                         }}
-                        disabled={!publicKey}
                       >
-                        {t("acquirePosition")}
+                        {publicKey ? t("acquirePosition") : t("connectWalletToAcquire")}
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -735,6 +738,24 @@ export default function SecondaryMarketplacePage() {
         {/* Issue #594: preview before signing; the dialog blocks proceed when
             the simulation fails. */}
         <TxSimulationPreview {...simulationDialogProps} />
+
+        {/* Issue #642: accessible acquire position dialog shell */}
+        <AcquirePositionDialog
+          item={acquireItem}
+          open={acquireItem !== null}
+          onOpenChange={(open) => {
+            if (!open) setAcquireItem(null);
+          }}
+          onConfirm={() => {
+            if (acquireItem && publicKey) {
+              void acquirePosition(
+                acquireItem.positionId,
+                publicKey,
+                acquireItem.sellerAddress
+              );
+            }
+          }}
+        />
 
         {/* Mobile Filter Bottom Sheet */}
         <BottomSheet
