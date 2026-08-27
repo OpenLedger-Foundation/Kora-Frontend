@@ -24,7 +24,7 @@ import {
   useTransaction,
   getProviderSigningConfig,
 } from "@/hooks/useTransaction";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 /**
@@ -51,6 +51,45 @@ export function InProgressOverlay() {
   const signingConfig = getProviderSigningConfig(
     ("provider" in txState && txState.provider) || provider
   );
+
+  const getAnnouncementText = () => {
+    if (isEscrowActive) {
+      if (escrowState.errorMessage) {
+        return `Escrow transaction failed: ${escrowState.errorMessage}`;
+      }
+      if (escrowState.step === "settled") {
+        return "Escrow Settlement Complete";
+      }
+      if (escrowState.step === "buyer_funding") {
+        return "Escrow step 1: Buyer Deposit in progress";
+      }
+      if (escrowState.step === "seller_transferring") {
+        return "Escrow step 2: Seller Position Transfer in progress";
+      }
+      return "Escrow transaction in progress";
+    }
+    if (isTimeoutStage) {
+      return "Transaction signing request timed out. Please extend time, retry, or cancel safely.";
+    }
+    if (isSigningStage) {
+      return `Waiting for transaction signature from ${signingConfig.providerName || "your wallet"}. Please approve the request on your device.`;
+    }
+    if (txState.status === "submitting") {
+      return "Submitting transaction to the network...";
+    }
+    if (txState.status === "confirmed") {
+      return "Transaction confirmed";
+    }
+    if (txState.status === "failed") {
+      return "Transaction failed";
+    }
+    if (txState.status && txState.status !== "idle") {
+      return `Transaction status: ${txState.status}`;
+    }
+    return "";
+  };
+
+  const announcementText = getAnnouncementText();
 
   useEffect(() => {
     if (!isSigningStage) return;
@@ -237,6 +276,8 @@ export function InProgressOverlay() {
       </div>
     );
   };
+
+  return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -253,6 +294,17 @@ export function InProgressOverlay() {
           aria-labelledby="overlay-title"
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm focus:outline-none"
         >
+          {/* Accessible Live Region for Screen Readers */}
+          <div
+            role="status"
+            aria-live="assertive"
+            aria-atomic="true"
+            className="sr-only"
+            data-testid="tx-overlay-announcement"
+          >
+            {announcementText}
+          </div>
+
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
