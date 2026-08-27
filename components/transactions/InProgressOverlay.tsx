@@ -237,6 +237,8 @@ export function InProgressOverlay() {
       </div>
     );
   };
+
+  return (
     <AnimatePresence>
       {isOpen && (
         <motion.div

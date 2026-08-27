@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AlertCircle, AlertTriangle, CheckCircle, ShieldAlert, ArrowRight, Clock, User, Tag, Info, RotateCcw } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertCircle, AlertTriangle, CheckCircle, ShieldAlert, ArrowRight, Clock, User, Tag } from "lucide-react";
+import { cn, RISK_TIER_COLORS } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -12,8 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { computeImpliedDiscount } from "@/types/invoice";
-import type { Invoice } from "@/types/invoice";
+import { Badge } from "@/components/ui/badge";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useTranslations } from "next-intl";
 
@@ -38,14 +36,7 @@ interface AcquirePositionDialogProps {
   onConfirm: () => void;
 }
 
-interface PriceImpactThresholds {
-  extremeDiscountThreshold: number;
-  extremePremiumThreshold: number;
-  warningDiscountThreshold: number;
-  warningPremiumThreshold: number;
-}
-
-const DEFAULT_THRESHOLDS = {
+export const DEFAULT_THRESHOLDS = {
   extremeDiscountThreshold: 0.3,
   extremePremiumThreshold: 0.2,
   warningDiscountThreshold: 0.2,
@@ -58,14 +49,12 @@ export function AcquirePositionDialog({
   onOpenChange,
   onConfirm,
 }: AcquirePositionDialogProps) {
-  const [showDetails, setShowDetails] = useState(false);
   const { formatCurrency, formatPercentage } = useFormatters();
-  const t = useTranslations("secondaryMarket.acquireDialog");
+  useTranslations("secondaryMarket.acquireDialog");
 
   if (!item) return null;
 
   const currency = item.invoice?.metadata?.currency ?? "USDC";
-  const impliedDiscount = item.listing.impliedDiscount;
 
   const isExtremeDiscountAlert = item.listing.impliedDiscount <= -DEFAULT_THRESHOLDS.extremeDiscountThreshold;
   const isExtremePremiumAlert = item.listing.impliedDiscount >= DEFAULT_THRESHOLDS.extremePremiumThreshold;
@@ -74,15 +63,6 @@ export function AcquirePositionDialog({
 
   const isExtremeAlert = isExtremeDiscountAlert || isExtremePremiumAlert;
   const isWarningAlert = isWarningDiscountAlert || isWarningPremiumAlert;
-
-  const handleConfirm = () => {
-    onConfirm();
-    onOpenChange(false);
-  };
-
-  if (!item) return null;
-
-  const currency = item.invoice?.metadata?.currency ?? "USDC";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -280,10 +260,3 @@ export function AcquirePositionDialog({
     </Dialog>
   );
 }
-
-export const DEFAULT_THRESHOLDS = {
-  extremeDiscountThreshold: 0.3,
-  extremePremiumThreshold: 0.2,
-  warningDiscountThreshold: 0.2,
-  warningPremiumThreshold: 0.1,
-};
