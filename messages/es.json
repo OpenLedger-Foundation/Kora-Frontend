@@ -51,21 +51,15 @@
     "restoringSession": "Restaurando sesión de billetera..."
   },
   "transaction": {
-    "building": "Construyendo transacción...",
-    "simulating": "Simulando transacción...",
-    "signing": "Esperando firma de la billetera...",
-    "submitting": "Enviando transacción...",
-    "polling": "Confirmando transacción en la cadena...",
+    "building": "Construyendo transacción…",
+    "simulating": "Simulando transacción…",
+    "signing": "Esperando firma de billetera…",
+    "submitting": "Enviando a la red Stellar…",
+    "polling": "Esperando confirmación…",
     "confirmed": "¡Transacción confirmada!",
     "failed": "Transacción fallida",
-    "cancelled": "Firma de transacción cancelada",
-    "timedOut": "Tiempo de espera de firma agotado",
-    "timeoutNotice": "La firma tardó demasiado tiempo en completarse.",
-    "extendTime": "Extender Tiempo (+60s)",
-    "retrySigning": "Reintentar Firma",
-    "cancelSigning": "Cancelar de Forma Segura",
-    "hardwareTip": "Confirma en tu billetera de hardware",
-    "mobileTip": "Revisa la app en tu móvil"
+    "retry": "Reintentar",
+    "dismiss": "Descartar"
   },
   "landing": {
     "headline": "Financiamiento de Facturas, En Cadena",
@@ -365,7 +359,22 @@
       "partial": "Parcial (Solo Nombre)",
       "anonymized": "Anonimizado (Industria + País)"
     },
-    "discountRateDesc": "El descuento ofrecido a los inversores. Una tasa más alta atrae financiamiento más rápido pero aumenta el costo de financiamiento."
+    "discountRateDesc": "El descuento ofrecido a los inversores. Una tasa más alta atrae financiamiento más rápido pero aumenta el costo de financiamiento.",
+    "kybGate": {
+      "title": "Business Verification Required",
+      "subtitleNone": "To mint an invoice on Kora, your SME account must complete KYB verification. The process takes about 2 minutes.",
+      "subtitlePending": "Your verification documents are under review. We'll automatically continue once approved — this page will refresh for you.",
+      "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
+      "ctaNone": "Start Verification",
+      "ctaRejected": "Re-verify Business",
+      "ctaPending": "Checking verification status…",
+      "backToWizard": "Go Back",
+      "whatYouNeed": "What you will need:",
+      "needIdDoc": "Government-issued ID or business registration document",
+      "needProofAddress": "Proof of business address",
+      "needTime": "Takes approximately 2 minutes",
+      "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    }
   },
   "smeDashboard": {
     "title": "Panel de PYME",
@@ -574,17 +583,6 @@
       "fundedAmount": "Monto Financiado"
     }
   },
-  "transaction": {
-    "building": "Construyendo transacción…",
-    "simulating": "Simulando transacción…",
-    "signing": "Esperando firma de billetera…",
-    "submitting": "Enviando a la red Stellar…",
-    "polling": "Esperando confirmación…",
-    "confirmed": "¡Transacción confirmada!",
-    "failed": "Transacción fallida",
-    "retry": "Reintentar",
-    "dismiss": "Descartar"
-  },
   "txSimulation": {
     "title": "Vista Previa de Transacción",
     "subtitle": "Revisa las tarifas estimadas y el uso de recursos antes de firmar",
@@ -723,7 +721,11 @@
     "footerHint": "Los contactos se guardan localmente en tu navegador.",
     "pickContact": "Elegir un contacto guardado",
     "noContacts": "Aún no hay contactos guardados",
-    "pickFromAddressBook": "Elegir de la Libreta"
+    "pickFromAddressBook": "Elegir de la Libreta",
+    "verifiedLabel": "Label verified with signature",
+    "signLabel": "Sign label for {label}",
+    "labelSigned": "Label signed successfully",
+    "signFailed": "Failed to sign label"
   },
   "installPrompt": {
     "ariaLabel": "Instalar aplicación Kora Protocol",

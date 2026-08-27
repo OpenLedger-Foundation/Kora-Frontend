@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRef, useState, useCallback, memo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useTranslations } from "next-intl";
-import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
+import { Calendar, Users, TrendingUp, ArrowRight, Clock, GitCompareArrows, Star } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,6 @@ import {
   THUMBNAIL_HEIGHT,
 } from "@/lib/invoiceSvg";
 import type { Invoice } from "@/types";
-import { useInvoiceStore } from "@/store";
 
 interface InvoiceCardProps {
   invoice: Invoice;
@@ -90,13 +89,14 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const jurisdictionNames = getJurisdictionNames(tMarketplace);
   const countryName = jurisdictionNames[metadata.jurisdiction] || metadata.jurisdiction;
   const { prefetch: prefetchInvoice, cancelPrefetch } = usePrefetchInvoice();
-  const { comparisonList, toggleComparison } = useInvoiceStore();
+  const { comparisonList, toggleComparison, toggleWatchedInvoice, isInvoiceWatched } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= MAX_COMPARISON_INVOICES && !isInComparison;
   const comparisonEnabled = useFeatureFlag("comparison");
   const reduced = useReducedMotion();
   const { isOnline } = useNetworkStatus();
-  
+  const watched = isInvoiceWatched(invoice.id);
+
   // Hover popover state
   const [popoverOpen, setPopoverOpen] = useState(false);
   const cardRef = useRef<HTMLAnchorElement>(null);
@@ -247,7 +247,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           </div>
           <button
             type="button"
-            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatched(invoice.id); }}
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatchedInvoice(invoice.id); }}
             className="absolute right-4 top-4 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
             aria-label={watched ? `Unstar ${metadata.invoiceNumber}` : `Star ${metadata.invoiceNumber}`}
           >
