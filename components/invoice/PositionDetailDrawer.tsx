@@ -15,10 +15,12 @@ import { daysUntil, cn } from "@/lib/utils";
 import { useFormatters } from "@/hooks/useFormatters";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { RepaymentTimeline } from "@/components/invoice/RepaymentTimeline";
-import type { InvoicePosition, Invoice } from "@/types";
+import type { InvoicePosition, InvestorPosition, Invoice } from "@/types";
+
+type PositionLike = InvoicePosition | InvestorPosition;
 
 interface PositionDetailDrawerProps {
-  position: InvoicePosition | null;
+  position: PositionLike | null;
   invoice: Invoice | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;

@@ -103,6 +103,23 @@ export function DataTable<T extends { id: string }>({
     });
   };
 
+  const getRowProps = (row: T) => {
+    if (!onRowClick) return {};
+    return {
+      role: "row",
+      tabIndex: 0,
+      "aria-label": `Open details for ${getRowId(row)}`,
+      className: "cursor-pointer",
+      onClick: () => onRowClick(row),
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onRowClick(row);
+        }
+      },
+    } as const;
+  };
+
   const renderCellValue = (row: T, column: ColumnDef<T>) => {
     if (column.cell) return column.cell(row);
     if (column.accessor) {
@@ -175,10 +192,15 @@ export function DataTable<T extends { id: string }>({
             ))
           : pageData.map((row) => {
               const rowId = getRowId(row);
+              const props = getRowProps(row);
               return (
                 <div
                   key={rowId}
-                  className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+                  {...props}
+                  className={cn(
+                    "rounded-2xl border border-border bg-card p-4 shadow-sm",
+                    props.className
+                  )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-border/50">
                     {enableSelection && (
@@ -342,10 +364,15 @@ export function DataTable<T extends { id: string }>({
                 ))
               : pageData.map((row) => {
                   const rowId = getRowId(row);
+                  const props = getRowProps(row);
                   return (
                     <tr
                       key={rowId}
-                      className="border-b border-border/50 transition-colors hover:bg-muted/30"
+                      {...props}
+                      className={cn(
+                        "border-b border-border/50 transition-colors hover:bg-muted/30",
+                        props.className
+                      )}
                     >
                       {enableSelection && (
                         <td className="px-4 py-3">

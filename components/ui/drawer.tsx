@@ -14,9 +14,9 @@ interface DrawerProps {
 }
 
 const sizeClasses = {
-  sm: "max-w-sm",
-  md: "max-w-md",
-  lg: "max-w-lg",
+  sm: "w-full max-w-sm",
+  md: "w-full max-w-md",
+  lg: "w-full max-w-lg",
 };
 
 /**
