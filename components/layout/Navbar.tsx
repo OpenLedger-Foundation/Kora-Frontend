@@ -16,6 +16,7 @@ import {
   Keyboard,
   Search,
   Tag,
+  Settings,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -53,6 +54,7 @@ const MENU_ID = "mobile-nav-menu";
 export function Navbar() {
   const pathname = usePathname();
   const t = useTranslations("nav");
+  const tSettings = useTranslations("settings");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   // Granular selectors — Navbar only subscribes to the slices it renders.
@@ -85,6 +87,7 @@ export function Navbar() {
     { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard, shortcut: null },
     { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle, shortcut: "G C" },
     { href: "/transactions", label: t("history"), icon: History, shortcut: "G T" },
+    { href: "/settings", label: tSettings("navLabel"), icon: Settings, shortcut: null },
   ];
 
   // Close on route change

@@ -69,17 +69,20 @@ import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 
-const STATUS_FILTER_OPTIONS: Array<{ value: InvoiceStatus | "all"; label: string }> = [
-  { value: "all", label: "All statuses" },
-  { value: "draft", label: "Draft" },
-  { value: "pending_mint", label: "Pending mint" },
-  { value: "listed", label: "Listed" },
-  { value: "partially_funded", label: "Partially funded" },
-  { value: "fully_funded", label: "Fully funded" },
-  { value: "active", label: "Active" },
-  { value: "repaid", label: "Repaid" },
-  { value: "defaulted", label: "Defaulted" },
-  { value: "cancelled", label: "Cancelled" },
+// Filter values in display order. Labels resolve from
+// `smeDashboard.statusFilters.*` at render time so the dropdown follows the
+// active locale instead of shipping English chrome to every reader.
+const STATUS_FILTER_VALUES: Array<InvoiceStatus | "all"> = [
+  "all",
+  "draft",
+  "pending_mint",
+  "listed",
+  "partially_funded",
+  "fully_funded",
+  "active",
+  "repaid",
+  "defaulted",
+  "cancelled",
 ];
 
 // ─── Skeleton for stats grid while data loads ─────────────────────────────────
@@ -492,10 +495,11 @@ export default function SMEDashboardPage() {
               <CardTitle>{t("myInvoices")}</CardTitle>
               <div className="flex items-center gap-2">
                 <label htmlFor="sme-status-filter" className="text-xs text-muted-foreground">
-                  Status
+                  {t("filters.statusLabel")}
                 </label>
                 <select
                   id="sme-status-filter"
+                  aria-label={t("filters.statusAria")}
                   value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value as InvoiceStatus | "all");
@@ -504,9 +508,9 @@ export default function SMEDashboardPage() {
                   }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
-                  {STATUS_FILTER_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                  {STATUS_FILTER_VALUES.map((value) => (
+                    <option key={value} value={value}>
+                      {t(`statusFilters.${value}` as Parameters<typeof t>[0])}
                     </option>
                   ))}
                 </select>
@@ -521,7 +525,7 @@ export default function SMEDashboardPage() {
               const cols: ColumnDef<Invoice>[] = [
                 {
                   id: "invoice",
-                  header: "Invoice",
+                  header: t("table.invoice"),
                   accessor: (row) => row.metadata.invoiceNumber,
                   cell: (row) => (
                     <div>
@@ -532,13 +536,13 @@ export default function SMEDashboardPage() {
                 },
                 {
                   id: "debtor",
-                  header: "Debtor",
+                  header: t("table.debtor"),
                   accessor: (row) => row.metadata.debtorName,
                   cell: (row) => <DebtorDisplay invoice={row} isFunded={true} />,
                 },
                 {
                   id: "amount",
-                  header: "Amount",
+                  header: t("table.amount"),
                   accessor: (row) => row.metadata.amount,
                   cell: (row) => (
                     <span className="font-medium text-foreground">
@@ -548,13 +552,13 @@ export default function SMEDashboardPage() {
                 },
                 {
                   id: "apr",
-                  header: "APR",
+                  header: t("table.apr"),
                   accessor: (row) => row.terms.apr,
                   cell: (row) => <span className="font-medium text-primary">{formatApr(row.terms.apr)}</span>,
                 },
                 {
                   id: "progress",
-                  header: "Progress",
+                  header: t("table.progress"),
                   accessor: (row) => row.funding.fundingProgress,
                   cell: (row) => (
                     <div className="w-32 space-y-1">
@@ -565,7 +569,7 @@ export default function SMEDashboardPage() {
                 },
                 {
                   id: "status",
-                  header: "Status",
+                  header: t("table.status"),
                   accessor: (row) => row.status,
                   cell: (row) => (
                     <InvoiceStatusBadge status={row.status} />
@@ -573,7 +577,7 @@ export default function SMEDashboardPage() {
                 },
                 {
                   id: "due",
-                  header: "Due Date",
+                  header: t("table.dueDate"),
                   accessor: (row) => row.terms.repaymentDate,
                   cell: (row) => (
                     <span className="text-xs text-muted-foreground">{formatDate(row.terms.repaymentDate)}</span>
@@ -592,12 +596,12 @@ export default function SMEDashboardPage() {
                       <div className="flex items-center gap-2">
                         {canRepay && (
                           <Button size="sm" onClick={() => setRepayTarget(row)}>
-                            Repay
+                            {t("table.repay")}
                           </Button>
                         )}
                         {canCancel && (
                           <Button size="sm" variant="ghost" onClick={() => handleCancel(row)}>
-                            Cancel
+                            {t("table.cancel")}
                           </Button>
                         )}
                         <div className="flex items-center gap-2">
@@ -714,18 +718,15 @@ export default function SMEDashboardPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Cancel {selectedCancelEligible.length} Invoice
-              {selectedCancelEligible.length !== 1 ? "s" : ""}?
+              {t("batchCancel.title", { count: selectedCancelEligible.length })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              You are about to cancel{" "}
-              <strong>
-                {selectedCancelEligible.length} unfunded invoice
-                {selectedCancelEligible.length !== 1 ? "s" : ""}
-              </strong>
-              . Transactions run sequentially; a failure will not block the rest of the queue.
+              {t.rich("batchCancel.body", {
+                count: selectedCancelEligible.length,
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -734,7 +735,7 @@ export default function SMEDashboardPage() {
                 onClick={() => setCancelConfirmOpen(false)}
                 data-testid="cancel-confirm-dismiss"
               >
-                Go Back
+                {t("goBack")}
               </Button>
               <Button
                 variant="destructive"
@@ -742,8 +743,7 @@ export default function SMEDashboardPage() {
                 onClick={executeBatchCancel}
                 data-testid="cancel-confirm-proceed"
               >
-                Yes, Cancel {selectedCancelEligible.length} Invoice
-                {selectedCancelEligible.length !== 1 ? "s" : ""}
+                {t("batchCancel.confirm", { count: selectedCancelEligible.length })}
               </Button>
             </div>
           </div>
@@ -755,18 +755,15 @@ export default function SMEDashboardPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Repay {selectedRepayEligible.length} Invoice
-              {selectedRepayEligible.length !== 1 ? "s" : ""}?
+              {t("batchRepay.title", { count: selectedRepayEligible.length })}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              You are about to repay{" "}
-              <strong>
-                {selectedRepayEligible.length} matured invoice
-                {selectedRepayEligible.length !== 1 ? "s" : ""}
-              </strong>
-              . Each repayment is signed and submitted sequentially.
+              {t.rich("batchRepay.body", {
+                count: selectedRepayEligible.length,
+                b: (chunks) => <strong>{chunks}</strong>,
+              })}
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -775,15 +772,14 @@ export default function SMEDashboardPage() {
                 onClick={() => setRepayConfirmOpen(false)}
                 data-testid="repay-confirm-dismiss"
               >
-                Go Back
+                {t("goBack")}
               </Button>
               <Button
                 size="sm"
                 onClick={executeBatchRepay}
                 data-testid="repay-confirm-proceed"
               >
-                Yes, Repay {selectedRepayEligible.length} Invoice
-                {selectedRepayEligible.length !== 1 ? "s" : ""}
+                {t("batchRepay.confirm", { count: selectedRepayEligible.length })}
               </Button>
             </div>
           </div>

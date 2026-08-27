@@ -22,7 +22,6 @@ import Script from "next/script";
 import { websiteSchema, organizationSchema, faqSchema, serializeSchema } from "@/lib/structuredData";
 import { useTranslations } from "next-intl";
 
-const HERO_HEADLINE = "Invoice Financing, On-Chain";
 
 function AnimatedStat({ value, label, formatter }: { value: number; label: string; formatter: (value: number) => string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -57,66 +56,31 @@ function AnimatedStat({ value, label, formatter }: { value: number; label: strin
   );
 }
 
+// Ordering, icon, and step number only — the copy lives in
+// `landing.howItWorks.*`. Keeping the presentation here and the words in the
+// message catalogue is what stops a new step from shipping English-only.
 const HOW_IT_WORKS = [
-  {
-    step: "01",
-    title: "Connect Wallet",
-    description: "Connect your Stellar wallet (Freighter, xBull, LOBSTR) to access the protocol.",
-    icon: Shield,
-  },
-  {
-    step: "02",
-    title: "Upload Invoice",
-    description: "Upload your unpaid invoice. Metadata is stored on IPFS; the NFT is minted on Soroban.",
-    icon: FileText,
-  },
-  {
-    step: "03",
-    title: "List on Marketplace",
-    description: "Set your discount rate and minimum investment. Your invoice goes live instantly.",
-    icon: Globe,
-  },
-  {
-    step: "04",
-    title: "Receive Liquidity",
-    description: "Investors fund your invoice. USDC is transferred to your wallet immediately.",
-    icon: Coins,
-  },
-  {
-    step: "05",
-    title: "Repay & Close",
-    description: "On due date, repay the financed amount. Investors receive principal + yield.",
-    icon: TrendingUp,
-  },
-];
+  { step: "01", key: "step1", icon: Shield },
+  { step: "02", key: "step2", icon: FileText },
+  { step: "03", key: "step3", icon: Globe },
+  { step: "04", key: "step4", icon: Coins },
+  { step: "05", key: "step5", icon: TrendingUp },
+] as const;
 
+// As above: copy lives in `landing.features.*`.
 const FEATURES = [
-  {
-    icon: Zap,
-    title: "Instant Settlement",
-    description: "Soroban smart contracts settle transactions in seconds, not days.",
-  },
-  {
-    icon: Shield,
-    title: "Non-Custodial",
-    description: "Your assets stay in your wallet. Smart contracts hold escrow, not us.",
-  },
-  {
-    icon: Globe,
-    title: "Global Access",
-    description: "SMEs across Africa, Asia, and LatAm access institutional-grade financing.",
-  },
-  {
-    icon: BarChart3,
-    title: "Transparent Risk",
-    description: "On-chain risk scores and repayment history visible to all participants.",
-  },
-];
+  { key: "instant", icon: Zap },
+  { key: "nonCustodial", icon: Shield },
+  { key: "global", icon: Globe },
+  { key: "transparent", icon: BarChart3 },
+] as const;
 
 export default function LandingPage() {
-  const words = useMemo(() => HERO_HEADLINE.split(" "), []);
   const { formatCurrency, formatPercentage, formatNumber } = useFormatters();
   const t = useTranslations("landing");
+  // Split the translated headline, not a module-level English constant, so the
+  // per-word stagger animation runs over whatever the active locale says.
+  const words = useMemo(() => t("headline").split(" "), [t]);
 
   const heroStats = useMemo(
     () => [
@@ -178,7 +142,7 @@ export default function LandingPage() {
               className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium uppercase tracking-[0.26em] text-cyan-200/90"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 animate-pulse" />
-              Live on Stellar Testnet
+              {t("badge")}
             </motion.span>
 
             <motion.h1
@@ -203,7 +167,7 @@ export default function LandingPage() {
               transition={{ duration: 0.5, delay: 0.18 }}
               className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-zinc-300 sm:text-xl"
             >
-              Unlock working capital for emerging market SMEs with on-chain invoice financing, stablecoin liquidity and transparent investor access — all non-custodial.
+              {t("subtitle")}
             </motion.p>
 
             <motion.div
@@ -214,12 +178,12 @@ export default function LandingPage() {
             >
               <Link href="/invoice/create">
                 <Button size="xl" className="min-w-[220px]">
-                  Finance My Invoice
+                  {t("financeInvoice")}
                 </Button>
               </Link>
               <Link href="/marketplace">
                 <Button size="xl" variant="outline" className="min-w-[220px]">
-                  Browse Marketplace
+                  {t("browseMarketplace")}
                 </Button>
               </Link>
             </motion.div>
@@ -289,8 +253,12 @@ export default function LandingPage() {
                     </span>
                   </div>
                   <div className="pt-1">
-                    <h3 className="font-semibold text-zinc-100">{step.title}</h3>
-                    <p className="mt-1 text-sm text-zinc-500">{step.description}</p>
+                    <h3 className="font-semibold text-zinc-100">
+                      {t(`howItWorks.${step.key}Title` as Parameters<typeof t>[0])}
+                    </h3>
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {t(`howItWorks.${step.key}Desc` as Parameters<typeof t>[0])}
+                    </p>
                   </div>
                 </motion.div>
               ))}
@@ -304,17 +272,15 @@ export default function LandingPage() {
         <div className="mx-auto max-w-5xl">
           <div className="mb-16 text-center">
             <h2 className="text-3xl font-bold text-zinc-100 sm:text-4xl" id="features-heading">
-              Built for the Real Economy
+              {t("featuresTitle")}
             </h2>
-            <p className="mt-3 text-zinc-500">
-              Institutional-grade infrastructure for emerging market SMEs
-            </p>
+            <p className="mt-3 text-zinc-500">{t("featuresSubtitle")}</p>
           </div>
 
           <div className="grid gap-6 sm:grid-cols-2">
             {FEATURES.map((f, i) => (
               <motion.div
-                key={f.title}
+                key={f.key}
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -324,8 +290,12 @@ export default function LandingPage() {
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-kora-500/10 text-kora-400">
                     <f.icon className="h-5 w-5" />
                   </div>
-                  <h3 className="mt-4 font-semibold text-zinc-100">{f.title}</h3>
-                  <p className="mt-2 text-sm text-zinc-500">{f.description}</p>
+                  <h3 className="mt-4 font-semibold text-zinc-100">
+                    {t(`features.${f.key}Title` as Parameters<typeof t>[0])}
+                  </h3>
+                  <p className="mt-2 text-sm text-zinc-500">
+                    {t(`features.${f.key}Desc` as Parameters<typeof t>[0])}
+                  </p>
                 </GlassCard>
               </motion.div>
             ))}
@@ -345,27 +315,30 @@ export default function LandingPage() {
             <div className="grid gap-8 lg:grid-cols-3">
               {[
                 {
-                  layer: "Application Layer",
+                  key: "appLayer",
+                  // Item lists are proper product names — Next.js, IPFS /
+                  // Pinata, Horizon API — so they are deliberately not
+                  // translated. Only the layer heading is localised.
                   items: ["Next.js Frontend", "Stellar Wallets Kit", "TanStack Query"],
                   color: "text-blue-400",
                   bg: "bg-blue-400/10",
                 },
                 {
-                  layer: "Protocol Layer",
+                  key: "protocolLayer",
                   items: ["Invoice NFT Contract", "Marketplace Contract", "Token Contract"],
                   color: "text-kora-400",
                   bg: "bg-kora-400/10",
                 },
                 {
-                  layer: "Storage Layer",
+                  key: "storageLayer",
                   items: ["Stellar Soroban", "IPFS / Pinata", "Horizon API"],
                   color: "text-purple-400",
                   bg: "bg-purple-400/10",
                 },
               ].map((layer) => (
-                <div key={layer.layer} className="space-y-3">
+                <div key={layer.key} className="space-y-3">
                   <div className={`inline-flex rounded-lg px-3 py-1 text-xs font-medium ${layer.bg} ${layer.color}`}>
-                    {layer.layer}
+                    {t(`architecture.${layer.key}` as Parameters<typeof t>[0])}
                   </div>
                   <ul className="space-y-2">
                     {layer.items.map((item) => (
@@ -390,20 +363,20 @@ export default function LandingPage() {
               <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-kora-500/10 blur-3xl" />
             </div>
             <h2 className="relative text-3xl font-bold text-zinc-100">
-              Ready to unlock your capital?
+              {t("ctaTitle")}
             </h2>
             <p className="relative mt-3 text-zinc-500">
-              Join hundreds of SMEs already financing invoices on Kora Protocol.
+              {t("ctaSubtitle")}
             </p>
             <div className="relative mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link href="/invoice/create">
                 <Button size="xl">
-                  Create Invoice <ArrowRight className="h-5 w-5" />
+                  {t("createInvoice")} <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
               <Link href="/marketplace">
                 <Button size="xl" variant="outline">
-                  Explore Marketplace
+                  {t("exploreMarketplace")}
                 </Button>
               </Link>
             </div>

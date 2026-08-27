@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw, UserCheck, Eye } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw, UserCheck, Eye, ArrowUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -28,6 +29,7 @@ import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 
 export function WalletButton() {
   const t = useTranslations("wallet");
+  const tSettings = useTranslations("settings");
   const {
     isConnected,
     address,
@@ -347,7 +349,19 @@ export function WalletButton() {
           </div>
 
           {activeTab === "notifications" ? (
-            <NotificationSettings />
+            <>
+              <NotificationSettings />
+              {/* The dialog stays a shortcut; /settings is the routable,
+                  linkable surface for the same store (Issue #638). */}
+              <Link
+                href="/settings"
+                onClick={() => setSettingsOpen(false)}
+                className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+              >
+                {tSettings("openFull")}
+                <ArrowUpRight className="h-3 w-3" aria-hidden />
+              </Link>
+            </>
           ) : (
             <div className="space-y-4 pt-1">
               <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/10 p-3">
