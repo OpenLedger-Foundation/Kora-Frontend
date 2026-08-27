@@ -74,6 +74,13 @@ test.describe("RangeSlider component — keyboard interactions", () => {
     expect(label).toMatch(/maximum value/i);
   });
 
+  test("thumbs expose formatted aria-valuetext", async ({ page }) => {
+    const minValuetext = await getMinThumb(page).getAttribute("aria-valuetext");
+    const maxValuetext = await getMaxThumb(page).getAttribute("aria-valuetext");
+    expect(minValuetext).toBe("0%");
+    expect(maxValuetext).toBe("50%");
+  });
+
   test("both thumbs are keyboard-focusable (tabIndex is not -1)", async ({
     page,
   }) => {
