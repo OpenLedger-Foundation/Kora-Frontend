@@ -32,10 +32,12 @@ import { computeAcquisitionFees, getFeeSchedule } from "@/lib/secondaryFees";
 import { usePositionListingStore } from "@/store/positionListingStore";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { MOCK_INVOICES } from "@/services/mockData";
-import { formatCurrency, formatDate, RISK_TIER_COLORS, cn } from "@/lib/utils";
+import { RISK_TIER_COLORS, cn } from "@/lib/utils";
 import { computeImpliedDiscount } from "@/types/invoice";
-import type { PositionListing, Invoice } from "@/types/invoice";
+import type { Invoice } from "@/types/invoice";
 import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
+import { useTranslations } from "next-intl";
+import { useFormatters } from "@/hooks/useFormatters";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { sanitizeQueryParam } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -251,6 +253,8 @@ const PARAM_HIGHLIGHT = "highlight";
 
 export default function SecondaryMarketplacePage() {
   const isFeatureEnabled = useFeatureFlag("secondary-market");
+  const t = useTranslations("secondaryMarket");
+  const { formatCurrency, formatDate, formatPercentage } = useFormatters();
   const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
   const { publicKey } = useWallet();
 
@@ -422,7 +426,7 @@ export default function SecondaryMarketplacePage() {
         description: `Acquiring position ${item.positionId} at ask price ${formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}.`,
       });
     },
-    [storeListings, removeStale]
+    [storeListings, removeStale, formatCurrency]
   );
 
   if (!isFeatureEnabled) {
@@ -431,10 +435,10 @@ export default function SecondaryMarketplacePage() {
         <Container>
           <EmptyState
             variant="no-positions"
-            title="Secondary Market Disabled"
-            description="The secondary market feature is currently unavailable or disabled for maintenance. Please check back later or explore the primary marketplace."
+            title={t("disabledTitle")}
+            description={t("disabledDesc")}
             cta={{
-              label: "Explore Marketplace",
+              label: t("exploreMarketplace"),
               onClick: () => router.push("/marketplace"),
             }}
           />
@@ -452,14 +456,14 @@ export default function SecondaryMarketplacePage() {
             <div className="flex items-center gap-2">
               <Tag className="h-6 w-6 text-primary" />
               <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl">
-                Secondary Market
+                {t("title")}
               </h1>
               <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary">
-                P2P Transferable Positions
+                {t("badge")}
               </Badge>
             </div>
             <p className="mt-1 text-sm text-zinc-400">
-              Browse and buy active investor positions at competitive yields before maturity.
+              {t("subtitle")}
             </p>
           </div>
 
@@ -469,17 +473,17 @@ export default function SecondaryMarketplacePage() {
             size="sm"
             onClick={handleCopyUrl}
             className="shrink-0 border-zinc-700 bg-zinc-900 text-xs text-zinc-300 hover:text-white"
-            aria-label="Copy shareable URL for current filters"
+            aria-label={t("copyAria")}
           >
             {copied ? (
               <>
                 <Check className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
-                Copied!
+                {t("copied")}
               </>
             ) : (
               <>
                 <Copy className="mr-1.5 h-3.5 w-3.5" />
-                Share View
+                {t("shareView")}
               </>
             )}
           </Button>
@@ -492,11 +496,11 @@ export default function SecondaryMarketplacePage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <Input
-                placeholder="Search by debtor, invoice number, category..."
+                placeholder={t("searchPlaceholder")}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(sanitizeQueryParam(e.target.value))}
                 className="pl-9 bg-zinc-950/80 border-zinc-800 text-sm focus:border-primary"
-                aria-label="Search secondary market listings"
+                aria-label={t("searchAria")}
               />
             </div>
 
@@ -509,7 +513,7 @@ export default function SecondaryMarketplacePage() {
                   onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
                   options={TENOR_OPTIONS}
                   className="w-40 bg-zinc-950/80 border-zinc-800 text-xs"
-                  aria-label="Filter by remaining tenor"
+                  aria-label={t("tenorAria")}
                 />
               </div>
 
@@ -520,18 +524,18 @@ export default function SecondaryMarketplacePage() {
                   onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
                   options={YIELD_OPTIONS}
                   className="w-36 bg-zinc-950/80 border-zinc-800 text-xs"
-                  aria-label="Filter by minimum yield"
+                  aria-label={t("yieldAria")}
                 />
               </div>
 
               <div className="relative w-44">
                 <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" aria-hidden />
                 <Input
-                  placeholder="Seller G-address..."
+                  placeholder={t("sellerPlaceholder")}
                   value={sellerFilter}
                   onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
                   className="pl-8 bg-zinc-950/80 border-zinc-800 text-xs h-9"
-                  aria-label="Filter by seller address"
+                  aria-label={t("sellerAria")}
                 />
               </div>
 
@@ -541,10 +545,10 @@ export default function SecondaryMarketplacePage() {
                   size="sm"
                   onClick={resetFilters}
                   className="text-xs text-zinc-400 hover:text-white"
-                  aria-label="Reset all filters"
+                  aria-label={t("resetAria")}
                 >
                   <RotateCcw className="mr-1 h-3.5 w-3.5" aria-hidden />
-                  Reset
+                  {t("reset")}
                 </Button>
               )}
             </div>
@@ -558,10 +562,10 @@ export default function SecondaryMarketplacePage() {
                 className="w-full border-zinc-800 bg-zinc-950/80 text-xs"
               >
                 <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-primary" aria-hidden />
-                Filter Positions
+                {t("filterPositions")}
                 {hasActiveFilters && (
                   <Badge variant="outline" className="ml-2 bg-primary/20 text-primary text-[10px]">
-                    Active
+                    {t("active")}
                   </Badge>
                 )}
               </Button>
@@ -572,9 +576,9 @@ export default function SecondaryMarketplacePage() {
         {/* Position Listings Grid */}
         {filteredItems.length === 0 ? (
           <EmptyState
-            title="No Transferable Positions Found"
-            description="No secondary market position listings match your filter criteria. Try expanding your tenor or yield requirements."
-            cta={{ label: "Clear All Filters", onClick: resetFilters }}
+            title={t("emptyTitle")}
+            description={t("emptyDesc")}
+            cta={{ label: t("clearFilters"), onClick: resetFilters }}
           />
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -594,12 +598,16 @@ export default function SecondaryMarketplacePage() {
                     isHighlighted && "ring-2 ring-primary/60 border-primary/60",
                     isStale && "opacity-60 border-red-500/40"
                   )}
-                  aria-label={`Secondary listing for ${item.invoice.metadata.invoiceNumber}${isStale ? " — stale, position transferred" : ""}`}
+                  aria-label={
+                    isStale
+                      ? t("listingAriaStale", { invoiceNumber: item.invoice.metadata.invoiceNumber })
+                      : t("listingAria", { invoiceNumber: item.invoice.metadata.invoiceNumber })
+                  }
                 >
                   {isStale && (
                     <div className="absolute inset-x-0 top-0 flex items-center gap-1.5 bg-red-500/10 px-4 py-1.5 text-xs text-red-400">
                       <ShieldAlert className="h-3.5 w-3.5" aria-hidden />
-                      Position already transferred — listing is stale
+                      {t("staleBadge")}
                     </div>
                   )}
 
@@ -619,7 +627,7 @@ export default function SecondaryMarketplacePage() {
                         </CardTitle>
                       </div>
                       <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-semibold">
-                        +{item.yieldPercent.toFixed(1)}% Yield
+                        {t("yieldBadge", { yield: item.yieldPercent.toFixed(1) })}
                       </Badge>
                     </div>
                   </CardHeader>
@@ -630,7 +638,7 @@ export default function SecondaryMarketplacePage() {
                       <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/60 p-3 text-xs">
                         <div>
                           <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
-                            Ask Price
+                            {t("askPrice")}
                           </span>
                           <span className="font-semibold text-white text-sm">
                             {formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}
@@ -638,7 +646,7 @@ export default function SecondaryMarketplacePage() {
                         </div>
                         <div>
                           <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
-                            Expected Return
+                            {t("expectedReturn")}
                           </span>
                           <span className="font-medium text-zinc-300">
                             {formatCurrency(item.expectedReturn, item.invoice.metadata.currency)}
@@ -651,10 +659,10 @@ export default function SecondaryMarketplacePage() {
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
                             <Clock className="h-3.5 w-3.5 text-primary/80" aria-hidden />
-                            Remaining Tenor:
+                            {t("remainingTenor")}:
                           </span>
                           <span className="font-medium text-white">
-                            {item.remainingTenor} days remaining
+                            {t("daysRemaining", { days: item.remainingTenor })}
                           </span>
                         </div>
 
@@ -662,14 +670,14 @@ export default function SecondaryMarketplacePage() {
                           <div className="flex items-center justify-between text-zinc-400">
                             <span className="flex items-center gap-1.5">
                               <Clock className="h-3.5 w-3.5 text-warning/80" />
-                              Listing Expires:
+                              {t("listingExpires")}:
                             </span>
                             <span className={cn(
                               "font-medium text-sm",
                               new Date(item.listing.expiresAt!) <= new Date() ? "text-destructive" : "text-warning"
                             )}>
-                              {formatDate(item.listing.expiresAt, "MMM d, HH:mm")}
-                              {new Date(item.listing.expiresAt!) <= new Date() && " (Expired)"}
+                              {formatDate(item.listing.expiresAt, "short")}
+                              {new Date(item.listing.expiresAt!) <= new Date() && ` ${t("expired")}`}
                             </span>
                           </div>
                         )}
@@ -677,17 +685,17 @@ export default function SecondaryMarketplacePage() {
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
                             <Tag className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
-                            Implied Discount:
+                            {t("impliedDiscount")}:
                           </span>
                           <span className="font-medium text-emerald-400">
-                            {(item.listing.impliedDiscount * 100).toFixed(1)}%
+                            {formatPercentage(item.listing.impliedDiscount * 100, 1)}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
                             <User className="h-3.5 w-3.5 text-zinc-400" aria-hidden />
-                            Seller Address:
+                            {t("sellerAddress")}:
                           </span>
                           <span className="font-mono text-[11px] text-zinc-300">
                             {item.sellerAddress.slice(0, 4)}...{item.sellerAddress.slice(-4)}
@@ -713,7 +721,7 @@ export default function SecondaryMarketplacePage() {
                         }}
                         disabled={!publicKey}
                       >
-                        Acquire Position
+                        {t("acquirePosition")}
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -732,13 +740,13 @@ export default function SecondaryMarketplacePage() {
         <BottomSheet
           open={mobileFilterOpen}
           onOpenChange={setMobileFilterOpen}
-          title="Filter Secondary Positions"
+          title={t("bottomSheetTitle")}
         >
           <div className="space-y-4 p-4 text-zinc-100">
             <div className="space-y-3">
               <div>
                 <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-tenor-filter">
-                  Remaining Tenor
+                  {t("mobileTenorLabel")}
                 </label>
                 <Select
                   id="mobile-tenor-filter"
@@ -751,7 +759,7 @@ export default function SecondaryMarketplacePage() {
 
               <div>
                 <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-yield-filter">
-                  Minimum Yield
+                  {t("mobileYieldLabel")}
                 </label>
                 <Select
                   id="mobile-yield-filter"
@@ -764,11 +772,11 @@ export default function SecondaryMarketplacePage() {
 
               <div>
                 <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-seller-filter">
-                  Seller Address
+                  {t("mobileSellerLabel")}
                 </label>
                 <Input
                   id="mobile-seller-filter"
-                  placeholder="Seller G-address..."
+                  placeholder={t("sellerPlaceholder")}
                   value={sellerFilter}
                   onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
                   className="bg-zinc-900 border-zinc-800 text-xs"
@@ -778,10 +786,10 @@ export default function SecondaryMarketplacePage() {
 
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1 text-xs" onClick={resetFilters}>
-                Reset
+                {t("reset")}
               </Button>
               <Button className="flex-1 text-xs" onClick={() => setMobileFilterOpen(false)}>
-                Apply Filters
+                {t("applyFilters")}
               </Button>
             </div>
           </div>
