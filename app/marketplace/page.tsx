@@ -100,8 +100,6 @@ const getSortOptions = (t: TFunc) => [
 
 // ─── Custom UI Controls ──────────────────────────────────────────────────────
 
-
-
 // 2. Custom Checkbox Group for Risk Tiers
 function CheckboxGroup({
   label,
@@ -161,103 +159,6 @@ function CheckboxGroup({
         })}
       </div>
     </fieldset>
-  );
-}
-
-// 3. Custom Dual-Thumb Range Slider (APR Range)
-function DualSlider({
-  min,
-  max,
-  value,
-  onChange,
-}: {
-  min: number;
-  max: number;
-  value: [number, number];
-  onChange: (val: [number, number]) => void;
-}) {
-  const t = useTranslations("marketplace");
-  const [minVal, maxVal] = value;
-  const minValRef = useRef(minVal);
-  const maxValRef = useRef(maxVal);
-  const rangeRef = useRef<HTMLDivElement>(null);
-
-  const getPercent = useCallback(
-    (value: number) => Math.round(((value - min) / (max - min)) * 100),
-    [min, max]
-  );
-
-  useEffect(() => {
-    const minPercent = getPercent(minVal);
-    const maxPercent = getPercent(maxValRef.current);
-
-    if (rangeRef.current) {
-      rangeRef.current.style.left = `${minPercent}%`;
-      rangeRef.current.style.width = `${maxPercent - minPercent}%`;
-    }
-  }, [minVal, getPercent]);
-
-  useEffect(() => {
-    const minPercent = getPercent(minValRef.current);
-    const maxPercent = getPercent(maxVal);
-
-    if (rangeRef.current) {
-      rangeRef.current.style.width = `${maxPercent - minPercent}%`;
-    }
-  }, [maxVal, getPercent]);
-
-  return (
-    <div className="relative flex w-full flex-col gap-2">
-      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
-        <span id="apr-range-label">{t("aprRange")}</span>
-        <span className="text-primary font-mono lowercase" aria-live="polite" aria-atomic="true">
-          {minVal}% - {maxVal}%
-        </span>
-      </div>
-      <div className="relative h-6 flex items-center" role="group" aria-labelledby="apr-range-label">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={minVal}
-          aria-label={`Minimum APR: ${minVal}%`}
-          aria-valuemin={min}
-          aria-valuemax={max}
-          aria-valuenow={minVal}
-          onChange={(event) => {
-            const val = Math.min(Number(event.target.value), maxVal - 1);
-            onChange([val, maxVal]);
-            minValRef.current = val;
-          }}
-          className="pointer-events-none absolute z-30 h-1 w-full appearance-none bg-transparent outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow"
-          style={{ zIndex: minVal > max - 100 ? "40" : undefined }}
-        />
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={maxVal}
-          aria-label={`Maximum APR: ${maxVal}%`}
-          aria-valuemin={min}
-          aria-valuemax={max}
-          aria-valuenow={maxVal}
-          onChange={(event) => {
-            const val = Math.max(Number(event.target.value), minVal + 1);
-            onChange([minVal, val]);
-            maxValRef.current = val;
-          }}
-          className="pointer-events-none absolute z-30 h-1 w-full appearance-none bg-transparent outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow"
-        />
-
-        <div className="relative w-full">
-          <div className="h-1.5 w-full rounded bg-zinc-800" />
-          <div
-            ref={rangeRef}
-            className="absolute top-0 h-1.5 rounded bg-primary"
-          />
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -604,13 +505,31 @@ function MarketplaceContent() {
         onChange={(val) => updateSingleFilter("riskTiers", val)}
       />
 
-      {/* Dual Slider for APR Range */}
-      <DualSlider
-        min={0}
-        max={50}
-        value={filters.aprRange || [0, 50]}
-        onChange={(val) => updateSingleFilter("aprRange", val)}
-      />
+      {/* APR range — shared RangeSlider (#678). The heading and live readout
+          stay here rather than moving into the shared control: they are
+          marketplace copy, and the e2e suite asserts on them. */}
+      <div className="relative flex w-full flex-col gap-2">
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
+          <span id="apr-range-label">{t("aprRange")}</span>
+          <span
+            className="text-primary font-mono lowercase"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {(filters.aprRange || [0, 50])[0]}% - {(filters.aprRange || [0, 50])[1]}%
+          </span>
+        </div>
+        <div role="group" aria-labelledby="apr-range-label">
+          <RangeSlider
+            min={0}
+            max={50}
+            step={1}
+            value={filters.aprRange || [0, 50]}
+            onChange={(val) => updateSingleFilter("aprRange", val)}
+            formatLabel={(v) => `${v}%`}
+          />
+        </div>
+      </div>
 
       {/* Status Toggle Switch */}
       <Switch

@@ -195,25 +195,7 @@ interface TransactionStore {
   setEscrowContext: (context: { positionId: string; buyerAddress: string; sellerAddress: string; amount: number } | null) => void;
 }
 
-// 💾 Defaults ──────────────────────────────────────────────────────────
-
-const MAX_HISTORY = 200; // cap to avoid unbounded localStorage growth
-
-const DEFAULT_ESCROW_STATE = {
-  step: "idle",
-  errorStep: null,
-  errorMessage: null,
-  txHash: null,
-  attemptHistory: [] as any[],
-  currentAttempt: undefined,
-  totalRetryCount: 0,
-  currentContext: undefined,
-};
-
 // 🏪 Store ────────────────────────────────────────────────────────────
-
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export const useTransactionStore = create<TransactionStore>()(
   persist(

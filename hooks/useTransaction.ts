@@ -302,6 +302,13 @@ export function useTransaction() {
         successMessage?: string;
         successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
+        /**
+         * Action for the failure toast's retry button. Defaults to clearing the
+         * failed state, which is all a generic caller can offer; callers that
+         * can re-attempt the whole transaction pass their own handler so the
+         * button actually retries rather than just dismissing the error.
+         */
+        onRetry?: () => void;
         /** Called with the simulation preview; must resolve true to proceed */
         onSimulationPreview?: (preview: SimulationPreview) => Promise<boolean>;
         txType?: string;
@@ -497,7 +504,7 @@ export function useTransaction() {
         toast.error(
           t("failed"),
           message,
-          () => setState({ status: "idle" }),
+          options?.onRetry ?? (() => setState({ status: "idle" })),
           TOAST_ID,
           "txConfirmed"
         );
