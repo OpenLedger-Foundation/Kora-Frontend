@@ -541,6 +541,10 @@
   "cancelDialog": {
     "title": "Cancelar Fatura",
     "description": "Esta ação não pode ser desfeita. A fatura será cancelada permanentemente.",
+    "undoTitle": "Cancelamento aguardando",
+    "undoDescription": "O cancelamento ainda não foi enviado. Revise a contagem regressiva e desfaça se necessário.",
+    "undoCountdown": "Enviando cancelamento em {seconds} segundos",
+    "undo": "Desfazer cancelamento",
     "reasonLabel": "Motivo do cancelamento",
     "selectReasonPlaceholder": "Selecione um motivo para cancelar",
     "reasons": {

@@ -484,6 +484,10 @@
   "cancelDialog": {
     "title": "Cancel Invoice",
     "description": "This action cannot be undone. The invoice will be permanently cancelled.",
+    "undoTitle": "Cancellation queued",
+    "undoDescription": "The cancellation has not been sent yet. Review the countdown and undo it if needed.",
+    "undoCountdown": "Sending cancellation in {seconds} seconds",
+    "undo": "Undo cancellation",
     "reasonLabel": "Cancellation Reason",
     "selectReasonPlaceholder": "Select a reason for cancellation",
     "reasons": {
