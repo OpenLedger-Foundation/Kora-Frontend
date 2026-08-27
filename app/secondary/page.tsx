@@ -239,6 +239,13 @@ const buildMockListings = (): SecondaryMarketItem[] => [
   },
 ];
 
+// ─── URL param keys ────────────────────────────────────────────────────────
+const PARAM_SEARCH = "q";
+const PARAM_TENOR = "tenor";
+const PARAM_YIELD = "yield";
+const PARAM_SELLER = "seller";
+const PARAM_HIGHLIGHT = "highlight";
+
 export default function SecondaryMarketplacePage() {
   // Issue #594: acquire runs through the same simulation gate as fund/transfer.
   const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
@@ -248,17 +255,6 @@ export default function SecondaryMarketplacePage() {
   // on this page.
   const feeSchedule = useMemo(() => getFeeSchedule(env), []);
 
-  const { listings: storeListings } = usePositionListingStore();
-  const { invoices } = useInvoiceStore();
-
-// ─── URL param keys ────────────────────────────────────────────────────────
-const PARAM_SEARCH = "q";
-const PARAM_TENOR = "tenor";
-const PARAM_YIELD = "yield";
-const PARAM_SELLER = "seller";
-const PARAM_HIGHLIGHT = "highlight";
-
-export default function SecondaryMarketplacePage() {
   const { listings: storeListings, removeStale } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
   const router = useRouter();
@@ -430,6 +426,7 @@ export default function SecondaryMarketplacePage() {
   );
 
   return (
+    <>
     <main className="min-h-screen bg-zinc-950 py-8 text-zinc-100">
       <Container>
         {/* Header */}
@@ -661,8 +658,6 @@ export default function SecondaryMarketplacePage() {
                         )}
 
                         <div className="flex items-center justify-between text-zinc-400">
-
-                        <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
                             <Tag className="h-3.5 w-3.5 text-emerald-400" aria-hidden />
                             Implied Discount:
@@ -784,5 +779,6 @@ export default function SecondaryMarketplacePage() {
         alert(`Acquisition confirmed for ${acquireItem?.positionId}`);
       }}
     />
+    </>
   );
 }
