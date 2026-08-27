@@ -15,6 +15,12 @@ type Props = {
     terms: { repaymentDate: string; apr: number };
   };
   showCalendarExport?: boolean;
+  /**
+   * Text for the elapsed state. Defaults to "Expired", which reads correctly
+   * for a listing that has come off the marketplace; a maturity countdown
+   * passes "Overdue" instead, since the invoice still exists — it is late.
+   */
+  expiredLabel?: string;
 };
 
 function pad(n: number) {
@@ -44,6 +50,7 @@ export function CountdownTimer({
   compact = true,
   invoice,
   showCalendarExport = false,
+  expiredLabel = "Expired",
 }: Props) {
   const { days, hours, minutes, isExpired, urgency, announce } = useCountdown(targetDate);
 
@@ -84,8 +91,12 @@ export function CountdownTimer({
 
   if (isExpired) {
     return (
-      <span className={`inline-flex items-center gap-2 rounded-full bg-destructive/10 px-3 py-1 text-sm font-semibold text-destructive ${className}`}>
-        Expired
+      <span
+        role="status"
+        data-state="expired"
+        className={`inline-flex items-center gap-2 rounded-full bg-destructive/10 px-3 py-1 text-sm font-semibold text-destructive ${className}`}
+      >
+        {expiredLabel}
       </span>
     );
   }

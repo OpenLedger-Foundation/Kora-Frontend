@@ -1,21 +1,22 @@
 /**
- * useKybStatusPoller — Issue #489
+ * useKybStatusPoller — Issue #489, resourced by the Synaps webhook in #694.
  *
  * Polls `kycStatus` from the wallet store on a fixed interval while `enabled`
  * is true. As soon as the status flips to `"verified"`, the `onVerified`
  * callback fires and polling stops.
  *
- * The poller is intentionally side-effect-free: it reads from the Zustand
- * store directly (no network request) because in the mock environment
- * SynapsKycModal already writes the resolved status to the store.  In a
- * production integration the webhook handler (`/api/webhooks/kyc`) would
- * update a server-side record, and a real poller would call that API.
+ * The poller stays side-effect-free — it reads the Zustand store directly and
+ * makes no request of its own. What changed in #694 is who writes that store.
+ * It used to be only `SynapsKycModal`; now `useKycStatusSync`, mounted app-wide
+ * in `WalletButton`, pulls the status the `/api/webhooks/kyc` handler recorded
+ * into the same store. So a real Synaps callback advances this gate through
+ * exactly the path the mock always used, and this hook keeps working without a
+ * TanStack Query client of its own.
  */
 
 import { useEffect, useRef } from "react";
 import { useWalletKycStatus, useWalletStore } from "@/store/walletStore";
-
-const POLL_INTERVAL_MS = 4_000;
+import { KYC_POLL_INTERVAL_MS } from "@/hooks/useKycStatusSync";
 
 interface UseKybStatusPollerOptions {
   /** Polling is active only while this is `true`. */
@@ -50,7 +51,7 @@ export function useKybStatusPoller({
         clearInterval(intervalId);
         onVerifiedRef.current?.();
       }
-    }, POLL_INTERVAL_MS);
+    }, KYC_POLL_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps

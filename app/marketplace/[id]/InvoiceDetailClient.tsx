@@ -785,12 +785,18 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
                       Maturity
                     </p>
-                    <p className="text-xl font-bold text-zinc-200 mt-0.5">
+                    <div
+                      className="text-xl font-bold text-zinc-200 mt-0.5 flex justify-end"
+                      data-testid="maturity-countdown"
+                    >
                       <CountdownTimer
                         targetDate={terms.repaymentDate}
                         compact={false}
+                        invoice={invoice}
+                        showCalendarExport
+                        expiredLabel="Overdue"
                       />
-                    </p>
+                    </div>
                     {/* Backwards-compat test hook: keep numeric days for integration tests */}
                     <div data-testid="days-to-maturity" className="sr-only">
                       {daysToMaturity} days

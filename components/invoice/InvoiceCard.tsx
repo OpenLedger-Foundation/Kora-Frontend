@@ -305,6 +305,27 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               </p>
             </div>
           </div>
+
+          {/* Time to repayment (#692). Distinct from the listing countdown in
+              the footer: that one says when the card leaves the marketplace,
+              this one says when the investor gets paid back. Compact so the
+              card keeps its height. */}
+          {terms.repaymentDate ? (
+            <div
+              className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-4"
+              data-testid="invoice-card-maturity"
+            >
+              <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <Clock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                {t("maturityLabel")}
+              </span>
+              <CountdownTimer
+                targetDate={terms.repaymentDate}
+                compact
+                expiredLabel={t("overdue")}
+              />
+            </div>
+          ) : null}
         </div>
 
         <div>
