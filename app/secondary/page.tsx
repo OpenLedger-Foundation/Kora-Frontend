@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Copy,
   Check,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Container } from "@/components/layout/Container";
@@ -34,12 +35,18 @@ import { useInvoiceStore } from "@/store/invoiceStore";
 import { MOCK_INVOICES } from "@/services/mockData";
 import { formatCurrency, formatDate, RISK_TIER_COLORS, cn } from "@/lib/utils";
 import { computeImpliedDiscount } from "@/types/invoice";
-import type { PositionListing, Invoice } from "@/types/invoice";
+import type { Invoice } from "@/types/invoice";
 import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { sanitizeQueryParam } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { PositionListingMeta } from "@/store/positionListingStore";
+import {
+  DEFAULT_SECONDARY_SORT,
+  SECONDARY_SORT_OPTIONS,
+  parseSecondarySort,
+  sortSecondaryItems,
+} from "@/lib/secondarySort";
 
 interface SecondaryMarketItem {
   listing: PositionListingMeta;
@@ -239,17 +246,7 @@ const buildMockListings = (): SecondaryMarketItem[] => [
   },
 ];
 
-export default function SecondaryMarketplacePage() {
-  // Issue #594: acquire runs through the same simulation gate as fund/transfer.
-  const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
-  const { publicKey } = useWallet();
-
-  // Issue #597: one schedule, read from validated env, shared by every figure
-  // on this page.
-  const feeSchedule = useMemo(() => getFeeSchedule(env), []);
-
-  const { listings: storeListings } = usePositionListingStore();
-  const { invoices } = useInvoiceStore();
+const MOCK_SECONDARY_LISTINGS = buildMockListings();
 
 // ─── URL param keys ────────────────────────────────────────────────────────
 const PARAM_SEARCH = "q";
@@ -257,8 +254,13 @@ const PARAM_TENOR = "tenor";
 const PARAM_YIELD = "yield";
 const PARAM_SELLER = "seller";
 const PARAM_HIGHLIGHT = "highlight";
+const PARAM_SORT = "sortBy";
 
 export default function SecondaryMarketplacePage() {
+  // Issues #594 and #597: acquisition uses the shared simulation and fee paths.
+  const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
+  const { publicKey } = useWallet();
+  const feeSchedule = useMemo(() => getFeeSchedule(env), []);
   const { listings: storeListings, removeStale } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
   const router = useRouter();
@@ -278,8 +280,9 @@ export default function SecondaryMarketplacePage() {
   const [sellerFilter, setSellerFilter] = useState(
     () => sanitizeQueryParam(searchParams.get(PARAM_SELLER)) ?? ""
   );
-  const [highlightId] = useState(
-    () => sanitizeQueryParam(searchParams.get(PARAM_HIGHLIGHT)) ?? ""
+  const [highlightId] = useState(() => sanitizeQueryParam(searchParams.get(PARAM_HIGHLIGHT)) ?? "");
+  const [sortBy, setSortBy] = useState(() =>
+    parseSecondarySort(sanitizeQueryParam(searchParams.get(PARAM_SORT)))
   );
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -302,11 +305,21 @@ export default function SecondaryMarketplacePage() {
     if (yieldFilter && yieldFilter !== "0") params.set(PARAM_YIELD, yieldFilter);
     if (debouncedSeller) params.set(PARAM_SELLER, debouncedSeller);
     if (highlightId) params.set(PARAM_HIGHLIGHT, highlightId);
+    if (sortBy !== DEFAULT_SECONDARY_SORT) params.set(PARAM_SORT, sortBy);
 
     const qs = params.toString();
     const newUrl = qs ? `${pathname}?${qs}` : pathname;
     router.replace(newUrl, { scroll: false });
-  }, [debouncedSearch, tenorFilter, yieldFilter, debouncedSeller, highlightId, pathname, router]);
+  }, [
+    debouncedSearch,
+    tenorFilter,
+    yieldFilter,
+    debouncedSeller,
+    highlightId,
+    sortBy,
+    pathname,
+    router,
+  ]);
 
   // ── Copy shareable URL (#599) ─────────────────────────────────────────────
   const handleCopyUrl = useCallback(() => {
@@ -327,11 +340,13 @@ export default function SecondaryMarketplacePage() {
         (inv) => inv.id === listing.positionId || inv.tokenId === listing.positionId
       );
       if (relatedInv) {
-        const expectedReturn = relatedInv.terms.financingAmount * (1 + relatedInv.terms.discountRate);
+        const expectedReturn =
+          relatedInv.terms.financingAmount * (1 + relatedInv.terms.discountRate);
         const investedAmount = relatedInv.terms.financingAmount;
         const due = new Date(relatedInv.terms.repaymentDate).getTime();
         const daysLeft = Math.max(0, Math.ceil((due - Date.now()) / (1000 * 60 * 60 * 24)));
-        const yieldPercent = listing.askPrice > 0 ? ((expectedReturn - listing.askPrice) / listing.askPrice) * 100 : 0;
+        const yieldPercent =
+          listing.askPrice > 0 ? ((expectedReturn - listing.askPrice) / listing.askPrice) * 100 : 0;
 
         combined.push({
           listing,
@@ -389,6 +404,11 @@ export default function SecondaryMarketplacePage() {
     });
   }, [allItems, searchQuery, tenorFilter, yieldFilter, sellerFilter]);
 
+  const sortedItems = useMemo(
+    () => sortSecondaryItems(filteredItems, sortBy),
+    [filteredItems, sortBy]
+  );
+
   const hasActiveFilters =
     searchQuery.trim() !== "" ||
     tenorFilter !== "all" ||
@@ -421,12 +441,9 @@ export default function SecondaryMarketplacePage() {
         return;
       }
 
-      // Optimistic: trust mock data listings.
-      toast.info("Transfer position flow initiated", {
-        description: `Acquiring position ${item.positionId} at ask price ${formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}.`,
-      });
+      void acquirePosition(item.positionId, publicKey ?? "", item.sellerAddress);
     },
-    [storeListings, removeStale]
+    [acquirePosition, publicKey, storeListings, removeStale]
   );
 
   return (
@@ -481,7 +498,7 @@ export default function SecondaryMarketplacePage() {
                 placeholder="Search by debtor, invoice number, category..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(sanitizeQueryParam(e.target.value))}
-                className="pl-9 bg-zinc-950/80 border-zinc-800 text-sm focus:border-primary"
+                className="border-zinc-800 bg-zinc-950/80 pl-9 text-sm focus:border-primary"
                 aria-label="Search secondary market listings"
               />
             </div>
@@ -494,7 +511,7 @@ export default function SecondaryMarketplacePage() {
                   value={tenorFilter}
                   onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
                   options={TENOR_OPTIONS}
-                  className="w-40 bg-zinc-950/80 border-zinc-800 text-xs"
+                  className="w-40 border-zinc-800 bg-zinc-950/80 text-xs"
                   aria-label="Filter by remaining tenor"
                 />
               </div>
@@ -505,19 +522,33 @@ export default function SecondaryMarketplacePage() {
                   value={yieldFilter}
                   onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
                   options={YIELD_OPTIONS}
-                  className="w-36 bg-zinc-950/80 border-zinc-800 text-xs"
+                  className="w-36 border-zinc-800 bg-zinc-950/80 text-xs"
                   aria-label="Filter by minimum yield"
                 />
               </div>
 
               <div className="relative w-44">
-                <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" aria-hidden />
+                <User
+                  className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400"
+                  aria-hidden
+                />
                 <Input
                   placeholder="Seller G-address..."
                   value={sellerFilter}
                   onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
-                  className="pl-8 bg-zinc-950/80 border-zinc-800 text-xs h-9"
+                  className="h-9 border-zinc-800 bg-zinc-950/80 pl-8 text-xs"
                   aria-label="Filter by seller address"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="h-4 w-4 text-zinc-400" aria-hidden />
+                <Select
+                  value={sortBy}
+                  onChange={(value) => setSortBy(parseSecondarySort(value))}
+                  options={[...SECONDARY_SORT_OPTIONS]}
+                  className="w-52 border-zinc-800 bg-zinc-950/80 text-xs"
+                  aria-label="Sort secondary market listings"
                 />
               </div>
 
@@ -546,7 +577,7 @@ export default function SecondaryMarketplacePage() {
                 <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-primary" aria-hidden />
                 Filter Positions
                 {hasActiveFilters && (
-                  <Badge variant="outline" className="ml-2 bg-primary/20 text-primary text-[10px]">
+                  <Badge variant="outline" className="ml-2 bg-primary/20 text-[10px] text-primary">
                     Active
                   </Badge>
                 )}
@@ -556,7 +587,7 @@ export default function SecondaryMarketplacePage() {
         </div>
 
         {/* Position Listings Grid */}
-        {filteredItems.length === 0 ? (
+        {sortedItems.length === 0 ? (
           <EmptyState
             title="No Transferable Positions Found"
             description="No secondary market position listings match your filter criteria. Try expanding your tenor or yield requirements."
@@ -564,8 +595,9 @@ export default function SecondaryMarketplacePage() {
           />
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredItems.map((item) => {
-              const riskColor = RISK_TIER_COLORS[item.invoice.riskTier] ?? "text-zinc-400 border-zinc-700";
+            {sortedItems.map((item) => {
+              const riskColor =
+                RISK_TIER_COLORS[item.invoice.riskTier] ?? "text-zinc-400 border-zinc-700";
               const isHighlighted = highlightId && item.positionId === highlightId;
               // Detect stale listing (#598): store listing with ownershipConfirmed=false
               const storeListing = storeListings[item.positionId];
@@ -577,8 +609,8 @@ export default function SecondaryMarketplacePage() {
                   id={`listing-${item.positionId}`}
                   className={cn(
                     "group relative overflow-hidden border border-zinc-800/80 bg-zinc-900/40 backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-zinc-900/80 hover:shadow-lg hover:shadow-primary/5",
-                    isHighlighted && "ring-2 ring-primary/60 border-primary/60",
-                    isStale && "opacity-60 border-red-500/40"
+                    isHighlighted && "border-primary/60 ring-2 ring-primary/60",
+                    isStale && "border-red-500/40 opacity-60"
                   )}
                   aria-label={`Secondary listing for ${item.invoice.metadata.invoiceNumber}${isStale ? " — stale, position transferred" : ""}`}
                 >
@@ -593,10 +625,13 @@ export default function SecondaryMarketplacePage() {
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono font-medium text-zinc-400">
+                          <span className="font-mono text-xs font-medium text-zinc-400">
                             {item.invoice.metadata.invoiceNumber}
                           </span>
-                          <Badge variant="outline" className={cn("text-[10px] uppercase", riskColor)}>
+                          <Badge
+                            variant="outline"
+                            className={cn("text-[10px] uppercase", riskColor)}
+                          >
                             {item.invoice.riskTier}
                           </Badge>
                         </div>
@@ -604,7 +639,7 @@ export default function SecondaryMarketplacePage() {
                           {item.invoice.metadata.debtorName || "Debtor Account"}
                         </CardTitle>
                       </div>
-                      <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-semibold">
+                      <Badge className="border-emerald-500/30 bg-emerald-500/10 text-xs font-semibold text-emerald-400">
                         +{item.yieldPercent.toFixed(1)}% Yield
                       </Badge>
                     </div>
@@ -615,15 +650,15 @@ export default function SecondaryMarketplacePage() {
                       {/* Financial Metrics */}
                       <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/60 p-3 text-xs">
                         <div>
-                          <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
+                          <span className="block text-[10px] uppercase tracking-wider text-zinc-400">
                             Ask Price
                           </span>
-                          <span className="font-semibold text-white text-sm">
+                          <span className="text-sm font-semibold text-white">
                             {formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}
                           </span>
                         </div>
                         <div>
-                          <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
+                          <span className="block text-[10px] uppercase tracking-wider text-zinc-400">
                             Expected Return
                           </span>
                           <span className="font-medium text-zinc-300">
@@ -650,17 +685,19 @@ export default function SecondaryMarketplacePage() {
                               <Clock className="h-3.5 w-3.5 text-warning/80" />
                               Listing Expires:
                             </span>
-                            <span className={cn(
-                              "font-medium text-sm",
-                              new Date(item.listing.expiresAt!) <= new Date() ? "text-destructive" : "text-warning"
-                            )}>
+                            <span
+                              className={cn(
+                                "text-sm font-medium",
+                                new Date(item.listing.expiresAt!) <= new Date()
+                                  ? "text-destructive"
+                                  : "text-warning"
+                              )}
+                            >
                               {formatDate(item.listing.expiresAt, "MMM d, HH:mm")}
                               {new Date(item.listing.expiresAt!) <= new Date() && " (Expired)"}
                             </span>
                           </div>
                         )}
-
-                        <div className="flex items-center justify-between text-zinc-400">
 
                         <div className="flex items-center justify-between text-zinc-400">
                           <span className="flex items-center gap-1.5">
@@ -691,15 +728,10 @@ export default function SecondaryMarketplacePage() {
 
                       {/* Action Button */}
                       <Button
-                        className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
-                        onClick={() => {
-                          void acquirePosition(
-                            item.positionId,
-                            publicKey ?? "",
-                            item.sellerAddress
-                          );
-                        }}
-                        disabled={!publicKey}
+                        className="mt-3 h-9 w-full bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                        onClick={() => handleAcquire(item)}
+                        disabled={!publicKey || isStale}
+                        aria-disabled={!publicKey || isStale}
                       >
                         Acquire Position
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -725,7 +757,20 @@ export default function SecondaryMarketplacePage() {
           <div className="space-y-4 p-4 text-zinc-100">
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-tenor-filter">
+                <label className="mb-1 block text-xs text-zinc-400" htmlFor="mobile-sort-by">
+                  Sort By
+                </label>
+                <Select
+                  id="mobile-sort-by"
+                  value={sortBy}
+                  onChange={(value) => setSortBy(parseSecondarySort(value))}
+                  options={[...SECONDARY_SORT_OPTIONS]}
+                  className="w-full border-zinc-800 bg-zinc-900 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs text-zinc-400" htmlFor="mobile-tenor-filter">
                   Remaining Tenor
                 </label>
                 <Select
@@ -733,12 +778,12 @@ export default function SecondaryMarketplacePage() {
                   value={tenorFilter}
                   onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
                   options={TENOR_OPTIONS}
-                  className="w-full bg-zinc-900 border-zinc-800 text-xs"
+                  className="w-full border-zinc-800 bg-zinc-900 text-xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-yield-filter">
+                <label className="mb-1 block text-xs text-zinc-400" htmlFor="mobile-yield-filter">
                   Minimum Yield
                 </label>
                 <Select
@@ -746,12 +791,12 @@ export default function SecondaryMarketplacePage() {
                   value={yieldFilter}
                   onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
                   options={YIELD_OPTIONS}
-                  className="w-full bg-zinc-900 border-zinc-800 text-xs"
+                  className="w-full border-zinc-800 bg-zinc-900 text-xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs text-zinc-400 mb-1 block" htmlFor="mobile-seller-filter">
+                <label className="mb-1 block text-xs text-zinc-400" htmlFor="mobile-seller-filter">
                   Seller Address
                 </label>
                 <Input
@@ -759,7 +804,7 @@ export default function SecondaryMarketplacePage() {
                   placeholder="Seller G-address..."
                   value={sellerFilter}
                   onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
-                  className="bg-zinc-900 border-zinc-800 text-xs"
+                  className="border-zinc-800 bg-zinc-900 text-xs"
                 />
               </div>
             </div>
@@ -776,13 +821,5 @@ export default function SecondaryMarketplacePage() {
         </BottomSheet>
       </Container>
     </main>
-    <AcquirePositionDialog
-      item={acquireItem}
-      open={acquireItem !== null}
-      onOpenChange={() => setAcquireItem(null)}
-      onConfirm={() => {
-        alert(`Acquisition confirmed for ${acquireItem?.positionId}`);
-      }}
-    />
   );
 }
