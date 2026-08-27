@@ -315,7 +315,7 @@ export default function SecondaryMarketplacePage() {
 
   // Combine store position listings with mock defaults
   const allItems: SecondaryMarketItem[] = useMemo(() => {
-    const combined = [...MOCK_SECONDARY_LISTINGS];
+    const combined = [...buildMockListings()];
 
     Object.values(storeListings).forEach((listing) => {
       if (combined.some((item) => item.positionId === listing.positionId)) return;
@@ -426,7 +426,6 @@ export default function SecondaryMarketplacePage() {
   );
 
   return (
-    <>
     <main className="min-h-screen bg-zinc-950 py-8 text-zinc-100">
       <Container>
         {/* Header */}
@@ -771,14 +770,5 @@ export default function SecondaryMarketplacePage() {
         </BottomSheet>
       </Container>
     </main>
-    <AcquirePositionDialog
-      item={acquireItem}
-      open={acquireItem !== null}
-      onOpenChange={() => setAcquireItem(null)}
-      onConfirm={() => {
-        alert(`Acquisition confirmed for ${acquireItem?.positionId}`);
-      }}
-    />
-    </>
   );
 }
