@@ -34,7 +34,12 @@ import {
   largestConcentration,
   toTreemapSeries,
 } from "@/lib/portfolioTreemap";
-import type { AllocatablePosition } from "@/lib/portfolioAllocation";
+import type {
+  AllocatablePosition,
+  MonthlyReturnPoint,
+  PortfolioValuePoint,
+  YieldPoint,
+} from "@/lib/portfolioAllocation";
 import { BENCHMARK_DISCLOSURE, getBenchmarkConfig, type BenchmarkConfig } from "@/lib/benchmarks";
 
 const TOOLTIP_STYLE = {
@@ -50,10 +55,10 @@ const TOOLTIP_STYLE = {
 };
 
 interface AnalyticsChartsProps {
-  portfolio: Array<{ month: string; value: number }>;
-  yieldData: Array<{ month: string; yield: number }>;
+  portfolio: PortfolioValuePoint[];
+  yieldData: YieldPoint[];
   risk: Array<{ name: string; value: number; color: string }>;
-  monthly: Array<{ month: string; return: number }>;
+  monthly: MonthlyReturnPoint[];
   isLoading?: boolean;
   compact?: boolean;
   onExport?: (type: "portfolio" | "yield" | "risk" | "monthly") => void;
@@ -94,11 +99,11 @@ function ChartSkeleton({ height = 220 }: { height?: number }) {
 // pattern for a data graphic with a text alternative.
 
 /** Render a time series as a sentence: title, point count, then every value. */
-function describeSeries(
+function describeSeries<T extends object>(
   title: string,
-  rows: Array<Record<string, unknown>>,
-  labelKey: string,
-  valueKey: string,
+  rows: T[],
+  labelKey: keyof T,
+  valueKey: keyof T,
   format: (value: number) => string
 ): string {
   if (rows.length === 0) return `${title}. No data available.`;

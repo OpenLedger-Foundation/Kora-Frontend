@@ -5,11 +5,69 @@
 import { describe, it, expect } from "vitest";
 import {
   aggregatePositions,
+  buildPortfolioTimeSeries,
   filterPositionsByAllocation,
   allocationToMarketplaceFilters,
   marketplacePathForAllocation,
   type AllocatablePosition,
 } from "../portfolioAllocation";
+
+function timeSeriesPosition(investedAt: string, investedAmount: number, expectedReturn: number) {
+  return { investedAt, investedAmount, expectedReturn };
+}
+
+describe("buildPortfolioTimeSeries", () => {
+  it("groups live positions by month and builds cumulative portfolio value", () => {
+    const series = buildPortfolioTimeSeries([
+      timeSeriesPosition("2026-02-10T00:00:00.000Z", 500, 550),
+      timeSeriesPosition("2026-01-15T00:00:00.000Z", 1000, 1100),
+      timeSeriesPosition("2026-02-20T00:00:00.000Z", 1500, 1650),
+    ]);
+
+    expect(series.portfolio).toEqual([
+      { month: "Jan 2026", value: 1000 },
+      { month: "Feb 2026", value: 3000 },
+    ]);
+    expect(series.yieldData).toEqual([
+      { month: "Jan 2026", yield: 100 },
+      { month: "Feb 2026", yield: 200 },
+    ]);
+    expect(series.monthly).toEqual([
+      { month: "Jan 2026", return: 10 },
+      { month: "Feb 2026", return: 10 },
+    ]);
+  });
+
+  it("returns a zero baseline instead of fake growth for an empty portfolio", () => {
+    expect(buildPortfolioTimeSeries([], new Date("2026-08-27T12:00:00.000Z"))).toEqual({
+      portfolio: [{ month: "Aug 2026", value: 0 }],
+      yieldData: [{ month: "Aug 2026", yield: 0 }],
+      monthly: [{ month: "Aug 2026", return: 0 }],
+    });
+  });
+
+  it("ignores invalid dates and non-positive investments", () => {
+    const series = buildPortfolioTimeSeries(
+      [
+        timeSeriesPosition("not-a-date", 1000, 1100),
+        timeSeriesPosition("2026-01-01T00:00:00.000Z", 0, 100),
+      ],
+      new Date("2026-03-01T00:00:00.000Z")
+    );
+
+    expect(series.portfolio).toEqual([{ month: "Mar 2026", value: 0 }]);
+  });
+
+  it("clamps negative or invalid expected yield to zero", () => {
+    const series = buildPortfolioTimeSeries([
+      timeSeriesPosition("2026-01-15T00:00:00.000Z", 1000, 900),
+      timeSeriesPosition("2026-01-20T00:00:00.000Z", 500, Number.NaN),
+    ]);
+
+    expect(series.yieldData).toEqual([{ month: "Jan 2026", yield: 0 }]);
+    expect(series.monthly).toEqual([{ month: "Jan 2026", return: 0 }]);
+  });
+});
 
 function pos(
   investedAmount: number,
