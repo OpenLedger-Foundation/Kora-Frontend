@@ -15,10 +15,16 @@ import { useWalletStore, useUIStore } from "@/store";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { getAccountBalances, fundTestnetAccount, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
-import { buildTestnetUsdcMintTx } from "@/lib/stellar/contracts";
+import { buildAddTrustlineTx, buildTestnetUsdcMintTx } from "@/lib/stellar/contracts";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
+import { WALLET_ASSETS, getAssetBalance, hasTrustline } from "@/config/walletAssets";
+import {
+  parseWalletDiagnosticsImport,
+  sanitizeWalletDiagnosticsExport,
+  type WalletDiagnosticsExport,
+} from "@/lib/security";
 
 let kit: StellarWalletsKit | null = null;
 
@@ -43,6 +49,79 @@ function getKit(): StellarWalletsKit {
   return kit;
 }
 
+export type WalletProviderHealth = {
+  id: string;
+  installed: boolean;
+  state: "ready" | "missing" | "locked" | "unsupported_network" | "error";
+  message: string;
+};
+
+export async function probeWalletProviderHealth(
+  walletId: string
+): Promise<WalletProviderHealth> {
+  const installed =
+    walletId === "albedo" ||
+    (walletId === "freighter" &&
+      typeof window !== "undefined" &&
+      !!(window as Window & { freighter?: unknown }).freighter) ||
+    (walletId === "xbull" &&
+      typeof window !== "undefined" &&
+      !!(window as Window & { xBullSDK?: unknown }).xBullSDK) ||
+    (walletId === "lobstr" &&
+      typeof window !== "undefined" &&
+      !!(window as Window & { lobstr?: unknown }).lobstr);
+
+  if (!installed) {
+    return {
+      id: walletId,
+      installed: false,
+      state: "missing",
+      message: "Not installed",
+    };
+  }
+
+  try {
+    const walletKit = getKit();
+    walletKit.setWallet(walletId);
+    await walletKit.getPublicKey();
+    const networkInfo = await (walletKit as any).getNetworkDetails?.();
+    const walletPassphrase = networkInfo?.networkPassphrase;
+    if (
+      walletPassphrase &&
+      walletPassphrase !== env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE
+    ) {
+      return {
+        id: walletId,
+        installed: true,
+        state: "unsupported_network",
+        message: "Wallet is on a different Stellar network",
+      };
+    }
+    return {
+      id: walletId,
+      installed: true,
+      state: "ready",
+      message: "Ready to connect",
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Probe failed";
+    if (/locked|unlock|denied|rejected/i.test(message)) {
+      return {
+        id: walletId,
+        installed: true,
+        state: "locked",
+        message: "Unlock the wallet before connecting",
+      };
+    }
+    return {
+      id: walletId,
+      installed: true,
+      state: "error",
+      message,
+    };
+  }
+}
+
 export function useWallet() {
   const {
     address,
@@ -58,6 +137,8 @@ export function useWallet() {
     setVerified,
     clearVerification,
     isVerificationExpired,
+    hasPassphraseMismatch,
+    setDiagnosticsImport,
   } = useWalletStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -76,7 +157,7 @@ export function useWallet() {
         bal = {
           xlm: raw.xlm,
           usdc: raw.usdc,
-          eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
+          eurc: getAssetBalance(raw.otherAssets, "EURC", WALLET_ASSETS.eurc.issuer),
         };
       } catch {
         // Account may not be funded yet on testnet
@@ -162,7 +243,7 @@ export function useWallet() {
       setBalance({
         xlm: raw.xlm,
         usdc: raw.usdc,
-        eurc: raw.otherAssets.find((a) => a.code === "EURC")?.balance ?? "0",
+        eurc: getAssetBalance(raw.otherAssets, "EURC", WALLET_ASSETS.eurc.issuer),
       });
     } catch {
       // silently fail
@@ -189,6 +270,58 @@ export function useWallet() {
 
     await refreshBalance();
   }, [address, refreshBalance, signTransaction]);
+
+  const addEurcTrustlineOnTestnet = useCallback(async () => {
+    if (!address) throw new Error("Wallet not connected");
+    if (env.NEXT_PUBLIC_STELLAR_NETWORK !== "testnet") {
+      throw new Error("EURC trustline onboarding is only available on testnet");
+    }
+
+    const raw = await getAccountBalances(address);
+    if (hasTrustline(raw.otherAssets, "EURC", WALLET_ASSETS.eurc.issuer)) {
+      await refreshBalance();
+      return;
+    }
+
+    const trustlineXdr = await buildAddTrustlineTx(address, "eurc");
+    const signedTrustlineXdr = await signTransaction(trustlineXdr);
+    const submit = await submitTransaction(signedTrustlineXdr);
+    if (submit.status === "ERROR") {
+      throw new Error("EURC trustline transaction submission failed");
+    }
+    if (submit.hash) {
+      await waitForTransaction(submit.hash);
+    }
+    await refreshBalance();
+  }, [address, refreshBalance, signTransaction]);
+
+  const exportWalletDiagnostics = useCallback((): WalletDiagnosticsExport => {
+    return sanitizeWalletDiagnosticsExport({
+      exportedAt: new Date().toISOString(),
+      network: env.NEXT_PUBLIC_STELLAR_NETWORK,
+      wallet: {
+        provider,
+        isConnected,
+        addressSuffix: address,
+        walletNetwork: useWalletStore.getState().network,
+        passphraseMismatch: hasPassphraseMismatch(),
+        kitSessionActive: Boolean(kit),
+      },
+      flags: {
+        enableDevtools: env.NEXT_PUBLIC_ENABLE_DEVTOOLS,
+        enableInvoiceComparison: env.NEXT_PUBLIC_ENABLE_INVOICE_COMPARISON,
+      },
+    });
+  }, [address, hasPassphraseMismatch, isConnected, provider]);
+
+  const importWalletDiagnostics = useCallback((raw: string) => {
+    if (!env.NEXT_PUBLIC_ENABLE_DEVTOOLS) {
+      throw new Error("Diagnostics import is only enabled when devtools are enabled");
+    }
+    const parsed = parseWalletDiagnosticsImport(raw);
+    setDiagnosticsImport(JSON.stringify(parsed, null, 2));
+    return parsed;
+  }, [setDiagnosticsImport]);
 
   const requestChallenge = useCallback(async (): Promise<string> => {
     try {
@@ -274,8 +407,11 @@ export function useWallet() {
     connectWallet,
     disconnectWallet,
     fundWalletOnTestnet,
+    addEurcTrustlineOnTestnet,
     signTransaction,
     refreshBalance,
+    exportWalletDiagnostics,
+    importWalletDiagnostics,
     requestChallenge,
     verifyOwnership,
     checkVerification,

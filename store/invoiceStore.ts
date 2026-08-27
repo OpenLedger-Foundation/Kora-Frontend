@@ -2,6 +2,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Invoice, InvoiceFunding, InvoiceStatus } from "@/types";
 import type { InvoiceDetailsStepSchema } from "@/lib/validations/invoice";
+import {
+  MAX_COMPARISON,
+  normalizeComparisonList,
+  toggleComparisonId,
+} from "@/lib/comparison";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -202,13 +207,11 @@ interface InvoiceStore {
   _statusBackup?: Record<string, { status: Invoice["status"] }>;
   setCreateDraft: (draft: Partial<InvoiceCreateDraft>) => void;
   clearCreateDraft: () => void;
-  // Marketplace page aliases
-  sortBy: string;
-  setSortBy: (sortBy: string) => void;
-  updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
 
   /** Toggle an invoice in/out of the comparison list (max 3) */
   toggleComparison: (id: string) => void;
+  /** Replace comparison list after keyboard range selection or URL hydration. */
+  setComparisonList: (ids: string[]) => void;
   /** Remove a single invoice from the comparison list */
   removeFromComparison: (id: string) => void;
   /** Clear the entire comparison list */
@@ -282,12 +285,6 @@ export const useInvoiceStore = create<InvoiceStore>()(
       },
 
       setSelectedInvoice: (selectedInvoice) => set({ selectedInvoice }),
-
-      // Marketplace page aliases
-      sortBy: DEFAULT_SORT.sortBy,
-      setSortBy: (sortBy) => set((s) => ({ sort: { ...s.sort, sortBy: sortBy as SortState["sortBy"] }, sortBy: sortBy as SortState["sortBy"] })),
-      updateSingleFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
-
       /** Optimistic update — instantly reflects new funding amount in UI */
       updateInvoiceFunding: (id, newAmount) =>
         set((s) => {
@@ -369,20 +366,17 @@ export const useInvoiceStore = create<InvoiceStore>()(
       clearCreateDraft: () => set({ createDraft: { currency: "USDC" } }),
 
       toggleComparison: (id) =>
-        set((s) => {
-          const list = s.comparisonList;
-          if (list.includes(id)) {
-            return { comparisonList: list.filter((i) => i !== id) };
-          }
-          // When at max, replace oldest (first in list)
-          if (list.length >= 3) {
-            return { comparisonList: [...list.slice(1), id] };
-          }
-          return { comparisonList: [...list, id] };
-        }),
+        set((s) => ({ comparisonList: toggleComparisonId(s.comparisonList, id) })),
+
+      setComparisonList: (ids) =>
+        set({ comparisonList: normalizeComparisonList(ids) }),
 
       removeFromComparison: (id) =>
-        set((s) => ({ comparisonList: s.comparisonList.filter((i) => i !== id) })),
+        set((s) => ({
+          comparisonList: normalizeComparisonList(
+            s.comparisonList.filter((i) => i !== id)
+          ),
+        })),
 
       clearComparison: () => set({ comparisonList: [] }),
 

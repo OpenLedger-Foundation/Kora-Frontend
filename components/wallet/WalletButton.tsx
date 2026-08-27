@@ -25,7 +25,7 @@ import { env } from "@/lib/env";
 
 export function WalletButton() {
   const t = useTranslations("wallet");
-  const { isConnected, address, balance, disconnectWallet, fundWalletOnTestnet, refreshBalance } =
+  const { isConnected, address, balance, disconnectWallet, fundWalletOnTestnet, addEurcTrustlineOnTestnet, refreshBalance } =
     useWallet();
   const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
   const { setWalletModalOpen } = useUIStore();
@@ -34,6 +34,7 @@ export function WalletButton() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
+  const [isAddingEurc, setIsAddingEurc] = useState(false);
 
   const isTestnet = env.NEXT_PUBLIC_STELLAR_NETWORK === "testnet";
   const hasNetworkMismatch = isWrongNetwork() || hasPassphraseMismatch();
@@ -59,6 +60,24 @@ export function WalletButton() {
     await disconnectWallet();
     setConfirmDisconnectOpen(false);
     setOpen(false);
+  };
+
+  const handleAddEurcTrustline = async () => {
+    setIsAddingEurc(true);
+    const toastId = "eurc-trustline";
+    try {
+      toast.loading("Adding EURC trustline...", toastId);
+      await addEurcTrustlineOnTestnet();
+      await refreshBalance();
+      toast.success("EURC trustline ready", "Wallet balance refreshed.", toastId);
+      setOpen(false);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "EURC trustline setup failed";
+      toast.error("EURC trustline failed", message, undefined, toastId);
+    } finally {
+      setIsAddingEurc(false);
+    }
   };
 
   const expectedNetwork = (env.NEXT_PUBLIC_STELLAR_NETWORK as typeof network) || "testnet";
@@ -130,6 +149,12 @@ export function WalletButton() {
                   {parseFloat(balance.usdc).toFixed(2)}
                 </span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">EURC</span>
+                <span className="font-medium text-foreground">
+                  {parseFloat(balance.eurc).toFixed(2)}
+                </span>
+              </div>
             </div>
           )}
 
@@ -157,19 +182,34 @@ export function WalletButton() {
               <Bell className="h-3.5 w-3.5" /> {t("notificationSettings")}
             </button>
             {isTestnet && (
-              <button
-                type="button"
-                disabled={isFunding || hasNetworkMismatch}
-                onClick={handleFundTestnetAccount}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
-              >
-                {isFunding ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Coins className="h-3.5 w-3.5" />
-                )}
-                {isFunding ? t("funding") : t("fundTestnet")}
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={isFunding || hasNetworkMismatch}
+                  onClick={handleFundTestnetAccount}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+                >
+                  {isFunding ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Coins className="h-3.5 w-3.5" />
+                  )}
+                  {isFunding ? t("funding") : t("fundTestnet")}
+                </button>
+                <button
+                  type="button"
+                  disabled={isAddingEurc || hasNetworkMismatch}
+                  onClick={handleAddEurcTrustline}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+                >
+                  {isAddingEurc ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Coins className="h-3.5 w-3.5" />
+                  )}
+                  {isAddingEurc ? "Adding EURC..." : "Add EURC trustline"}
+                </button>
+              </>
             )}
             <button
               type="button"

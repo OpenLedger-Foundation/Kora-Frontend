@@ -29,6 +29,11 @@ interface InvoiceCardProps {
   invoice: Invoice;
   index?: number;
   updatedAt?: number;
+  tabIndex?: number;
+  onCardKeyDown?: (event: React.KeyboardEvent<HTMLAnchorElement>) => void;
+  onCardFocus?: () => void;
+  isSelectedForComparison?: boolean;
+  comparisonEnabled?: boolean;
 }
 
 const JURISDICTION_FLAGS: Record<string, string> = {
@@ -67,7 +72,16 @@ function getFlagEmoji(countryCode: string) {
   }
 }
 
-export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
+export function InvoiceCard({
+  invoice,
+  index = 0,
+  updatedAt,
+  tabIndex,
+  onCardKeyDown,
+  onCardFocus,
+  isSelectedForComparison = false,
+  comparisonEnabled = true,
+}: InvoiceCardProps) {
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const days = daysUntil(terms.repaymentDate);
   const flag = getFlagEmoji(metadata.jurisdiction);
@@ -141,6 +155,10 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onFocus={handleFocus}
+      tabIndex={tabIndex}
+      onKeyDown={onCardKeyDown}
+      onFocusCapture={onCardFocus}
+      data-comparison-selected={comparisonEnabled ? String(isSelectedForComparison) : undefined}
       onBlur={handleBlur}
       role="article"
       aria-label={`Invoice for ${metadata.debtorName}, Amount: ${formatCurrency(metadata.amount, metadata.currency, true)}, Risk Tier: ${riskTier}, APR: ${formatApr(terms.apr)}`}
@@ -150,7 +168,8 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
         layoutId={`invoice-card-${invoice.id}`}
         className={cn(
           "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background flex flex-col h-full justify-between",
-          isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
+          isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border",
+          isSelectedForComparison && "ring-2 ring-primary ring-offset-2 ring-offset-background"
         )}
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -246,7 +265,7 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
               ) : (
                 <>
                   <Calendar className="h-3 w-3" aria-hidden="true" />
-                  <CountdownTimer targetDate={listingExpiry} compact className="ml-1" />
+                  <CountdownTimer targetDate={listingExpiry ?? terms.repaymentDate} compact className="ml-1" />
                 </>
               )}
             </span>
@@ -258,30 +277,32 @@ export function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps)
             </Button>
           ) : null}
 
-          {/* Compare toggle button */}
-          <button
-            onClick={handleCompareToggle}
-            disabled={comparisonFull}
-            className={cn(
-              "mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors relative z-20",
-              isInComparison
-                ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
-                : comparisonFull
-                  ? "border-border/30 bg-transparent text-muted-foreground/40 cursor-not-allowed"
-                  : "border-border bg-transparent text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
-            )}
-            aria-label={
-              isInComparison
-                ? `Remove ${metadata.debtorName} from comparison`
-                : comparisonFull
-                  ? "Comparison list is full (max 3)"
-                  : `Add ${metadata.debtorName} to comparison`
-            }
-            aria-pressed={isInComparison}
-          >
-            <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
-            {isInComparison ? "Remove from Compare" : "Add to Compare"}
-          </button>        </div>
+          {comparisonEnabled && (
+            <button
+              onClick={handleCompareToggle}
+              disabled={comparisonFull}
+              className={cn(
+                "mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors relative z-20",
+                isInComparison
+                  ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                  : comparisonFull
+                    ? "border-border/30 bg-transparent text-muted-foreground/40 cursor-not-allowed"
+                    : "border-border bg-transparent text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+              )}
+              aria-label={
+                isInComparison
+                  ? `Remove ${metadata.debtorName} from comparison`
+                  : comparisonFull
+                    ? "Comparison list is full (max 3)"
+                    : `Add ${metadata.debtorName} to comparison`
+              }
+              aria-pressed={isInComparison}
+            >
+              <GitCompareArrows className="h-3.5 w-3.5" aria-hidden="true" />
+              {isInComparison ? "Remove from Compare" : "Add to Compare"}
+            </button>
+          )}
+        </div>
 
         {/* Hover overlay CTA */}
         <div className="absolute inset-0 bg-zinc-950/75 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex items-center justify-center pointer-events-none">

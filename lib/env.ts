@@ -69,6 +69,12 @@ const clientSchema = z.object({
     .string()
     .transform((v) => v === "true")
     .default("false"),
+
+  /** Enable invoice comparison features. Defaults to true. */
+  NEXT_PUBLIC_ENABLE_INVOICE_COMPARISON: z
+    .string()
+    .transform((v) => v !== "false")
+    .default("true"),
 });
 
 // ─── Server-only schema ───────────────────────────────────────────────────────

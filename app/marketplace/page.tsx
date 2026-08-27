@@ -34,6 +34,9 @@ import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
+import { buildRangeSelection } from "@/lib/comparison";
+import { env } from "@/lib/env";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -310,6 +313,9 @@ function MarketplaceContent() {
     setSortBy,
     setSearchQuery,
     clearSearchHistory,
+    comparisonList,
+    toggleComparison,
+    setComparisonList,
   } = useInvoiceStore();
 
   const { data, isLoading, dataUpdatedAt } = useInvoices();
@@ -320,6 +326,8 @@ function MarketplaceContent() {
   const [showHistory, setShowHistory] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [comparisonAnchorIndex, setComparisonAnchorIndex] = useState(0);
+  const comparisonEnabled = env.NEXT_PUBLIC_ENABLE_INVOICE_COMPARISON;
 
   // Infinite loader (loads more pages as user scrolls)
   const infinite = useInfiniteQuery({
@@ -464,6 +472,7 @@ function MarketplaceContent() {
     const startIndex = (page - 1) * pageSize;
     return filteredInvoices.slice(startIndex, startIndex + pageSize);
   }, [filteredInvoices, page, pageSize]);
+  const { activeIndex, setActiveIndex } = useRovingTabIndex(paginatedInvoices.length);
 
   // Active filters count for clearing badge
   const activeFiltersCount =
@@ -472,6 +481,59 @@ function MarketplaceContent() {
     (filters.riskTiers?.length || 0) +
     (filters.aprRange && (filters.aprRange[0] > 0 || filters.aprRange[1] < 50) ? 1 : 0) +
     (filters.activeOnly ? 1 : 0);
+
+  const handleCardKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLAnchorElement>, index: number, invoiceId: string) => {
+      if (!comparisonEnabled) return;
+      const orderedIds = paginatedInvoices.map((invoice) => invoice.id);
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = Math.min(index + 1, paginatedInvoices.length - 1);
+        if (event.shiftKey) {
+          setComparisonList(
+            buildRangeSelection(orderedIds, comparisonAnchorIndex, nextIndex, comparisonList)
+          );
+        }
+        setActiveIndex(nextIndex);
+        return;
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const nextIndex = Math.max(index - 1, 0);
+        if (event.shiftKey) {
+          setComparisonList(
+            buildRangeSelection(orderedIds, comparisonAnchorIndex, nextIndex, comparisonList)
+          );
+        }
+        setActiveIndex(nextIndex);
+        return;
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        setActiveIndex(0);
+        return;
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        setActiveIndex(Math.max(paginatedInvoices.length - 1, 0));
+        return;
+      }
+      if (event.key === " ") {
+        event.preventDefault();
+        toggleComparison(invoiceId);
+        setComparisonAnchorIndex(index);
+      }
+    },
+    [
+      comparisonAnchorIndex,
+      comparisonEnabled,
+      comparisonList,
+      paginatedInvoices,
+      setActiveIndex,
+      setComparisonList,
+      toggleComparison,
+    ]
+  );
 
   const renderFiltersList = () => (
     <div className="flex flex-col gap-6">
@@ -581,6 +643,11 @@ function MarketplaceContent() {
             <p className="mt-2 text-sm text-zinc-400">
               {isLoading ? "Discovering deals..." : `Showing ${filteredInvoices.length} listed invoices`}
             </p>
+            {comparisonEnabled && (
+              <p className="mt-2 text-xs text-zinc-500" aria-live="polite">
+                Comparison selection: {comparisonList.length} selected. Use arrow keys to move, space to toggle, and Shift plus arrows to select a range.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -734,7 +801,20 @@ function MarketplaceContent() {
               <>
                 <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
                   {paginatedInvoices.map((invoice: Invoice, i: number) => (
-                    <InvoiceCard key={invoice.id} invoice={invoice} index={i} updatedAt={dataUpdatedAt} />
+                    <InvoiceCard
+                      key={invoice.id}
+                      invoice={invoice}
+                      index={i}
+                      updatedAt={dataUpdatedAt}
+                      tabIndex={comparisonEnabled ? (activeIndex === i ? 0 : -1) : undefined}
+                      onCardFocus={() => {
+                        setActiveIndex(i);
+                        setComparisonAnchorIndex(i);
+                      }}
+                      onCardKeyDown={(event) => handleCardKeyDown(event, i, invoice.id)}
+                      isSelectedForComparison={comparisonList.includes(invoice.id)}
+                      comparisonEnabled={comparisonEnabled}
+                    />
                   ))}
                 </div>
                 <div>

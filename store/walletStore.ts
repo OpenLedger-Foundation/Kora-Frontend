@@ -19,6 +19,7 @@ type WalletStoreState = WalletState & {
   verifiedAt: number | null;
   addressBook: { id: string; address: string; label: string }[];
   walletPassphrase: string | null;
+  diagnosticsImport: string | null;
 };
 
 type WalletStoreActions = {
@@ -33,6 +34,7 @@ type WalletStoreActions = {
   addAddressBookEntry: (address: string, label?: string) => void;
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
   removeAddressBookEntry: (id: string) => void;
+  setDiagnosticsImport: (payload: string | null) => void;
 };
 
 type WalletStore = WalletStoreState & WalletStoreActions;
@@ -51,6 +53,7 @@ export const useWalletStore = create<WalletStore>()(
       verifiedAt: null,
       addressBook: [],
       walletPassphrase: null,
+      diagnosticsImport: null,
 
       connect: (provider, address, publicKey, walletPassphrase) =>
         set({ status: "connected", provider, address, publicKey, balance: EMPTY_BALANCE, isConnected: true, walletPassphrase: walletPassphrase || null }),
@@ -111,6 +114,8 @@ export const useWalletStore = create<WalletStore>()(
 
       removeAddressBookEntry: (id) =>
         set((s) => ({ addressBook: s.addressBook.filter((e) => e.id !== id) })),
+
+      setDiagnosticsImport: (payload) => set({ diagnosticsImport: payload }),
     }),
     {
       name: "kora-wallet",
@@ -123,6 +128,7 @@ export const useWalletStore = create<WalletStore>()(
         verifiedAt: s.verifiedAt,
         addressBook: s.addressBook,
         walletPassphrase: s.walletPassphrase,
+        diagnosticsImport: s.diagnosticsImport,
       }),
     }
   )

@@ -16,15 +16,17 @@ import { Button } from "@/components/ui/button";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { cn } from "@/lib/utils";
 import { ComparisonTable } from "./ComparisonTable";
-
-const MAX_COMPARISON = 3;
+import { MAX_COMPARISON } from "@/lib/comparison";
+import { env } from "@/lib/env";
 
 export function ComparisonBar() {
-  const { comparisonList, invoices, removeFromComparison, clearComparison } =
+  const { comparisonList, invoices, removeFromComparison, clearComparison, setComparisonList } =
     useInvoiceStore();
   const [tableOpen, setTableOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const router = useRouter();
+
+  const comparisonEnabled = env.NEXT_PUBLIC_ENABLE_INVOICE_COMPARISON;
 
   const selectedInvoices = comparisonList
     .map((id) => invoices.find((inv) => inv.id === id))
@@ -33,18 +35,19 @@ export function ComparisonBar() {
   // Sync comparison list from URL on mount (shareable links)
   const searchParams = useSearchParams();
   useEffect(() => {
+    if (!comparisonEnabled) {
+      setComparisonList([]);
+      return;
+    }
     const compareParam = searchParams.get("compare");
     if (compareParam) {
       const ids = compareParam.split(",").filter(Boolean).slice(0, MAX_COMPARISON);
-      const { toggleComparison, comparisonList: current } = useInvoiceStore.getState();
-      ids.forEach((id) => {
-        if (!current.includes(id)) toggleComparison(id);
-      });
+      setComparisonList(ids);
       // Auto-open the table when arriving via a share link
       if (ids.length >= 2) setTableOpen(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [comparisonEnabled, searchParams, setComparisonList]);
 
   const handleShare = async () => {
     const url = new URL(window.location.href);
@@ -61,7 +64,7 @@ export function ComparisonBar() {
     }
   };
 
-  if (comparisonList.length === 0) return null;
+  if (!comparisonEnabled || comparisonList.length === 0) return null;
 
   return (
     <>
@@ -94,6 +97,9 @@ export function ComparisonBar() {
             </span>
             <span className="text-xs text-muted-foreground">
               ({comparisonList.length}/{MAX_COMPARISON})
+            </span>
+            <span className="sr-only" aria-live="polite">
+              {comparisonList.length} invoices selected for comparison
             </span>
           </div>
 

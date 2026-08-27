@@ -4,6 +4,85 @@
  */
 import { isValidCID } from "./ipfs";
 
+export type WalletDiagnosticsExport = {
+  exportedAt: string;
+  network: string;
+  wallet: {
+    provider: string | null;
+    isConnected: boolean;
+    addressSuffix: string | null;
+    walletNetwork: string | null;
+    passphraseMismatch: boolean;
+    kitSessionActive: boolean;
+  };
+  flags: {
+    enableDevtools: boolean;
+    enableInvoiceComparison: boolean;
+  };
+};
+
+export function redactWalletAddress(address: string | null | undefined): string | null {
+  if (!address) return null;
+  if (address.length <= 8) return address;
+  return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+export function sanitizeWalletDiagnosticsExport(
+  input: WalletDiagnosticsExport
+): WalletDiagnosticsExport {
+  return {
+    exportedAt: input.exportedAt,
+    network: input.network,
+    wallet: {
+      provider: input.wallet.provider ?? null,
+      isConnected: Boolean(input.wallet.isConnected),
+      addressSuffix: redactWalletAddress(input.wallet.addressSuffix),
+      walletNetwork: input.wallet.walletNetwork ?? null,
+      passphraseMismatch: Boolean(input.wallet.passphraseMismatch),
+      kitSessionActive: Boolean(input.wallet.kitSessionActive),
+    },
+    flags: {
+      enableDevtools: Boolean(input.flags.enableDevtools),
+      enableInvoiceComparison: Boolean(input.flags.enableInvoiceComparison),
+    },
+  };
+}
+
+export function parseWalletDiagnosticsImport(
+  raw: string
+): WalletDiagnosticsExport {
+  const parsed = JSON.parse(raw) as Partial<WalletDiagnosticsExport>;
+  return sanitizeWalletDiagnosticsExport({
+    exportedAt:
+      typeof parsed.exportedAt === "string"
+        ? parsed.exportedAt
+        : new Date().toISOString(),
+    network:
+      typeof parsed.network === "string" ? parsed.network : "unknown",
+    wallet: {
+      provider:
+        typeof parsed.wallet?.provider === "string"
+          ? parsed.wallet.provider
+          : null,
+      isConnected: Boolean(parsed.wallet?.isConnected),
+      addressSuffix:
+        typeof parsed.wallet?.addressSuffix === "string"
+          ? parsed.wallet.addressSuffix
+          : null,
+      walletNetwork:
+        typeof parsed.wallet?.walletNetwork === "string"
+          ? parsed.wallet.walletNetwork
+          : null,
+      passphraseMismatch: Boolean(parsed.wallet?.passphraseMismatch),
+      kitSessionActive: Boolean(parsed.wallet?.kitSessionActive),
+    },
+    flags: {
+      enableDevtools: Boolean(parsed.flags?.enableDevtools),
+      enableInvoiceComparison: Boolean(parsed.flags?.enableInvoiceComparison),
+    },
+  });
+}
+
 // ─── Upload Request Signing (#275) ────────────────────────────────────────────
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000; // 5 minutes anti-replay window
