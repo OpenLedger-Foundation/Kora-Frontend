@@ -8,7 +8,7 @@ const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCh
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
-import { BarChart3 } from "lucide-react";
+import { BarChart3, DollarSign, TrendingUp, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
@@ -166,6 +166,7 @@ function PortfolioAnalyticsInner() {
   // Single positionsQuery — refetch every 30 s while tab is visible
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
 
+  const { formatCurrency, formatPercentage } = useFormatters();
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
   const handleFiltersChange = useCallback(

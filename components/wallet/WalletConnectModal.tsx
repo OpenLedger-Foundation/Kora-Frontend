@@ -17,6 +17,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { cn } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/security";
 import { getWalletIconSvg, sanitizeSvg } from "@/lib/svgHelper";
+import { preloadWalletKit } from "@/lib/lazyModules";
 
 const WALLETS = [
   {
@@ -83,6 +84,9 @@ export function WalletConnectModal() {
 
   useEffect(() => {
     if (walletModalOpen) {
+      if (typeof window !== "undefined") {
+        preloadWalletKit();
+      }
       setTimeout(() => firstFocusRef.current?.focus(), 50);
     } else {
       setWalletState("idle");

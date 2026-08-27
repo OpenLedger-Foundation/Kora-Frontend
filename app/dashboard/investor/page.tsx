@@ -499,8 +499,7 @@ export default function InvestorDashboardPage() {
           />
         </CardContent>
       </Card>
-
-      </Card>
+      
 
       {listedPositions.length > 0 && (
         <Card className="mt-8">

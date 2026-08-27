@@ -154,7 +154,10 @@ function SMEStatsGrid({ address }: { address: string }) {
 }
 
 
+import { useRouter } from "next/navigation";
+
 export default function SMEDashboardPage() {
+  const router = useRouter();
   const { isConnected, address, signTransaction } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const queryClient = useQueryClient();
@@ -187,7 +190,7 @@ export default function SMEDashboardPage() {
   );
 
   useEffect(() => {
-    return queueRef.current.subscribe((snap) => {
+    const unsubscribe = queueRef.current.subscribe((snap) => {
       setBatchItems(snap.items);
       setIsBatchProcessing(snap.isRunning);
       setBatchProgress(
@@ -195,6 +198,9 @@ export default function SMEDashboardPage() {
       );
       persistBatchQueue(snap.items);
     });
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const myInvoices: Invoice[] =
@@ -217,6 +223,24 @@ export default function SMEDashboardPage() {
 
   // Must run before the early return below so hook order stays stable across renders.
   const { executeProtectedAction } = useVerifiedAction();
+
+  const runBatchExecutor = useCallback(
+    async (item: BatchQueueItem) => {
+      if (!address) throw new Error("Wallet not connected");
+      // Ensure SequenceManager stays in the batch path (builders/submit use it).
+      void sequenceManager;
+
+      const unsignedXdr =
+        item.action === "cancel"
+          ? await prepareCancelInvoice(item.tokenId, address)
+          : await prepareRepayInvoice(item.tokenId, address, address);
+
+      const signedXdr = await signTransaction(unsignedXdr);
+      const txHash = await submitAndConfirm(signedXdr);
+      return { txHash };
+    },
+    [address, signTransaction]
+  );
 
   if (!isConnected) {
     return (
@@ -343,23 +367,6 @@ export default function SMEDashboardPage() {
     setRepayConfirmOpen(true);
   };
 
-  const runBatchExecutor = useCallback(
-    async (item: BatchQueueItem) => {
-      if (!address) throw new Error("Wallet not connected");
-      // Ensure SequenceManager stays in the batch path (builders/submit use it).
-      void sequenceManager;
-
-      const unsignedXdr =
-        item.action === "cancel"
-          ? await prepareCancelInvoice(item.tokenId, address)
-          : await prepareRepayInvoice(item.tokenId, address, address);
-
-      const signedXdr = await signTransaction(unsignedXdr);
-      const txHash = await submitAndConfirm(signedXdr);
-      return { txHash };
-    },
-    [address, signTransaction]
-  );
 
   const finishBatch = (action: BatchActionType) => {
     const snap = queueRef.current.getSnapshot();
@@ -496,6 +503,11 @@ export default function SMEDashboardPage() {
                     setStatusFilter(e.target.value as InvoiceStatus | "all");
                     // Drop selections that the new filter may hide.
                     setSelectedIds([]);
+                    if (typeof window !== "undefined") {
+                      const params = new URLSearchParams(window.location.search);
+                      params.set("sme_page", "1");
+                      router.push(`${window.location.pathname}?${params.toString()}`);
+                    }
                   }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
@@ -512,6 +524,10 @@ export default function SMEDashboardPage() {
             data={myInvoices}
             enableSelection={batchActionsEnabled}
             onSelectionChange={setSelectedIds}
+            syncToUrl={true}
+            pageParamName="sme_page"
+            sortParamName="sme_sort"
+            pageSizeParamName="sme_pageSize"
             columns={(() => {
               const cols: ColumnDef<Invoice>[] = [
                 {

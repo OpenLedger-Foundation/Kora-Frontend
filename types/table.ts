@@ -31,4 +31,7 @@ export interface DataTableProps<T extends { id: string }> {
   getRowId?: (row: T) => string;
   className?: string;
   syncToUrl?: boolean;
+  pageParamName?: string;
+  sortParamName?: string;
+  pageSizeParamName?: string;
 }
