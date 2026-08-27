@@ -51,21 +51,15 @@
     "restoringSession": "جارٍ استعادة جلسة المحفظة..."
   },
   "transaction": {
-    "building": "جارٍ إنشاء المعاملة...",
-    "simulating": "جارٍ محاكاة المعاملة...",
-    "signing": "في انتظار توقيع المحفظة...",
-    "submitting": "جارٍ إرسال المعاملة...",
-    "polling": "جارٍ تأكيد المعاملة على السلسلة...",
+    "building": "جارٍ بناء المعاملة…",
+    "simulating": "جارٍ محاكاة المعاملة…",
+    "signing": "في انتظار توقيع المحفظة…",
+    "submitting": "جارٍ الإرسال إلى شبكة Stellar…",
+    "polling": "في انتظار التأكيد…",
     "confirmed": "تم تأكيد المعاملة!",
     "failed": "فشلت المعاملة",
-    "cancelled": "تم إلغاء توقيع المعاملة",
-    "timedOut": "انتهت مهلة توقيع المعاملة",
-    "timeoutNotice": "استغرق التوقيع وقتًا أطول من المتوقع.",
-    "extendTime": "تمديد الوقت (+60 ث)",
-    "retrySigning": "إعادة محاولة التوقيع",
-    "cancelSigning": "إلغاء بأمان",
-    "hardwareTip": "أكّد على محفظة الأجهزة الخاصة بك",
-    "mobileTip": "تحقق من تطبيق المحفظة على هاتفك"
+    "retry": "إعادة المحاولة",
+    "dismiss": "تجاهل"
   },
   "landing": {
     "headline": "تمويل الفواتير على السلسلة",
@@ -365,7 +359,22 @@
       "partial": "جزئي (الاسم فقط)",
       "anonymized": "مجهول (الصناعة + البلد)"
     },
-    "discountRateDesc": "الخصم المقدم للمستثمرين. يجذب السعر الأعلى تمويلًا أسرع لكنه يزيد تكلفة التمويل."
+    "discountRateDesc": "الخصم المقدم للمستثمرين. يجذب السعر الأعلى تمويلًا أسرع لكنه يزيد تكلفة التمويل.",
+    "kybGate": {
+      "title": "Business Verification Required",
+      "subtitleNone": "To mint an invoice on Kora, your SME account must complete KYB verification. The process takes about 2 minutes.",
+      "subtitlePending": "Your verification documents are under review. We'll automatically continue once approved — this page will refresh for you.",
+      "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
+      "ctaNone": "Start Verification",
+      "ctaRejected": "Re-verify Business",
+      "ctaPending": "Checking verification status…",
+      "backToWizard": "Go Back",
+      "whatYouNeed": "What you will need:",
+      "needIdDoc": "Government-issued ID or business registration document",
+      "needProofAddress": "Proof of business address",
+      "needTime": "Takes approximately 2 minutes",
+      "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    }
   },
   "smeDashboard": {
     "title": "لوحة الشركات الصغيرة والمتوسطة",
@@ -574,17 +583,6 @@
       "fundedAmount": "المبلغ الممول"
     }
   },
-  "transaction": {
-    "building": "جارٍ بناء المعاملة…",
-    "simulating": "جارٍ محاكاة المعاملة…",
-    "signing": "في انتظار توقيع المحفظة…",
-    "submitting": "جارٍ الإرسال إلى شبكة Stellar…",
-    "polling": "في انتظار التأكيد…",
-    "confirmed": "تم تأكيد المعاملة!",
-    "failed": "فشلت المعاملة",
-    "retry": "إعادة المحاولة",
-    "dismiss": "تجاهل"
-  },
   "txSimulation": {
     "title": "معاينة المعاملة",
     "subtitle": "راجع الرسوم المقدرة واستخدام الموارد قبل التوقيع",
@@ -723,7 +721,11 @@
     "footerHint": "يتم حفظ جهات الاتصال محليًا في متصفحك.",
     "pickContact": "اختيار جهة اتصال محفوظة",
     "noContacts": "لا توجد جهات اتصال محفوظة بعد",
-    "pickFromAddressBook": "اختيار من دفتر العناوين"
+    "pickFromAddressBook": "اختيار من دفتر العناوين",
+    "verifiedLabel": "Label verified with signature",
+    "signLabel": "Sign label for {label}",
+    "labelSigned": "Label signed successfully",
+    "signFailed": "Failed to sign label"
   },
   "installPrompt": {
     "ariaLabel": "تثبيت تطبيق Kora Protocol",
