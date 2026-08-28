@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, AlertTriangle, CheckCircle, ShieldAlert, ArrowRight, Clock, User, Tag, Info, RotateCcw } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { AlertCircle, AlertTriangle, CheckCircle, ShieldAlert, ArrowRight, Clock, User, Tag } from "lucide-react";
+import { RISK_TIER_COLORS, cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { computeImpliedDiscount } from "@/types/invoice";
 import type { Invoice } from "@/types/invoice";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useTranslations } from "next-intl";
@@ -26,7 +26,7 @@ interface AcquirePositionDialogProps {
       listedAt: string;
     };
     positionId: string;
-    invoice: any;
+    invoice: Invoice | any;
     investedAmount: number;
     expectedReturn: number;
     sellerAddress: string;
@@ -38,14 +38,7 @@ interface AcquirePositionDialogProps {
   onConfirm: () => void;
 }
 
-interface PriceImpactThresholds {
-  extremeDiscountThreshold: number;
-  extremePremiumThreshold: number;
-  warningDiscountThreshold: number;
-  warningPremiumThreshold: number;
-}
-
-const DEFAULT_THRESHOLDS = {
+export const DEFAULT_THRESHOLDS = {
   extremeDiscountThreshold: 0.3,
   extremePremiumThreshold: 0.2,
   warningDiscountThreshold: 0.2,
@@ -58,14 +51,12 @@ export function AcquirePositionDialog({
   onOpenChange,
   onConfirm,
 }: AcquirePositionDialogProps) {
-  const [showDetails, setShowDetails] = useState(false);
   const { formatCurrency, formatPercentage } = useFormatters();
   const t = useTranslations("secondaryMarket.acquireDialog");
 
   if (!item) return null;
 
   const currency = item.invoice?.metadata?.currency ?? "USDC";
-  const impliedDiscount = item.listing.impliedDiscount;
 
   const isExtremeDiscountAlert = item.listing.impliedDiscount <= -DEFAULT_THRESHOLDS.extremeDiscountThreshold;
   const isExtremePremiumAlert = item.listing.impliedDiscount >= DEFAULT_THRESHOLDS.extremePremiumThreshold;
@@ -80,20 +71,16 @@ export function AcquirePositionDialog({
     onOpenChange(false);
   };
 
-  if (!item) return null;
-
-  const currency = item.invoice?.metadata?.currency ?? "USDC";
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-warning" aria-hidden />
-            Confirm Acquisition
+            {t("title")}
           </DialogTitle>
           <DialogDescription>
-            Review the position details before acquiring this position on the secondary market.
+            {t("description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -103,7 +90,7 @@ export function AcquirePositionDialog({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Position
+                  {t("positionLabel")}
                 </p>
                 <p className="font-mono text-sm font-medium text-white">
                   {item.invoice?.metadata?.invoiceNumber ?? `Invoice ${item.positionId}`}
@@ -122,7 +109,7 @@ export function AcquirePositionDialog({
             <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
               <div>
                 <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
-                  Ask Price
+                  {t("askPrice")}
                 </span>
                 <span className="font-semibold text-white text-sm">
                   {formatCurrency(item.listing.askPrice, currency)}
@@ -130,7 +117,7 @@ export function AcquirePositionDialog({
               </div>
               <div>
                 <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
-                  Expected Return
+                  {t("expectedReturn")}
                 </span>
                 <span className="font-medium text-success">
                   {formatCurrency(item.expectedReturn, currency)}
@@ -156,7 +143,7 @@ export function AcquirePositionDialog({
               )}
               <div className="flex-1">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Implied discount
+                  {t("impliedDiscount")}
                 </p>
                 <p
                   className={
@@ -169,8 +156,8 @@ export function AcquirePositionDialog({
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {item.listing.impliedDiscount >= 0
-                    ? "Buyer receives a discount versus your expected return."
-                    : "You're asking above your expected return (premium)."}
+                    ? t("discountNote")
+                    : t("premiumNote")}
                 </p>
               </div>
             </div>
@@ -190,13 +177,13 @@ export function AcquirePositionDialog({
                 <AlertCircle className="h-4 w-4 text-destructive/80 mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-xs font-semibold text-destructive/90 uppercase tracking-wider">
-                    {isExtremeAlert ? "Extreme Price Alert" : "Price Warning"}
+                    {isExtremeAlert ? t("extremeAlert") : t("priceWarning")}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {isExtremeDiscountAlert && "Extreme discount detected - this position is priced significantly below expected return."}
-                    {isExtremePremiumAlert && "Extreme premium detected - this position is priced significantly above expected return."}
-                    {isWarningDiscountAlert && "Warning: significant discount detected."}
-                    {isWarningPremiumAlert && "Warning: significant premium detected."}
+                    {isExtremeDiscountAlert && t("extremeDiscountMsg")}
+                    {isExtremePremiumAlert && t("extremePremiumMsg")}
+                    {isWarningDiscountAlert && t("warningDiscountMsg")}
+                    {isWarningPremiumAlert && t("warningPremiumMsg")}
                   </p>
                 </div>
               </div>
@@ -206,13 +193,13 @@ export function AcquirePositionDialog({
           {/* Position Details */}
           <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              Position Details
+              {t("positionDetails")}
             </p>
             <div className="space-y-1.5 text-xs">
               <div className="flex items-center justify-between text-zinc-400">
                 <span className="flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 text-primary/80" />
-                  Remaining Tenor
+                  {t("remainingTenor")}
                 </span>
                 <span className="font-medium text-white">
                   {item.remainingTenor} days remaining
@@ -222,17 +209,17 @@ export function AcquirePositionDialog({
               <div className="flex items-center justify-between text-zinc-400">
                 <span className="flex items-center gap-1.5">
                   <Tag className="h-3.5 w-3.5 text-emerald-400" />
-                  Implied Discount
+                  {t("impliedDiscount")}
                 </span>
                 <span className="font-medium text-emerald-400">
-                  {formatPercentage(item.listing.impliedDiscount * 100, 1)}%
+                  {formatPercentage(item.listing.impliedDiscount * 100, 1)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between text-zinc-400">
                 <span className="flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5 text-zinc-400" />
-                  Seller Address
+                  {t("sellerAddress")}
                 </span>
                 <span className="font-mono text-[11px] text-zinc-300">
                   {item.sellerAddress.slice(0, 4)}...{item.sellerAddress.slice(-4)}
@@ -243,7 +230,7 @@ export function AcquirePositionDialog({
 
           {/* Risk Tier Badge */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">Risk Tier</span>
+            <span className="text-xs text-zinc-400">{t("riskTier")}</span>
             <Badge
               variant="outline"
               className={cn(
@@ -253,26 +240,25 @@ export function AcquirePositionDialog({
             >
               {item.invoice?.riskTier}
             </Badge>
-            <span className="text-xs text-muted-foreground">
-              (Risk Score: {item.invoice?.riskScore})
-            </span>
+            {item.invoice?.riskScore !== undefined && (
+              <span className="text-xs text-muted-foreground">
+                ({t("riskScore", { score: item.invoice.riskScore })})
+              </span>
+            )}
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("cancel")}
           </Button>
           <Button
-            onClick={() => {
-              onConfirm();
-              onOpenChange(false);
-            }}
+            onClick={handleConfirm}
             className={cn(
               isExtremeAlert && "border-destructive/30 hover:bg-destructive/10"
             )}
           >
-            Confirm Acquire
+            {t("confirmAcquire")}
             <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Button>
         </DialogFooter>

@@ -21,7 +21,7 @@ import {
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import type { DataTableProps } from "@/types/table";
-import { isEnabled } from "@/lib/featureFlags";
+import { isEnabled, useFeatureFlag } from "@/lib/featureFlags";
 import {
   createBatchTxQueue,
   persistBatchQueue,
@@ -183,7 +183,7 @@ export default function SMEDashboardPage() {
   const { data: usdcBalance = 0 } = useUsdcBalance(address ?? undefined);
   const repaymentAlerts = useSettingsStore((state) => state.notifications.repaymentAlerts);
 
-  const batchActionsEnabled = isEnabled("batch-actions");
+  const batchActionsEnabled = useFeatureFlag("batch-actions");
   const queueRef = useRef(createBatchTxQueue());
 
   const [repayTarget, setRepayTarget] = useState<Invoice | null>(null);

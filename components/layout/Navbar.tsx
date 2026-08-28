@@ -40,15 +40,7 @@ import { useChangelogBadge } from "@/hooks/useChangelogBadge";
 import { useWalletStore } from "@/store/walletStore";
 import { ShortcutBadge } from "@/components/ui/ShortcutBadge";
 import { cn } from "@/lib/utils";
-
-const NAV_LINKS = [
-  { href: "/marketplace", label: "Marketplace", icon: Store, shortcut: "G M" },
-  { href: "/secondary", label: "Secondary", icon: Tag, shortcut: "G S" },
-  { href: "/dashboard/investor", label: "Invest", icon: BarChart3, shortcut: "G D" },
-  { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard, shortcut: null },
-  { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle, shortcut: "G C" },
-  { href: "/transactions", label: "History", icon: History, shortcut: "G T" },
-];
+import { useFeatureFlag } from "@/lib/featureFlags";
 
 const MENU_ID = "mobile-nav-menu";
 
@@ -86,7 +78,7 @@ function ChangelogNavButton() {
 export function Navbar() {
   const pathname = usePathname();
   const t = useTranslations("nav");
-  const tSettings = useTranslations("settings");
+  const isSecondaryEnabled = useFeatureFlag("secondary-market");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   // Granular selectors — Navbar only subscribes to the slices it renders.
@@ -114,7 +106,9 @@ export function Navbar() {
   // Nav links defined inside component so labels are translated
   const NAV_LINKS = [
     { href: "/marketplace", label: t("marketplace"), icon: Store, shortcut: "G M" },
-    { href: "/secondary", label: t("secondaryMarket"), icon: Tag, shortcut: "G S" },
+    ...(isSecondaryEnabled
+      ? [{ href: "/secondary", label: t("secondaryMarket"), icon: Tag, shortcut: "G S" }]
+      : []),
     { href: "/dashboard/investor", label: t("invest"), icon: BarChart3, shortcut: "G D" },
     { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard, shortcut: null },
     { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle, shortcut: "G C" },
