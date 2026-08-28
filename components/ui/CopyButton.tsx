@@ -3,6 +3,7 @@
 import { Copy, Check } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import * as Tooltip from "@radix-ui/react-tooltip";
+import { useTranslations } from "next-intl";
 import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { cn } from "@/lib/utils";
 
@@ -12,6 +13,7 @@ interface CopyButtonProps {
 }
 
 export function CopyButton({ text, className }: CopyButtonProps) {
+  const t = useTranslations("copyButton");
   const { copy, copied } = useCopyToClipboard();
 
   return (
@@ -21,7 +23,7 @@ export function CopyButton({ text, className }: CopyButtonProps) {
           <button
             type="button"
             onClick={() => copy(text)}
-            aria-label={copied ? "Copied" : "Copy"}
+            aria-label={copied ? t("copiedAriaLabel") : t("copyAriaLabel")}
             className={cn(
               "inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               className
@@ -57,7 +59,7 @@ export function CopyButton({ text, className }: CopyButtonProps) {
             side="top"
             className="rounded-md bg-foreground px-2 py-1 text-xs text-background shadow-md"
           >
-            {copied ? "Copied!" : "Copy"}
+            {copied ? t("copiedTooltip") : t("copyTooltip")}
             <Tooltip.Arrow className="fill-foreground" />
           </Tooltip.Content>
         </Tooltip.Portal>
