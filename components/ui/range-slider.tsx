@@ -137,6 +137,11 @@ export function RangeSlider({
           step={step}
           value={minVal}
           disabled={disabled}
+          aria-label={`Minimum value: ${formatLabel(minVal)}`}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={minVal}
+          aria-valuetext={formatLabel(minVal)}
           onChange={(event) => {
             const val = Math.min(Number(event.target.value), maxVal - step);
             onChange([val, maxVal]);
@@ -147,7 +152,6 @@ export function RangeSlider({
           onKeyDown={(e) => handleKeyDown(e, 'min')}
           className="pointer-events-none absolute z-30 h-1 w-full appearance-none bg-transparent outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110 focus:[&::-webkit-slider-thumb]:scale-110 focus:[&::-webkit-slider-thumb]:ring-2 focus:[&::-webkit-slider-thumb]:ring-primary/50 focus:[&::-webkit-slider-thumb]:ring-offset-2 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow [&::-moz-range-thumb]:transition-all [&::-moz-range-thumb]:hover:scale-110 focus:[&::-moz-range-thumb]:scale-110 focus:[&::-moz-range-thumb]:ring-2 focus:[&::-moz-range-thumb]:ring-primary/50"
           style={{ zIndex: minVal > max - 100 ? "40" : undefined }}
-          aria-label={`Minimum value: ${formatLabel(minVal)}`}
         />
         
         {/* Max range input */}
@@ -158,6 +162,11 @@ export function RangeSlider({
           step={step}
           value={maxVal}
           disabled={disabled}
+          aria-label={`Maximum value: ${formatLabel(maxVal)}`}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={maxVal}
+          aria-valuetext={formatLabel(maxVal)}
           onChange={(event) => {
             const val = Math.max(Number(event.target.value), minVal + step);
             onChange([minVal, val]);
@@ -167,7 +176,6 @@ export function RangeSlider({
           onMouseUp={() => setIsDragging(null)}
           onKeyDown={(e) => handleKeyDown(e, 'max')}
           className="pointer-events-none absolute z-30 h-1 w-full appearance-none bg-transparent outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110 focus:[&::-webkit-slider-thumb]:scale-110 focus:[&::-webkit-slider-thumb]:ring-2 focus:[&::-webkit-slider-thumb]:ring-primary/50 focus:[&::-webkit-slider-thumb]:ring-offset-2 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow [&::-moz-range-thumb]:transition-all [&::-moz-range-thumb]:hover:scale-110 focus:[&::-moz-range-thumb]:scale-110 focus:[&::-moz-range-thumb]:ring-2 focus:[&::-moz-range-thumb]:ring-primary/50"
-          aria-label={`Maximum value: ${formatLabel(maxVal)}`}
         />
 
         {/* Track */}
