@@ -246,21 +246,22 @@ const buildMockListings = (): SecondaryMarketItem[] => [
   },
 ];
 
-const MOCK_SECONDARY_LISTINGS = buildMockListings();
-
 // ─── URL param keys ────────────────────────────────────────────────────────
 const PARAM_SEARCH = "q";
 const PARAM_TENOR = "tenor";
 const PARAM_YIELD = "yield";
 const PARAM_SELLER = "seller";
 const PARAM_HIGHLIGHT = "highlight";
-const PARAM_SORT = "sortBy";
 
 export default function SecondaryMarketplacePage() {
-  // Issues #594 and #597: acquisition uses the shared simulation and fee paths.
+  // Issue #594: acquire runs through the same simulation gate as fund/transfer.
   const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
   const { publicKey } = useWallet();
+
+  // Issue #597: one schedule, read from validated env, shared by every figure
+  // on this page.
   const feeSchedule = useMemo(() => getFeeSchedule(env), []);
+
   const { listings: storeListings, removeStale } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
   const router = useRouter();
@@ -332,7 +333,7 @@ export default function SecondaryMarketplacePage() {
 
   // Combine store position listings with mock defaults
   const allItems: SecondaryMarketItem[] = useMemo(() => {
-    const combined = [...MOCK_SECONDARY_LISTINGS];
+    const combined = [...buildMockListings()];
 
     Object.values(storeListings).forEach((listing) => {
       if (combined.some((item) => item.positionId === listing.positionId)) return;
