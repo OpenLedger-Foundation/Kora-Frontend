@@ -27,6 +27,7 @@ import { queryKeys } from "@/lib/queryKeys";
 import { useWalletStore } from "@/store/walletStore";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { useUIStore } from "@/store/uiStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { env } from "@/lib/env";
 import { useFormatters } from "@/hooks/useFormatters";
@@ -239,6 +240,9 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
   const queryClient = useQueryClient();
   const { address: walletAddress } = useWalletStore();
   const notificationPreferences = useUIStore((s) => s.notificationPreferences);
+  // Gate funding and repayment milestone toasts on persisted user preferences
+  const fundingAlerts = useSettingsStore((s) => s.notifications.fundingAlerts);
+  const repaymentAlerts = useSettingsStore((s) => s.notifications.repaymentAlerts);
   const { health } = useNetworkStatus();
   const { updateInvoiceFunding } = useInvoiceStore();
   const { formatCurrency } = useFormatters();
@@ -252,52 +256,60 @@ export function useContractEvents(options: UseContractEventsOptions = {}) {
   const lastLedgerRef = useRef<number>(0);
   const processedEventIds = useRef<Set<string>>(new Set());
 
-  const showEventToast = useCallback((event: ContractEvent, addr: string) => {
-    const isRelevant =
-      event.participantAddress.toLowerCase() === addr.toLowerCase();
+  const showEventToast = useCallback(
+    (event: ContractEvent, addr: string) => {
+      const isRelevant =
+        event.participantAddress.toLowerCase() === addr.toLowerCase();
 
-    if (!isRelevant) return;
+      if (!isRelevant) return;
 
-    const amountStr = formatCurrency(event.amount, "USDC");
+      const amountStr = formatCurrency(event.amount, "USDC");
 
-    switch (event.type) {
-      case "invoice_funded":
-        toast.success(
-          <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">{t("invoiceFunded")}</span>
-            <span className="text-xs text-muted-foreground">
-              {t("invoiceFundedDesc", { amount: amountStr, tokenId: event.tokenId })}
-            </span>
-          </div>,
-          { duration: 5000 }
-        );
-        break;
+      switch (event.type) {
+        case "invoice_funded":
+          // Respect the fundingAlerts preference (settingsStore) — mirrors the
+          // toggle in NotificationSettings under "Funding Alerts".
+          if (!fundingAlerts) return;
+          toast.success(
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-foreground">{t("invoiceFunded")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("invoiceFundedDesc", { amount: amountStr, tokenId: event.tokenId })}
+              </span>
+            </div>,
+            { duration: 5000 }
+          );
+          break;
 
-      case "invoice_repaid":
-        toast.success(
-          <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">{t("invoiceRepaid")}</span>
-            <span className="text-xs text-muted-foreground">
-              {t("invoiceRepaidDesc", { tokenId: event.tokenId })}
-            </span>
-          </div>,
-          { duration: 5000 }
-        );
-        break;
+        case "invoice_repaid":
+          // SME milestone — respect the repaymentAlerts preference.
+          if (!repaymentAlerts) return;
+          toast.success(
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-foreground">{t("invoiceRepaid")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("invoiceRepaidDesc", { tokenId: event.tokenId })}
+              </span>
+            </div>,
+            { duration: 5000 }
+          );
+          break;
 
-      case "invoice_cancelled":
-        toast.info(
-          <div className="flex flex-col gap-0.5">
-            <span className="font-semibold text-foreground">{t("invoiceCancelled")}</span>
-            <span className="text-xs text-muted-foreground">
-              {t("invoiceCancelledDesc", { tokenId: event.tokenId })}
-            </span>
-          </div>,
-          { duration: 5000 }
-        );
-        break;
-    }
-  }, [formatCurrency, t]);
+        case "invoice_cancelled":
+          toast.info(
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold text-foreground">{t("invoiceCancelled")}</span>
+              <span className="text-xs text-muted-foreground">
+                {t("invoiceCancelledDesc", { tokenId: event.tokenId })}
+              </span>
+            </div>,
+            { duration: 5000 }
+          );
+          break;
+      }
+    },
+    [formatCurrency, t, fundingAlerts, repaymentAlerts]
+  );
 
   const processEvents = useCallback(
     (events: ContractEvent[], latestLedger: number) => {

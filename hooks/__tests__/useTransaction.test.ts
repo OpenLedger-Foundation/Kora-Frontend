@@ -81,6 +81,15 @@ vi.mock("@/store/transactionHistoryStore", () => ({
   }),
 }));
 
+vi.mock("@/lib/xdrDraftQueue", () => ({
+  enqueueSignedXdr: vi.fn().mockResolvedValue({ id: "queued-draft-1" }),
+  flushQueuedXdrDrafts: vi.fn().mockResolvedValue({ succeeded: [], failed: [] }),
+}));
+
+vi.mock("../useNetworkStatus", () => ({
+  useNetworkStatus: vi.fn(() => ({ isOnline: true })),
+}));
+
 // Mock a valid XDR transaction
 const MOCK_UNSIGNED_XDR = "AAAAAgAAAABp6VSFhLT+HqAFwPp8rxdglLVKcYcuLcIJTEKq+YzNLgAAAGQABJv4AAAAAQAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAGAAAAABHQNRXUV8yemtjS01WUkhRU0hMVjdLR0JQSzdJUllIQ1M3RUFEUEpJWVJFMlFVT1gzNUk0AAAACwAAABJjcmVhdGVfY29udHJhY3RfZnVuAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
@@ -632,5 +641,99 @@ describe("useTransaction", () => {
 
       expect(mockUpdateStatus).toHaveBeenCalledWith("hash123", "confirmed");
     });
+  });
+});
+
+// ─── Offline XDR Enqueue (#651) ───────────────────────────────────────────────
+
+describe("Offline XDR enqueue", () => {
+  let mockEnqueueSignedXdr: any;
+  let mockUseNetworkStatus: any;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+
+    const xdrQueue = await import("@/lib/xdrDraftQueue");
+    mockEnqueueSignedXdr = xdrQueue.enqueueSignedXdr as any;
+
+    const { useNetworkStatus } = await import("../useNetworkStatus");
+    mockUseNetworkStatus = useNetworkStatus as any;
+    mockUseNetworkStatus.mockReturnValue({ isOnline: true });
+
+    const { useWallet } = await import("../useWallet");
+    const { submitTransaction, rpc } = await import("@/lib/stellar/client");
+    const mockSign = vi.fn().mockResolvedValue("SIGNED_XDR");
+    (useWallet as any).mockReturnValue({
+      signTransaction: mockSign,
+      publicKey: "GTEST",
+    });
+
+    // By default simulate succeeds
+    (rpc.simulateTransaction as any).mockResolvedValue({
+      results: [{ auth: [], xdr: "result" }],
+      latestLedger: 1000,
+      minResourceFee: "100",
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("enqueues the signed XDR when submitTransaction throws a network TypeError", async () => {
+    const { submitTransaction } = await import("@/lib/stellar/client");
+
+    // Simulate a fetch-level network failure AFTER signing
+    (submitTransaction as any).mockRejectedValue(
+      new TypeError("Failed to fetch")
+    );
+
+    const { result } = renderHook(() => useTransaction());
+    const buildFn = vi.fn().mockResolvedValue("mock_unsigned");
+
+    await act(async () => {
+      await result.current.execute(buildFn, { txType: "fund" });
+    });
+
+    expect(mockEnqueueSignedXdr).toHaveBeenCalledOnce();
+    expect(mockEnqueueSignedXdr).toHaveBeenCalledWith(
+      expect.any(String), // signed XDR
+      expect.objectContaining({ type: "fund" })
+    );
+  });
+
+  it("does NOT enqueue when submitTransaction returns ERROR status (non-network failure)", async () => {
+    const { submitTransaction } = await import("@/lib/stellar/client");
+
+    // RPC responded with a contract/application-level error (not a network error)
+    (submitTransaction as any).mockResolvedValue({ status: "ERROR", hash: "" });
+
+    const { result } = renderHook(() => useTransaction());
+    const buildFn = vi.fn().mockResolvedValue("mock_unsigned");
+
+    await act(async () => {
+      await result.current.execute(buildFn, { txType: "fund" });
+    });
+
+    expect(mockEnqueueSignedXdr).not.toHaveBeenCalled();
+  });
+
+  it("does NOT enqueue when the transaction is not yet signed (sign throws)", async () => {
+    const { useWallet } = await import("../useWallet");
+    (useWallet as any).mockReturnValue({
+      signTransaction: vi.fn().mockRejectedValue(new Error("USER_REJECTED")),
+      publicKey: "GTEST",
+    });
+
+    const { result } = renderHook(() => useTransaction());
+    const buildFn = vi.fn().mockResolvedValue("mock_unsigned");
+
+    await act(async () => {
+      await result.current.execute(buildFn, { txType: "fund" });
+    });
+
+    expect(mockEnqueueSignedXdr).not.toHaveBeenCalled();
   });
 });

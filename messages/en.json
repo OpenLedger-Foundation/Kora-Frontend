@@ -65,7 +65,8 @@
     "retrySigning": "Retry Signing",
     "cancelSigning": "Cancel Safely",
     "hardwareTip": "Confirm on your hardware wallet",
-    "mobileTip": "Check your mobile wallet app"
+    "mobileTip": "Check your mobile wallet app",
+    "queuedOffline": "Network unavailable — signed transaction queued. It will be submitted automatically when you reconnect."
   },
   "landing": {
     "headline": "Invoice Financing, On-Chain",
@@ -584,7 +585,32 @@
     "invoiceCreation": "Invoice creation & minting",
     "liveData": "Live marketplace data",
     "reload": "Try Again",
-    "browseCached": "Browse cached listings"
+    "browseCached": "Browse cached listings",
+    "pendingQueueTitle": "Pending Signed Transactions",
+    "pendingQueueDesc": "These transactions were signed but could not be submitted. They will be retried automatically when you reconnect."
+  },
+  "pendingQueue": {
+    "title": "{count, plural, one {# pending transaction} other {# pending transactions}}",
+    "emptyState": "No pending transactions — all signed envelopes have been submitted.",
+    "retryAll": "Retry all",
+    "retryAriaLabel": "Retry this transaction",
+    "removeAriaLabel": "Discard this transaction",
+    "offlineAriaLabel": "Waiting for connection",
+    "listAriaLabel": "Pending signed transactions",
+    "waitingOnline": "Waiting…",
+    "retrySuccess": "Transaction submitted successfully",
+    "retryFailed": "Submission failed — will retry when online",
+    "removed": "Draft removed from queue",
+    "txType": "{type}",
+    "unknownTx": "Signed transaction",
+    "invoiceLabel": "Invoice #{id}",
+    "queuedAt": "Queued {time}",
+    "attempts": "{count, plural, one {# attempt} other {# attempts}}",
+    "statusRetrying": "Retrying",
+    "statusSuccess": "Submitted",
+    "statusError": "Failed",
+    "statusPending": "Queued",
+    "badgeAriaLabel": "{count} pending transaction(s)"
   },
   "notFound": {
     "title": "Page not found",
