@@ -17,6 +17,7 @@ import {
   Zap,
   X,
   LogOut,
+  Keyboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
@@ -264,7 +265,7 @@ export function CommandPalette() {
 
               {/* Actions */}
               {(showEmpty ||
-                ["connect wallet", "create invoice", "disconnect wallet"].some((a) =>
+                ["connect wallet", "create invoice", "disconnect wallet", "shortcuts", "keyboard shortcuts"].some((a) =>
                   a.includes(query.toLowerCase())
                 )) && (
                 <Command.Group
@@ -297,6 +298,17 @@ export function CommandPalette() {
                       onSelect={handleDisconnect}
                     />
                   )}
+                  <PaletteItem
+                    icon={<Keyboard className="h-4 w-4" />}
+                    label="Shortcuts"
+                    query={query}
+                    testId="action-shortcuts"
+                    onSelect={() =>
+                      runAction(() =>
+                        window.dispatchEvent(new CustomEvent("kora:open-shortcut-modal"))
+                      )
+                    }
+                  />
                 </Command.Group>
               )}
             </Command.List>
