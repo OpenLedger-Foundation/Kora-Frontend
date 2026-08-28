@@ -8,6 +8,7 @@ import {
   Store,
   LayoutDashboard,
   BarChart3,
+  ArrowLeftRight,
   PlusCircle,
   History,
   Wallet,
@@ -51,6 +52,12 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 
 const PAGE_COMMANDS = [
   { id: "page-marketplace", label: "Marketplace", href: "/marketplace", icon: Store },
+  {
+    id: "page-secondary",
+    label: "Secondary Market",
+    href: "/secondary",
+    icon: ArrowLeftRight,
+  },
   { id: "page-invest", label: "Investor Dashboard", href: "/dashboard/investor", icon: BarChart3 },
   { id: "page-sme", label: "My Invoices", href: "/dashboard/sme", icon: LayoutDashboard },
   { id: "page-create", label: "Create Invoice", href: "/invoice/create", icon: PlusCircle },

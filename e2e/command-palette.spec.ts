@@ -53,6 +53,7 @@ test.describe("Command Palette", () => {
 
     const expectedLabels = [
       "Marketplace",
+      "Secondary Market",
       "Investor Dashboard",
       "My Invoices",
       "Create Invoice",
@@ -94,6 +95,31 @@ test.describe("Command Palette", () => {
 
     await palette.getByText("Transaction History").click();
     await expect(page).toHaveURL(/\/transactions/, { timeout: 10_000 });
+  });
+
+  test("searching Secondary Market and pressing Enter navigates and records it", async ({
+    page,
+  }) => {
+    await page.keyboard.press("Control+k");
+    const palette = page.getByRole("dialog", { name: /command palette/i });
+    await expect(palette).toBeVisible({ timeout: 5_000 });
+
+    const input = palette.getByLabel("Command palette search");
+    await input.fill("secondary");
+    await expect(palette.getByText("Secondary Market")).toBeVisible();
+
+    await input.press("ArrowDown");
+    await input.press("Enter");
+
+    await expect(page).toHaveURL(/\/secondary/, { timeout: 10_000 });
+    const recent = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("kora-cmd-recent") ?? "[]")
+    );
+    expect(recent[0]).toMatchObject({
+      label: "Secondary Market",
+      href: "/secondary",
+      type: "page",
+    });
   });
 
   // ── Keyboard navigation ───────────────────────────────────────────────────────
