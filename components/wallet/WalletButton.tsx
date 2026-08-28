@@ -24,9 +24,7 @@ import { useUIStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { safeStellarAccountUrl } from "@/lib/security";
 import { env } from "@/lib/env";
-import { SynapsKycModal } from "./SynapsKycModal";
-import { useKycStatusSync } from "@/hooks/useKycStatusSync";
-import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
+import { preloadWalletKit } from "@/lib/lazyModules";
 
 export function WalletButton() {
   const t = useTranslations("wallet");
@@ -120,7 +118,20 @@ export function WalletButton() {
 
   if (!isConnected) {
     return (
-      <Button onClick={() => setWalletModalOpen(true)} size="sm">
+      <Button
+        onClick={() => setWalletModalOpen(true)}
+        onMouseEnter={() => {
+          if (typeof window !== "undefined") {
+            preloadWalletKit();
+          }
+        }}
+        onFocus={() => {
+          if (typeof window !== "undefined") {
+            preloadWalletKit();
+          }
+        }}
+        size="sm"
+      >
         {t("connect")}
       </Button>
     );

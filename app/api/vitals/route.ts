@@ -67,8 +67,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return new NextResponse(null, { status: 204 });
     }
 
+    const redacted = redact(sanitised);
+
     // Log to server console (visible in Vercel Function logs)
-    for (const metric of sanitised) {
+    for (const metric of redacted) {
       logger.info(`Web vital report: ${metric.name}`, {
         requestId,
         route: "/api/vitals",
@@ -83,8 +85,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // TODO: forward to your analytics backend, e.g.:
-    // await fetch(process.env.ANALYTICS_INGEST_URL, { method: "POST", body: JSON.stringify(sanitised) })
+    const ingestUrl = process.env.ANALYTICS_INGEST_URL;
+    if (ingestUrl) {
+      try {
+        await fetch(ingestUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-request-id": requestId,
+          },
+          body: JSON.stringify(redacted),
+        });
+      } catch (err) {
+        logger.error("[vitals] forward failure", { requestId, error: err });
+      }
+    }
 
     return new NextResponse(null, { status: 204 });
   } catch (err) {

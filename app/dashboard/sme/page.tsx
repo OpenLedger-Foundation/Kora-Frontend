@@ -168,7 +168,10 @@ function SMEStatsGrid({ address }: { address: string }) {
 }
 
 
+import { useRouter } from "next/navigation";
+
 export default function SMEDashboardPage() {
+  const router = useRouter();
   const { isConnected, address, signTransaction } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const t = useTranslations("smeDashboard");
@@ -212,7 +215,9 @@ export default function SMEDashboardPage() {
       );
       persistBatchQueue(snap.items);
     });
-    return () => { unsubscribe(); };
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const myInvoices: Invoice[] =
@@ -236,7 +241,6 @@ export default function SMEDashboardPage() {
   // Must run before the early return below so hook order stays stable across renders.
   const { executeProtectedAction } = useVerifiedAction();
 
-  // useCallback must also be called before any early return (Rules of Hooks).
   const runBatchExecutor = useCallback(
     async (item: BatchQueueItem) => {
       if (!address) throw new Error("Wallet not connected");
@@ -380,6 +384,7 @@ export default function SMEDashboardPage() {
     setRepayConfirmOpen(true);
   };
 
+
   const finishBatch = (action: BatchActionType) => {
     const snap = queueRef.current.getSnapshot();
     setBatchResults({
@@ -516,6 +521,11 @@ export default function SMEDashboardPage() {
                     setStatusFilter(e.target.value as InvoiceStatus | "all");
                     // Drop selections that the new filter may hide.
                     setSelectedIds([]);
+                    if (typeof window !== "undefined") {
+                      const params = new URLSearchParams(window.location.search);
+                      params.set("sme_page", "1");
+                      router.push(`${window.location.pathname}?${params.toString()}`);
+                    }
                   }}
                   className="rounded-lg border border-border bg-background px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 >
@@ -532,6 +542,10 @@ export default function SMEDashboardPage() {
             data={myInvoices}
             enableSelection={batchActionsEnabled}
             onSelectionChange={setSelectedIds}
+            syncToUrl={true}
+            pageParamName="sme_page"
+            sortParamName="sme_sort"
+            pageSizeParamName="sme_pageSize"
             columns={(() => {
               const cols: ColumnDef<Invoice>[] = [
                 {

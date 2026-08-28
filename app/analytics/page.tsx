@@ -122,7 +122,6 @@ function PortfolioAnalyticsInner() {
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
 
   const { formatCurrency, formatPercentage } = useFormatters();
-
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
   const handleFiltersChange = useCallback(
