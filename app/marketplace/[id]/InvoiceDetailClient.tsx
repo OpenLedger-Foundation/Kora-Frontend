@@ -69,6 +69,7 @@ import {
 } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
+import { RepaymentTimeline } from "@/components/invoice/RepaymentTimeline";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
@@ -618,6 +619,32 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                 </CardContent>
               </Card>
             </motion.div>
+
+            {/* Repayment Timeline — shown when invoice is fully funded */}
+            {isFullyFunded && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.17 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-zinc-500" /> Repayment
+                      Timeline
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RepaymentTimeline
+                      fundedAt={invoice.createdAt}
+                      maturityDate={terms.repaymentDate}
+                      isRepaid={status === "repaid"}
+                      repaidAt={status === "repaid" ? invoice.updatedAt : undefined}
+                    />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
 
             {/* IPFS PDF Document Preview */}
             <motion.div
