@@ -542,6 +542,10 @@
   "cancelDialog": {
     "title": "Cancelar Factura",
     "description": "Esta acción no se puede deshacer. La factura será cancelada permanentemente.",
+    "undoTitle": "Cancelación en espera",
+    "undoDescription": "La cancelación aún no se ha enviado. Revisa la cuenta atrás y deshazla si es necesario.",
+    "undoCountdown": "Enviando la cancelación en {seconds} segundos",
+    "undo": "Deshacer cancelación",
     "reasonLabel": "Motivo de cancelación",
     "selectReasonPlaceholder": "Seleccione un motivo para cancelar",
     "reasons": {
