@@ -51,21 +51,15 @@
     "restoringSession": "Restaurando sessão da carteira..."
   },
   "transaction": {
-    "building": "Construindo transação...",
-    "simulating": "Simulando transação...",
-    "signing": "Aguardando assinatura da carteira...",
-    "submitting": "Enviando transação...",
-    "polling": "Confirmando transação na rede...",
+    "building": "Construindo transação…",
+    "simulating": "Simulando transação…",
+    "signing": "Aguardando assinatura da carteira…",
+    "submitting": "Enviando para a rede Stellar…",
+    "polling": "Aguardando confirmação…",
     "confirmed": "Transação confirmada!",
-    "failed": "Falha na transação",
-    "cancelled": "Assinatura da transação cancelada",
-    "timedOut": "Tempo limite de assinatura esgotado",
-    "timeoutNotice": "A assinatura demorou muito para ser concluída.",
-    "extendTime": "Estender Tempo (+60s)",
-    "retrySigning": "Tentar Assinar Novamente",
-    "cancelSigning": "Cancelar com Segurança",
-    "hardwareTip": "Confirme em sua carteira de hardware",
-    "mobileTip": "Verifique o app no celular"
+    "failed": "Transação falhou",
+    "retry": "Tentar novamente",
+    "dismiss": "Fechar"
   },
   "landing": {
     "headline": "Financiamento de Faturas, On-Chain",
@@ -366,7 +360,22 @@
       "partial": "Parcial (Apenas Nome)",
       "anonymized": "Anonimizado (Setor + País)"
     },
-    "discountRateDesc": "O desconto oferecido aos investidores. Uma taxa maior atrai financiamento mais rápido, mas aumenta o custo."
+    "discountRateDesc": "O desconto oferecido aos investidores. Uma taxa maior atrai financiamento mais rápido, mas aumenta o custo.",
+    "kybGate": {
+      "title": "Business Verification Required",
+      "subtitleNone": "To mint an invoice on Kora, your SME account must complete KYB verification. The process takes about 2 minutes.",
+      "subtitlePending": "Your verification documents are under review. We'll automatically continue once approved — this page will refresh for you.",
+      "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
+      "ctaNone": "Start Verification",
+      "ctaRejected": "Re-verify Business",
+      "ctaPending": "Checking verification status…",
+      "backToWizard": "Go Back",
+      "whatYouNeed": "What you will need:",
+      "needIdDoc": "Government-issued ID or business registration document",
+      "needProofAddress": "Proof of business address",
+      "needTime": "Takes approximately 2 minutes",
+      "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    }
   },
   "smeDashboard": {
     "title": "Painel PME",
@@ -615,17 +624,6 @@
       "fundedAmount": "Valor Financiado"
     }
   },
-  "transaction": {
-    "building": "Construindo transação…",
-    "simulating": "Simulando transação…",
-    "signing": "Aguardando assinatura da carteira…",
-    "submitting": "Enviando para a rede Stellar…",
-    "polling": "Aguardando confirmação…",
-    "confirmed": "Transação confirmada!",
-    "failed": "Transação falhou",
-    "retry": "Tentar novamente",
-    "dismiss": "Fechar"
-  },
   "txSimulation": {
     "title": "Pré-visualização da Transação",
     "subtitle": "Revise as taxas estimadas e o uso de recursos antes de assinar",
@@ -660,7 +658,15 @@
     "lastChecked": "Última verificação: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Erro"
+    "error": "Erro",
+    "offline": "Offline",
+    "offlineDesc": "You're offline. Cached marketplace data may still be available.",
+    "offlineCached": "Offline - showing cached data",
+    "offlineCachedShort": "Cached data",
+    "lastUpdated": "Last updated {time}",
+    "rpcDown": "RPC Down",
+    "rpcDegraded": "RPC Degraded",
+    "statusAriaLabel": "Network status: {status} on {network}"
   },
   "offline": {
     "title": "Você está offline",
@@ -759,7 +765,11 @@
     "footerHint": "Os contatos são salvos localmente no seu navegador.",
     "pickContact": "Escolher um contato salvo",
     "noContacts": "Nenhum contato salvo ainda",
-    "pickFromAddressBook": "Escolher da Agenda"
+    "pickFromAddressBook": "Escolher da Agenda",
+    "verifiedLabel": "Label verified with signature",
+    "signLabel": "Sign label for {label}",
+    "labelSigned": "Label signed successfully",
+    "signFailed": "Failed to sign label"
   },
   "installPrompt": {
     "ariaLabel": "Instalar aplicativo Kora Protocol",
