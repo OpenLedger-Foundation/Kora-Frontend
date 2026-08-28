@@ -154,6 +154,13 @@ const serverSchema = z.object({
 
   /** Optional VirusTotal API key for PDF scanning on upload. */
   VIRUSTOTAL_API_KEY: z.string().optional(),
+
+  /**
+   * Shared secret for verifying Synaps KYC webhook signatures (#694).
+   * Optional: when unset the callback signature header is still required but
+   * cannot be checked, which is the mock/dev posture.
+   */
+  SYNAPS_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const clientEnv = {

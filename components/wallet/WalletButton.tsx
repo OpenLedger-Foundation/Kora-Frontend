@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { safeStellarAccountUrl } from "@/lib/security";
 import { env } from "@/lib/env";
 import { SynapsKycModal } from "./SynapsKycModal";
+import { useKycStatusSync } from "@/hooks/useKycStatusSync";
 import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
 
 export function WalletButton() {
@@ -55,6 +56,25 @@ export function WalletButton() {
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"notifications" | "kyc">("notifications");
   const { kycStatus } = useWalletStore();
+
+  /**
+   * Pull webhook-recorded KYC transitions into the store (#694) so this tab
+   * reflects a completed Synaps verification without a hard refresh. Polling
+   * stops on its own once the status is verified — there is nothing further to
+   * wait for — so this costs nothing for an already-verified investor.
+   */
+  useKycStatusSync({
+    enabled: isConnected && kycStatus !== "verified",
+    onStatusChange: (status) => {
+      if (status === "verified") {
+        toast.success("Identity verified — funding limits lifted");
+      } else if (status === "rejected") {
+        toast.info("Identity verification was rejected. Re-submit your documents to continue.");
+      } else if (status === "pending") {
+        toast.info("Identity verification submitted — Synaps is reviewing your documents.");
+      }
+    },
+  });
 
   const isTestnet = env.NEXT_PUBLIC_STELLAR_NETWORK === "testnet";
   const hasNetworkMismatch = isWrongNetwork() || hasPassphraseMismatch();

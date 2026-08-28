@@ -679,7 +679,10 @@
     "title": "Página não encontrada",
     "description": "A página que você procura não existe ou foi movida.",
     "goHome": "Ir para o Início",
-    "goBack": "Voltar"
+    "goBack": "Voltar",
+    "goMarketplace": "Explorar o Mercado",
+    "goSecondary": "Mercado Secundário",
+    "recoveryHint": "A fatura pode ter sido financiada ou removida, ou o link pode estar desatualizado."
   },
   "error": {
     "title": "Algo deu errado",
@@ -863,6 +866,8 @@
     "tenorLabel": "Prazo",
     "investorsLabel": "Investidores",
     "tenorDays": "{count}d",
+    "maturityLabel": "Vencimento",
+    "overdue": "Vencida",
     "fundInvoice": "Financiar Fatura",
     "addToCompare": "Adicionar {debtor} à comparação",
     "removeFromCompare": "Remover {debtor} da comparação",

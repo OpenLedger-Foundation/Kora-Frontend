@@ -656,7 +656,10 @@
     "title": "Page not found",
     "description": "The page you're looking for doesn't exist or has been moved.",
     "goHome": "Go Home",
-    "goBack": "Go Back"
+    "goBack": "Go Back",
+    "goMarketplace": "Browse Marketplace",
+    "goSecondary": "Secondary Market",
+    "recoveryHint": "The invoice may have been funded, delisted, or the link may be out of date."
   },
   "error": {
     "title": "Something went wrong",
@@ -844,6 +847,8 @@
     "tenorLabel": "Tenor",
     "investorsLabel": "Investors",
     "tenorDays": "{count}d",
+    "maturityLabel": "Maturity",
+    "overdue": "Overdue",
     "fundInvoice": "Fund Invoice",
     "addToCompare": "Add {debtor} to comparison",
     "removeFromCompare": "Remove {debtor} from comparison",

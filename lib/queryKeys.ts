@@ -46,6 +46,11 @@ export const queryKeys = {
     batch: (tokenIds: string[]) =>
       ["invoices", "batch", [...tokenIds].sort().join(",")] as const,
   },
+  kyc: {
+    /** KYC status for a wallet. Funding gates read this, so it is its own key. */
+    status: (address: string) => ["kyc", "status", address] as const,
+    all: ["kyc"] as const,
+  },
   account: {
     all: (address: string) => ["account", address] as const,
     balances: (address: string) => ["account", address, "balances"] as const,
@@ -63,7 +68,8 @@ export type QueryInvalidationEvent =
   | "invoice_cancelled"
   | "wallet_connected"
   | "wallet_disconnected"
-  | "usdc_balance_changed";
+  | "usdc_balance_changed"
+  | "kyc_status_changed";
 
 export interface QueryInvalidationContext {
   tokenId?: string;
@@ -85,6 +91,10 @@ export const queryKeyHierarchy = {
     ownerPrefix: ["invoices", "owner"] as const,
     positionsPrefix: ["invoices", "positions"] as const,
     batchPrefix: ["invoices", "batch"] as const,
+  },
+  kyc: {
+    root: ["kyc"] as const,
+    statusPrefix: ["kyc", "status"] as const,
   },
   account: {
     rootPrefix: ["account"] as const,
@@ -125,6 +135,14 @@ export const queryInvalidationRules = {
   ],
   usdc_balance_changed: ({ address }: QueryInvalidationContext) => [
     ...(address ? [queryKeys.account.usdcBalance(address)] : []),
+  ],
+  /**
+   * A KYC transition opens or closes the funding gate, so the invoice lists and
+   * details that render it have to re-evaluate alongside the status itself.
+   */
+  kyc_status_changed: ({ address }: QueryInvalidationContext) => [
+    ...(address ? [queryKeys.kyc.status(address)] : [queryKeys.kyc.all]),
+    queryKeys.invoices.all,
   ],
 } satisfies Record<
   QueryInvalidationEvent,

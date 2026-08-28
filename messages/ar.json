@@ -687,7 +687,10 @@
     "title": "الصفحة غير موجودة",
     "description": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
     "goHome": "الذهاب للرئيسية",
-    "goBack": "رجوع"
+    "goBack": "رجوع",
+    "goMarketplace": "تصفح السوق",
+    "goSecondary": "السوق الثانوية",
+    "recoveryHint": "ربما تم تمويل الفاتورة أو إزالتها من القائمة، أو أن الرابط لم يعد صالحًا."
   },
   "error": {
     "title": "حدث خطأ ما",
@@ -871,6 +874,8 @@
     "tenorLabel": "المدة",
     "investorsLabel": "المستثمرون",
     "tenorDays": "{count}ي",
+    "maturityLabel": "الاستحقاق",
+    "overdue": "متأخرة",
     "fundInvoice": "تمويل الفاتورة",
     "addToCompare": "إضافة {debtor} إلى المقارنة",
     "removeFromCompare": "إزالة {debtor} من المقارنة",
