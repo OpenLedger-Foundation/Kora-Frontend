@@ -18,7 +18,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
 import { usePositions } from "@/hooks/usePositions";
-import { buildDigestDocument, digestFilename } from "@/lib/portfolioDigest";
+import { buildDigestDocument, buildDigestMailto, digestFilename } from "@/lib/portfolioDigest";
 import { renderDigestPdf } from "@/lib/portfolioDigestPdf";
 import {
   useUIStore,
@@ -157,25 +157,39 @@ function PortfolioAnalyticsInner() {
   // ── PDF digest (#602) ─────────────────────────────────────────────────────
   const [isGeneratingDigest, setIsGeneratingDigest] = useState(false);
 
-  const handleDownloadDigest = useCallback(async () => {
-    setIsGeneratingDigest(true);
-    try {
-      // Composed from the *unfiltered* list plus the active filters:
-      // `buildDigestDocument` re-applies them, so the PDF provably reflects
-      // the same rows the page is showing.
-      const doc = buildDigestDocument({
+  // Composed from the *unfiltered* list plus the active filters:
+  // `buildDigestDocument` re-applies them, so the digest provably reflects
+  // the same rows the page is showing. Shared by the PDF and mailto actions
+  // so both read from one source of truth.
+  const buildDigest = useCallback(
+    () =>
+      buildDigestDocument({
         positions: positionsData,
         filters,
         formatCurrency: (value) => formatCurrency(value, "USDC"),
         formatPercent: (value) => formatPercentage(value, 2),
-      });
-      await renderDigestPdf(doc, { filename: digestFilename() });
+      }),
+    [positionsData, filters, formatCurrency, formatPercentage]
+  );
+
+  const handleDownloadDigest = useCallback(async () => {
+    setIsGeneratingDigest(true);
+    try {
+      await renderDigestPdf(buildDigest(), { filename: digestFilename() });
     } catch (error) {
       console.error("[analytics] digest generation failed", error);
     } finally {
       setIsGeneratingDigest(false);
     }
-  }, [positionsData, filters, formatCurrency, formatPercentage]);
+  }, [buildDigest]);
+
+  // Issue #710: mailto share for advisors/forwarding — summary stats only,
+  // no position-level rows (see buildDigestMailto's doc comment for why).
+  const handleShareDigest = useCallback(() => {
+    window.location.href = buildDigestMailto(buildDigest(), (value) =>
+      formatCurrency(value, "USDC")
+    );
+  }, [buildDigest, formatCurrency]);
 
   // The same filtered live positions drive the charts, table, and exports.
   // Explicit mock mode is handled by usePositions; an empty live portfolio
@@ -336,6 +350,21 @@ function PortfolioAnalyticsInner() {
                 onClick={handleDownloadDigest}
               >
                 {isGeneratingDigest ? "Generating…" : "PDF Digest"}
+              </button>
+              {/*
+                Issue #710: one-click mailto for forwarding the digest summary
+                to an advisor — the PDF itself stays on-device, this only
+                opens the user's mail client with the summary pre-filled.
+              */}
+              <button
+                type="button"
+                disabled={!hasExportData}
+                aria-disabled={!hasExportData}
+                aria-label="Share portfolio digest via email"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleShareDigest}
+              >
+                Share via Email
               </button>
               <PrintButton />
             </div>
