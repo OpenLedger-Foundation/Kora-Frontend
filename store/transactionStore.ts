@@ -115,11 +115,85 @@ const DEFAULT_ESCROW_STATE: EscrowState = {
   errorStep: null,
   errorMessage: null,
   txHash: null,
-  attemptHistory: [],
+  attemptHistory: [] as EscrowStepAttempt[],
   currentAttempt: undefined,
   totalRetryCount: 0,
-  currentContext: undefined,
+  currentContext: undefined as { positionId: string; buyerAddress: string; sellerAddress: string; amount: number } | undefined,
 };
+
+interface TransactionStore {
+  /** Ordered list of transactions — newest first */
+  transactions: TxRecord[];
+
+  /** Secondary Escrow State Machine state */
+  escrowState: {
+    step: "idle" | "buyer_funding" | "buyer_funded" | "seller_transferring" | "seller_transferred" | "settled";
+    errorStep?: "buyer_funding" | "seller_transferring" | null;
+    errorMessage?: string | null;
+    txHash?: string | null;
+    attemptHistory: EscrowStepAttempt[];
+    currentAttempt?: EscrowStepAttempt;
+    totalRetryCount: number;
+    currentContext?: {
+      positionId: string;
+      buyerAddress: string;
+      sellerAddress: string;
+      amount: number;
+    };
+  };
+
+  /** Add a new confirmed or failed transaction record */
+  addTransaction: (record: Omit<TxRecord, "timestamp"> & { timestamp?: string }) => void;
+
+  /** Remove a single transaction by hash */
+  removeTransaction: (hash: string) => void;
+
+  /** Wipe the entire history */
+  clearHistory: () => void;
+
+  /** Update escrow step */
+  setEscrowStep: (step: "idle" | "buyer_funding" | "buyer_funded" | "seller_transferring" | "seller_transferred" | "settled") => void;
+
+  /** Set escrow error step and message */
+  setEscrowError: (errorStep: "buyer_funding" | "seller_transferring" | null, message: string | null) => void;
+
+  /** Reset escrow state */
+  resetEscrow: () => void;
+
+  /** Record an escrow step attempt in the history ledger */
+  recordEscrowAttempt: (attempt: {
+    step: "buyer_funding" | "seller_transferring";
+    attemptNumber: number;
+    timestamp: string;
+    success: boolean;
+    errorMessage?: string;
+    txHash?: string;
+    positionId?: string;
+    buyerAddress?: string;
+    sellerAddress?: string;
+    amount?: number;
+  }) => void;
+
+  /** Set the current attempt being executed */
+  setCurrentAttempt: (attempt: {
+    step: "buyer_funding" | "seller_transferring";
+    attemptNumber: number;
+    timestamp: string;
+    success: boolean;
+    errorMessage?: string;
+    txHash?: string;
+    positionId?: string;
+    buyerAddress?: string;
+    sellerAddress?: string;
+    amount?: number;
+  } | undefined) => void;
+
+  /** Increment total retry count */
+  incrementRetryCount: () => void;
+
+  /** Set the current escrow context (position/buyer/seller/amount) */
+  setEscrowContext: (context: { positionId: string; buyerAddress: string; sellerAddress: string; amount: number } | null) => void;
+}
 
 // 🏪 Store ────────────────────────────────────────────────────────────
 

@@ -694,7 +694,8 @@
     "title": "Algo salió mal",
     "description": "Ocurrió un error inesperado. Puedes intentar de nuevo o volver a la página de inicio.",
     "tryAgain": "Intentar de Nuevo",
-    "goHome": "Ir al Inicio"
+    "goHome": "Ir al Inicio",
+    "goMarketplace": "Ir al Mercado"
   },
   "common": {
     "loading": "Cargando…",

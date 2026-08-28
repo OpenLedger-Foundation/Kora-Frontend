@@ -101,8 +101,6 @@ const getSortOptions = (t: TFunc) => [
 
 // ─── Custom UI Controls ──────────────────────────────────────────────────────
 
-
-
 // 2. Custom Checkbox Group for Risk Tiers
 function CheckboxGroup({
   label,
@@ -162,41 +160,6 @@ function CheckboxGroup({
         })}
       </div>
     </fieldset>
-  );
-}
-
-// 3. Custom Dual-Thumb Range Slider (APR Range)
-function DualSlider({
-  min,
-  max,
-  value,
-  onChange,
-}: {
-  min: number;
-  max: number;
-  value: [number, number];
-  onChange: (val: [number, number]) => void;
-}) {
-  const t = useTranslations("marketplace");
-  const [minVal, maxVal] = value;
-
-  return (
-    <div className="relative flex w-full flex-col gap-2">
-      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
-        <span id="apr-range-label">{t("aprRange")}</span>
-        <span className="text-primary font-mono lowercase" aria-live="polite" aria-atomic="true">
-          {minVal}% - {maxVal}%
-        </span>
-      </div>
-      <RangeSlider
-        min={min}
-        max={max}
-        step={1}
-        value={value}
-        onChange={onChange}
-        formatLabel={(v) => `${v}%`}
-      />
-    </div>
   );
 }
 
@@ -543,13 +506,31 @@ function MarketplaceContent() {
         onChange={(val) => updateSingleFilter("riskTiers", val)}
       />
 
-      {/* Dual Slider for APR Range */}
-      <DualSlider
-        min={0}
-        max={50}
-        value={filters.aprRange || [0, 50]}
-        onChange={(val) => updateSingleFilter("aprRange", val)}
-      />
+      {/* APR range — shared RangeSlider (#678). The heading and live readout
+          stay here rather than moving into the shared control: they are
+          marketplace copy, and the e2e suite asserts on them. */}
+      <div className="relative flex w-full flex-col gap-2">
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
+          <span id="apr-range-label">{t("aprRange")}</span>
+          <span
+            className="text-primary font-mono lowercase"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {(filters.aprRange || [0, 50])[0]}% - {(filters.aprRange || [0, 50])[1]}%
+          </span>
+        </div>
+        <div role="group" aria-labelledby="apr-range-label">
+          <RangeSlider
+            min={0}
+            max={50}
+            step={1}
+            value={filters.aprRange || [0, 50]}
+            onChange={(val) => updateSingleFilter("aprRange", val)}
+            formatLabel={(v) => `${v}%`}
+          />
+        </div>
+      </div>
 
       {/* Status Toggle Switch */}
       <Switch

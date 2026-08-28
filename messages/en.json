@@ -665,7 +665,8 @@
     "title": "Something went wrong",
     "description": "An unexpected error occurred. You can try again or return to the home page.",
     "tryAgain": "Try Again",
-    "goHome": "Go Home"
+    "goHome": "Go Home",
+    "goMarketplace": "Go to Marketplace"
   },
   "common": {
     "loading": "Loading…",

@@ -694,7 +694,8 @@
     "title": "Algo deu errado",
     "description": "Ocorreu um erro inesperado. Você pode tentar novamente ou voltar para a página inicial.",
     "tryAgain": "Tentar Novamente",
-    "goHome": "Ir para o Início"
+    "goHome": "Ir para o Início",
+    "goMarketplace": "Ir para o Mercado"
   },
   "common": {
     "loading": "Carregando…",
