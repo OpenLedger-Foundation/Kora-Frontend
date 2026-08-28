@@ -405,7 +405,34 @@
       "title": "Resumo da Operação em Lote",
       "exportSelected": "Exportar selecionados",
       "processingLabel": "Cancelando {count} fatura(s)..."
-    }
+    },
+    "filters": {
+      "statusLabel": "Status",
+      "statusAria": "Filtrar faturas por status"
+    },
+    "statusFilters": {
+      "all": "Todos os status",
+      "draft": "Rascunho",
+      "pending_mint": "Emissão pendente",
+      "listed": "Listada",
+      "partially_funded": "Parcialmente financiada",
+      "fully_funded": "Totalmente financiada",
+      "active": "Ativa",
+      "repaid": "Liquidada",
+      "defaulted": "Inadimplente",
+      "cancelled": "Cancelada"
+    },
+    "batchCancel": {
+      "title": "{count, plural, one {Cancelar # fatura?} other {Cancelar # faturas?}}",
+      "body": "{count, plural, one {Você está prestes a cancelar <b>uma fatura não financiada</b>.} other {Você está prestes a cancelar <b># faturas não financiadas</b>.}} As transações são executadas sequencialmente; uma falha não bloqueará o restante da fila.",
+      "confirm": "{count, plural, one {Sim, cancelar # fatura} other {Sim, cancelar # faturas}}"
+    },
+    "batchRepay": {
+      "title": "{count, plural, one {Liquidar # fatura?} other {Liquidar # faturas?}}",
+      "body": "{count, plural, one {Você está prestes a liquidar <b>uma fatura vencida</b>.} other {Você está prestes a liquidar <b># faturas vencidas</b>.}} Cada liquidação é assinada e enviada sequencialmente.",
+      "confirm": "{count, plural, one {Sim, liquidar # fatura} other {Sim, liquidar # faturas}}"
+    },
+    "goBack": "Voltar"
   },
   "investorDashboard": {
     "title": "Painel do Investidor",
@@ -486,7 +513,16 @@
     "txCount": "{count} transação",
     "txCountPlural": "{count} transações",
     "viewStellar": "Ver no Stellar Expert",
-    "remove": "Remover transação"
+    "remove": "Remover transação",
+    "listTitle": "Transações",
+    "reason": "Motivo:",
+    "searchAria": "Buscar transações",
+    "typeFilterAria": "Filtrar por tipo de transação",
+    "statusFilterAria": "Filtrar por status",
+    "statusLabels": {
+      "confirmed": "Confirmada",
+      "failed": "Falhou"
+    }
   },
   "analytics": {
     "title": "Análise de Carteira",
@@ -738,6 +774,15 @@
     "whatsNew": "O que há de novo",
     "latestVersion": "Você está na versão mais recente.",
     "gotIt": "Entendi"
+  },
+  "settings": {
+    "title": "Configurações",
+    "subtitle": "Gerencie as preferências de notificação e o tour do produto.",
+    "connectTitle": "Conecte sua carteira",
+    "connectDesc": "As configurações são salvas por carteira. Conecte-se para ver e alterar suas preferências.",
+    "connectCta": "Conectar carteira",
+    "navLabel": "Configurações",
+    "openFull": "Abrir configurações completas"
   },
   "shortcuts": {
     "title": "Atalhos de Teclado",
