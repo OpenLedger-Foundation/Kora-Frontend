@@ -107,6 +107,15 @@ function SMEStatsGrid({ address }: { address: string }) {
     (inv: Invoice) => inv.ownerAddress === address
   );
 
+  const fundedInvoices = myInvoices.filter((i) =>
+    ["fully_funded", "active", "repaid", "defaulted"].includes(i.status)
+  );
+  const repaidInvoices = myInvoices.filter((i) => i.status === "repaid");
+  const repaymentRate =
+    fundedInvoices.length > 0
+      ? Math.round((repaidInvoices.length / fundedInvoices.length) * 100)
+      : 0;
+
   const stats = [
     {
       label: "Total Financed",
@@ -131,9 +140,9 @@ function SMEStatsGrid({ address }: { address: string }) {
     },
     {
       label: "Repayment Rate",
-      value: "100%",
-      change: "All-time",
-      changePositive: true,
+      value: `${repaymentRate}%`,
+      change: `${repaidInvoices.length}/${fundedInvoices.length} repaid`,
+      changePositive: repaymentRate >= 80,
       icon: <CheckCircle2 className="h-4 w-4" />,
     },
   ];
