@@ -125,6 +125,7 @@
     "subtitle": "Descubriendo oportunidades...",
     "showing": "Mostrando {count} facturas listadas",
     "shareFilters": "Compartir Filtros",
+    "shareFiltersCopied": "Enlace de filtro copiado al portapapeles",
     "searchPlaceholder": "Buscar por deudor, número de factura o jurisdicción…",
     "clearSearch": "Limpiar búsqueda",
     "filters": "Filtros",
