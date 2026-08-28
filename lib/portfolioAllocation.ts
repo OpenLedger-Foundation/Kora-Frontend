@@ -26,6 +26,33 @@ export interface AllocatablePosition {
   } | null;
 }
 
+/** Minimal live-position shape needed for the analytics time-series. */
+export interface TimeSeriesPosition extends AllocatablePosition {
+  investedAt: string;
+  expectedReturn: number;
+}
+
+export interface PortfolioValuePoint {
+  month: string;
+  value: number;
+}
+
+export interface YieldPoint {
+  month: string;
+  yield: number;
+}
+
+export interface MonthlyReturnPoint {
+  month: string;
+  return: number;
+}
+
+export interface PortfolioTimeSeries {
+  portfolio: PortfolioValuePoint[];
+  yieldData: YieldPoint[];
+  monthly: MonthlyReturnPoint[];
+}
+
 export interface AllocationSlice {
   name: string;
   value: number;
@@ -69,6 +96,76 @@ const CATEGORY_PALETTE: string[] = [
 
 function getCategoryColor(index: number): string {
   return CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
+}
+
+function monthKey(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(key: string): string {
+  const [year, month] = key.split("-").map(Number);
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+/**
+ * Build the chart series from live positions grouped by their investment month.
+ * Portfolio value is cumulative; expected yield and return rate are monthly.
+ * Invalid dates and non-positive investments are ignored.
+ */
+export function buildPortfolioTimeSeries(
+  positions: TimeSeriesPosition[],
+  baselineDate: Date = new Date()
+): PortfolioTimeSeries {
+  const buckets = new Map<string, { invested: number; expectedYield: number }>();
+
+  for (const position of positions) {
+    const investedAt = new Date(position.investedAt);
+    const invested = Number(position.investedAmount);
+    const expectedReturn = Number(position.expectedReturn);
+
+    if (Number.isNaN(investedAt.getTime()) || !Number.isFinite(invested) || invested <= 0) {
+      continue;
+    }
+
+    const key = monthKey(investedAt);
+    const bucket = buckets.get(key) ?? { invested: 0, expectedYield: 0 };
+    bucket.invested += invested;
+    bucket.expectedYield += Number.isFinite(expectedReturn)
+      ? Math.max(0, expectedReturn - invested)
+      : 0;
+    buckets.set(key, bucket);
+  }
+
+  if (buckets.size === 0) {
+    const month = monthLabel(monthKey(baselineDate));
+    return {
+      portfolio: [{ month, value: 0 }],
+      yieldData: [{ month, yield: 0 }],
+      monthly: [{ month, return: 0 }],
+    };
+  }
+
+  let portfolioValue = 0;
+  const portfolio: PortfolioValuePoint[] = [];
+  const yieldData: YieldPoint[] = [];
+  const monthly: MonthlyReturnPoint[] = [];
+
+  for (const [key, bucket] of [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    const month = monthLabel(key);
+    portfolioValue += bucket.invested;
+    portfolio.push({ month, value: portfolioValue });
+    yieldData.push({ month, yield: bucket.expectedYield });
+    monthly.push({
+      month,
+      return: (bucket.expectedYield / bucket.invested) * 100,
+    });
+  }
+
+  return { portfolio, yieldData, monthly };
 }
 
 function dimensionKey(
