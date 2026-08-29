@@ -183,6 +183,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       {!isPersistenceReady ? null : (
       <LocaleProvider allMessages={ALL_MESSAGES}>
         <ThemeProvider>
+          {/* Raises the re-verification modal that `useVerifiedAction` awaits
+              (#681). It was imported here but never mounted, so every gated
+              action — fund, repay, and now claim — silently fell back to the
+              "no provider" branch and no prompt was ever shown. */}
+          <VerificationProvider>
           {children}
           {onboardingTourEnabled && <OnboardingTour />}
           <WalletConnectModal />
@@ -198,6 +203,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           {devtoolsEnabled && (
             <ReactQueryDevtools initialIsOpen={false} />
           )}
+          </VerificationProvider>
         </ThemeProvider>
       </LocaleProvider>
       )}

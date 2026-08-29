@@ -83,7 +83,7 @@ describe("invalidateCachesForEvent", () => {
 
   it("invalidates detail, all, and positions caches on invoice_repaid", () => {
     const event = { ...BASE_EVENT, type: "invoice_repaid" as const };
-    invalidateCachesForEvent(event, queryClient);
+    invalidateCachesForEvent(event, queryClient, vi.fn());
 
     expect(spy).toHaveBeenCalledWith({
       queryKey: queryKeys.invoices.detail("55"),
@@ -99,7 +99,7 @@ describe("invalidateCachesForEvent", () => {
 
   it("positions predicate matches invoices/positions queries", () => {
     const event = { ...BASE_EVENT, type: "invoice_repaid" as const };
-    invalidateCachesForEvent(event, queryClient);
+    invalidateCachesForEvent(event, queryClient, vi.fn());
 
     const predicateCall = spy.mock.calls.find(
       (c) => typeof c[0]?.predicate === "function"
@@ -182,22 +182,75 @@ vi.mock("@/store/uiStore", () => ({
   useUIStore: vi.fn(() => ({
     notificationPreferences: { invoiceFunded: false },
   })),
-  useInvoiceStore: vi.fn(() => ({
-    updateInvoiceFunding: vi.fn(),
-    invoicesByTokenId: {},
-    invoices: [],
-  })),
+  useInvoiceStore: Object.assign(
+    vi.fn(() => ({
+      updateInvoiceFunding: vi.fn(),
+      invoicesByTokenId: {},
+      invoices: [],
+    })),
+    {
+      getState: vi.fn(() => ({
+        updateInvoiceFunding: vi.fn(),
+        invoicesByTokenId: {},
+        invoices: [],
+      })),
+    }
+  ),
 }));
 
 vi.mock("@/store", () => ({
-  useInvoiceStore: vi.fn(() => ({
-    updateInvoiceFunding: vi.fn(),
-    invoicesByTokenId: {},
-    invoices: [],
-  })),
+  useInvoiceStore: Object.assign(
+    vi.fn(() => ({
+      updateInvoiceFunding: vi.fn(),
+      invoicesByTokenId: {},
+      invoices: [],
+    })),
+    {
+      getState: vi.fn(() => ({
+        updateInvoiceFunding: vi.fn(),
+        invoicesByTokenId: {},
+        invoices: [],
+      })),
+    }
+  ),
   useUIStore: vi.fn(() => ({
     notificationPreferences: { invoiceFunded: false },
   })),
+}));
+
+vi.mock("@/store/settingsStore", () => ({
+  useSettingsStore: vi.fn((selector: any) =>
+    selector({
+      notifications: { fundingAlerts: true, repaymentAlerts: true },
+    })
+  ),
+}));
+
+vi.mock("@/store/invoiceStore", () => ({
+  useInvoiceStore: Object.assign(
+    vi.fn(() => ({
+      updateInvoiceFunding: vi.fn(),
+      invoicesByTokenId: {},
+      invoices: [],
+    })),
+    {
+      getState: vi.fn(() => ({
+        updateInvoiceFunding: vi.fn(),
+        invoicesByTokenId: {},
+        invoices: [],
+      })),
+    }
+  ),
+}));
+
+vi.mock("@/hooks/useFormatters", () => ({
+  useFormatters: vi.fn(() => ({
+    formatCurrency: (amount: number, code: string) => `${amount} ${code}`,
+  })),
+}));
+
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
 }));
 
 vi.mock("@/lib/env", () => ({
@@ -321,5 +374,40 @@ describe("useContractEvents — forcePolling / throttle mode", () => {
     const { result } = renderHook(() => useContractEvents(), { wrapper });
     // Mock returns mode=stream
     expect(result.current.mode).toBe("stream");
+  });
+});
+
+// ─── fundingAlerts / repaymentAlerts preference gating (#652) ────────────────
+
+import { invalidateCachesForEvent as _ice2 } from "@/hooks/useContractEvents";
+import { useSettingsStore } from "@/store/settingsStore";
+
+describe("useContractEvents — fundingAlerts preference (#652)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    (useNetworkStatus as ReturnType<typeof vi.fn>).mockReturnValue({
+      health: { overall: "healthy" },
+      isOnline: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("respects fundingAlerts=true — hook mounts without error", () => {
+    (useSettingsStore as ReturnType<typeof vi.fn>).mockImplementation(
+      (selector: any) => selector({ notifications: { fundingAlerts: true, repaymentAlerts: true } })
+    );
+    expect(() => renderHook(() => useContractEvents(), { wrapper })).not.toThrow();
+  });
+
+  it("respects fundingAlerts=false — hook mounts without error", () => {
+    (useSettingsStore as ReturnType<typeof vi.fn>).mockImplementation(
+      (selector: any) => selector({ notifications: { fundingAlerts: false, repaymentAlerts: false } })
+    );
+    expect(() => renderHook(() => useContractEvents(), { wrapper })).not.toThrow();
   });
 });

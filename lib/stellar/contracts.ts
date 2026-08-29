@@ -7,6 +7,7 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { rpc, networkConfig, sequenceManager } from "./client";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
+import { WALLET_ASSETS } from "@/config/walletAssets";
 import { parseSorobanError } from "@/lib/stellar/simulationErrors";
 
 import type {
@@ -587,6 +588,31 @@ export async function buildTestnetUsdcMintTx(
     [scvAddress(recipient), scvI128(amount)],
     sourcePublicKey
   );
+}
+
+export async function buildAddTrustlineTx(
+  sourcePublicKey: string,
+  assetCode: keyof typeof WALLET_ASSETS = "eurc"
+): Promise<string> {
+  if (!isValidStellarAddress(sourcePublicKey)) {
+    throw new Error("Invalid Stellar address format");
+  }
+  const configuredAsset = WALLET_ASSETS[assetCode];
+  const account = await sequenceManager.nextAccount(sourcePublicKey);
+  const tx = new StellarSdk.TransactionBuilder(account, {
+    fee: StellarSdk.BASE_FEE,
+    networkPassphrase: networkConfig.networkPassphrase,
+  })
+    .addOperation(
+      StellarSdk.Operation.changeTrust({
+        asset: configuredAsset.asset,
+        limit: configuredAsset.trustlineLimit,
+      })
+    )
+    .setTimeout(30)
+    .build();
+
+  return tx.toXDR();
 }
 
 /**

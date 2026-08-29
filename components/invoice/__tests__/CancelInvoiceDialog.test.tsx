@@ -1,10 +1,9 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, fireEvent, act } from "@testing-library/react";
 import { CancelInvoiceDialog } from "../CancelInvoiceDialog";
 import type { Invoice } from "@/types";
 
-// Mock next-intl
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, params?: Record<string, any>) => {
     if (key === "partiallyFundedDesc") return `Funded ${params?.amount}`;
@@ -12,7 +11,6 @@ vi.mock("next-intl", () => ({
   },
 }));
 
-// Mock useFormatters
 vi.mock("@/hooks/useFormatters", () => ({
   useFormatters: () => ({
     formatCurrency: (val: number, curr?: string) => `$${val} ${curr || "USDC"}`,
@@ -71,43 +69,77 @@ describe("CancelInvoiceDialog", () => {
   const onCancel = vi.fn();
 
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
   });
 
-  it("renders invoice summary and disabled confirm button when no reason selected", () => {
-    render(
-      <CancelInvoiceDialog
-        invoice={mockInvoice}
-        open={true}
-        onConfirm={onConfirm}
-        onCancel={onCancel}
-      />
-    );
-
-    expect(screen.getByTestID("cancel-invoice-confirm")).toBeDisabled();
-    expect(screen.getByTestID("cancel-reason-select")).toBeInTheDocument();
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it("enables confirm button and passes selected reason and notes on confirm", () => {
-    render(
-      <CancelInvoiceDialog
-        invoice={mockInvoice}
-        open={true}
-        onConfirm={onConfirm}
-        onCancel={onCancel}
-      />
-    );
+  function getTestElement(testId: string) {
+    return document.querySelector(`[data-testid="${testId}"]`) as HTMLElement;
+  }
 
-    const select = screen.getByTestID("cancel-reason-select");
-    fireEvent.change(select, { target: { value: "duplicate_invoice" } });
+  it("renders invoice summary and disabled confirm button when no reason selected", () => {
+    render(<CancelInvoiceDialog invoice={mockInvoice} open onConfirm={onConfirm} onCancel={onCancel} />);
 
-    const notesInput = screen.getByTestID("cancel-notes-input");
-    fireEvent.change(notesInput, { target: { value: "Accidental duplicate" } });
+    expect(getTestElement("cancel-invoice-confirm")).toBeDisabled();
+    expect(getTestElement("cancel-reason-select")).toBeInTheDocument();
+  });
 
-    const confirmBtn = screen.getByTestID("cancel-invoice-confirm");
-    expect(confirmBtn).not.toBeDisabled();
+  it("waits for the undo window before confirming cancellation", async () => {
+    render(<CancelInvoiceDialog invoice={mockInvoice} open onConfirm={onConfirm} onCancel={onCancel} />);
 
-    fireEvent.click(confirmBtn);
+    fireEvent.change(getTestElement("cancel-reason-select"), {
+      target: { value: "duplicate_invoice" },
+    });
+    fireEvent.change(getTestElement("cancel-notes-input"), {
+      target: { value: "Accidental duplicate" },
+    });
+    fireEvent.click(getTestElement("cancel-invoice-confirm"));
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(getTestElement("cancel-undo-window")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
     expect(onConfirm).toHaveBeenCalledWith("duplicate_invoice", "Accidental duplicate");
+  });
+
+  it("undoes cancellation before the countdown completes without invoking onConfirm", async () => {
+    render(<CancelInvoiceDialog invoice={mockInvoice} open onConfirm={onConfirm} onCancel={onCancel} />);
+
+    fireEvent.change(getTestElement("cancel-reason-select"), {
+      target: { value: "duplicate_invoice" },
+    });
+    fireEvent.click(getTestElement("cancel-invoice-confirm"));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    fireEvent.click(getTestElement("cancel-undo-button"));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(getTestElement("cancel-reason-select")).toBeInTheDocument();
   });
 });

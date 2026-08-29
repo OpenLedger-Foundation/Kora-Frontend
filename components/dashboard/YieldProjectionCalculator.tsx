@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   AreaChart,
   Area,
@@ -28,10 +28,18 @@ import { isRTL } from "@/i18n/config";
 
 const RISK_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
 
-export function YieldProjectionCalculator() {
+export interface YieldProjectionCalculatorProps {
+  defaultTier?: string;
+}
+
+export function YieldProjectionCalculator({ defaultTier = "A" }: YieldProjectionCalculatorProps = {}) {
   const [amount, setAmount] = useState<number>(10000);
-  const [tier, setTier] = useState<string>("A");
+  const [tier, setTier] = useState<string>(defaultTier);
   const [horizon, setHorizon] = useState<number>(12);
+
+  useEffect(() => {
+    setTier(defaultTier);
+  }, [defaultTier]);
   const chartRef = useRef<HTMLDivElement>(null);
   const locale = useLocale();
   const { formatCurrency, formatPercentage, formatNumber } = useFormatters();

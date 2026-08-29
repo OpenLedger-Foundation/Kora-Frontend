@@ -12,13 +12,26 @@ const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCh
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
+
+const YieldProjectionCalculator = dynamic(
+  () =>
+    import("@/components/dashboard/YieldProjectionCalculator").then(
+      (mod) => mod.YieldProjectionCalculator
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[400px] w-full animate-pulse rounded-xl border border-zinc-800 bg-zinc-950/50" />
+    ),
+  }
+);
 import { BarChart3, DollarSign, TrendingUp, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
 import { usePositions } from "@/hooks/usePositions";
-import { buildDigestDocument, digestFilename } from "@/lib/portfolioDigest";
+import { buildDigestDocument, buildDigestMailto, digestFilename } from "@/lib/portfolioDigest";
 import { renderDigestPdf } from "@/lib/portfolioDigestPdf";
 import {
   useUIStore,
@@ -36,6 +49,7 @@ import {
   positionsToExportRows,
   portfolioExportFilename,
   portfolioPdfFilename,
+  resolveDateRangeBounds,
 } from "@/lib/portfolioExport";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
@@ -49,56 +63,10 @@ import {
 import type { PresetRange } from "@/components/analytics/DateRangePicker";
 import {
   aggregatePositions,
+  buildPortfolioTimeSeries,
   marketplacePathForAllocation,
   allocationToMarketplaceFilters,
 } from "@/lib/portfolioAllocation";
-
-// ── Mock analytics data (time-series history; risk uses live positions) ───────
-
-const PORTFOLIO_HISTORY = [
-  { month: "Jan", value: 0 },
-  { month: "Feb", value: 12000 },
-  { month: "Mar", value: 25000 },
-  { month: "Apr", value: 48000 },
-  { month: "May", value: 72000 },
-  { month: "Jun", value: 0 },
-  { month: "Jul", value: 25000 },
-  { month: "Aug", value: 48000 },
-  { month: "Sep", value: 72000 },
-  { month: "Oct", value: 115000 },
-  { month: "Nov", value: 170000 },
-  { month: "Dec", value: 210000 },
-];
-
-const YIELD_HISTORY = [
-  { month: "Jan", yield: 0 },
-  { month: "Feb", yield: 180 },
-  { month: "Mar", yield: 420 },
-  { month: "Apr", yield: 890 },
-  { month: "May", yield: 1200 },
-  { month: "Jun", yield: 0 },
-  { month: "Jul", yield: 420 },
-  { month: "Aug", yield: 890 },
-  { month: "Sep", yield: 1540 },
-  { month: "Oct", yield: 2800 },
-  { month: "Nov", yield: 4200 },
-  { month: "Dec", yield: 5600 },
-];
-
-const MONTHLY_RETURNS = [
-  { month: "Jan", return: 0 },
-  { month: "Feb", return: 1.5 },
-  { month: "Mar", return: 1.68 },
-  { month: "Apr", return: 1.85 },
-  { month: "May", return: 2.0 },
-  { month: "Jun", return: 0 },
-  { month: "Jul", return: 1.68 },
-  { month: "Aug", return: 1.85 },
-  { month: "Sep", return: 2.14 },
-  { month: "Oct", return: 2.43 },
-  { month: "Nov", return: 2.47 },
-  { month: "Dec", return: 2.6 },
-];
 
 // ── URL ↔ filter helpers ───────────────────────────────────────────────────────
 
@@ -152,21 +120,6 @@ function filtersToParams(filters: AnalyticsFilters): URLSearchParams {
   return p;
 }
 
-// ── Slice helpers — filter mock data by date range ────────────────────────────
-
-function sliceByRange<T>(data: T[], range: PresetRange | "custom"): T[] {
-  const counts: Record<string, number> = {
-    "7d": 1,
-    "30d": 2,
-    "90d": 4,
-    "1y": 12,
-    ytd: 5,
-    all: data.length,
-    custom: data.length,
-  };
-  return data.slice(-(counts[range] ?? data.length));
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function PortfolioAnalyticsInner() {
@@ -182,7 +135,6 @@ function PortfolioAnalyticsInner() {
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
 
   const { formatCurrency, formatPercentage } = useFormatters();
-
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
   const handleFiltersChange = useCallback(
@@ -218,35 +170,50 @@ function PortfolioAnalyticsInner() {
   // ── PDF digest (#602) ─────────────────────────────────────────────────────
   const [isGeneratingDigest, setIsGeneratingDigest] = useState(false);
 
-  const handleDownloadDigest = useCallback(async () => {
-    setIsGeneratingDigest(true);
-    try {
-      // Composed from the *unfiltered* list plus the active filters:
-      // `buildDigestDocument` re-applies them, so the PDF provably reflects
-      // the same rows the page is showing.
-      const doc = buildDigestDocument({
+  // Composed from the *unfiltered* list plus the active filters:
+  // `buildDigestDocument` re-applies them, so the digest provably reflects
+  // the same rows the page is showing. Shared by the PDF and mailto actions
+  // so both read from one source of truth.
+  const buildDigest = useCallback(
+    () =>
+      buildDigestDocument({
         positions: positionsData,
         filters,
         formatCurrency: (value) => formatCurrency(value, "USDC"),
         formatPercent: (value) => formatPercentage(value, 2),
-      });
-      await renderDigestPdf(doc, { filename: digestFilename() });
+      }),
+    [positionsData, filters, formatCurrency, formatPercentage]
+  );
+
+  const handleDownloadDigest = useCallback(async () => {
+    setIsGeneratingDigest(true);
+    try {
+      await renderDigestPdf(buildDigest(), { filename: digestFilename() });
     } catch (error) {
       console.error("[analytics] digest generation failed", error);
     } finally {
       setIsGeneratingDigest(false);
     }
-  }, [positionsData, filters, formatCurrency, formatPercentage]);
+  }, [buildDigest]);
 
-  // Slice chart series based on active date-range filters
-  const portfolio = useMemo(
-    () => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange),
-    [filters.dateRange]
-  );
-  const yieldData = useMemo(
-    () => sliceByRange(YIELD_HISTORY, filters.dateRange),
-    [filters.dateRange]
-  );
+  // Issue #710: mailto share for advisors/forwarding — summary stats only,
+  // no position-level rows (see buildDigestMailto's doc comment for why).
+  const handleShareDigest = useCallback(() => {
+    window.location.href = buildDigestMailto(buildDigest(), (value) =>
+      formatCurrency(value, "USDC")
+    );
+  }, [buildDigest, formatCurrency]);
+
+  // The same filtered live positions drive the charts, table, and exports.
+  // Explicit mock mode is handled by usePositions; an empty live portfolio
+  // produces a zero baseline instead of fabricated growth.
+  const { portfolio, yieldData, monthly } = useMemo(() => {
+    const { from, to } = resolveDateRangeBounds(
+      filters.dateRange,
+      filters.customDateRange
+    );
+    return buildPortfolioTimeSeries(filteredPositions, to ?? from ?? new Date());
+  }, [filteredPositions, filters.dateRange, filters.customDateRange]);
   const risk = useMemo(() => {
     const slices = aggregatePositions(filteredPositions, "riskTier").map((s) => ({
       name: s.name,
@@ -256,11 +223,6 @@ function PortfolioAnalyticsInner() {
     if (filters.riskTier === "all") return slices;
     return slices.filter((d) => d.name === filters.riskTier);
   }, [filteredPositions, filters.riskTier]);
-  const monthly = useMemo(
-    () => sliceByRange(MONTHLY_RETURNS, filters.dateRange),
-    [filters.dateRange]
-  );
-
   const totalInvested = filteredPositions.reduce(
     (sum, position) => sum + position.investedAmount,
     0
@@ -274,6 +236,28 @@ function PortfolioAnalyticsInner() {
     ? filteredPositions.reduce((sum, position) => sum + (position.invoice?.terms.apr ?? 0), 0) /
       filteredPositions.length
     : 0;
+
+  const defaultTier = useMemo(() => {
+    const RISK_TIERS_LIST = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
+    const validPositions = filteredPositions.filter(
+      (p) => p.invoice?.riskTier && RISK_TIERS_LIST.includes(p.invoice.riskTier)
+    );
+    if (validPositions.length === 0) {
+      return "A";
+    }
+    let totalWeight = 0;
+    let weightedSum = 0;
+    for (const pos of validPositions) {
+      const tier = pos.invoice!.riskTier!;
+      const weight = pos.investedAmount;
+      const index = RISK_TIERS_LIST.indexOf(tier);
+      weightedSum += index * weight;
+      totalWeight += weight;
+    }
+    if (totalWeight === 0) return "A";
+    const avgIndex = Math.round(weightedSum / totalWeight);
+    return RISK_TIERS_LIST[avgIndex] || "A";
+  }, [filteredPositions]);
 
   const stats = [
     {
@@ -402,6 +386,21 @@ function PortfolioAnalyticsInner() {
               >
                 {isGeneratingDigest ? "Generating…" : "PDF Digest"}
               </button>
+              {/*
+                Issue #710: one-click mailto for forwarding the digest summary
+                to an advisor — the PDF itself stays on-device, this only
+                opens the user's mail client with the summary pre-filled.
+              */}
+              <button
+                type="button"
+                disabled={!hasExportData}
+                aria-disabled={!hasExportData}
+                aria-label="Share portfolio digest via email"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleShareDigest}
+              >
+                Share via Email
+              </button>
               <PrintButton />
             </div>
           </div>
@@ -409,6 +408,25 @@ function PortfolioAnalyticsInner() {
           {/* Filter bar — changes push new URL params, charts re-slice instantly */}
           <div className="mb-6 print:hidden">
             <AnalyticsFilterBar filters={filters} onChange={handleFiltersChange} />
+          </div>
+
+          {/* Stat cards */}
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.07 }}
+              >
+                <StatCard {...stat} />
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Yield Projection Calculator */}
+          <div className="mb-6 print-hidden">
+            <YieldProjectionCalculator defaultTier={defaultTier} />
           </div>
 
           {/* Charts */}

@@ -65,7 +65,8 @@
     "retrySigning": "Retry Signing",
     "cancelSigning": "Cancel Safely",
     "hardwareTip": "Confirm on your hardware wallet",
-    "mobileTip": "Check your mobile wallet app"
+    "mobileTip": "Check your mobile wallet app",
+    "queuedOffline": "Network unavailable — signed transaction queued. It will be submitted automatically when you reconnect."
   },
   "landing": {
     "headline": "Invoice Financing, On-Chain",
@@ -125,6 +126,7 @@
     "subtitle": "Discovering deals...",
     "showing": "Showing {count} listed invoices",
     "shareFilters": "Share Filters",
+    "shareFiltersCopied": "Filter link copied to clipboard",
     "searchPlaceholder": "Search by debtor, invoice number, or jurisdiction…",
     "clearSearch": "Clear search",
     "filters": "Filters",
@@ -335,6 +337,12 @@
       "needProofAddress": "Proof of business address",
       "needTime": "Takes approximately 2 minutes",
       "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    },
+    "draftRecovery": {
+      "title": "You have an unfinished invoice draft",
+      "description": "We found a saved draft from your previous session. Would you like to pick up where you left off?",
+      "resume": "Resume Draft",
+      "discard": "Discard"
     }
   },
   "smeDashboard": {
@@ -374,7 +382,34 @@
       "title": "Batch Operation Summary",
       "exportSelected": "Export selected",
       "processingLabel": "Cancelling {count} invoices..."
-    }
+    },
+    "filters": {
+      "statusLabel": "Status",
+      "statusAria": "Filter invoices by status"
+    },
+    "statusFilters": {
+      "all": "All statuses",
+      "draft": "Draft",
+      "pending_mint": "Pending mint",
+      "listed": "Listed",
+      "partially_funded": "Partially funded",
+      "fully_funded": "Fully funded",
+      "active": "Active",
+      "repaid": "Repaid",
+      "defaulted": "Defaulted",
+      "cancelled": "Cancelled"
+    },
+    "batchCancel": {
+      "title": "{count, plural, one {Cancel # invoice?} other {Cancel # invoices?}}",
+      "body": "{count, plural, one {You are about to cancel <b>one unfunded invoice</b>.} other {You are about to cancel <b># unfunded invoices</b>.}} Transactions run sequentially; a failure will not block the rest of the queue.",
+      "confirm": "{count, plural, one {Yes, cancel # invoice} other {Yes, cancel # invoices}}"
+    },
+    "batchRepay": {
+      "title": "{count, plural, one {Repay # invoice?} other {Repay # invoices?}}",
+      "body": "{count, plural, one {You are about to repay <b>one matured invoice</b>.} other {You are about to repay <b># matured invoices</b>.}} Each repayment is signed and submitted sequentially.",
+      "confirm": "{count, plural, one {Yes, repay # invoice} other {Yes, repay # invoices}}"
+    },
+    "goBack": "Go Back"
   },
   "investorDashboard": {
     "title": "Investor Dashboard",
@@ -455,7 +490,16 @@
     "txCount": "{count} transaction",
     "txCountPlural": "{count} transactions",
     "viewStellar": "View on Stellar Expert",
-    "remove": "Remove transaction"
+    "remove": "Remove transaction",
+    "listTitle": "Transactions",
+    "reason": "Reason:",
+    "searchAria": "Search transactions",
+    "typeFilterAria": "Filter by transaction type",
+    "statusFilterAria": "Filter by status",
+    "statusLabels": {
+      "confirmed": "Confirmed",
+      "failed": "Failed"
+    }
   },
   "analytics": {
     "title": "Portfolio Analytics",
@@ -487,6 +531,10 @@
   "cancelDialog": {
     "title": "Cancel Invoice",
     "description": "This action cannot be undone. The invoice will be permanently cancelled.",
+    "undoTitle": "Cancellation queued",
+    "undoDescription": "The cancellation has not been sent yet. Review the countdown and undo it if needed.",
+    "undoCountdown": "Sending cancellation in {seconds} seconds",
+    "undo": "Undo cancellation",
     "reasonLabel": "Cancellation Reason",
     "selectReasonPlaceholder": "Select a reason for cancellation",
     "reasons": {
@@ -586,19 +634,48 @@
     "invoiceCreation": "Invoice creation & minting",
     "liveData": "Live marketplace data",
     "reload": "Try Again",
-    "browseCached": "Browse cached listings"
+    "browseCached": "Browse cached listings",
+    "pendingQueueTitle": "Pending Signed Transactions",
+    "pendingQueueDesc": "These transactions were signed but could not be submitted. They will be retried automatically when you reconnect."
+  },
+  "pendingQueue": {
+    "title": "{count, plural, one {# pending transaction} other {# pending transactions}}",
+    "emptyState": "No pending transactions — all signed envelopes have been submitted.",
+    "retryAll": "Retry all",
+    "retryAriaLabel": "Retry this transaction",
+    "removeAriaLabel": "Discard this transaction",
+    "offlineAriaLabel": "Waiting for connection",
+    "listAriaLabel": "Pending signed transactions",
+    "waitingOnline": "Waiting…",
+    "retrySuccess": "Transaction submitted successfully",
+    "retryFailed": "Submission failed — will retry when online",
+    "removed": "Draft removed from queue",
+    "txType": "{type}",
+    "unknownTx": "Signed transaction",
+    "invoiceLabel": "Invoice #{id}",
+    "queuedAt": "Queued {time}",
+    "attempts": "{count, plural, one {# attempt} other {# attempts}}",
+    "statusRetrying": "Retrying",
+    "statusSuccess": "Submitted",
+    "statusError": "Failed",
+    "statusPending": "Queued",
+    "badgeAriaLabel": "{count} pending transaction(s)"
   },
   "notFound": {
     "title": "Page not found",
     "description": "The page you're looking for doesn't exist or has been moved.",
     "goHome": "Go Home",
-    "goBack": "Go Back"
+    "goBack": "Go Back",
+    "goMarketplace": "Browse Marketplace",
+    "goSecondary": "Secondary Market",
+    "recoveryHint": "The invoice may have been funded, delisted, or the link may be out of date."
   },
   "error": {
     "title": "Something went wrong",
     "description": "An unexpected error occurred. You can try again or return to the home page.",
     "tryAgain": "Try Again",
-    "goHome": "Go Home"
+    "goHome": "Go Home",
+    "goMarketplace": "Go to Marketplace"
   },
   "common": {
     "loading": "Loading…",
@@ -692,6 +769,15 @@
     "latestVersion": "You're on the latest version.",
     "gotIt": "Got it"
   },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage notification preferences and your product tour.",
+    "connectTitle": "Connect your wallet",
+    "connectDesc": "Settings are stored per wallet. Connect to view and change your preferences.",
+    "connectCta": "Connect wallet",
+    "navLabel": "Settings",
+    "openFull": "Open full settings"
+  },
   "shortcuts": {
     "title": "Keyboard Shortcuts",
     "closeLabel": "Close shortcuts reference",
@@ -771,6 +857,8 @@
     "tenorLabel": "Tenor",
     "investorsLabel": "Investors",
     "tenorDays": "{count}d",
+    "maturityLabel": "Maturity",
+    "overdue": "Overdue",
     "fundInvoice": "Fund Invoice",
     "addToCompare": "Add {debtor} to comparison",
     "removeFromCompare": "Remove {debtor} from comparison",
@@ -825,7 +913,18 @@
     "qrCodeAlt": "QR code for shared invoice link",
     "linkCopiedToast": "Link copied",
     "unableToCopy": "Unable to copy link",
-    "sharedSuccessfully": "Shared successfully"
+    "sharedSuccessfully": "Shared successfully",
+    "defaultInvoiceTitle": "Invoice",
+    "recipientLabel": "Recipient:",
+    "defaultShareTitle": "Kora invoice opportunity",
+    "defaultShareText": "Review this invoice financing opportunity on Kora.",
+    "defaultTweetSummary": "Invoice listed on Kora"
+  },
+  "copyButton": {
+    "copyAriaLabel": "Copy",
+    "copiedAriaLabel": "Copied",
+    "copyTooltip": "Copy",
+    "copiedTooltip": "Copied!"
   },
   "contractEvents": {
     "invoiceFunded": "Invoice Funded",
@@ -934,5 +1033,97 @@
     "empty": "No positions funded this month",
     "noData": "No funded positions to group yet.",
     "export": "Export cohorts"
+  },
+  "secondaryMarket": {
+    "title": "Secondary Market",
+    "badge": "P2P Transferable Positions",
+    "subtitle": "Browse and buy active investor positions at competitive yields before maturity.",
+    "shareView": "Share View",
+    "copied": "Copied!",
+    "copyAria": "Copy shareable URL for current filters",
+    "searchPlaceholder": "Search by debtor, invoice number, category...",
+    "searchAria": "Search secondary market listings",
+    "tenorAria": "Filter by remaining tenor",
+    "yieldAria": "Filter by minimum yield",
+    "sellerPlaceholder": "Seller G-address...",
+    "sellerAria": "Filter by seller address",
+    "reset": "Reset",
+    "resetAria": "Reset all filters",
+    "filterPositions": "Filter Positions",
+    "active": "Active",
+    "mobileTenorLabel": "Remaining Tenor",
+    "mobileYieldLabel": "Minimum Yield",
+    "mobileSellerLabel": "Seller Address",
+    "applyFilters": "Apply Filters",
+    "bottomSheetTitle": "Filter Secondary Positions",
+    "emptyTitle": "No Transferable Positions Found",
+    "emptyDesc": "No secondary market position listings match your filter criteria. Try expanding your tenor or yield requirements.",
+    "clearFilters": "Clear All Filters",
+    "disabledTitle": "Secondary Market Disabled",
+    "disabledDesc": "The secondary market feature is currently unavailable or disabled for maintenance. Please check back later or explore the primary marketplace.",
+    "exploreMarketplace": "Explore Marketplace",
+    "yieldBadge": "+{yield}% Yield",
+    "staleBadge": "Position already transferred — listing is stale",
+    "askPrice": "Ask Price",
+    "expectedReturn": "Expected Return",
+    "remainingTenor": "Remaining Tenor",
+    "daysRemaining": "{days} days remaining",
+    "listingExpires": "Listing Expires",
+    "expired": "(Expired)",
+    "impliedDiscount": "Implied Discount",
+    "sellerAddress": "Seller Address",
+    "acquirePosition": "Acquire Position",
+    "connectWalletToAcquire": "Connect Wallet to Acquire",
+    "acceptTransfer": "Accept Transfer",
+    "listingAria": "Secondary listing for {invoiceNumber}",
+    "listingAriaStale": "Secondary listing for {invoiceNumber} — stale, position transferred",
+    "acceptDialog": {
+      "title": "Accept Position Transfer",
+      "description": "Review the position details before accepting this transfer on the secondary market.",
+      "positionLabel": "Position",
+      "expectedReturn": "Expected Return",
+      "positionDetails": "Position Details",
+      "remainingTenor": "Remaining Tenor",
+      "fromAddress": "From Address",
+      "notImplementedTitle": "Not Yet Available",
+      "notImplementedHint": "Buyer acceptance isn't available on-chain yet — check back once this contract path ships.",
+      "cancel": "Cancel",
+      "confirmAccept": "Accept Transfer",
+      "pending": "Processing…"
+    },
+    "acquireDialog": {
+      "title": "Confirm Acquisition",
+      "description": "Review the position details before acquiring this position on the secondary market.",
+      "positionLabel": "Position",
+      "askPrice": "Ask Price",
+      "expectedReturn": "Expected Return",
+      "impliedDiscount": "Implied discount",
+      "discountNote": "Buyer receives a discount versus your expected return.",
+      "premiumNote": "You're asking above your expected return (premium).",
+      "extremeAlert": "Extreme Price Alert",
+      "priceWarning": "Price Warning",
+      "extremeDiscountMsg": "Extreme discount detected - this position is priced significantly below expected return.",
+      "extremePremiumMsg": "Extreme premium detected - this position is priced significantly above expected return.",
+      "warningDiscountMsg": "Warning: significant discount detected.",
+      "warningPremiumMsg": "Warning: significant premium detected.",
+      "positionDetails": "Position Details",
+      "remainingTenor": "Remaining Tenor",
+      "sellerAddress": "Seller Address",
+      "riskTier": "Risk Tier",
+      "riskScore": "Risk Score: {score}",
+      "cancel": "Cancel",
+      "confirmAcquire": "Confirm Acquire",
+      "connectWallet": "Connect Wallet",
+      "kycRequired": "KYC Verification Required",
+      "kycDesc": "Acquisitions above the compliance threshold require verified KYC."
+    }
+  },
+  "footer": {
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "changelog": "Changelog",
+    "openShortcutsLabel": "Open keyboard shortcuts reference",
+    "openChangelogLabel": "Open changelog",
+    "openChangelogUnreadLabel": "Open changelog (new release available)",
+    "copyright": "© {year} Kora Protocol"
   }
 }

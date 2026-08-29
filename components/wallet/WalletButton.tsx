@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw, UserCheck, Eye } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, LogOut, ExternalLink, Bell, Coins, Loader2, AlertCircle, RefreshCw, UserCheck, Eye, ArrowUpRight } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { CopyButton } from "@/components/ui/CopyButton";
@@ -23,11 +24,11 @@ import { useUIStore } from "@/store";
 import { cn } from "@/lib/utils";
 import { safeStellarAccountUrl } from "@/lib/security";
 import { env } from "@/lib/env";
-import { SynapsKycModal } from "./SynapsKycModal";
-import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
+import { preloadWalletKit } from "@/lib/lazyModules";
 
 export function WalletButton() {
   const t = useTranslations("wallet");
+  const tSettings = useTranslations("settings");
   const {
     isConnected,
     address,
@@ -40,6 +41,7 @@ export function WalletButton() {
     exitWatchMode,
     manualReconnect,
     fundWalletOnTestnet,
+    addEurcTrustlineOnTestnet,
     refreshBalance,
   } = useWallet();
   const { isWrongNetwork, hasPassphraseMismatch, network } = useWalletStore();
@@ -50,9 +52,29 @@ export function WalletButton() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
+  const [isAddingEurc, setIsAddingEurc] = useState(false);
   const [kycModalOpen, setKycModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"notifications" | "kyc">("notifications");
   const { kycStatus } = useWalletStore();
+
+  /**
+   * Pull webhook-recorded KYC transitions into the store (#694) so this tab
+   * reflects a completed Synaps verification without a hard refresh. Polling
+   * stops on its own once the status is verified — there is nothing further to
+   * wait for — so this costs nothing for an already-verified investor.
+   */
+  useKycStatusSync({
+    enabled: isConnected && kycStatus !== "verified",
+    onStatusChange: (status) => {
+      if (status === "verified") {
+        toast.success("Identity verified — funding limits lifted");
+      } else if (status === "rejected") {
+        toast.info("Identity verification was rejected. Re-submit your documents to continue.");
+      } else if (status === "pending") {
+        toast.info("Identity verification submitted — Synaps is reviewing your documents.");
+      }
+    },
+  });
 
   const isTestnet = env.NEXT_PUBLIC_STELLAR_NETWORK === "testnet";
   const hasNetworkMismatch = isWrongNetwork() || hasPassphraseMismatch();
@@ -81,7 +103,23 @@ export function WalletButton() {
     } finally {
       setIsFunding(false);
     }
+  }
+
+  const handleAddEurcTrustline = async () => {
+    setIsAddingEurc(true);
+    const toastId = "eurc-trustline";
+    try {
+      toast.loading("Adding EURC trustline...", { id: toastId });
+      await addEurcTrustlineOnTestnet();
+      toast.success("EURC trustline added", { id: toastId });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to add EURC trustline";
+      toast.error(message, { id: toastId });
+    } finally {
+      setIsAddingEurc(false);
+    }
   };
+;
 
   const handleDisconnect = async () => {
     await disconnectWallet();
@@ -98,7 +136,20 @@ export function WalletButton() {
 
   if (!isConnected) {
     return (
-      <Button onClick={() => setWalletModalOpen(true)} size="sm">
+      <Button
+        onClick={() => setWalletModalOpen(true)}
+        onMouseEnter={() => {
+          if (typeof window !== "undefined") {
+            preloadWalletKit();
+          }
+        }}
+        onFocus={() => {
+          if (typeof window !== "undefined") {
+            preloadWalletKit();
+          }
+        }}
+        size="sm"
+      >
         {t("connect")}
       </Button>
     );
@@ -273,19 +324,34 @@ export function WalletButton() {
                   <Bell className="h-3.5 w-3.5" /> {t("notificationSettings")}
                 </button>
                 {isTestnet && (
-                  <button
-                    type="button"
-                    disabled={isFunding || hasNetworkMismatch}
-                    onClick={handleFundTestnetAccount}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
-                  >
-                    {isFunding ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Coins className="h-3.5 w-3.5" />
-                    )}
-                    {isFunding ? t("funding") : t("fundTestnet")}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={isFunding || hasNetworkMismatch}
+                      onClick={handleFundTestnetAccount}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    >
+                      {isFunding ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Coins className="h-3.5 w-3.5" />
+                      )}
+                      {isFunding ? t("funding") : t("fundTestnet")}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isAddingEurc || hasNetworkMismatch}
+                      onClick={handleAddEurcTrustline}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-60"
+                    >
+                      {isAddingEurc ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Coins className="h-3.5 w-3.5" />
+                      )}
+                      {isAddingEurc ? "Adding EURC..." : "Add EURC trustline"}
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
@@ -347,7 +413,19 @@ export function WalletButton() {
           </div>
 
           {activeTab === "notifications" ? (
-            <NotificationSettings />
+            <>
+              <NotificationSettings />
+              {/* The dialog stays a shortcut; /settings is the routable,
+                  linkable surface for the same store (Issue #638). */}
+              <Link
+                href="/settings"
+                onClick={() => setSettingsOpen(false)}
+                className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+              >
+                {tSettings("openFull")}
+                <ArrowUpRight className="h-3 w-3" aria-hidden />
+              </Link>
+            </>
           ) : (
             <div className="space-y-4 pt-1">
               <div className="flex items-start justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900/10 p-3">

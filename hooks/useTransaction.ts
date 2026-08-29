@@ -14,6 +14,8 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionStore } from "@/store/transactionStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
+import { enqueueSignedXdr, flushQueuedXdrDrafts, type QueuedXdrDraft } from "@/lib/xdrDraftQueue";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 export type TxLifecycleStatus =
   | "idle"
@@ -302,6 +304,13 @@ export function useTransaction() {
         successMessage?: string;
         successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
+        /**
+         * Action for the failure toast's retry button. Defaults to clearing the
+         * failed state, which is all a generic caller can offer; callers that
+         * can re-attempt the whole transaction pass their own handler so the
+         * button actually retries rather than just dismissing the error.
+         */
+        onRetry?: () => void;
         /** Called with the simulation preview; must resolve true to proceed */
         onSimulationPreview?: (preview: SimulationPreview) => Promise<boolean>;
         txType?: string;
@@ -429,7 +438,8 @@ export function useTransaction() {
           throw new Error("SIGNING_CANCELLED");
         }
 
-        // 4. Submit
+        // 4. Submit — on network errors after a successful sign, enqueue the
+        //    signed envelope so it can be retried when the connection returns.
         setStage("submitting");
         let hash: string;
 
@@ -439,9 +449,39 @@ export function useTransaction() {
             Math.floor(Math.random() * 16).toString(16)
           ).join("");
         } else {
-          const result = await submitTransaction(signedXdr);
-          if (result.status === "ERROR") throw new Error("Transaction submission failed");
-          hash = result.hash;
+          let submitResult: Awaited<ReturnType<typeof submitTransaction>>;
+          try {
+            submitResult = await submitTransaction(signedXdr);
+          } catch (submitErr) {
+            // Network-level error after signing — queue the envelope for later retry
+            const isNetworkError =
+              submitErr instanceof TypeError ||
+              (submitErr instanceof Error &&
+                (submitErr.message.includes("fetch") ||
+                  submitErr.message.includes("network") ||
+                  submitErr.message.includes("offline") ||
+                  submitErr.message.includes("Failed to fetch") ||
+                  !navigator.onLine));
+
+            if (isNetworkError) {
+              await enqueueSignedXdr(signedXdr, {
+                type: options?.txType ?? "other",
+                invoiceId: options?.txDescription,
+                amount: options?.txAmount,
+                assetCode: options?.txAssetCode,
+              });
+              // Inform the user and provide a link to the queue panel
+              toast.loading(
+                t("queuedOffline"),
+                TOAST_ID,
+                "txConfirmed"
+              );
+            }
+            throw submitErr;
+          }
+
+          if (submitResult.status === "ERROR") throw new Error("Transaction submission failed");
+          hash = submitResult.hash;
         }
 
         // Add to history as pending only AFTER submission succeeded
@@ -497,7 +537,7 @@ export function useTransaction() {
         toast.error(
           t("failed"),
           message,
-          () => setState({ status: "idle" }),
+          options?.onRetry ?? (() => setState({ status: "idle" })),
           TOAST_ID,
           "txConfirmed"
         );
@@ -526,6 +566,30 @@ export function useTransaction() {
   const reset = useCallback(() => {
     cancel();
   }, [cancel]);
+
+  // Auto-flush the offline queue when the connection comes back online.
+  // We use a stable submit helper so the effect doesn't need to close over
+  // any per-render values.
+  const { isOnline } = useNetworkStatus();
+  const prevOnlineRef = useRef(isOnline);
+  useEffect(() => {
+    const wasOffline = !prevOnlineRef.current;
+    prevOnlineRef.current = isOnline;
+
+    if (!isOnline || !wasOffline) return;
+
+    // Reconnected — attempt to flush all queued signed envelopes
+    void flushQueuedXdrDrafts(async (draft: QueuedXdrDraft) => {
+      if (draft.signedXdr.startsWith("mock_")) {
+        await new Promise<void>((r) => setTimeout(r, 300));
+        return;
+      }
+      const result = await submitTransaction(draft.signedXdr);
+      if (result.status === "ERROR") {
+        throw new Error("Queued transaction submission failed");
+      }
+    });
+  }, [isOnline]);
 
   return {
     execute,

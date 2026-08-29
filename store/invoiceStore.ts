@@ -9,7 +9,10 @@ import {
   safeStorageGetItem,
   safeStorageSetItem,
 } from "./storageAdapter";
-import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
+import {
+  normalizeComparisonList,
+  toggleComparisonId,
+} from "@/lib/comparison";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -345,7 +348,7 @@ interface InvoiceStore {
 
   /** Toggle an invoice in/out of the comparison list (max 4) */
   toggleComparison: (id: string) => void;
-  /** Replace the comparison list (capped at max) */
+  /** Replace comparison list after keyboard range selection or URL hydration. */
   setComparisonList: (ids: string[]) => void;
   /** Remove a single invoice from the comparison list */
   removeFromComparison: (id: string) => void;
@@ -533,25 +536,17 @@ export const useInvoiceStore = create<InvoiceStore>()(
       clearCreateDraft: () => set({ createDraft: { currency: "USDC" } }),
 
       toggleComparison: (id) =>
-        set((s) => {
-          const list = s.comparisonList;
-          if (list.includes(id)) {
-            return { comparisonList: list.filter((i) => i !== id) };
-          }
-          // When at max, replace oldest (first in list)
-          if (list.length >= MAX_COMPARISON_INVOICES) {
-            return { comparisonList: [...list.slice(1), id] };
-          }
-          return { comparisonList: [...list, id] };
-        }),
+        set((s) => ({ comparisonList: toggleComparisonId(s.comparisonList, id) })),
 
       setComparisonList: (ids) =>
-        set({
-          comparisonList: [...new Set(ids)].slice(0, MAX_COMPARISON_INVOICES),
-        }),
+        set({ comparisonList: normalizeComparisonList(ids) }),
 
       removeFromComparison: (id) =>
-        set((s) => ({ comparisonList: s.comparisonList.filter((i) => i !== id) })),
+        set((s) => ({
+          comparisonList: normalizeComparisonList(
+            s.comparisonList.filter((i) => i !== id)
+          ),
+        })),
 
       clearComparison: () => set({ comparisonList: [] }),
 

@@ -90,6 +90,19 @@
     {
       "package": "@stryker-mutator/util",
       "reason": "Stryker is a CI-only mutation testing dependency and is not shipped in the production bundle."
+    },
+    {
+      "package": "js-yaml",
+      "url": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj",
+      "reason": "js-yaml !!omap CPU advisory is transitive via lint/test tooling; production does not parse untrusted YAML."
+    },
+    {
+      "package": "nanoid",
+      "reason": "nanoid generator-loop advisories are transitive via tooling; app does not call non-secure generators with attacker-controlled sizes."
+    },
+    {
+      "package": "vitest",
+      "reason": "Vitest UI arbitrary-file advisory only applies when the Vitest UI server is listening; CI runs vitest in headless CLI mode and it is not shipped to production."
     }
   ]
 }

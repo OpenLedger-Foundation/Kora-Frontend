@@ -34,11 +34,14 @@ import ActiveFilterChips from "@/components/marketplace/ActiveFilterChips";
 import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
+import { buildRangeSelection } from "@/lib/comparison";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import {
   MarketplaceAprHistogram,
   MarketplaceRiskDistribution,
 } from "@/components/analytics/Charts";
+import { toast } from "sonner";
 import { exportCsv } from "@/lib/export";
 import {
   marketplaceInvoicesToExportRows,
@@ -100,8 +103,6 @@ const getSortOptions = (t: TFunc) => [
 
 // ─── Custom UI Controls ──────────────────────────────────────────────────────
 
-
-
 // 2. Custom Checkbox Group for Risk Tiers
 function CheckboxGroup({
   label,
@@ -161,103 +162,6 @@ function CheckboxGroup({
         })}
       </div>
     </fieldset>
-  );
-}
-
-// 3. Custom Dual-Thumb Range Slider (APR Range)
-function DualSlider({
-  min,
-  max,
-  value,
-  onChange,
-}: {
-  min: number;
-  max: number;
-  value: [number, number];
-  onChange: (val: [number, number]) => void;
-}) {
-  const t = useTranslations("marketplace");
-  const [minVal, maxVal] = value;
-  const minValRef = useRef(minVal);
-  const maxValRef = useRef(maxVal);
-  const rangeRef = useRef<HTMLDivElement>(null);
-
-  const getPercent = useCallback(
-    (value: number) => Math.round(((value - min) / (max - min)) * 100),
-    [min, max]
-  );
-
-  useEffect(() => {
-    const minPercent = getPercent(minVal);
-    const maxPercent = getPercent(maxValRef.current);
-
-    if (rangeRef.current) {
-      rangeRef.current.style.left = `${minPercent}%`;
-      rangeRef.current.style.width = `${maxPercent - minPercent}%`;
-    }
-  }, [minVal, getPercent]);
-
-  useEffect(() => {
-    const minPercent = getPercent(minValRef.current);
-    const maxPercent = getPercent(maxVal);
-
-    if (rangeRef.current) {
-      rangeRef.current.style.width = `${maxPercent - minPercent}%`;
-    }
-  }, [maxVal, getPercent]);
-
-  return (
-    <div className="relative flex w-full flex-col gap-2">
-      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
-        <span id="apr-range-label">{t("aprRange")}</span>
-        <span className="text-primary font-mono lowercase" aria-live="polite" aria-atomic="true">
-          {minVal}% - {maxVal}%
-        </span>
-      </div>
-      <div className="relative h-6 flex items-center" role="group" aria-labelledby="apr-range-label">
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={minVal}
-          aria-label={`Minimum APR: ${minVal}%`}
-          aria-valuemin={min}
-          aria-valuemax={max}
-          aria-valuenow={minVal}
-          onChange={(event) => {
-            const val = Math.min(Number(event.target.value), maxVal - 1);
-            onChange([val, maxVal]);
-            minValRef.current = val;
-          }}
-          className="pointer-events-none absolute z-30 h-1 w-full appearance-none bg-transparent outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow"
-          style={{ zIndex: minVal > max - 100 ? "40" : undefined }}
-        />
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={maxVal}
-          aria-label={`Maximum APR: ${maxVal}%`}
-          aria-valuemin={min}
-          aria-valuemax={max}
-          aria-valuenow={maxVal}
-          onChange={(event) => {
-            const val = Math.max(Number(event.target.value), minVal + 1);
-            onChange([minVal, val]);
-            maxValRef.current = val;
-          }}
-          className="pointer-events-none absolute z-30 h-1 w-full appearance-none bg-transparent outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow [&::-webkit-slider-thumb]:transition-all [&::-webkit-slider-thumb]:hover:scale-110 [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:shadow"
-        />
-
-        <div className="relative w-full">
-          <div className="h-1.5 w-full rounded bg-zinc-800" />
-          <div
-            ref={rangeRef}
-            className="absolute top-0 h-1.5 rounded bg-primary"
-          />
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -340,6 +244,8 @@ function MarketplaceContent() {
     setSearchQuery,
     clearSearchHistory,
     setInvoices,
+    toggleComparison,
+    setComparisonList,
   } = useInvoiceStore();
   const comparisonList = useInvoiceStore((s) => s.comparisonList);
 
@@ -358,6 +264,8 @@ function MarketplaceContent() {
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [pageSize, setPageSize] = useState(MARKETPLACE_PAGE_SIZE);
+  const [comparisonAnchorIndex, setComparisonAnchorIndex] = useState(0);
+  const comparisonEnabled = useFeatureFlag("comparison");
 
   // Infinite loader — first page only until sentinel intersects
   const infinite = useInfiniteInvoices({
@@ -522,6 +430,61 @@ function MarketplaceContent() {
     }
   }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated]);
 
+  const { activeIndex, setActiveIndex } = useRovingTabIndex(filteredInvoices.length);
+
+  const handleCardKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLAnchorElement>, index: number, invoiceId: string) => {
+      if (!comparisonEnabled) return;
+      const orderedIds = filteredInvoices.map((invoice) => invoice.id);
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = Math.min(index + 1, filteredInvoices.length - 1);
+        if (event.shiftKey) {
+          setComparisonList(
+            buildRangeSelection(orderedIds, comparisonAnchorIndex, nextIndex, comparisonList)
+          );
+        }
+        setActiveIndex(nextIndex);
+        return;
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const nextIndex = Math.max(index - 1, 0);
+        if (event.shiftKey) {
+          setComparisonList(
+            buildRangeSelection(orderedIds, comparisonAnchorIndex, nextIndex, comparisonList)
+          );
+        }
+        setActiveIndex(nextIndex);
+        return;
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        setActiveIndex(0);
+        return;
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        setActiveIndex(Math.max(filteredInvoices.length - 1, 0));
+        return;
+      }
+      if (event.key === " ") {
+        event.preventDefault();
+        toggleComparison(invoiceId);
+        setComparisonAnchorIndex(index);
+      }
+    },
+    [
+      comparisonAnchorIndex,
+      comparisonEnabled,
+      comparisonList,
+      filteredInvoices,
+      setActiveIndex,
+      setComparisonList,
+      toggleComparison,
+    ]
+  );
+
   // CSV Export handler (#559)
   const handleExportCsv = useCallback(() => {
     const rows = marketplaceInvoicesToExportRows(filteredInvoices);
@@ -604,13 +567,31 @@ function MarketplaceContent() {
         onChange={(val) => updateSingleFilter("riskTiers", val)}
       />
 
-      {/* Dual Slider for APR Range */}
-      <DualSlider
-        min={0}
-        max={50}
-        value={filters.aprRange || [0, 50]}
-        onChange={(val) => updateSingleFilter("aprRange", val)}
-      />
+      {/* APR range — shared RangeSlider (#678). The heading and live readout
+          stay here rather than moving into the shared control: they are
+          marketplace copy, and the e2e suite asserts on them. */}
+      <div className="relative flex w-full flex-col gap-2">
+        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
+          <span id="apr-range-label">{t("aprRange")}</span>
+          <span
+            className="text-primary font-mono lowercase"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {(filters.aprRange || [0, 50])[0]}% - {(filters.aprRange || [0, 50])[1]}%
+          </span>
+        </div>
+        <div role="group" aria-labelledby="apr-range-label">
+          <RangeSlider
+            min={0}
+            max={50}
+            step={1}
+            value={filters.aprRange || [0, 50]}
+            onChange={(val) => updateSingleFilter("aprRange", val)}
+            formatLabel={(v) => `${v}%`}
+          />
+        </div>
+      </div>
 
       {/* Status Toggle Switch */}
       <Switch
@@ -685,6 +666,11 @@ function MarketplaceContent() {
             </p>
             {/* Contextual stale badge — visible when offline and cache has data */}
             <StaleDataBadge updatedAt={dataUpdatedAt || null} className="mt-2" />
+            {comparisonEnabled && (
+              <p className="mt-2 text-xs text-zinc-500" aria-live="polite">
+                Comparison selection: {comparisonList.length} selected. Use arrow keys to move, space to toggle, and Shift plus arrows to select a range.
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -696,7 +682,11 @@ function MarketplaceContent() {
               <span>Export CSV</span>
             </button>
             <button
-              onClick={() => { navigator.clipboard?.writeText(window.location.href); }}
+              onClick={() => {
+                navigator.clipboard?.writeText(window.location.href).then(() => {
+                  toast.success(t("shareFiltersCopied"));
+                });
+              }}
               aria-label="Copy marketplace filter link to clipboard"
               className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
             >
@@ -971,6 +961,16 @@ function MarketplaceContent() {
                               invoice={invoice}
                               index={virtualRow.index * columns + i}
                               updatedAt={dataUpdatedAt}
+                              tabIndex={comparisonEnabled ? (activeIndex === virtualRow.index * columns + i ? 0 : -1) : undefined}
+                              onCardFocus={() => {
+                                const cardIndex = virtualRow.index * columns + i;
+                                setActiveIndex(cardIndex);
+                                setComparisonAnchorIndex(cardIndex);
+                              }}
+                              onCardKeyDown={(event) =>
+                                handleCardKeyDown(event, virtualRow.index * columns + i, invoice.id)
+                              }
+                              isSelectedForComparison={comparisonList.includes(invoice.id)}
                             />
                           ))}
                         </div>

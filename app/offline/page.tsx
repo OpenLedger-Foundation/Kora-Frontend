@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { ReloadButton } from "./ReloadButton";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+import { PendingTxQueuePanel } from "@/components/pwa/PendingTxQueuePanel";
 import { getLatestMarketplaceDataUpdatedAt } from "@/lib/queryPersistence";
 
 export default function OfflinePage() {
@@ -76,6 +77,15 @@ export default function OfflinePage() {
             {t("liveData")}
           </li>
         </ul>
+      </div>
+
+      {/* Pending signed-XDR queue — visible online and offline */}
+      <div className="mt-8 w-full max-w-sm text-left">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+          {t("pendingQueueTitle")}
+        </p>
+        <p className="mb-4 text-xs text-zinc-500">{t("pendingQueueDesc")}</p>
+        <PendingTxQueuePanel />
       </div>
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">

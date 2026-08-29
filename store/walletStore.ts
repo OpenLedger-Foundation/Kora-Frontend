@@ -92,6 +92,7 @@ type WalletStoreState = {
   lastActivityAt: number | null;
   addressBook: { id: string; address: string; label: string; signedLabel?: SignedLabel }[];
   walletPassphrase: string | null;
+  diagnosticsImport: string | null;
   /**
    * Tracks whether the in-memory StellarWalletsKit session is active.
    *
@@ -126,6 +127,7 @@ type WalletStoreActions = {
   addAddressBookEntry: (address: string, label?: string, signedLabel?: SignedLabel) => void;
   updateAddressBookEntry: (id: string, updates: { address?: string; label?: string; signedLabel?: SignedLabel | null }) => void;
   removeAddressBookEntry: (id: string) => void;
+  setDiagnosticsImport: (payload: string | null) => void;
   toggleAddressBookFavorite: (id: string) => void;
   addAddressBookGroup: (name: string) => void;
   updateAddressBookGroup: (id: string, updates: { name?: string; favorite?: boolean }) => void;
@@ -160,6 +162,7 @@ export const useWalletStore = create<WalletStore>()(
       addressBook: [],
       addressBookGroups: [],
       walletPassphrase: null,
+      diagnosticsImport: null,
       kitSessionActive: false,
       kycStatus: "none",
       isWatchMode: false,
@@ -312,6 +315,8 @@ export const useWalletStore = create<WalletStore>()(
       removeAddressBookEntry: (id) =>
         set((s) => ({ addressBook: s.addressBook.filter((e) => e.id !== id) })),
 
+      setDiagnosticsImport: (payload) => set({ diagnosticsImport: payload }),
+
       toggleAddressBookFavorite: (id) =>
         set((s) => ({
           addressBook: s.addressBook.map((e) =>
@@ -372,6 +377,7 @@ export const useWalletStore = create<WalletStore>()(
         addressBook: s.addressBook,
         addressBookGroups: s.addressBookGroups,
         walletPassphrase: s.walletPassphrase,
+        diagnosticsImport: s.diagnosticsImport,
         kycStatus: s.kycStatus,
       }),
     }

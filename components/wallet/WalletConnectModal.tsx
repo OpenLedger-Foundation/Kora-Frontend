@@ -13,11 +13,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useUIStore } from "@/store";
-import { useWallet } from "@/hooks/useWallet";
+import { useWallet, probeWalletProviderHealth, type WalletProviderHealth } from "@/hooks/useWallet";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { cn } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/security";
 import { getWalletIconSvg, sanitizeSvg } from "@/lib/svgHelper";
+import { preloadWalletKit } from "@/lib/lazyModules";
+import { env } from "@/lib/env";
+import { useWalletStore } from "@/store/walletStore";
 
 const WALLETS = [
   {
@@ -75,6 +78,7 @@ export function WalletConnectModal() {
   const [walletState, setWalletState] = useState<WalletState>("idle");
   const [activeWallet, setActiveWallet] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [providerHealth, setProviderHealth] = useState<Record<string, WalletProviderHealth>>({});
   const [waitingForDeepLink, setWaitingForDeepLink] = useState(false);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
   const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,11 +91,20 @@ export function WalletConnectModal() {
 
   useEffect(() => {
     if (walletModalOpen) {
+      if (typeof window !== "undefined") {
+        preloadWalletKit();
+      }
       setTimeout(() => firstFocusRef.current?.focus(), 50);
+      void Promise.all(
+        WALLETS.map(async (entry) => [entry.id, await probeWalletProviderHealth(entry.id)] as const)
+      ).then((entries) => {
+        setProviderHealth(Object.fromEntries(entries));
+      });
     } else {
       setWalletState("idle");
       setActiveWallet(null);
       setErrorMsg(null);
+      setProviderHealth({});
       setWaitingForDeepLink(false);
       if (visibilityTimerRef.current) {
         clearTimeout(visibilityTimerRef.current);
@@ -99,6 +112,23 @@ export function WalletConnectModal() {
       }
     }
   }, [walletModalOpen]);
+
+  const getHealthBadge = (walletId: string) => {
+    const health = providerHealth[walletId];
+    if (!health) return null;
+    const map = {
+      ready: "bg-emerald-500/10 text-emerald-600",
+      missing: "bg-muted text-muted-foreground",
+      locked: "bg-amber-500/10 text-amber-600",
+      unsupported_network: "bg-destructive/10 text-destructive",
+      error: "bg-destructive/10 text-destructive",
+    } as const;
+    return (
+      <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", map[health.state])}>
+        {health.message}
+      </span>
+    );
+  };
 
   useEffect(() => {
     if (!waitingForDeepLink) return;
@@ -229,6 +259,9 @@ export function WalletConnectModal() {
                 const isActive = activeWallet === wallet.id;
                 const isConnectingItem = isActive && walletState === "connecting";
                 const isErrorItem = isActive && walletState === "error";
+                const health = providerHealth[wallet.id];
+                const disabledByHealth =
+                  health?.state === "missing" || health?.state === "unsupported_network";
 
                 return (
                   <motion.div
@@ -272,6 +305,7 @@ export function WalletConnectModal() {
                             {t("popular")}
                           </span>
                         )}
+                        {getHealthBadge(wallet.id)}
                         {!installed && !isMobile && (
                           <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                             {t("notInstalled")}
@@ -285,6 +319,11 @@ export function WalletConnectModal() {
                         )}
                       </div>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">{wallet.description}</p>
+                      {health && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {health.message}
+                        </p>
+                      )}
                       <AnimatePresence>
                         {isErrorItem && (
                           <motion.p
@@ -323,7 +362,7 @@ export function WalletConnectModal() {
                             ref={i === 0 ? firstFocusRef : undefined}
                             type="button"
                             onClick={() => handleConnect(wallet.id)}
-                            disabled={walletState === "connecting"}
+                            disabled={walletState === "connecting" || disabledByHealth}
                             aria-label={`Connect ${wallet.name}`}
                             className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
                           >
@@ -409,6 +448,11 @@ export function WalletConnectModal() {
             {t("termsLink")}
           </a>
         </p>
+        {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
+          <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            Provider health checks are running in pre-connect mode.
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   );

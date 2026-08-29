@@ -103,6 +103,118 @@ test.describe("SME Dashboard — connected", () => {
   });
 });
 
+// ── SME Dashboard — Batch Actions (Issue #676) ────────────────────────────────
+
+test.describe("SME Dashboard — Batch Actions (Flag Enabled)", () => {
+  test.beforeEach(async ({ context, page }) => {
+    await context.addInitScript((address) => {
+      const walletState = {
+        state: {
+          address,
+          publicKey: address,
+          isConnected: true,
+          provider: "freighter",
+          balance: "1000.00",
+          isVerified: false,
+          verifiedAt: null,
+        },
+        version: 0,
+      };
+      localStorage.setItem("kora-wallet-store", JSON.stringify(walletState));
+      localStorage.setItem(
+        "kora:feature-flag-overrides",
+        JSON.stringify({ "batch-actions": true })
+      );
+    }, MOCK_ADDRESS);
+    await page.goto("/dashboard/sme");
+    await page.waitForSelector("table", { timeout: 15_000 });
+  });
+
+  test("renders selection checkboxes and shows toolbar when rows are selected", async ({
+    page,
+  }) => {
+    // Row selection checkboxes should be present in table rows
+    const rowCheckboxes = page.locator("tbody input[type='checkbox']");
+    await expect(rowCheckboxes.first()).toBeVisible();
+
+    // Select the first row
+    await rowCheckboxes.first().check();
+
+    // BatchActionToolbar should become visible
+    await expect(page.getByText(/invoice.*selected/i)).toBeVisible();
+    await expect(page.locator("[data-testid='batch-cancel-btn']")).toBeVisible();
+  });
+
+  test("cancel confirmation dialog blocks accidental batch and dismisses cleanly", async ({
+    page,
+  }) => {
+    // Select the cancel-eligible invoices
+    const rowCheckboxes = page.locator("tbody input[type='checkbox']");
+    const count = await rowCheckboxes.count();
+    expect(count).toBeGreaterThan(0);
+
+    for (let i = 0; i < Math.min(count, 2); i++) {
+      await rowCheckboxes.nth(i).check();
+    }
+
+    // Click batch cancel button
+    const cancelBtn = page.locator("[data-testid='batch-cancel-btn']");
+    await expect(cancelBtn).toBeVisible();
+    await cancelBtn.click();
+
+    // Confirm dialog should appear
+    const cancelDialog = page.getByRole("dialog");
+    await expect(cancelDialog).toBeVisible();
+    await expect(cancelDialog.getByText(/Cancel.*Invoice/i)).toBeVisible();
+
+    // Dismiss dialog via "Go Back" button
+    const dismissBtn = page.locator("[data-testid='cancel-confirm-dismiss']");
+    await expect(dismissBtn).toBeVisible();
+    await dismissBtn.click();
+
+    // Confirm dialog is closed without submitting a chain transaction
+    await expect(cancelDialog).not.toBeVisible();
+  });
+});
+
+test.describe("SME Dashboard — Batch Actions (Flag Disabled / Skip Behavior)", () => {
+  test.beforeEach(async ({ context, page }) => {
+    await context.addInitScript((address) => {
+      const walletState = {
+        state: {
+          address,
+          publicKey: address,
+          isConnected: true,
+          provider: "freighter",
+          balance: "1000.00",
+          isVerified: false,
+          verifiedAt: null,
+        },
+        version: 0,
+      };
+      localStorage.setItem("kora-wallet-store", JSON.stringify(walletState));
+      localStorage.setItem(
+        "kora:feature-flag-overrides",
+        JSON.stringify({ "batch-actions": false })
+      );
+    }, MOCK_ADDRESS);
+    await page.goto("/dashboard/sme");
+    await page.waitForSelector("table", { timeout: 15_000 });
+  });
+
+  test("skips batch toolbar and row checkboxes cleanly when flag is disabled", async ({
+    page,
+  }) => {
+    // Selection checkboxes should not exist in the table
+    const tableCheckboxes = page.locator("table input[type='checkbox']");
+    await expect(tableCheckboxes).toHaveCount(0);
+
+    // Toolbar should not be present
+    await expect(page.locator("[data-testid='batch-cancel-btn']")).toHaveCount(0);
+    await expect(page.getByText(/invoices selected/i)).toHaveCount(0);
+  });
+});
+
 // ── Investor Dashboard ────────────────────────────────────────────────────────
 
 test.describe("Investor Dashboard — disconnected", () => {
@@ -155,3 +267,5 @@ test.describe("Investor Dashboard — connected", () => {
     ).toBeVisible();
   });
 });
+
+

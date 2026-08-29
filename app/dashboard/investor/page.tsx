@@ -17,6 +17,8 @@ import { usePositions } from "@/hooks/usePositions";
 import { ConcentrationRiskAlerts } from "@/components/analytics/ConcentrationRiskAlerts";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { useVerifiedAction } from "@/hooks/useVerifiedAction";
+import { useToast } from "@/hooks/useToast";
 import { useTranslations } from "next-intl";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { prepareClaimPosition } from "@/services/invoiceService";
@@ -85,6 +87,8 @@ export default function InvestorDashboardPage() {
   });
   const { execute } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
+  const { executeProtectedAction } = useVerifiedAction();
+  const toast = useToast();
   const [donutFilter, setDonutFilter] = useState<DonutFilter | null>(null);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [listingTarget, setListingTarget] = useState<InvestorPosition | null>(null);
@@ -153,13 +157,51 @@ export default function InvestorDashboardPage() {
     }
   }, [positionsQuery.isSuccess, positionsQuery.isError]);
 
+  /**
+   * Claiming yield moves funds, so it sits behind the same verification session
+   * SME repayment does (#681). Previously this called `execute` directly, which
+   * meant an expired session reached the signing prompt with no re-verification
+   * step in between.
+   */
   const handleClaim = async (pos: InvestorPosition) => {
     if (!address) return;
-    await execute(() => prepareClaimPosition(pos.id, address), {
-      successMessage: "Claim submitted",
-      onSimulationPreview,
-      onSuccess: () => positionsQuery.refetch(),
-    });
+
+    const runClaim = async () => {
+      await execute(() => prepareClaimPosition(pos.id, address), {
+        successMessage: "Claim submitted",
+        // Yield claims are the "yield available" notification channel, not the
+        // generic tx one — muting that preference must mute this too.
+        successNotificationType: "yieldAvailable",
+        onSimulationPreview,
+        onSuccess: () => positionsQuery.refetch(),
+        // Without this the failure toast's retry only clears the error; the
+        // investor still has an unclaimed position and no way back to it.
+        onRetry: () => {
+          void handleClaim(pos);
+        },
+      });
+    };
+
+    const result = await executeProtectedAction(runClaim, "claim");
+
+    // `requiresVerification` comes back only when no VerificationProvider is in
+    // the tree to raise the modal — surface the reason rather than failing mute.
+    if (result.requiresVerification) {
+      toast.error(
+        "Verification required",
+        "Verify wallet ownership to claim your yield.",
+        () => {
+          void handleClaim(pos);
+        }
+      );
+      return;
+    }
+
+    if (result.error && result.error !== "Wallet not connected") {
+      toast.error("Claim failed", result.error, () => {
+        void handleClaim(pos);
+      });
+    }
   };
 
   const handleListSubmit = (askPrice: number) => {
@@ -515,6 +557,7 @@ export default function InvestorDashboardPage() {
           />
         </CardContent>
       </Card>
+      
 
       {listedPositions.length > 0 && (
         <Card className="mt-8">

@@ -14,6 +14,8 @@ export interface PaginationProps {
   onPageSizeChange?: (pageSize: number) => void;
   pageSizeOptions?: number[];
   syncToUrl?: boolean;
+  pageParamName?: string;
+  pageSizeParamName?: string;
 }
 
 export function Pagination({
@@ -24,6 +26,8 @@ export function Pagination({
   onPageSizeChange,
   pageSizeOptions = [10, 25, 50],
   syncToUrl = true,
+  pageParamName = "page",
+  pageSizeParamName = "pageSize",
 }: PaginationProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -36,17 +40,17 @@ export function Pagination({
     (page: number, size: number) => {
       if (!syncToUrl) return;
       const params = new URLSearchParams(searchParams.toString());
-      params.set("page", String(page));
-      params.set("pageSize", String(size));
+      params.set(pageParamName, String(page));
+      params.set(pageSizeParamName, String(size));
       router.push(`${pathname}?${params.toString()}`);
     },
-    [pathname, router, searchParams, syncToUrl]
+    [pathname, router, searchParams, syncToUrl, pageParamName, pageSizeParamName]
   );
 
   React.useEffect(() => {
     if (!syncToUrl) return;
-    const urlPage = searchParams.get("page");
-    const urlPageSize = searchParams.get("pageSize");
+    const urlPage = searchParams.get(pageParamName);
+    const urlPageSize = searchParams.get(pageSizeParamName);
 
     if (urlPage) {
       const parsedPage = parseInt(urlPage, 10);
@@ -60,7 +64,7 @@ export function Pagination({
         onPageSizeChange(parsedSize);
       }
     }
-  }, [searchParams, syncToUrl, onPageChange, onPageSizeChange, currentPage, pageSize]);
+  }, [searchParams, syncToUrl, onPageChange, onPageSizeChange, currentPage, pageSize, pageParamName, pageSizeParamName]);
 
   const handlePageChange = (page: number) => {
     const targetPage = Math.min(Math.max(1, page), totalPages);

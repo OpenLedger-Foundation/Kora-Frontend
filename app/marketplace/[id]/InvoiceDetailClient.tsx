@@ -68,7 +68,9 @@ import {
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
+import { exportInvoiceCalendarIcs } from "@/lib/export";
 import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
@@ -89,10 +91,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
   const [iframeLoaded, setIframeLoaded] = useState(false);
   const [iframeError, setIframeError] = useState(false);
-  const [showAmendmentForm, setShowAmendmentForm] = useState(false);
-  const { formatCurrency, formatApr, formatDate, formatRelativeTime, formatPercentage } = useFormatters();
-
-  // Must be called before any early return so hook order is stable across renders.
+  const { formatCurrency, formatApr, formatDate, formatPercentage } = useFormatters();
   const { executeProtectedAction } = useVerifiedAction();
 
   if (!id || isLoading) return <InvoiceDetailSkeleton />;
@@ -222,6 +221,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
           amount: formatCurrency(usdcBalance, "USDC"),
         })
       : "";
+
 
   const handleFund = async () => {
     if (!isOnline) {
@@ -366,12 +366,13 @@ Stellar Testnet Transaction Hash: ${txHash}`);
       {/* JSON-LD is rendered server-side in page.tsx for crawler-friendly SEO */}
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
-          <Link
-            href="/marketplace"
-            className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300"
-          >
-            <ArrowLeft className="h-4 w-4" /> {t("backToMarketplace")}
-          </Link>
+          <Breadcrumb
+            items={[
+              { label: "Home", href: "/" },
+              { label: "Marketplace", href: "/marketplace" },
+              { label: metadata.invoiceNumber },
+            ]}
+          />
           <PrintButton label="Print / Save PDF" />{" "}
         </div>
 
@@ -611,13 +612,39 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     <div>
                       <p className="text-xs text-zinc-500">Closes</p>
                       <p className="mt-0.5 text-sm font-medium text-zinc-400">
-                        {formatRelativeTime(terms.repaymentDate)}
+                        {formatDate(terms.repaymentDate, "relative")}
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </motion.div>
+
+            {/* Repayment Timeline — shown when invoice is fully funded */}
+            {isFullyFunded && (
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.17 }}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-zinc-500" /> Repayment
+                      Timeline
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RepaymentTimeline
+                      fundedAt={invoice.createdAt}
+                      maturityDate={terms.repaymentDate}
+                      isRepaid={status === "repaid"}
+                      repaidAt={status === "repaid" ? invoice.updatedAt : undefined}
+                    />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
 
             {/* IPFS PDF Document Preview */}
             <motion.div
@@ -785,12 +812,18 @@ Stellar Testnet Transaction Hash: ${txHash}`);
                     <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
                       Maturity
                     </p>
-                    <p className="text-xl font-bold text-zinc-200 mt-0.5">
+                    <div
+                      className="text-xl font-bold text-zinc-200 mt-0.5 flex justify-end"
+                      data-testid="maturity-countdown"
+                    >
                       <CountdownTimer
                         targetDate={terms.repaymentDate}
                         compact={false}
+                        invoice={invoice}
+                        showCalendarExport
+                        expiredLabel="Overdue"
                       />
-                    </p>
+                    </div>
                     {/* Backwards-compat test hook: keep numeric days for integration tests */}
                     <div data-testid="days-to-maturity" className="sr-only">
                       {daysToMaturity} days
