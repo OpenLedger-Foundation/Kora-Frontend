@@ -1112,8 +1112,23 @@
     "sellerAddress": "عنوان البائع",
     "acquirePosition": "الاستحواذ على المركز",
     "connectWalletToAcquire": "اتصل بالمحفظة للاستحواذ",
+    "acceptTransfer": "قبول النقل",
     "listingAria": "عرض ثانوي للفاتورة {invoiceNumber}",
     "listingAriaStale": "عرض ثانوي للفاتورة {invoiceNumber} — غير متاح، تم نقل المركز",
+    "acceptDialog": {
+      "title": "قبول نقل المركز",
+      "description": "راجع تفاصيل المركز قبل قبول هذا النقل في السوق الثانوية.",
+      "positionLabel": "المركز",
+      "expectedReturn": "العائد المتوقع",
+      "positionDetails": "تفاصيل المركز",
+      "remainingTenor": "المدة المتبقية",
+      "fromAddress": "عنوان المُرسِل",
+      "notImplementedTitle": "غير متاح بعد",
+      "notImplementedHint": "قبول المشتري غير متاح بعد على السلسلة — يُرجى المحاولة مرة أخرى بعد تفعيل هذا المسار في العقد.",
+      "cancel": "إلغاء",
+      "confirmAccept": "قبول النقل",
+      "pending": "جارٍ المعالجة…"
+    },
     "acquireDialog": {
       "title": "تأكيد الاستحواذ",
       "description": "راجع تفاصيل المركز قبل الاستحواذ عليه من السوق الثانوي.",

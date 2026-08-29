@@ -1112,8 +1112,23 @@
     "sellerAddress": "Endereço do Vendedor",
     "acquirePosition": "Adquirir Posição",
     "connectWalletToAcquire": "Conectar Carteira para Adquirir",
+    "acceptTransfer": "Aceitar Transferência",
     "listingAria": "Oferta secundária para {invoiceNumber}",
     "listingAriaStale": "Oferta secundária para {invoiceNumber} — indisponível, posição transferida",
+    "acceptDialog": {
+      "title": "Aceitar Transferência de Posição",
+      "description": "Revise os detalhes da posição antes de aceitar esta transferência no mercado secundário.",
+      "positionLabel": "Posição",
+      "expectedReturn": "Retorno Esperado",
+      "positionDetails": "Detalhes da Posição",
+      "remainingTenor": "Prazo Restante",
+      "fromAddress": "Endereço de Origem",
+      "notImplementedTitle": "Ainda Não Disponível",
+      "notImplementedHint": "A aceitação pelo comprador ainda não está disponível on-chain — volte a tentar quando esse caminho do contrato estiver disponível.",
+      "cancel": "Cancelar",
+      "confirmAccept": "Aceitar Transferência",
+      "pending": "Processando…"
+    },
     "acquireDialog": {
       "title": "Confirmar Aquisição",
       "description": "Revise os detalhes da posição antes de adquiri-la no mercado secundário.",

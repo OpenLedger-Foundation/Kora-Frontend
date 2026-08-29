@@ -23,10 +23,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import EmptyState from "@/components/ui/EmptyState";
+import { toast } from "sonner";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
+import { AcceptTransferDialog } from "@/components/invoice/AcceptTransferDialog";
 import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
-import { useAcquirePositionFlow } from "@/hooks/useTransaction";
+import { useAcquirePositionFlow, useTransferPositionFlow } from "@/hooks/useTransaction";
 import { useWallet } from "@/hooks/useWallet";
 import { env } from "@/lib/env";
 import { computeAcquisitionFees, getFeeSchedule } from "@/lib/secondaryFees";
@@ -35,7 +37,7 @@ import { useInvoiceStore } from "@/store/invoiceStore";
 import { MOCK_INVOICES } from "@/services/mockData";
 import { RISK_TIER_COLORS, cn } from "@/lib/utils";
 import { computeImpliedDiscount } from "@/types/invoice";
-import type { Invoice } from "@/types/invoice";
+import type { Invoice, PositionListing } from "@/types/invoice";
 import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
 import { useTranslations } from "next-intl";
 import { useFormatters } from "@/hooks/useFormatters";
@@ -47,6 +49,13 @@ import {
   secondaryFiltersToQueryString,
   DEFAULT_SECONDARY_FILTERS,
 } from "@/lib/secondaryUrlFilters";
+import {
+  SECONDARY_SORT_OPTIONS,
+  DEFAULT_SECONDARY_SORT,
+  parseSecondarySort,
+  sortSecondaryItems,
+  type SecondarySortBy,
+} from "@/lib/secondarySort";
 
 interface SecondaryMarketItem {
   listing: PositionListing;
@@ -241,8 +250,20 @@ const MOCK_SECONDARY_LISTINGS: SecondaryMarketItem[] = [
 ];
 
 function SecondaryMarketplaceContent() {
+  const t = useTranslations("secondaryMarket");
+  const { formatCurrency, formatPercentage } = useFormatters();
+
   // Issue #594: acquire runs through the same simulation gate as fund/transfer.
   const { acquirePosition, simulationDialogProps } = useAcquirePositionFlow();
+  // Issue #732: buyer accept-position transfer — same simulation-gate pattern,
+  // its own TxSimulationPreview instance since useTxSimulation state is local
+  // to whichever flow hook renders it.
+  const {
+    acceptTransfer,
+    status: acceptStatus,
+    error: acceptError,
+    simulationDialogProps: acceptSimulationDialogProps,
+  } = useTransferPositionFlow();
   const { publicKey } = useWallet();
 
   // Issue #597: one schedule, read from validated env, shared by every figure
@@ -271,6 +292,8 @@ function SecondaryMarketplaceContent() {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [acquireItem, setAcquireItem] = useState<SecondaryMarketItem | null>(null);
+  const [acceptItem, setAcceptItem] = useState<SecondaryMarketItem | null>(null);
+  const [sortBy, setSortBy] = useState<SecondarySortBy>(DEFAULT_SECONDARY_SORT);
 
   // Debounce free-text inputs (seller + search) before committing to the URL.
   const debouncedSearch = useDebounce(searchQuery, 350);
@@ -311,7 +334,7 @@ function SecondaryMarketplaceContent() {
 
   // Combine store position listings with mock defaults
   const allItems: SecondaryMarketItem[] = useMemo(() => {
-    const combined = [...buildMockListings()];
+    const combined = [...MOCK_SECONDARY_LISTINGS];
 
     Object.values(storeListings).forEach((listing) => {
       if (combined.some((item) => item.positionId === listing.positionId)) return;
@@ -645,7 +668,7 @@ function SecondaryMarketplaceContent() {
                         fees={computeAcquisitionFees(item.listing.askPrice, feeSchedule)}
                       />
 
-                      {/* Action Button */}
+                      {/* Action Buttons */}
                       <Button
                         className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
                         onClick={() => {
@@ -661,6 +684,23 @@ function SecondaryMarketplaceContent() {
                         {publicKey ? t("acquirePosition") : t("connectWalletToAcquire")}
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                       </Button>
+
+                      {/* Issue #732: buyer accept-position transfer dialog shell */}
+                      <Button
+                        variant="outline"
+                        className="w-full mt-2 border-zinc-700 bg-zinc-950/60 text-xs text-zinc-300 hover:text-white h-9"
+                        onClick={() => {
+                          if (!publicKey) {
+                            toast.info(t("connectWalletToAcquire"), {
+                              description: "Please connect your wallet first.",
+                            });
+                            return;
+                          }
+                          setAcceptItem(item);
+                        }}
+                      >
+                        {t("acceptTransfer")}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -672,6 +712,7 @@ function SecondaryMarketplaceContent() {
         {/* Issue #594: preview before signing; the dialog blocks proceed when
             the simulation fails. */}
         <TxSimulationPreview {...simulationDialogProps} />
+        <TxSimulationPreview {...acceptSimulationDialogProps} />
 
         {/* Issue #642: accessible acquire position dialog shell */}
         <AcquirePositionDialog
@@ -689,6 +730,22 @@ function SecondaryMarketplaceContent() {
               );
             }
           }}
+        />
+
+        {/* Issue #732: buyer accept-position transfer dialog shell */}
+        <AcceptTransferDialog
+          item={acceptItem}
+          open={acceptItem !== null}
+          onOpenChange={(open) => {
+            if (!open) setAcceptItem(null);
+          }}
+          onConfirm={() => {
+            if (acceptItem && publicKey) {
+              void acceptTransfer(acceptItem.positionId, publicKey);
+            }
+          }}
+          status={acceptStatus}
+          error={acceptError}
         />
 
         {/* Mobile Filter Bottom Sheet */}

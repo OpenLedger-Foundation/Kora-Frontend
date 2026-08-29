@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useTranslations } from "next-intl";
+import type { Invoice } from "@/types/invoice";
 
 interface AcquirePositionDialogProps {
   item: {
@@ -50,7 +51,7 @@ export function AcquirePositionDialog({
   onConfirm,
 }: AcquirePositionDialogProps) {
   const { formatCurrency, formatPercentage } = useFormatters();
-  useTranslations("secondaryMarket.acquireDialog");
+  const t = useTranslations("secondaryMarket.acquireDialog");
 
   if (!item) return null;
 
@@ -246,7 +247,10 @@ export function AcquirePositionDialog({
             {t("cancel")}
           </Button>
           <Button
-            onClick={handleConfirm}
+            onClick={() => {
+              onConfirm();
+              onOpenChange(false);
+            }}
             className={cn(
               isExtremeAlert && "border-destructive/30 hover:bg-destructive/10"
             )}

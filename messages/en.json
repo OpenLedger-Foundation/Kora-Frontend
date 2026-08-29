@@ -1065,8 +1065,23 @@
     "sellerAddress": "Seller Address",
     "acquirePosition": "Acquire Position",
     "connectWalletToAcquire": "Connect Wallet to Acquire",
+    "acceptTransfer": "Accept Transfer",
     "listingAria": "Secondary listing for {invoiceNumber}",
     "listingAriaStale": "Secondary listing for {invoiceNumber} — stale, position transferred",
+    "acceptDialog": {
+      "title": "Accept Position Transfer",
+      "description": "Review the position details before accepting this transfer on the secondary market.",
+      "positionLabel": "Position",
+      "expectedReturn": "Expected Return",
+      "positionDetails": "Position Details",
+      "remainingTenor": "Remaining Tenor",
+      "fromAddress": "From Address",
+      "notImplementedTitle": "Not Yet Available",
+      "notImplementedHint": "Buyer acceptance isn't available on-chain yet — check back once this contract path ships.",
+      "cancel": "Cancel",
+      "confirmAccept": "Accept Transfer",
+      "pending": "Processing…"
+    },
     "acquireDialog": {
       "title": "Confirm Acquisition",
       "description": "Review the position details before acquiring this position on the secondary market.",
