@@ -873,7 +873,9 @@
       "fundInvoiceTitle": "موّل فاتورة",
       "fundInvoiceBody": "افتح إدراجًا مؤهلاً من خلال إجراء التمويل الخاص به عندما تكون مستعدًا للاستثمار.",
       "trackPortfolioTitle": "تتبع محفظتك",
-      "trackPortfolioBody": "استخدم لوحة المستثمر لمراقبة المراكز والسدادات والعوائد المكتسبة."
+      "trackPortfolioBody": "استخدم لوحة المستثمر لمراقبة المراكز والسدادات والعوائد المكتسبة.",
+      "viewAnalyticsTitle": "Explore portfolio analytics",
+      "viewAnalyticsBody": "Dive into charts, yield projections, vintage cohorts, and export your full portfolio data from the Analytics page."
     }
   },
   "invoiceCard": {

@@ -12,10 +12,11 @@ import { useFeatureFlag } from "@/lib/featureFlags";
 export const TOUR_STORAGE_KEY = "kora-tour-done";
 
 const INVESTOR_STEPS = [
-  { titleKey: "findOpportunityTitle", bodyKey: "findOpportunityBody", selector: "[data-tour='marketplace-search']", placement: "bottom" as const },
-  { titleKey: "reviewDetailsTitle",   bodyKey: "reviewDetailsBody",   selector: "[data-tour='invoice-card']",       placement: "right" as const },
-  { titleKey: "fundInvoiceTitle",     bodyKey: "fundInvoiceBody",     selector: "[data-tour='fund-button']",        placement: "top" as const },
-  { titleKey: "trackPortfolioTitle",  bodyKey: "trackPortfolioBody",  selector: "[data-tour='investor-dashboard']", placement: "bottom" as const },
+  { titleKey: "findOpportunityTitle",  bodyKey: "findOpportunityBody",  selector: "[data-tour='marketplace-search']", placement: "bottom" as const },
+  { titleKey: "reviewDetailsTitle",    bodyKey: "reviewDetailsBody",    selector: "[data-tour='invoice-card']",        placement: "right" as const },
+  { titleKey: "fundInvoiceTitle",      bodyKey: "fundInvoiceBody",      selector: "[data-tour='fund-button']",         placement: "top" as const },
+  { titleKey: "trackPortfolioTitle",   bodyKey: "trackPortfolioBody",   selector: "[data-tour='investor-dashboard']",  placement: "bottom" as const },
+  { titleKey: "viewAnalyticsTitle",    bodyKey: "viewAnalyticsBody",    selector: "[data-tour='analytics-header']",   placement: "bottom" as const, optional: true },
 ];
 
 const SME_STEPS = [
@@ -24,7 +25,7 @@ const SME_STEPS = [
   { titleKey: "marketplaceVisibilityTitle",  bodyKey: "marketplaceVisibilityBody",  selector: "[data-tour='marketplace-link']",    placement: "bottom" as const },
 ];
 
-const ELIGIBLE_ROUTES = ["/marketplace", "/dashboard/sme", "/dashboard/investor", "/invoice/create"];
+const ELIGIBLE_ROUTES = ["/marketplace", "/dashboard/sme", "/dashboard/investor", "/invoice/create", "/analytics"];
 
 export default function OnboardingTour() {
   const t = useTranslations("onboarding");
@@ -37,6 +38,27 @@ export default function OnboardingTour() {
   const persona = tour.persona;
   const steps = persona === "sme" ? SME_STEPS : INVESTOR_STEPS;
   const stepIndex = Math.min(tour.stepIndex ?? 0, steps.length - 1);
+
+  // Gracefully skip a step when its DOM target is absent, but only for steps
+  // flagged as `optional` (e.g. the analytics page may not be reachable for
+  // all users). Required steps are always shown regardless of DOM presence.
+  useEffect(() => {
+    if (!open) return;
+    const current = steps[stepIndex];
+    if (!current.optional) return;
+    if (!document.querySelector(current.selector)) {
+      const nextIndex = stepIndex + 1;
+      if (nextIndex < steps.length) {
+        setTourSettings({ stepIndex: nextIndex });
+      } else {
+        // No more steps — finish the tour inline (mirrors handleComplete logic).
+        try { localStorage.setItem(TOUR_STORAGE_KEY, "true"); } catch { /* storage unavailable */ }
+        setTourSettings({ completed: true, skipped: true });
+        setOpen(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, stepIndex, steps]);
 
   // Check route eligibility and completion status
   useEffect(() => {

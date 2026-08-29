@@ -347,7 +347,7 @@ function PortfolioAnalyticsInner() {
         <div id="analytics-report" className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
           {/* Header */}
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-            <div>
+            <div data-tour="analytics-header">
               <h1 className="text-2xl font-bold text-zinc-100">{t("title")}</h1>
               <p className="mt-1 text-sm text-zinc-500">{t("subtitle")}</p>
             </div>
