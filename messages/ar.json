@@ -1135,5 +1135,13 @@
       "kycRequired": "التحقق من الهوية مطلوب",
       "kycDesc": "الاستحواذات التي تتجاوز الحد التنظيمي تتطلب التحقق من الهوية."
     }
+  },
+  "footer": {
+    "keyboardShortcuts": "اختصارات لوحة المفاتيح",
+    "changelog": "سجل التغييرات",
+    "openShortcutsLabel": "فتح مرجع اختصارات لوحة المفاتيح",
+    "openChangelogLabel": "فتح سجل التغييرات",
+    "openChangelogUnreadLabel": "فتح سجل التغييرات (إصدار جديد متاح)",
+    "copyright": "© {year} Kora Protocol"
   }
 }
