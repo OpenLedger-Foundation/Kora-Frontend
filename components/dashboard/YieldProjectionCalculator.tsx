@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import {
   AreaChart,
   Area,
@@ -17,25 +17,36 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { 
   calculateYieldProjection, 
-  formatCurrency, 
-  formatPercentage,
   RISK_TIER_APR,
   YIELD_BENCHMARKS
 } from "@/lib/utils";
 import { Download, Info } from "lucide-react";
 import { toast } from "sonner";
+import { useFormatters } from "@/hooks/useFormatters";
+import { useLocale } from "@/i18n/LocaleProvider";
+import { isRTL } from "@/i18n/config";
 
 const RISK_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
 
-export function YieldProjectionCalculator() {
+export interface YieldProjectionCalculatorProps {
+  defaultTier?: string;
+}
+
+export function YieldProjectionCalculator({ defaultTier = "A" }: YieldProjectionCalculatorProps = {}) {
   const [amount, setAmount] = useState<number>(10000);
-  const [tier, setTier] = useState<string>("A");
+  const [tier, setTier] = useState<string>(defaultTier);
   const [horizon, setHorizon] = useState<number>(12);
+
+  useEffect(() => {
+    setTier(defaultTier);
+  }, [defaultTier]);
   const chartRef = useRef<HTMLDivElement>(null);
+  const locale = useLocale();
+  const { formatCurrency, formatPercentage, formatNumber } = useFormatters();
 
   const projection = useMemo(() => {
-    return calculateYieldProjection(amount, tier, horizon);
-  }, [amount, tier, horizon]);
+    return calculateYieldProjection(amount, tier, horizon, locale);
+  }, [amount, tier, horizon, locale]);
 
   const handleExport = async () => {
     if (!chartRef.current) return;
@@ -188,18 +199,20 @@ export function YieldProjectionCalculator() {
                     tickLine={false} 
                     tick={{ fill: "#71717a", fontSize: 12 }}
                     dy={10}
+                    reversed={isRTL(locale)}
                   />
                   <YAxis 
                     axisLine={false} 
                     tickLine={false} 
                     tick={{ fill: "#71717a", fontSize: 12 }}
-                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={(v) => `${formatNumber(v / 1000, { maximumFractionDigits: 0 })}k`}
+                    orientation={isRTL(locale) ? "right" : "left"}
                   />
                   <Tooltip
                     contentStyle={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "8px" }}
                     itemStyle={{ fontSize: "12px" }}
                     labelStyle={{ color: "#71717a", marginBottom: "4px" }}
-                    formatter={(value: number) => [formatCurrency(value), ""]}
+                    formatter={(value: number) => [formatCurrency(value, "USDC"), ""]}
                   />
                   <Legend verticalAlign="top" height={40} iconType="circle" wrapperStyle={{ fontSize: "12px", color: "#71717a" }} />
                   <Area

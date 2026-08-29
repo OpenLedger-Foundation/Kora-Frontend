@@ -1,8 +1,11 @@
 /** @type {import('next').NextConfig} */
 const createNextIntlPlugin = require("next-intl/plugin");
 const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
+});
 
-const withPWA = require("next-pwa")({
+const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
   register: true,
   skipWaiting: true,
@@ -15,12 +18,17 @@ const withPWA = require("next-pwa")({
   buildExcludes: [/middleware-manifest\.json$/],
 
   runtimeCaching: [
+    // 0. Sensitive wallet, dashboard, transaction, and auth routes — NetworkOnly (never cache)
+    {
+      urlPattern: /^\/(?:dashboard|transactions|invoice\/create|api).*/i,
+      handler: "NetworkOnly",
+    },
     // 1. Google Fonts stylesheet — stale-while-revalidate
     {
       urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
       handler: "StaleWhileRevalidate",
       options: {
-        cacheName: "google-fonts-stylesheets",
+        cacheName: "google-fonts-stylesheets-v1",
         expiration: { maxEntries: 4, maxAgeSeconds: 7 * 24 * 60 * 60 },
       },
     },
@@ -29,7 +37,7 @@ const withPWA = require("next-pwa")({
       urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
       handler: "CacheFirst",
       options: {
-        cacheName: "google-fonts-webfonts",
+        cacheName: "google-fonts-webfonts-v1",
         expiration: { maxEntries: 20, maxAgeSeconds: 365 * 24 * 60 * 60 },
         cacheableResponse: { statuses: [0, 200] },
       },
@@ -39,7 +47,7 @@ const withPWA = require("next-pwa")({
       urlPattern: /^\/_next\/static\/.*/i,
       handler: "CacheFirst",
       options: {
-        cacheName: "next-static-assets",
+        cacheName: "next-static-assets-v1",
         expiration: { maxEntries: 200, maxAgeSeconds: 365 * 24 * 60 * 60 },
         cacheableResponse: { statuses: [0, 200] },
       },
@@ -49,27 +57,29 @@ const withPWA = require("next-pwa")({
       urlPattern: /^\/_next\/image\?.*/i,
       handler: "StaleWhileRevalidate",
       options: {
-        cacheName: "next-image-cache",
+        cacheName: "next-image-cache-v1",
         expiration: { maxEntries: 64, maxAgeSeconds: 24 * 60 * 60 },
       },
     },
-    // 5. Public static files (icons, manifest, og-image) — cache-first
+    // 5. Public static files (wallets, icons, fonts, manifest, og-image) — cache-first
     {
-      urlPattern: /^\/(?:icons|og-image|manifest\.json).*/i,
+      urlPattern: /^\/(?:icons|wallets|fonts|og-image\.png|manifest\.json|favicon\.ico).*/i,
       handler: "CacheFirst",
       options: {
-        cacheName: "static-public",
-        expiration: { maxEntries: 32, maxAgeSeconds: 30 * 24 * 60 * 60 },
+        cacheName: "static-public-v1",
+        expiration: { maxEntries: 64, maxAgeSeconds: 30 * 24 * 60 * 60 },
         cacheableResponse: { statuses: [0, 200] },
       },
     },
-    // 6. Marketplace page — stale-while-revalidate (safe to serve cached)
+    // 6. Marketplace page + detail pages — stale-while-revalidate (safe to serve cached).
+    // /marketplace and /marketplace/[id] are read-only views; no sensitive data.
+    // Wallet/signing routes are excluded by rule 0 above and never reach this rule.
     {
-      urlPattern: /^\/marketplace(\/)?$/i,
+      urlPattern: /^\/marketplace(\/[^/]+)?(\?.*)?$/i,
       handler: "StaleWhileRevalidate",
       options: {
         cacheName: "marketplace-page",
-        expiration: { maxEntries: 4, maxAgeSeconds: 5 * 60 },
+        expiration: { maxEntries: 32, maxAgeSeconds: 5 * 60 },
       },
     },
     // 7. Home page — stale-while-revalidate
@@ -83,7 +93,8 @@ const withPWA = require("next-pwa")({
     },
     // 8. IPFS gateway images — stale-while-revalidate
     {
-      urlPattern: /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io|cloudflare-ipfs\.com)\/.*/i,
+      urlPattern:
+        /^https:\/\/(?:gateway\.pinata\.cloud|ipfs\.io|cloudflare-ipfs\.com|dweb\.link|[a-z0-9]+\.ipfs\.dweb\.link)\/.*/i,
       handler: "StaleWhileRevalidate",
       options: {
         cacheName: "ipfs-assets",
@@ -91,24 +102,34 @@ const withPWA = require("next-pwa")({
         cacheableResponse: { statuses: [0, 200] },
       },
     },
-    // NOTE: The following are intentionally NOT cached (security):
-    //   /dashboard/*       — wallet-connected pages with live position data
-    //   /transactions/*    — on-chain tx history, must be fresh
-    //   /invoice/create/*  — signing flow, must never be stale
-    //   /api/auth/*        — challenge/verify endpoints
-    //   /api/upload/*      — file upload endpoint
   ],
 
   // Offline fallback — shown when a navigation request fails and no cache hit
   fallbacks: {
     document: "/offline",
   },
+
+  // Security boundary: exclude wallet, dashboard, signing, and API routes from SW fallback intercept
+  // so they return a true browser network error instead of a stale cached page/shell offline.
+  workboxOptions: {
+    navigateFallbackDenylist: [
+      /^\/(?:dashboard|transactions|invoice\/create|api).*/i,
+    ],
+  },
 });
 
 // ─── Content Security Policy ──────────────────────────────────────────────────
+// script-src is nonce-based in production (see middleware.ts, which injects a
+// per-request 'nonce-<value>' and overrides this header). 'unsafe-inline' is
+// kept only as a dev-mode fallback since Next.js dev tooling relies on it.
+const scriptSrc = ["'self'"];
+if (process.env.NODE_ENV === "development") {
+  scriptSrc.push("'unsafe-inline'", "'unsafe-eval'");
+}
+
 const CSP_DIRECTIVES = {
   "default-src": ["'self'"],
-  "script-src": ["'self'", "'unsafe-inline'"],
+  "script-src": scriptSrc,
   "style-src": ["'self'", "'unsafe-inline'"],
   "img-src": [
     "'self'",
@@ -117,6 +138,7 @@ const CSP_DIRECTIVES = {
     "https://ipfs.io",
     "https://gateway.pinata.cloud",
     "https://cloudflare-ipfs.com",
+    "https://dweb.link",
     "https://nftstorage.link",
     "https://*.ipfs.dweb.link",
     // Wallet provider icons
@@ -130,11 +152,16 @@ const CSP_DIRECTIVES = {
     "'self'",
     "https://soroban-testnet.stellar.org",
     "https://horizon-testnet.stellar.org",
+    // Mainnet RPC/Horizon — previously missing, which broke connect-src for
+    // any mainnet-configured deployment.
+    "https://soroban-rpc.mainnet.stellar.org",
     "https://horizon.stellar.org",
     "https://api.pinata.cloud",
     "https://gateway.pinata.cloud",
     "https://ipfs.io",
     "https://cloudflare-ipfs.com",
+    "https://dweb.link",
+    "https://*.ipfs.dweb.link",
     "wss:",
   ],
   "frame-src": ["'none'"],
@@ -157,10 +184,18 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=31536000; includeSubDomains",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=(), payment=()",
+  },
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
+
+const path = require("path");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -172,11 +207,49 @@ const nextConfig = {
         source: "/(.*)",
         headers: SECURITY_HEADERS,
       },
+      // Sensitive wallet & transaction routes — no-store (security)
+      {
+        source: "/:path(dashboard|transactions|invoice/create|api)/:rest*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Expires",
+            value: "0",
+          },
+        ],
+      },
+      {
+        source: "/:path(dashboard|transactions|invoice/create|api)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+          },
+          {
+            key: "Pragma",
+            value: "no-cache",
+          },
+          {
+            key: "Expires",
+            value: "0",
+          },
+        ],
+      },
       // Static assets: long-lived cache (content-hashed by Next.js)
       {
         source: "/_next/static/(.*)",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
         ],
       },
       // Service worker must be served without caching headers so browsers
@@ -184,27 +257,42 @@ const nextConfig = {
       {
         source: "/sw.js",
         headers: [
-          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
-          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+          {
+            key: "Content-Type",
+            value: "application/javascript; charset=utf-8",
+          },
         ],
       },
       {
         source: "/workbox-:hash.js",
         headers: [
-          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
         ],
       },
       // OG image and public icons — moderate cache
       {
         source: "/og-image.png",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
         ],
       },
       {
         source: "/icons/(.*)",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" },
+          {
+            key: "Cache-Control",
+            value: "public, max-age=604800, stale-while-revalidate=2592000",
+          },
         ],
       },
     ];
@@ -222,10 +310,29 @@ const nextConfig = {
     minimumCacheTTL: 604800,
 
     remotePatterns: [
+      // The gateway this deployment actually uses. Derived from
+      // NEXT_PUBLIC_IPFS_GATEWAY so a self-hosted or paid gateway still gets
+      // optimised instead of failing next/image's allowlist at runtime; the
+      // literal entries below stay as fallbacks for the public gateways that
+      // lib/ipfs.ts rotates through. Spread-and-filter so a malformed or
+      // missing env var degrades to the static list rather than throwing at
+      // build time.
+      ...(() => {
+        try {
+          const { hostname } = new URL(
+            process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.io/ipfs",
+          );
+          return [{ protocol: "https", hostname }];
+        } catch {
+          return [];
+        }
+      })(),
+
       // IPFS gateways (invoice document thumbnails / metadata images)
       { protocol: "https", hostname: "ipfs.io" },
       { protocol: "https", hostname: "gateway.pinata.cloud" },
       { protocol: "https", hostname: "cloudflare-ipfs.com" },
+      { protocol: "https", hostname: "dweb.link" },
       { protocol: "https", hostname: "nftstorage.link" },
       { protocol: "https", hostname: "*.ipfs.dweb.link" },
 
@@ -238,6 +345,10 @@ const nextConfig = {
   },
 
   webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@": path.resolve(__dirname, "./"),
+    };
     config.resolve.fallback = {
       ...config.resolve.fallback,
       fs: false,
@@ -248,4 +359,4 @@ const nextConfig = {
   },
 };
 
-module.exports = withNextIntl(withPWA(nextConfig));
+module.exports = withBundleAnalyzer(withNextIntl(withPWA(nextConfig)));

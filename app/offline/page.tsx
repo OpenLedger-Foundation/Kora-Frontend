@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import { ReloadButton } from "./ReloadButton";
+import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+import { PendingTxQueuePanel } from "@/components/pwa/PendingTxQueuePanel";
+import { getLatestMarketplaceDataUpdatedAt } from "@/lib/queryPersistence";
 
 export default function OfflinePage() {
   const t = useTranslations("offline");
+  const queryClient = useQueryClient();
+  const cachedAt = getLatestMarketplaceDataUpdatedAt(queryClient);
 
   return (
     <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
@@ -73,6 +79,15 @@ export default function OfflinePage() {
         </ul>
       </div>
 
+      {/* Pending signed-XDR queue — visible online and offline */}
+      <div className="mt-8 w-full max-w-sm text-left">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+          {t("pendingQueueTitle")}
+        </p>
+        <p className="mb-4 text-xs text-zinc-500">{t("pendingQueueDesc")}</p>
+        <PendingTxQueuePanel />
+      </div>
+
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
         <ReloadButton />
         <Link
@@ -82,6 +97,13 @@ export default function OfflinePage() {
           {t("browseCached")}
         </Link>
       </div>
+
+      {/* Show last-synced timestamp if marketplace data is in the cache */}
+      {cachedAt ? (
+        <div className="mt-4">
+          <StaleDataBadge updatedAt={cachedAt} />
+        </div>
+      ) : null}
     </div>
   );
 }

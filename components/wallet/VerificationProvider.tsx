@@ -19,20 +19,47 @@ interface VerificationContextType {
 
 const VerificationContext = createContext<VerificationContextType | null>(null);
 
+/**
+ * Detects whether an error message indicates a replay or skew condition
+ * that should trigger a fresh challenge request rather than a retry.
+ */
+function isReplayOrSkewError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("already used") ||
+    lower.includes("nonce not found") ||
+    lower.includes("challenge expired") ||
+    lower.includes("skew")
+  );
+}
+
 export function VerificationProvider({ children }: { children: ReactNode }) {
   const wallet = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionType, setActionType] = useState<string>("");
+  const [challengeMessage, setChallengeMessage] = useState<string | undefined>(
+    undefined
+  );
   const [verificationPromise, setVerificationPromise] = useState<{
     resolve: () => void;
     reject: (reason: Error) => void;
   } | null>(null);
 
+  const fetchFreshChallenge = useCallback(async (): Promise<string | null> => {
+    try {
+      const challenge = await wallet.requestChallenge();
+      setChallengeMessage(challenge);
+      return challenge;
+    } catch {
+      setChallengeMessage(undefined);
+      return null;
+    }
+  }, [wallet]);
+
   const requireVerification = useCallback(
     async (type: string): Promise<void> => {
-      // Check if already verified
       if (wallet.checkVerification()) {
         return;
       }
@@ -40,13 +67,14 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
       setActionType(type);
       setError(null);
 
-      // Create a promise that will be resolved when user completes verification
+      const prefetchedChallenge = await fetchFreshChallenge();
+
       return new Promise((resolve, reject) => {
         setVerificationPromise({ resolve, reject });
         setIsOpen(true);
       });
     },
-    [wallet]
+    [wallet, fetchFreshChallenge]
   );
 
   const handleVerify = useCallback(async () => {
@@ -56,26 +84,37 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
     try {
       await wallet.verifyOwnership();
       setIsOpen(false);
+      setChallengeMessage(undefined);
       verificationPromise?.resolve();
       setVerificationPromise(null);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Verification failed. Please try again.";
-      setError(message);
-      verificationPromise?.reject(new Error(message));
-      setVerificationPromise(null);
+        err instanceof Error
+          ? err.message
+          : "Verification failed. Please try again.";
+
+      if (isReplayOrSkewError(message)) {
+        setError(null);
+        setChallengeMessage(undefined);
+        const freshChallenge = await fetchFreshChallenge();
+        if (!freshChallenge) {
+          setError("Failed to refresh challenge. Please try again.");
+        }
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [wallet, verificationPromise]);
+  }, [wallet, verificationPromise, fetchFreshChallenge]);
 
   const handleCancel = useCallback(() => {
     setIsOpen(false);
+    setChallengeMessage(undefined);
     verificationPromise?.reject(new Error("Verification cancelled"));
     setVerificationPromise(null);
   }, [verificationPromise]);
 
-  // Clear verification state if wallet is disconnected
   useEffect(() => {
     if (!wallet.isConnected && isOpen) {
       handleCancel();
@@ -96,6 +135,7 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
         isLoading={isLoading}
         error={error ?? undefined}
         actionType={actionType}
+        challengeMessage={challengeMessage}
         onVerify={handleVerify}
         onCancel={handleCancel}
       />
@@ -106,7 +146,9 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
 export function useVerification() {
   const context = useContext(VerificationContext);
   if (!context) {
-    throw new Error("useVerification must be used within VerificationProvider");
+    throw new Error(
+      "useVerification must be used within VerificationProvider"
+    );
   }
   return context;
 }

@@ -15,6 +15,8 @@ import {
   History,
   Keyboard,
   Search,
+  Tag,
+  Sparkles,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -30,41 +32,88 @@ const TransactionHistoryDrawer = dynamic(
 );
 
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { WalletBalance } from "@/components/wallet/WalletBalance";
 import { NetworkStatusIndicator } from "@/components/layout/NetworkStatusIndicator";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { useUIStore } from "@/store/uiStore";
+import { useChangelogBadge } from "@/hooks/useChangelogBadge";
+import { useWalletStore } from "@/store/walletStore";
 import { ShortcutBadge } from "@/components/ui/ShortcutBadge";
 import { cn } from "@/lib/utils";
-
-const NAV_LINKS = [
-  { href: "/marketplace", label: "Marketplace", icon: Store, shortcut: "G M" },
-  { href: "/dashboard/investor", label: "Invest", icon: BarChart3, shortcut: "G D" },
-  { href: "/dashboard/sme", label: "My Invoices", icon: LayoutDashboard, shortcut: null },
-  { href: "/invoice/create", label: "Create Invoice", icon: PlusCircle, shortcut: "G C" },
-  { href: "/transactions", label: "History", icon: History, shortcut: "G T" },
-];
+import { useFeatureFlag } from "@/lib/featureFlags";
 
 const MENU_ID = "mobile-nav-menu";
+
+/**
+ * Changelog entry point with an unread dot (Issue #679).
+ *
+ * Releases were only discoverable through the footer link once the auto-open
+ * modal had been dismissed. The dot marks a release the user has not opened
+ * yet and clears itself when the modal opens.
+ */
+function ChangelogNavButton() {
+  const setChangelogOpen = useUIStore((s) => s.setChangelogOpen);
+  const { hasUnread } = useChangelogBadge();
+
+  return (
+    <button
+      type="button"
+      onClick={() => setChangelogOpen(true)}
+      className="relative hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex"
+      aria-label={hasUnread ? "Open changelog (new release available)" : "Open changelog"}
+      title="Changelog"
+    >
+      <Sparkles className="h-4 w-4" />
+      {hasUnread && (
+        <span
+          data-testid="changelog-unread-dot"
+          className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary ring-2 ring-background"
+          aria-hidden
+        />
+      )}
+    </button>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
   const t = useTranslations("nav");
+  const isSecondaryEnabled = useFeatureFlag("secondary-market");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Granular selectors — Navbar only subscribes to the slices it renders.
+  // Balance display is delegated to <WalletBalance> which has its own selector,
+  // so balance polling never causes the navbar body to re-render.
+  const isConnected = useWalletStore((s) => s.isConnected);
+  const address = useWalletStore((s) => s.address);
+
   const theme = useUIStore((s) => s.theme);
   const toggleTheme = useUIStore((s) => s.toggleTheme);
   const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen);
   const navRef = useRef<HTMLElement>(null);
   const [addressBookOpen, setAddressBookOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const resolvedTheme = theme === "system"
+    ? (mounted && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : theme;
 
   // Nav links defined inside component so labels are translated
   const NAV_LINKS = [
     { href: "/marketplace", label: t("marketplace"), icon: Store, shortcut: "G M" },
+    ...(isSecondaryEnabled
+      ? [{ href: "/secondary", label: t("secondaryMarket"), icon: Tag, shortcut: "G S" }]
+      : []),
     { href: "/dashboard/investor", label: t("invest"), icon: BarChart3, shortcut: "G D" },
     { href: "/dashboard/sme", label: t("myInvoices"), icon: LayoutDashboard, shortcut: null },
     { href: "/invoice/create", label: t("createInvoice"), icon: PlusCircle, shortcut: "G C" },
     { href: "/transactions", label: t("history"), icon: History, shortcut: "G T" },
+    { href: "/settings", label: tSettings("navLabel"), icon: Settings, shortcut: null },
   ];
 
   // Close on route change
@@ -217,6 +266,8 @@ export function Navbar() {
             <History className="h-5 w-5" />
           </button>
 
+          <ChangelogNavButton />
+
           {/* Keyboard shortcut hint — desktop only */}
           {shortcutsEnabled && (
             <button
@@ -236,6 +287,11 @@ export function Navbar() {
           >
             {t("addressBook")}
           </button>
+
+          {/* WalletBalance subscribes only to balance; isolated from navbar re-renders */}
+          {isConnected && address && (
+            <WalletBalance />
+          )}
 
           <div data-tour="wallet-button">
             <WalletButton />

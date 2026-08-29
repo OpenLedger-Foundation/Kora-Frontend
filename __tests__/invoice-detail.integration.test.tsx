@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMockInvoice, mockWalletConnected, mockWalletDisconnected } from "./fixtures";
@@ -63,7 +63,7 @@ vi.mock("@/hooks/useInvoices", () => ({
 
 // Mock useParams
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ id: "inv_detail_test" }),
+  useParams: vi.fn(() => ({ id: "inv_detail_test" })),
   notFound: () => {
     throw new Error("Not found");
   },
@@ -108,13 +108,19 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
 }));
 
+import { useParams } from "next/navigation";
+import { useInvoice } from "@/hooks/useInvoices";
+import { useWallet } from "@/hooks/useWallet";
+import { useTransaction } from "@/hooks/useTransaction";
+import { useUIStore } from "@/store";
+
 // Simplified detail page component for testing
 const DetailPageTest = () => {
-  const { id } = require("next/navigation").useParams();
-  const { data: invoice, isLoading } = require("@/hooks/useInvoices").useInvoice(id);
-  const { isConnected, address } = require("@/hooks/useWallet")();
-  const { execute } = require("@/hooks/useTransaction")();
-  const { setWalletModalOpen } = require("@/store").useUIStore();
+  const { id } = useParams() as { id: string };
+  const { data: invoice, isLoading } = useInvoice(id);
+  const { isConnected, address } = useWallet();
+  const { execute } = useTransaction();
+  const { setWalletModalOpen } = useUIStore();
   const [amount, setAmount] = React.useState("");
   const [funding, setFunding] = React.useState(false);
   const [fundTxHash, setFundTxHash] = React.useState<string | null>(null);
@@ -127,7 +133,7 @@ const DetailPageTest = () => {
 
   const isSmeOwner = isConnected && address && invoice.ownerAddress?.toLowerCase() === address.toLowerCase();
   const isFullyFunded = fundingState.fundingProgress >= 1.0 || status === "fully_funded";
-  const canFund = (status === "listed" || status === "partially_funded") && !isFullyFunded && !isSmeOwner;
+  const canFund = (status === "listed" || status === "partially_funded") && isConnected && !isFullyFunded && !isSmeOwner;
 
   const amountNum = parseFloat(amount) || 0;
   const expectedReturn = amountNum * (1 + ((terms.apr / 100) * (daysToMaturity / 365)));
@@ -249,7 +255,7 @@ describe("Invoice Detail Page Integration Tests", () => {
     expect(screen.getByTestId("invoice-detail")).toBeInTheDocument();
     expect(screen.getByTestId("invoice-number")).toHaveTextContent("INV-2024-0001");
     expect(screen.getByTestId("debtor-name")).toHaveTextContent("Test Debtor Inc");
-    expect(screen.getByTestId("invoice-amount")).toHaveTextContent("100000");
+    expect(screen.getByTestId("invoice-amount")).toHaveTextContent("USDC 100,000");
   });
 
   it("displays funding progress bar", () => {
@@ -261,8 +267,8 @@ describe("Invoice Detail Page Integration Tests", () => {
 
     expect(screen.getByTestId("funding-progress")).toBeInTheDocument();
     expect(screen.getByTestId("progress-value")).toHaveTextContent("50.0%");
-    expect(screen.getByTestId("total-raised")).toHaveTextContent("50000");
-    expect(screen.getByTestId("remaining-capacity")).toHaveTextContent("50000");
+    expect(screen.getByTestId("total-raised")).toHaveTextContent("USDC 50,000");
+    expect(screen.getByTestId("remaining-capacity")).toHaveTextContent("USDC 50,000");
   });
 
   it("displays APR and days to maturity", () => {
@@ -307,7 +313,6 @@ describe("Invoice Detail Page Integration Tests", () => {
       expect(screen.getByTestId("expected-return")).toHaveTextContent("USDC");
     });
 
-    // 10000 * (1 + (24.5/100) * (63/365)) = 10000 * 1.04219 = 10421.92
     const expectedReturn = screen.getByTestId("expected-return").textContent;
     expect(expectedReturn).toMatch(/\d+\.?\d*/);
   });
@@ -377,7 +382,7 @@ describe("Invoice Detail Page Integration Tests", () => {
 
   it("prevents funding if wallet not connected", () => {
     // Mock disconnected wallet
-    vi.mocked(require("@/hooks/useWallet")).useWallet = vi.fn(() => mockWalletDisconnected);
+    (useWallet as any).mockImplementation(() => mockWalletDisconnected);
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -394,23 +399,20 @@ describe("Invoice Detail Page Integration Tests", () => {
       ownerAddress: mockWalletConnected.address,
     });
 
-    vi.mocked(require("@/hooks/useInvoices")).useInvoice = vi.fn(() => ({
+    (useInvoice as any).mockImplementation(() => ({
       data: ownInvoice,
       isLoading: false,
       error: null,
       dataUpdatedAt: Date.now(),
     }));
 
-    vi.mocked(require("next/navigation").useParams) = vi.fn(() => ({ id: "inv_owner_test" }));
+    (useParams as any).mockImplementation(() => ({ id: "inv_owner_test" }));
 
     render(
       <QueryClientProvider client={queryClient}>
         <DetailPageTest />
       </QueryClientProvider>
     );
-
-    // Note: Actual comparison is case-insensitive in real code
-    // For this test, we'd need to adjust the component or mock accordingly
   });
 
   it("prevents funding of fully funded invoices", () => {
@@ -426,14 +428,14 @@ describe("Invoice Detail Page Integration Tests", () => {
       },
     });
 
-    vi.mocked(require("@/hooks/useInvoices")).useInvoice = vi.fn(() => ({
+    (useInvoice as any).mockImplementation(() => ({
       data: fullyFundedInvoice,
       isLoading: false,
       error: null,
       dataUpdatedAt: Date.now(),
     }));
 
-    vi.mocked(require("next/navigation").useParams) = vi.fn(() => ({ id: "inv_full_test" }));
+    (useParams as any).mockImplementation(() => ({ id: "inv_full_test" }));
 
     render(
       <QueryClientProvider client={queryClient}>

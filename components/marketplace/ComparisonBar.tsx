@@ -5,49 +5,96 @@
  *
  * Appears when 1+ invoices are in the comparison list. Shows invoice chips
  * with remove buttons and a "Compare" CTA that opens the ComparisonTable.
- * Supports shareable URLs with comparison invoice IDs.
+ * Supports shareable URLs with comparison invoice IDs (?compare=id1,id2,...).
+ * Gated behind the "comparison" feature flag.
  */
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, GitCompareArrows, Share2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { cn } from "@/lib/utils";
+import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
+import { isEnabled } from "@/lib/featureFlags";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 import { ComparisonTable } from "./ComparisonTable";
-import { MAX_COMPARISON } from "@/lib/comparison";
-import { env } from "@/lib/env";
 
 export function ComparisonBar() {
-  const { comparisonList, invoices, removeFromComparison, clearComparison, setComparisonList } =
-    useInvoiceStore();
+  const tInvoiceCard = useTranslations("invoiceCard");
+  const tMarketplace = useTranslations("marketplace");
+  const {
+    comparisonList,
+    invoices,
+    invoicesByTokenId,
+    removeFromComparison,
+    clearComparison,
+    setComparisonList,
+  } = useInvoiceStore();
   const [tableOpen, setTableOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const router = useRouter();
-
-  const comparisonEnabled = env.NEXT_PUBLIC_ENABLE_INVOICE_COMPARISON;
-
-  const selectedInvoices = comparisonList
-    .map((id) => invoices.find((inv) => inv.id === id))
-    .filter(Boolean) as NonNullable<ReturnType<typeof invoices.find>>[];
-
-  // Sync comparison list from URL on mount (shareable links)
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const hydratedFromUrl = useRef(false);
+
+  // ─── Feature flag ────────────────────────────────────────────────────────
+  const isComparisonEnabled = isEnabled("comparison");
+
+  // Hydrate comparison list from shareable URL once
   useEffect(() => {
-    if (!comparisonEnabled) {
-      setComparisonList([]);
-      return;
-    }
+    if (!isComparisonEnabled || hydratedFromUrl.current) return;
+    hydratedFromUrl.current = true;
+
     const compareParam = searchParams.get("compare");
-    if (compareParam) {
-      const ids = compareParam.split(",").filter(Boolean).slice(0, MAX_COMPARISON);
-      setComparisonList(ids);
-      // Auto-open the table when arriving via a share link
-      if (ids.length >= 2) setTableOpen(true);
-    }
+    if (!compareParam) return;
+
+    const ids = compareParam
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, MAX_COMPARISON_INVOICES);
+
+    if (ids.length === 0) return;
+
+    setComparisonList(ids);
+    if (ids.length >= 2) setTableOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [comparisonEnabled, searchParams, setComparisonList]);
+  }, [isComparisonEnabled]);
+
+  // Keep ?compare= in sync with selection for shareable URLs
+  useEffect(() => {
+    if (!isComparisonEnabled || !hydratedFromUrl.current) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    const current = params.get("compare") ?? "";
+    const next = comparisonList.join(",");
+
+    if (comparisonList.length === 0) {
+      if (!params.has("compare")) return;
+      params.delete("compare");
+    } else if (current === next) {
+      return;
+    } else {
+      params.set("compare", next);
+    }
+
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [comparisonList, isComparisonEnabled, pathname, router, searchParams]);
+
+  if (!isComparisonEnabled) return null;
+
+  // Resolve selected invoices from store list + token map (live indexer shape)
+  const invoiceIndex = [
+    ...invoices,
+    ...Object.values(invoicesByTokenId),
+  ];
+  const selectedInvoices = comparisonList
+    .map((id) => invoiceIndex.find((inv) => inv.id === id || inv.tokenId === id))
+    .filter(Boolean) as NonNullable<(typeof invoiceIndex)[number]>[];
 
   const handleShare = async () => {
     const url = new URL(window.location.href);
@@ -57,20 +104,21 @@ export function ComparisonBar() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: update URL without clipboard
       router.replace(`${url.pathname}?${url.searchParams.toString()}`, {
         scroll: false,
       });
     }
   };
 
-  if (!comparisonEnabled || comparisonList.length === 0) return null;
+  if (comparisonList.length === 0) return null;
+
+  // ─── Mobile: show only count + compare button ──────────────────────────
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
 
   return (
     <>
-      {/* Comparison Table Modal */}
       <AnimatePresence>
-        {tableOpen && (
+        {tableOpen && selectedInvoices.length >= 2 && (
           <ComparisonTable
             invoices={selectedInvoices}
             onClose={() => setTableOpen(false)}
@@ -78,33 +126,26 @@ export function ComparisonBar() {
         )}
       </AnimatePresence>
 
-      {/* Fixed Bottom Bar */}
       <motion.div
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 100, opacity: 0 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 backdrop-blur-md shadow-2xl"
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 backdrop-blur-md shadow-2xl pb-[env(safe-area-inset-bottom)]"
         role="region"
         aria-label="Invoice comparison bar"
       >
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3 sm:px-6">
-          {/* Label */}
-          <div className="hidden shrink-0 sm:flex items-center gap-2">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-4 sm:px-6 sm:py-3">
+          <div className="flex shrink-0 items-center gap-2">
             <GitCompareArrows className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">
-              Compare
-            </span>
+            <span className="text-sm font-semibold text-foreground">Compare</span>
             <span className="text-xs text-muted-foreground">
-              ({comparisonList.length}/{MAX_COMPARISON})
-            </span>
-            <span className="sr-only" aria-live="polite">
-              {comparisonList.length} invoices selected for comparison
+              ({comparisonList.length}/{MAX_COMPARISON_INVOICES})
             </span>
           </div>
 
-          {/* Invoice chips */}
-          <div className="flex flex-1 items-center gap-2 overflow-x-auto">
+          {/* ─── Mobile: show chips in horizontal scroll ────────────────── */}
+          <div className="flex flex-1 items-center gap-2 overflow-x-auto pb-0.5">
             {selectedInvoices.map((invoice) => (
               <motion.div
                 key={invoice.id}
@@ -114,8 +155,8 @@ export function ComparisonBar() {
                 exit={{ opacity: 0, scale: 0.8 }}
                 className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border bg-muted/50 px-2.5 py-1.5 text-xs font-medium text-foreground"
               >
-                <span className="max-w-[120px] truncate">
-                  {invoice.metadata.debtorName}
+                <span className="max-w-[80px] truncate sm:max-w-[120px]">
+                  {getMaskedDebtorName(invoice)}
                 </span>
                 <span className="text-primary font-semibold">
                   {invoice.terms.apr.toFixed(1)}%
@@ -123,27 +164,41 @@ export function ComparisonBar() {
                 <button
                   onClick={() => removeFromComparison(invoice.id)}
                   className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  aria-label={`Remove ${invoice.metadata.debtorName} from comparison`}
+                  aria-label={tInvoiceCard("removeFromCompare", { debtor: getMaskedDebtorName(invoice) })}
                 >
                   <X className="h-3 w-3" />
                 </button>
               </motion.div>
             ))}
 
-            {/* Empty slots */}
-            {Array.from({ length: MAX_COMPARISON - comparisonList.length }).map(
-              (_, i) => (
-                <div
-                  key={`empty-${i}`}
-                  className="flex shrink-0 items-center justify-center rounded-lg border border-dashed border-border/50 px-4 py-1.5 text-xs text-muted-foreground/50"
-                >
-                  + Add
-                </div>
+            {/* IDs not yet resolved from live data */}
+            {comparisonList
+              .filter(
+                (id) =>
+                  !selectedInvoices.some((inv) => inv.id === id || inv.tokenId === id)
               )
-            )}
+              .map((id) => (
+                <div
+                  key={id}
+                  className="flex shrink-0 items-center rounded-lg border border-dashed border-border/60 px-2.5 py-1.5 text-xs text-muted-foreground"
+                >
+                  Loading {id.slice(0, 8)}…
+                </div>
+              ))}
+
+            {/* Empty slots - hidden on mobile */}
+            {Array.from({
+              length: Math.max(0, MAX_COMPARISON_INVOICES - comparisonList.length),
+            }).map((_, i) => (
+              <div
+                key={`empty-${i}`}
+                className="hidden sm:flex shrink-0 items-center justify-center rounded-lg border border-dashed border-border/50 px-4 py-1.5 text-xs text-muted-foreground/50"
+              >
+                + Add
+              </div>
+            ))}
           </div>
 
-          {/* Actions */}
           <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={handleShare}
@@ -155,38 +210,38 @@ export function ComparisonBar() {
               ) : (
                 <Share2 className="h-3.5 w-3.5" />
               )}
-              <span className="hidden sm:inline">
-                {copied ? "Copied!" : "Share"}
-              </span>
+              <span className="hidden sm:inline">{copied ? "Copied!" : "Share"}</span>
             </button>
 
-            <button
-              onClick={clearComparison}
-              className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-              aria-label="Clear all comparisons"
-            >
-              Clear
-            </button>
+            {!isMobile && (
+              <button
+                onClick={clearComparison}
+                className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                aria-label="Clear all comparisons"
+              >
+                {tMarketplace("clear")}
+              </button>
+            )}
 
             <Button
               size="sm"
               onClick={() => setTableOpen(true)}
-              disabled={comparisonList.length < 2}
+              disabled={selectedInvoices.length < 2}
               className={cn(
                 "gap-1.5",
-                comparisonList.length < 2 && "opacity-50 cursor-not-allowed"
+                selectedInvoices.length < 2 && "opacity-50 cursor-not-allowed"
               )}
               aria-label={
-                comparisonList.length < 2
+                selectedInvoices.length < 2
                   ? "Select at least 2 invoices to compare"
                   : "Open comparison table"
               }
             >
               <GitCompareArrows className="h-3.5 w-3.5" />
               Compare
-              {comparisonList.length >= 2 && (
+              {selectedInvoices.length >= 2 && (
                 <span className="ml-0.5 rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] font-bold">
-                  {comparisonList.length}
+                  {selectedInvoices.length}
                 </span>
               )}
             </Button>

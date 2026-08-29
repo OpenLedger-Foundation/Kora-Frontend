@@ -1,10 +1,24 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
 
+export type WalletAssetType = "native" | "credit";
+
+export interface WalletAssetConfig {
+  symbol: string;
+  type: WalletAssetType;
+  code?: string;
+  issuer?: string;
+  decimals?: number;
+  lowBalanceThreshold?: number;
+}
+
 export const TESTNET_USDC_ISSUER =
   "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
 export const TESTNET_EURC_ISSUER =
   "GBBD47IF6Q4X3GQ6J3KQW7R4Z5H7L7O2N6B4V6K3QG5N5YJQ5A6L7ABC";
 
+/**
+ * Stellar asset objects + trustline helpers for onboarding flows (EURC/USDC).
+ */
 export const WALLET_ASSETS = {
   usdc: {
     code: "USDC",
@@ -19,6 +33,37 @@ export const WALLET_ASSETS = {
     asset: new StellarSdk.Asset("EURC", TESTNET_EURC_ISSUER),
   },
 } as const;
+
+/**
+ * Default asset list shown in the wallet balance panel.
+ *
+ * There is no existing asset config in the repo yet, so this keeps the
+ * supported balances in one place rather than re-hardcoding them in hooks/UI.
+ */
+export const DEFAULT_WALLET_ASSETS: readonly WalletAssetConfig[] = [
+  {
+    symbol: "XLM",
+    type: "native",
+    decimals: 2,
+  },
+  {
+    symbol: "USDC",
+    type: "credit",
+    code: "USDC",
+    issuer: TESTNET_USDC_ISSUER,
+    decimals: 2,
+    lowBalanceThreshold: 100,
+  },
+  {
+    symbol: "EURC",
+    type: "credit",
+    code: "EURC",
+    issuer: TESTNET_EURC_ISSUER,
+    decimals: 2,
+  },
+];
+
+export const DEFAULT_FUNDING_ASSET_SYMBOL = "USDC";
 
 export function getAssetBalance(
   balances: Array<{ code: string; issuer?: string; balance: string }>,

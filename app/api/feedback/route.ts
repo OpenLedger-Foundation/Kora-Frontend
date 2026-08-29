@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 export interface FeedbackPayload {
   type: "bug" | "feature" | "other";
@@ -23,6 +24,9 @@ export interface FeedbackPayload {
  * GITHUB_FEEDBACK_REPO format: "owner/repo"
  */
 export async function POST(req: NextRequest): Promise<NextResponse> {
+  const csrfError = verifyCsrf(req);
+  if (csrfError) return csrfError;
+
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const body = (await req.json()) as FeedbackPayload;

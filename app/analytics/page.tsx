@@ -1,26 +1,57 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+const YieldVarianceChart = dynamic(() => import("@/components/analytics/YieldVarianceChart"), {
+  ssr: false,
+});
+
 const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCharts"), {
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
-import { TrendingUp, DollarSign, BarChart3, Shield, Download } from "lucide-react";
+
+const YieldProjectionCalculator = dynamic(
+  () =>
+    import("@/components/dashboard/YieldProjectionCalculator").then(
+      (mod) => mod.YieldProjectionCalculator
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[400px] w-full animate-pulse rounded-xl border border-zinc-800 bg-zinc-950/50" />
+    ),
+  }
+);
+import { BarChart3, DollarSign, TrendingUp, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
-import { AnalyticsControls } from "@/components/analytics/AnalyticsControls";
 import { useWallet } from "@/hooks/useWallet";
-import { useUIStore } from "@/store";
+import { useFormatters } from "@/hooks/useFormatters";
+import { usePositions } from "@/hooks/usePositions";
+import { buildDigestDocument, buildDigestMailto, digestFilename } from "@/lib/portfolioDigest";
+import { renderDigestPdf } from "@/lib/portfolioDigestPdf";
+import {
+  useUIStore,
+  useInvoiceStore,
+  DEFAULT_FILTERS as MARKETPLACE_DEFAULT_FILTERS,
+} from "@/store";
 import { Button } from "@/components/ui/button";
+import { useTranslations } from "next-intl";
 import { PrintButton, PrintLayout } from "@/components/ui/print-layout";
-import { formatCurrency } from "@/lib/utils";
 import { exportCsv, exportPdf } from "@/lib/export";
+import { VintageCohortTable } from "@/components/analytics/VintageCohortTable";
+import {
+  PORTFOLIO_EXPORT_HEADERS,
+  filterPositionsForExport,
+  positionsToExportRows,
+  portfolioExportFilename,
+  portfolioPdfFilename,
+  resolveDateRangeBounds,
+} from "@/lib/portfolioExport";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { cn } from "@/lib/utils";
 import {
   AnalyticsFilterBar,
   DEFAULT_FILTERS,
@@ -30,89 +61,40 @@ import {
   type CategoryFilter,
 } from "@/components/analytics/AnalyticsFilterBar";
 import type { PresetRange } from "@/components/analytics/DateRangePicker";
-
-// ── Mock analytics data ────────────────────────────────────────────────────────
-
-const PORTFOLIO_HISTORY = [
-  { month: "Jun", value: 0 },
-  { month: "Jul", value: 25000 },
-  { month: "Aug", value: 48000 },
-  { month: "Sep", value: 72000 },
-  { month: "Oct", value: 115000 },
-  { month: "Nov", value: 170000 },
-];
-
-const YIELD_HISTORY = [
-  { month: "Jun", yield: 0 },
-  { month: "Jul", yield: 420 },
-  { month: "Aug", yield: 890 },
-  { month: "Sep", yield: 1540 },
-  { month: "Oct", yield: 2800 },
-  { month: "Nov", yield: 4200 },
-];
-
-const RISK_DISTRIBUTION = [
-  { name: "AAA", value: 30, color: "#34d399" },
-  { name: "AA", value: 45, color: "#14b8a6" },
-  { name: "A", value: 20, color: "#22d3ee" },
-  { name: "BBB", value: 5, color: "#fbbf24" },
-];
-
-const MONTHLY_RETURNS = [
-  { month: "Jun", return: 0 },
-  { month: "Jul", return: 1.68 },
-  { month: "Aug", return: 1.85 },
-  { month: "Sep", return: 2.14 },
-  { month: "Oct", return: 2.43 },
-  { month: "Nov", return: 2.47 },
-];
-
-const toCsvRows = <T extends object>(rows: T[]): Record<string, unknown>[] =>
-  rows.map((row) => Object.fromEntries(Object.entries(row)));
-
-const STATS = [
-  {
-    label: "Total Deployed",
-    value: formatCurrency(170000, "USDC", true),
-    valueRaw: 170000,
-    change: "↑ $55K this month",
-    changePositive: true,
-    icon: <DollarSign className="h-4 w-4" />,
-  },
-  {
-    label: "Total Yield Earned",
-    value: formatCurrency(4200, "USDC", true),
-    valueRaw: 4200,
-    change: "2.47% avg monthly",
-    changePositive: true,
-    icon: <TrendingUp className="h-4 w-4" />,
-  },
-  {
-    label: "Annualised Return",
-    value: "29.6%",
-    change: "vs 4.2% T-bill",
-    changePositive: true,
-    icon: <BarChart3 className="h-4 w-4" />,
-  },
-  {
-    label: "Default Rate",
-    value: "0.0%",
-    valueRaw: 0,
-    change: "All-time",
-    changePositive: true,
-    icon: <Shield className="h-4 w-4" />,
-  },
-];
+import {
+  aggregatePositions,
+  buildPortfolioTimeSeries,
+  marketplacePathForAllocation,
+  allocationToMarketplaceFilters,
+} from "@/lib/portfolioAllocation";
 
 // ── URL ↔ filter helpers ───────────────────────────────────────────────────────
 
 function filtersFromParams(params: URLSearchParams): AnalyticsFilters {
-  return {
+  const dateRange = (params.get("range") as PresetRange | "custom") ?? DEFAULT_FILTERS.dateRange;
+  const fromStr = params.get("from");
+  const toStr = params.get("to");
+
+  const result: AnalyticsFilters = {
     riskTier: (params.get("risk") as RiskTierFilter) ?? DEFAULT_FILTERS.riskTier,
-    jurisdiction: (params.get("jurisdiction") as JurisdictionFilter) ?? DEFAULT_FILTERS.jurisdiction,
+    jurisdiction:
+      (params.get("jurisdiction") as JurisdictionFilter) ?? DEFAULT_FILTERS.jurisdiction,
     category: (params.get("category") as CategoryFilter) ?? DEFAULT_FILTERS.category,
-    dateRange: (params.get("range") as PresetRange | "custom") ?? DEFAULT_FILTERS.dateRange,
+    dateRange,
   };
+
+  if (dateRange === "custom" && fromStr && toStr) {
+    const from = new Date(fromStr);
+    const to = new Date(toStr);
+    if (!isNaN(from.getTime()) && !isNaN(to.getTime()) && from <= to) {
+      result.customDateRange = { from, to };
+    } else {
+      // Invalid custom range — fall back to default
+      result.dateRange = DEFAULT_FILTERS.dateRange;
+    }
+  }
+
+  return result;
 }
 
 function filtersToParams(filters: AnalyticsFilters): URLSearchParams {
@@ -120,27 +102,39 @@ function filtersToParams(filters: AnalyticsFilters): URLSearchParams {
   if (filters.riskTier !== "all") p.set("risk", filters.riskTier);
   if (filters.jurisdiction !== "all") p.set("jurisdiction", filters.jurisdiction);
   if (filters.category !== "all") p.set("category", filters.category);
-  if (filters.dateRange !== "30d") p.set("range", filters.dateRange);
+  if (filters.dateRange !== DEFAULT_FILTERS.dateRange) p.set("range", filters.dateRange);
+  if (
+    filters.dateRange === "custom" &&
+    filters.customDateRange?.from &&
+    filters.customDateRange?.to
+  ) {
+    const from = filters.customDateRange.from;
+    const to = filters.customDateRange.to;
+    if (from > to) {
+      // Invalid range — don't persist
+      return p;
+    }
+    p.set("from", from.toISOString().split("T")[0]);
+    p.set("to", to.toISOString().split("T")[0]);
+  }
   return p;
-}
-
-// ── Slice helpers (mock — in real app filter by actual data timestamps/fields) ─
-
-function sliceByRange<T>(data: T[], range: PresetRange | "custom"): T[] {
-  const counts: Record<string, number> = { "7d": 1, "30d": 2, "90d": 4, ytd: 5, all: 6, custom: 6 };
-  return data.slice(-(counts[range] ?? 6));
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function PortfolioAnalyticsPage() {
-  const { isConnected } = useWallet();
+function PortfolioAnalyticsInner() {
+  const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
+  const { setFilters, resetFilters } = useInvoiceStore();
+  const t = useTranslations("analytics");
+  const tCommon = useTranslations("common");
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [range, setRange] = useState<"7d" | "30d" | "90d" | "all">("30d");
-  const [isLoading, setIsLoading] = useState(false);
 
+  // Single positionsQuery — refetch every 30 s while tab is visible
+  const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
+
+  const { formatCurrency, formatPercentage } = useFormatters();
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
   const handleFiltersChange = useCallback(
@@ -152,56 +146,178 @@ export default function PortfolioAnalyticsPage() {
     [router]
   );
 
-  // Slice data based on active filters
-  const portfolio = useMemo(() => sliceByRange(PORTFOLIO_HISTORY, filters.dateRange), [filters.dateRange]);
-  const yieldData = useMemo(() => sliceByRange(YIELD_HISTORY, filters.dateRange), [filters.dateRange]);
-  const risk = useMemo(() => {
-    if (filters.riskTier === "all") return RISK_DISTRIBUTION;
-    return RISK_DISTRIBUTION.filter((d) => d.name === filters.riskTier);
-  }, [filters.riskTier]);
-  const monthly = useMemo(() => sliceByRange(MONTHLY_RETURNS, filters.dateRange), [filters.dateRange]);
+  const handleRiskSegmentClick = useCallback(
+    (riskTier: string) => {
+      const allocationFilter = { dimension: "riskTier" as const, value: riskTier };
+      resetFilters();
+      setFilters({
+        ...MARKETPLACE_DEFAULT_FILTERS,
+        ...allocationToMarketplaceFilters(allocationFilter),
+      });
+      router.push(marketplacePathForAllocation(allocationFilter));
+    },
+    [resetFilters, setFilters, router]
+  );
 
-  const handleExport = useCallback((type: "portfolio" | "yield" | "risk" | "monthly") => {
-    let data, filename;
-    switch (type) {
-      case "portfolio":
-        data = portfolio;
-        filename = `kora-portfolio-${range}-${Date.now()}.csv`;
-        break;
-      case "yield":
-        data = yieldData;
-        filename = `kora-yield-${range}-${Date.now()}.csv`;
-        break;
-      case "risk":
-        data = risk;
-        filename = `kora-risk-${range}-${Date.now()}.csv`;
-        break;
-      case "monthly":
-        data = monthly;
-        filename = `kora-returns-${range}-${Date.now()}.csv`;
-        break;
+  const positionsData = useMemo(() => positionsQuery.data ?? [], [positionsQuery.data]);
+  const filteredPositions = useMemo(
+    () => filterPositionsForExport(positionsData, filters),
+    [positionsData, filters]
+  );
+  const exportRows = useMemo(() => positionsToExportRows(filteredPositions), [filteredPositions]);
+  const hasExportData = exportRows.length > 0;
+
+  // ── PDF digest (#602) ─────────────────────────────────────────────────────
+  const [isGeneratingDigest, setIsGeneratingDigest] = useState(false);
+
+  // Composed from the *unfiltered* list plus the active filters:
+  // `buildDigestDocument` re-applies them, so the digest provably reflects
+  // the same rows the page is showing. Shared by the PDF and mailto actions
+  // so both read from one source of truth.
+  const buildDigest = useCallback(
+    () =>
+      buildDigestDocument({
+        positions: positionsData,
+        filters,
+        formatCurrency: (value) => formatCurrency(value, "USDC"),
+        formatPercent: (value) => formatPercentage(value, 2),
+      }),
+    [positionsData, filters, formatCurrency, formatPercentage]
+  );
+
+  const handleDownloadDigest = useCallback(async () => {
+    setIsGeneratingDigest(true);
+    try {
+      await renderDigestPdf(buildDigest(), { filename: digestFilename() });
+    } catch (error) {
+      console.error("[analytics] digest generation failed", error);
+    } finally {
+      setIsGeneratingDigest(false);
     }
+  }, [buildDigest]);
 
-    // Convert to CSV
-    const headers = Object.keys(data[0] || {});
-    const csv = [
-      headers.join(","),
-      ...data.map((row: any) => headers.map((h) => row[h]).join(",")),
-    ].join("\n");
+  // Issue #710: mailto share for advisors/forwarding — summary stats only,
+  // no position-level rows (see buildDigestMailto's doc comment for why).
+  const handleShareDigest = useCallback(() => {
+    window.location.href = buildDigestMailto(buildDigest(), (value) =>
+      formatCurrency(value, "USDC")
+    );
+  }, [buildDigest, formatCurrency]);
 
-    // Download
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [portfolio, yieldData, risk, monthly, range]);
+  // The same filtered live positions drive the charts, table, and exports.
+  // Explicit mock mode is handled by usePositions; an empty live portfolio
+  // produces a zero baseline instead of fabricated growth.
+  const { portfolio, yieldData, monthly } = useMemo(() => {
+    const { from, to } = resolveDateRangeBounds(
+      filters.dateRange,
+      filters.customDateRange
+    );
+    return buildPortfolioTimeSeries(filteredPositions, to ?? from ?? new Date());
+  }, [filteredPositions, filters.dateRange, filters.customDateRange]);
+  const risk = useMemo(() => {
+    const slices = aggregatePositions(filteredPositions, "riskTier").map((s) => ({
+      name: s.name,
+      value: Math.round(s.percent * 10) / 10,
+      color: s.color,
+    }));
+    if (filters.riskTier === "all") return slices;
+    return slices.filter((d) => d.name === filters.riskTier);
+  }, [filteredPositions, filters.riskTier]);
+  const totalInvested = filteredPositions.reduce(
+    (sum, position) => sum + position.investedAmount,
+    0
+  );
+  const totalExpected = filteredPositions.reduce(
+    (sum, position) => sum + position.expectedReturn,
+    0
+  );
+  const totalYield = totalExpected - totalInvested;
+  const averageApr = filteredPositions.length
+    ? filteredPositions.reduce((sum, position) => sum + (position.invoice?.terms.apr ?? 0), 0) /
+      filteredPositions.length
+    : 0;
 
-  const handleReset = useCallback(() => {
-    setRange("30d");
-  }, []);
+  const defaultTier = useMemo(() => {
+    const RISK_TIERS_LIST = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
+    const validPositions = filteredPositions.filter(
+      (p) => p.invoice?.riskTier && RISK_TIERS_LIST.includes(p.invoice.riskTier)
+    );
+    if (validPositions.length === 0) {
+      return "A";
+    }
+    let totalWeight = 0;
+    let weightedSum = 0;
+    for (const pos of validPositions) {
+      const tier = pos.invoice!.riskTier!;
+      const weight = pos.investedAmount;
+      const index = RISK_TIERS_LIST.indexOf(tier);
+      weightedSum += index * weight;
+      totalWeight += weight;
+    }
+    if (totalWeight === 0) return "A";
+    const avgIndex = Math.round(weightedSum / totalWeight);
+    return RISK_TIERS_LIST[avgIndex] || "A";
+  }, [filteredPositions]);
+
+  const stats = [
+    {
+      label: "Portfolio Value",
+      value: formatCurrency(totalInvested, "USDC", true),
+      change: `${filteredPositions.length} ${filteredPositions.length === 1 ? "position" : "positions"}`,
+      changePositive: true,
+      icon: <DollarSign className="h-4 w-4" />,
+    },
+    {
+      label: "Expected Yield",
+      value: formatCurrency(totalYield, "USDC", true),
+      change:
+        totalInvested > 0
+          ? `${formatPercentage((totalYield / totalInvested) * 100, 1)} return`
+          : "0.0% return",
+      changePositive: true,
+      icon: <TrendingUp className="h-4 w-4" />,
+    },
+    {
+      label: "Active Positions",
+      value: filteredPositions.length.toString(),
+      icon: <BarChart3 className="h-4 w-4" />,
+    },
+    {
+      label: "Avg. APR",
+      value: `${averageApr.toFixed(1)}%`,
+      change: "Across filtered positions",
+      changePositive: true,
+      icon: <Shield className="h-4 w-4" />,
+    },
+  ];
+
+  const handleExportCsv = useCallback(() => {
+    if (!hasExportData) return;
+    exportCsv(exportRows as Record<string, unknown>[], portfolioExportFilename(), [
+      ...PORTFOLIO_EXPORT_HEADERS,
+    ]);
+  }, [exportRows, hasExportData]);
+
+  /**
+   * Issue #605: cohorts export on their own axis. They are one row per month,
+   * not per position, so they cannot share the position CSV's headers.
+   */
+  const handleExportCohorts = useCallback(
+    (rows: Array<Record<string, string | number>>) => {
+      if (rows.length === 0) return;
+      exportCsv(
+        rows as Record<string, unknown>[],
+        portfolioExportFilename().replace(/\.csv$/, "-vintage-cohorts.csv"),
+        Object.keys(rows[0])
+      );
+    },
+    []
+  );
+
+  const handleExportPdf = useCallback(() => {
+    if (!hasExportData) return;
+    void exportPdf("analytics-report", portfolioPdfFilename());
+  }, [hasExportData]);
 
   if (!isConnected) {
     return (
@@ -213,12 +329,10 @@ export default function PortfolioAnalyticsPage() {
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
           <BarChart3 className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h2 className="text-2xl font-semibold text-foreground">Connect your wallet</h2>
-        <p className="max-w-sm text-sm text-muted-foreground">
-          View your portfolio analytics, performance metrics, and investment data
-        </p>
+        <h2 className="text-2xl font-semibold text-foreground">{t("connectTitle")}</h2>
+        <p className="max-w-sm text-sm text-muted-foreground">{t("connectDesc")}</p>
         <Button onClick={() => setWalletModalOpen(true)} className="mt-4">
-          <span>Connect Wallet</span>
+          <span>{tCommon("connectWallet")}</span>
         </Button>
       </motion.div>
     );
@@ -226,41 +340,79 @@ export default function PortfolioAnalyticsPage() {
 
   return (
     <ErrorBoundary>
-      <PrintLayout title="Kora Portfolio Analytics" subtitle="Invoice financing portfolio performance">
+      <PrintLayout
+        title="Kora Portfolio Analytics"
+        subtitle="Invoice financing portfolio performance"
+      >
         <div id="analytics-report" className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
           {/* Header */}
           <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-zinc-100">Portfolio Analytics</h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                Performance overview of your invoice financing portfolio
-              </p>
+              <h1 className="text-2xl font-bold text-zinc-100">{t("title")}</h1>
+              <p className="mt-1 text-sm text-zinc-500">{t("subtitle")}</p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
               <button
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors"
-                onClick={() => exportCsv(portfolio as any, "kora-portfolio.csv")}
+                type="button"
+                disabled={!hasExportData}
+                aria-disabled={!hasExportData}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleExportCsv}
               >
                 Export CSV
               </button>
               <button
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 hover:bg-zinc-700 transition-colors"
-                onClick={() => exportPdf("analytics-report", `kora-analytics-${new Date().toISOString().split("T")[0]}`)}
+                type="button"
+                disabled={!hasExportData}
+                aria-disabled={!hasExportData}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleExportPdf}
               >
                 Export PDF
+              </button>
+              {/*
+                PDF digest (#602) — distinct from "Export PDF", which
+                screenshots this page. The digest is a branded, text-based
+                summary of the filtered portfolio with sensitive columns
+                redacted, meant to be filed or forwarded.
+              */}
+              <button
+                type="button"
+                disabled={!hasExportData || isGeneratingDigest}
+                aria-disabled={!hasExportData || isGeneratingDigest}
+                aria-label="Download portfolio PDF digest"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleDownloadDigest}
+              >
+                {isGeneratingDigest ? "Generating…" : "PDF Digest"}
+              </button>
+              {/*
+                Issue #710: one-click mailto for forwarding the digest summary
+                to an advisor — the PDF itself stays on-device, this only
+                opens the user's mail client with the summary pre-filled.
+              */}
+              <button
+                type="button"
+                disabled={!hasExportData}
+                aria-disabled={!hasExportData}
+                aria-label="Share portfolio digest via email"
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800"
+                onClick={handleShareDigest}
+              >
+                Share via Email
               </button>
               <PrintButton />
             </div>
           </div>
 
-          {/* Filter bar */}
+          {/* Filter bar — changes push new URL params, charts re-slice instantly */}
           <div className="mb-6 print:hidden">
             <AnalyticsFilterBar filters={filters} onChange={handleFiltersChange} />
           </div>
 
-          {/* Stats */}
-          <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {STATS.map((stat, i) => (
+          {/* Stat cards */}
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 12 }}
@@ -272,16 +424,91 @@ export default function PortfolioAnalyticsPage() {
             ))}
           </div>
 
+          {/* Yield Projection Calculator */}
+          <div className="mb-6 print-hidden">
+            <YieldProjectionCalculator defaultTier={defaultTier} />
+          </div>
+
           {/* Charts */}
           <AnalyticsCharts
             portfolio={portfolio}
             yieldData={yieldData}
             monthly={monthly}
             risk={risk}
+            isLoading={positionsQuery.isLoading}
+            onRiskSegmentClick={handleRiskSegmentClick}
+            positions={filteredPositions}
           />
+
+          {/* Issue #605: cohorts are built from the *filtered* positions, so the
+              vintage view respects the same date-range and risk filters as every
+              other panel on this page. */}
+          <VintageCohortTable
+            className="mt-10 rounded-xl border border-zinc-800 p-4"
+            positions={filteredPositions}
+            onExport={handleExportCohorts}
+          />
+
+          {/* Filtered positions — included in PDF/print layout */}
+          <section
+            id="portfolio-export-table"
+            className="mt-10 overflow-hidden rounded-xl border border-zinc-800"
+            aria-label="Filtered portfolio positions"
+          >
+            <div className="border-b border-zinc-800 px-4 py-3">
+              <h2 className="text-sm font-semibold text-zinc-100">
+                Positions ({filteredPositions.length})
+              </h2>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Live positions matching the active filters
+              </p>
+            </div>
+            {hasExportData ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left text-xs">
+                  <thead className="bg-zinc-900/80 text-zinc-400">
+                    <tr>
+                      {PORTFOLIO_EXPORT_HEADERS.map((header) => (
+                        <th key={header} className="px-3 py-2 font-medium">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {exportRows.map((row) => (
+                      <tr
+                        key={`${row["Invoice ID"]}-${row["Transaction Hash"]}`}
+                        className="border-t border-zinc-800/80 text-zinc-200"
+                      >
+                        {PORTFOLIO_EXPORT_HEADERS.map((header) => (
+                          <td key={header} className="px-3 py-2 font-mono tabular-nums">
+                            {row[header] === "" ? "—" : String(row[header])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="px-4 py-8 text-center text-sm text-zinc-500">
+                No positions match the current filters.
+              </p>
+            )}
+          </section>
         </div>
       </PrintLayout>
-
     </ErrorBoundary>
+  );
+}
+
+import { Suspense } from "react";
+
+export default function PortfolioAnalyticsPage() {
+  return (
+    <Suspense fallback={<AnalyticsSkeleton />}>
+      <PortfolioAnalyticsInner />
+    </Suspense>
   );
 }

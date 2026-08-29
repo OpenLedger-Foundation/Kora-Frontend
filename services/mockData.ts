@@ -73,6 +73,7 @@ export function generateMockInvoices(count = 50, seed = 42): Invoice[] {
       },
       riskTier: pick(rng, riskTiers) as any,
       riskScore: Math.round(30 + rng() * 70),
+      debtorPrivacy: "full",
       status: pick(rng, statuses) as any,
       createdAt: new Date(Date.now() - Math.round(rng() * 90) * 24 * 3600 * 1000).toISOString(),
       updatedAt: new Date().toISOString(),
@@ -303,11 +304,11 @@ export const MOCK_INVOICES: Invoice[] = [
       repaymentDate: "2025-03-10",
     },
     funding: {
-      totalRaised: 33120,
+      totalRaised: 0,
       targetAmount: 110400,
-      fundingProgress: 0.3,
-      investorCount: 5,
-      remainingCapacity: 77280,
+      fundingProgress: 0,
+      investorCount: 0,
+      remainingCapacity: 110400,
     },
     riskTier: "BBB",
     riskScore: 62,
@@ -315,7 +316,7 @@ export const MOCK_INVOICES: Invoice[] = [
     status: "listed",
     createdAt: "2024-11-12T12:00:00Z",
     updatedAt: "2024-11-18T09:10:00Z",
-    ownerAddress: "GDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    ownerAddress: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
   },
   {
     id: "inv_004",
@@ -394,11 +395,11 @@ export const MOCK_INVOICES: Invoice[] = [
       repaymentDate: "2025-04-01",
     },
     funding: {
-      totalRaised: 71625,
+      totalRaised: 0,
       targetAmount: 716250,
-      fundingProgress: 0.1,
-      investorCount: 3,
-      remainingCapacity: 644625,
+      fundingProgress: 0,
+      investorCount: 0,
+      remainingCapacity: 716250,
     },
     riskTier: "A",
     riskScore: 74,
@@ -406,8 +407,24 @@ export const MOCK_INVOICES: Invoice[] = [
     status: "listed",
     createdAt: "2024-11-03T09:00:00Z",
     updatedAt: "2024-11-19T13:30:00Z",
-    ownerAddress: "GFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+    ownerAddress: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
   },
+  ...generateMockInvoices(95, 999).map((inv, idx) => {
+    const num = idx + 6;
+    return {
+      ...inv,
+      id: `inv_${String(num).padStart(3, "0")}`,
+      tokenId: String(num),
+      metadata: {
+        ...inv.metadata,
+        invoiceNumber: `INV-2025-${1000 + num}`,
+        issuerName: `SME ${num}`,
+        issuerAddress: `ADDR_${num}`,
+        debtorName: `Debtor ${num}`,
+        debtorAddress: `Debtor Address ${num}`,
+      },
+    };
+  }),
 ];
 export const MOCK_SMES = generateSMEProfiles(10, MOCK_INVOICES, 222);
 export const MOCK_INVESTORS = generateInvestorProfiles(10, MOCK_INVOICES, 333);

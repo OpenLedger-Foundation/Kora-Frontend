@@ -6,11 +6,10 @@ import {
   calculateAPR,
   calculateRiskAdjustedReturn,
   getAPRColor,
-  formatApr,
-  formatCurrency,
 } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface APRDisplayProps {
   discountRate: number; // As decimal, e.g., 0.05 for 5%
@@ -34,6 +33,7 @@ export function APRDisplay({
   showRiskAdjusted = false,
   size = "md",
 }: APRDisplayProps) {
+  const { formatApr, formatCurrency, formatPercentage } = useFormatters();
   const apr = calculateAPR(discountRate, daysToMaturity);
   const riskAdjustedApr = riskTier ? calculateRiskAdjustedReturn(apr, riskTier) : apr;
   const displayApr = showRiskAdjusted ? riskAdjustedApr : apr;
@@ -50,7 +50,7 @@ export function APRDisplay({
         APR = (discount / financing amount) × (365 / days to maturity) × 100
       </p>
       <div className="border-t border-border pt-1.5 text-[11px] space-y-0.5">
-        <div>Discount rate: <span className="font-semibold">{(discountRate * 100).toFixed(2)}%</span></div>
+        <div>Discount rate: <span className="font-semibold">{formatPercentage(discountRate * 100, 2)}</span></div>
         {discountAmt != null && (
           <div>Discount amount: <span className="font-semibold">{formatCurrency(discountAmt, "USDC")}</span></div>
         )}

@@ -35,8 +35,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+import { ContractEventSubscriber } from "@/components/marketplace/ContractEventSubscriber";
+
 import { ConnectWalletGuard } from "@/components/layout/ConnectWalletGuard";
 
 export default function SMEDashboardLayout({ children }: { children: React.ReactNode }) {
-  return <ConnectWalletGuard>{children}</ConnectWalletGuard>;
+  return (
+    <ConnectWalletGuard>
+      <ContractEventSubscriber />
+      {children}
+    </ConnectWalletGuard>
+  );
 }

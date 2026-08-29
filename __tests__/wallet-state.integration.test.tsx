@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, renderHook } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createMockInvoice, mockWalletConnected, mockWalletDisconnected } from "./fixtures";
@@ -35,8 +35,17 @@ let mockWalletState = mockWalletConnected;
 // Mock transaction state - mutable for testing
 let mockTransactionState = { status: "idle" as const, txHash: null, error: null };
 
+const mockSetWalletModalOpen = vi.fn();
+
 vi.mock("@/hooks/useWallet", () => ({
   useWallet: vi.fn(() => mockWalletState),
+  useNetworkValidation: vi.fn((targetNetwork?: string) => {
+    const expectedNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet";
+    const isNetworkMismatch = Boolean(
+      targetNetwork && targetNetwork.toLowerCase() !== expectedNetwork.toLowerCase()
+    );
+    return { expectedNetwork, isNetworkMismatch };
+  }),
 }));
 
 vi.mock("@/hooks/useTransaction", () => ({
@@ -65,29 +74,37 @@ vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("Not found"); },
 }));
 
-const mockSetWalletModalOpen = vi.fn();
-
-vi.mock("@/store", () => ({
-  useUIStore: vi.fn(() => ({
-    setWalletModalOpen: mockSetWalletModalOpen,
-  })),
-  useInvoiceStore: {
-    getState: vi.fn(() => ({
-      updateInvoiceFunding: vi.fn(),
+vi.mock("@/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/store")>();
+  return {
+    ...actual,
+    useUIStore: vi.fn(() => ({
+      setWalletModalOpen: mockSetWalletModalOpen,
     })),
-  },
-}));
+    useInvoiceStore: {
+      getState: vi.fn(() => ({
+        updateInvoiceFunding: vi.fn(),
+      })),
+    },
+  };
+});
 
 vi.mock("@/services/invoiceService", () => ({
   prepareFundInvoice: vi.fn(async () => "mock_xdr"),
 }));
 
+import { useWallet } from "@/hooks/useWallet";
+import { useTransaction } from "@/hooks/useTransaction";
+import { useInvoice } from "@/hooks/useInvoices";
+import { useUIStore, useWalletStore } from "@/store";
+import { prepareFundInvoice } from "@/services/invoiceService";
+
 // Test component
 const WalletStateTest = () => {
-  const { isConnected, address } = require("@/hooks/useWallet")();
-  const { setWalletModalOpen } = require("@/store").useUIStore();
-  const { execute } = require("@/hooks/useTransaction")();
-  const { data: invoice } = require("@/hooks/useInvoices").useInvoice("inv_wallet_test");
+  const { isConnected, address } = useWallet();
+  const { setWalletModalOpen } = useUIStore();
+  const { execute } = useTransaction();
+  const { data: invoice } = useInvoice("inv_wallet_test");
   const [amount, setAmount] = React.useState("10000");
   const [fundingInProgress, setFundingInProgress] = React.useState(false);
   const [lastError, setLastError] = React.useState<string | null>(null);
@@ -106,8 +123,7 @@ const WalletStateTest = () => {
     setLastError(null);
 
     try {
-      const { prepareFundInvoice } = require("@/services/invoiceService");
-      const xdr = await prepareFundInvoice(invoice.tokenId, parseFloat(amount), address);
+      const xdr = await prepareFundInvoice(invoice.tokenId, parseFloat(amount), address!);
       await execute(() => Promise.resolve(xdr));
     } catch (error: any) {
       setLastError(error.message);
@@ -304,7 +320,7 @@ describe("Wallet and Transaction State Integration Tests", () => {
     it("displays error message on transaction failure", async () => {
       const user = userEvent.setup();
 
-      vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
+      (useTransaction as any).mockImplementation(() => ({
         state: mockTransactionState,
         execute: vi.fn(async () => {
           throw new Error("Transaction rejected");
@@ -329,7 +345,7 @@ describe("Wallet and Transaction State Integration Tests", () => {
       const user = userEvent.setup();
       let shouldFail = true;
 
-      vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
+      (useTransaction as any).mockImplementation(() => ({
         state: mockTransactionState,
         execute: vi.fn(async () => {
           if (shouldFail) {
@@ -410,6 +426,8 @@ describe("Wallet and Transaction State Integration Tests", () => {
 
   describe("Wallet Connection Flow", () => {
     it("transitions from disconnected to connected state", () => {
+      mockWalletState = mockWalletDisconnected;
+
       const { rerender } = render(
         <QueryClientProvider client={queryClient}>
           <WalletStateTest />
@@ -460,7 +478,6 @@ describe("Wallet and Transaction State Integration Tests", () => {
 
   describe("Balance Display", () => {
     it("displays wallet balance when connected", () => {
-      // Could be extended to show balance display in component
       mockWalletState = mockWalletConnected;
 
       render(
@@ -483,6 +500,53 @@ describe("Wallet and Transaction State Integration Tests", () => {
       );
 
       expect(mockWalletState.balance).toBeNull();
+    });
+  });
+
+  describe("useWallet Integration & Network Validation", () => {
+    it("handles connect and disconnect cycle correctly", () => {
+      useWalletStore.getState().connect("freighter", "GABC1234567890", "GABC1234567890");
+      expect(useWalletStore.getState().isConnected).toBe(true);
+      expect(useWalletStore.getState().address).toBe("GABC1234567890");
+
+      useWalletStore.getState().disconnect();
+      expect(useWalletStore.getState().isConnected).toBe(false);
+      expect(useWalletStore.getState().address).toBeNull();
+    });
+
+    it("delegates signTransaction with XDR string when connected", async () => {
+      useWalletStore.getState().connect("freighter", "GABC1234567890", "GABC1234567890");
+
+      const { useWallet: useWalletActual } = await vi.importActual<typeof import("@/hooks/useWallet")>("@/hooks/useWallet");
+      const { result } = renderHook(() => useWalletActual());
+
+      const mockXdr = "mock_xdr_AAAAB3N";
+      const signedResult = await result.current.signTransaction(mockXdr);
+      expect(signedResult).toBe(`${mockXdr}_signed`);
+    });
+
+    it("throws error when signTransaction is called without connection", async () => {
+      useWalletStore.getState().disconnect();
+
+      const { useWallet: useWalletActual } = await vi.importActual<typeof import("@/hooks/useWallet")>("@/hooks/useWallet");
+      const { result } = renderHook(() => useWalletActual());
+
+      await expect(result.current.signTransaction("AAAAB3N...")).rejects.toThrow("Wallet not connected");
+    });
+
+    it("detects network mismatch and validates expected network", async () => {
+      const { useNetworkValidation: useNetworkValidationActual, useWallet: useWalletActual } = await vi.importActual<typeof import("@/hooks/useWallet")>("@/hooks/useWallet");
+
+      const { result: navResult } = renderHook(() => useNetworkValidationActual("mainnet"));
+      expect(navResult.current.expectedNetwork).toBe("testnet");
+      expect(navResult.current.isNetworkMismatch).toBe(true);
+
+      const { result: navMatchResult } = renderHook(() => useNetworkValidationActual("testnet"));
+      expect(navMatchResult.current.isNetworkMismatch).toBe(false);
+
+      const { result: walletResult } = renderHook(() => useWalletActual());
+      expect(walletResult.current.validateNetwork("testnet")).toBe(true);
+      expect(walletResult.current.validateNetwork("mainnet")).toBe(false);
     });
   });
 });

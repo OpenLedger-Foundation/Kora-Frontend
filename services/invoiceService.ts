@@ -11,15 +11,25 @@ import type {
   InvoicePosition,
   IInvoiceService,
   ServiceError,
+  ServiceErrorCode,
   Result,
   InvoiceStatus,
 } from "@/types";
 import { MOCK_INVOICES } from "./mockData";
-import { uploadFileToPinata, uploadInvoiceMetadata, isValidCID } from "@/lib/ipfs";
+import {
+  uploadFileToPinata,
+  uploadInvoiceMetadata,
+  isValidCID,
+  fetchIpfsJsonWithFallback,
+  IpfsTamperError,
+  IpfsUnavailableError,
+} from "@/lib/ipfs";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
-import { submitTransaction, waitForTransaction } from "@/lib/stellar/client";
+import { indexerClient, RpcNetworkError } from "@/lib/stellar/indexerClient";
+import { BadSequenceError, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
 import { env } from "@/lib/env";
+import { isValidStellarAddress } from "@/lib/utils";
 
 // ─── Helper: Create successful result ──────────────────────────────────────
 function success<T>(value: T): Result<T> {
@@ -27,7 +37,7 @@ function success<T>(value: T): Result<T> {
 }
 
 // ─── Helper: Create error result ──────────────────────────────────────────
-function failure(code: string, message: string, details?: Record<string, unknown>): Result<never> {
+function failure(code: ServiceErrorCode, message: string, details?: any): Result<never> {
   return { ok: false, error: { code, message, details } };
 }
 
@@ -50,6 +60,55 @@ function mapContractError(error: unknown): ServiceError {
     return { code: "ALREADY_REPAID", message: "This invoice has already been repaid" };
   }
   return { code: "CONTRACT_ERROR", message: `Contract error: ${message}` };
+}
+
+// ─── Helper: Map contract errors for the transfer_position flow ───────────
+function mapTransferError(error: unknown): ServiceError {
+  const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Invoice not found")) {
+    return { code: "NOT_FOUND", message: "Position not found" };
+  }
+  if (message.includes("Unauthorized")) {
+    return {
+      code: "UNAUTHORIZED",
+      message: "Only the current position owner can transfer it",
+    };
+  }
+  return { code: "TRANSFER_ERROR", message: `Transfer failed: ${message}` };
+}
+
+/**
+ * Fetch, verify, and sanitize invoice metadata from IPFS.
+ *
+ * Uses multi-gateway fallback with per-gateway timeout/retry (#393): if the
+ * configured gateway is down we rotate to public gateways. The content hash is
+ * verified against the CID where possible, and tampered content is surfaced as
+ * a distinct IPFS_TAMPERED error so the UI can warn the user.
+ */
+async function fetchAndSanitizeIpfsMetadata(
+  cid: string
+): Promise<Result<Record<string, unknown>>> {
+  if (!isValidCID(cid)) {
+    return failure("INVALID_CID", "Invalid IPFS CID format");
+  }
+  try {
+    const { data } = await fetchIpfsJsonWithFallback<unknown>(cid, {
+      timeoutMs: 10_000,
+      // In mock mode the CID is synthetic and won't hash-match — skip verification.
+      skipIntegrity: env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
+    });
+    return success(sanitizeIpfsMetadata(data));
+  } catch (error) {
+    if (error instanceof IpfsTamperError) {
+      return failure("IPFS_TAMPERED", error.message, { cid });
+    }
+    if (error instanceof IpfsUnavailableError) {
+      return failure("IPFS_ERROR", error.message, { cid });
+    }
+    return failure("IPFS_ERROR", "Failed to fetch IPFS metadata", {
+      cause: String(error),
+    });
+  }
 }
 
 // ─── Mock Invoice Service ─────────────────────────────────────────────────
@@ -138,7 +197,10 @@ class MockInvoiceService implements IInvoiceService {
   async getInvoice(id: string): Promise<Result<Invoice | null>> {
     try {
       await this.delay();
-      return success(MOCK_INVOICES.find((i) => i.id === id) ?? null);
+      // Resolve by app id OR on-chain token ID deep links (#383)
+      return success(
+        MOCK_INVOICES.find((i) => i.id === id || i.tokenId === id) ?? null
+      );
     } catch (error) {
       return failure("FETCH_ERROR", "Failed to fetch invoice", { cause: String(error) });
     }
@@ -168,7 +230,7 @@ class MockInvoiceService implements IInvoiceService {
           expectedReturn: invested * (1 + inv.terms.discountRate),
           yieldEarned,
           investedAt: new Date().toISOString(),
-          status: (isRepaid ? "repaid" : "active") as const,
+          status: (isRepaid ? "repaid" : "active") as "repaid" | "active",
         };
       });
       return success(positions);
@@ -178,21 +240,7 @@ class MockInvoiceService implements IInvoiceService {
   }
 
   async getIpfsMetadata(cid: string): Promise<Result<Record<string, unknown>>> {
-    try {
-      const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY;
-      if (!isValidCID(cid)) {
-        return failure("INVALID_CID", "Invalid IPFS CID format");
-      }
-      const res = await fetch(`${gateway}/${cid}`, { signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) {
-        return failure("IPFS_ERROR", `IPFS fetch failed with status ${res.status}`);
-      }
-      const raw: unknown = await res.json();
-      const sanitized = sanitizeIpfsMetadata(raw);
-      return success(sanitized);
-    } catch (error) {
-      return failure("IPFS_ERROR", "Failed to fetch IPFS metadata", { cause: String(error) });
-    }
+    return fetchAndSanitizeIpfsMetadata(cid);
   }
 
   async createInvoice(
@@ -260,12 +308,33 @@ class MockInvoiceService implements IInvoiceService {
     }
   }
 
-  async cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
+  async cancelInvoice(tokenId: string, ownerAddress: string, reason?: string): Promise<Result<string>> {
     try {
       await this.delay();
       return success(`mock_unsigned_xdr_cancel_${tokenId}_${ownerAddress}`);
     } catch (error) {
       return failure("CANCEL_ERROR", "Failed to prepare invoice cancellation", { cause: String(error) });
+    }
+  }
+
+  async transferPosition(
+    positionId: string,
+    toAddress: string,
+    sellerAddress: string
+  ): Promise<Result<string>> {
+    try {
+      if (!isValidStellarAddress(toAddress)) {
+        return failure("INVALID_INPUT", "Recipient address is not a valid Stellar G-address");
+      }
+      if (toAddress === sellerAddress) {
+        return failure("INVALID_INPUT", "Cannot transfer a position to yourself");
+      }
+      await this.delay();
+      return success(
+        `mock_unsigned_xdr_transfer_${positionId}_${toAddress}_${sellerAddress}`
+      );
+    } catch (error) {
+      return failure("TRANSFER_ERROR", "Failed to prepare position transfer", { cause: String(error) });
     }
   }
 
@@ -290,56 +359,89 @@ class LiveInvoiceService implements IInvoiceService {
     pageSize = 12
   ): Promise<Result<PaginatedResponse<Invoice>>> {
     try {
-      // TODO: Replace with on-chain / indexer fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      const response = await indexerClient.getInvoices(filters, sort, page, pageSize);
+      return success(response);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      if (error instanceof RpcNetworkError) {
+        const message = error.message;
+        const lowerMessage = message.toLowerCase();
+
+        if (lowerMessage.includes("rate limit") || lowerMessage.includes("429")) {
+          return failure("RATE_LIMITED", "Stellar Soroban RPC rate limit exceeded. Please try again in a few moments.");
+        }
+        if (lowerMessage.includes("timeout") || lowerMessage.includes("deadline")) {
+          return failure("NETWORK_ERROR", "Connection timed out while syncing with Soroban RPC. Please check your network connection and try again.");
+        }
+        if (lowerMessage.includes("connection refused") || lowerMessage.includes("fetch failed")) {
+          return failure("NETWORK_ERROR", "Unable to connect to the Stellar Soroban network. The RPC server might be temporarily down.");
+        }
+
+        return failure("NETWORK_ERROR", `Soroban RPC error: ${message}`, { cause: error.cause });
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      return failure("FETCH_ERROR", `Failed to fetch live invoices: ${message}`, { cause: message });
     }
   }
 
-  async getInvoice(id: string): Promise<Result<Invoice | null>> {
+  async getInvoice(id: string, sourcePublicKey?: string): Promise<Result<Invoice | null>> {
     try {
-      // TODO: Replace with on-chain fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      // Extract token ID from route id (supports both "inv_123" and "123" formats)
+      const tokenIdStr = id.replace(/^inv_/, "");
+      const tokenId = BigInt(tokenIdStr);
+
+      // Require a source public key for RPC read simulations
+      if (!sourcePublicKey) {
+        return failure("INVALID_INPUT", "Wallet address required for on-chain reads");
+      }
+
+      // Fetch on-chain invoice state
+      const { invoiceContract } = await import("@/lib/stellar/contracts");
+      const onChain = await invoiceContract.getInvoice(tokenId, sourcePublicKey);
+
+      // Fetch IPFS metadata in parallel with on-chain data
+      const [ipfsResult] = await Promise.allSettled([
+        this.getIpfsMetadata(onChain.ipfs_cid),
+      ]);
+
+      // Build invoice from on-chain data + IPFS metadata
+      const invoice = mapOnChainToInvoiceLive(id, onChain, ipfsResult);
+      return success(invoice);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("Invoice not found") || message.includes("#1")) {
+        return success(null);
+      }
+      return failure("FETCH_ERROR", "Failed to fetch invoice from chain", { cause: message });
     }
   }
 
   async getInvoicesByOwner(ownerAddress: string): Promise<Result<Invoice[]>> {
     try {
-      // TODO: Replace with on-chain fetch
-      throw new Error("Live invoice fetch not yet implemented");
+      const invoices = await indexerClient.getInvoicesByOwner(ownerAddress);
+      return success(invoices);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live invoice fetching is not yet implemented");
+      const message = error instanceof Error ? error.message : String(error);
+      return failure("FETCH_ERROR", `Failed to fetch live invoices by owner: ${message}`, { cause: message });
     }
   }
 
   async getPositions(investorAddress: string): Promise<Result<InvoicePosition[]>> {
     try {
-      // TODO: Replace with on-chain fetch
-      throw new Error("Live positions fetch not yet implemented");
+      const positions = await marketplaceContract.getPositions(
+        investorAddress,
+        investorAddress
+      );
+      return success(positions);
     } catch (error) {
-      return failure("NOT_IMPLEMENTED", "Live positions fetching is not yet implemented");
+      return failure("FETCH_ERROR", "Failed to fetch live positions", {
+        cause: String(error),
+      });
     }
   }
 
   async getIpfsMetadata(cid: string): Promise<Result<Record<string, unknown>>> {
-    try {
-      const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY;
-      if (!isValidCID(cid)) {
-        return failure("INVALID_CID", "Invalid IPFS CID format");
-      }
-      const res = await fetch(`${gateway}/${cid}`, { signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) {
-        return failure("IPFS_ERROR", `IPFS fetch failed with status ${res.status}`);
-      }
-      const raw: unknown = await res.json();
-      const sanitized = sanitizeIpfsMetadata(raw);
-      return success(sanitized);
-    } catch (error) {
-      return failure("IPFS_ERROR", "Failed to fetch IPFS metadata", { cause: String(error) });
-    }
+    return fetchAndSanitizeIpfsMetadata(cid);
   }
 
   async createInvoice(
@@ -364,7 +466,7 @@ class LiveInvoiceService implements IInvoiceService {
       const daysToMaturity = Math.ceil(
         (new Date(formData.dueDate).getTime() -
           new Date(formData.listingExpiryDate).getTime()) /
-          (1000 * 60 * 60 * 24)
+        (1000 * 60 * 60 * 24)
       );
       const effectiveAPR =
         daysToMaturity > 0 && formData.discountRate > 0 && formData.discountRate < 1
@@ -481,15 +583,45 @@ class LiveInvoiceService implements IInvoiceService {
     }
   }
 
-  async cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>> {
+  /**
+   * Note on Live Mode On-Chain Limitations:
+   * Soroban contract `cancel_invoice` takes (token_id, owner).
+   * The structured cancellation reason string is captured off-chain in audit logs
+   * and local transaction history.
+   */
+  async cancelInvoice(tokenId: string, ownerAddress: string, reason?: string): Promise<Result<string>> {
     try {
-      const xdr = await marketplaceContract.cancelInvoice(
-        { tokenId: BigInt(tokenId) },
+      const xdr = await invoiceContract.cancelInvoice(
+        BigInt(tokenId),
         ownerAddress
       );
       return success(xdr);
     } catch (error) {
       const err = mapContractError(error);
+      return failure(err.code, err.message, err.details);
+    }
+  }
+
+  async transferPosition(
+    positionId: string,
+    toAddress: string,
+    sellerAddress: string
+  ): Promise<Result<string>> {
+    try {
+      if (!isValidStellarAddress(toAddress)) {
+        return failure("INVALID_INPUT", "Recipient address is not a valid Stellar G-address");
+      }
+      if (toAddress === sellerAddress) {
+        return failure("INVALID_INPUT", "Cannot transfer a position to yourself");
+      }
+
+      const xdr = await marketplaceContract.transferPosition(
+        { positionId: BigInt(positionId), toAddress },
+        sellerAddress
+      );
+      return success(xdr);
+    } catch (error) {
+      const err = mapTransferError(error);
       return failure(err.code, err.message, err.details);
     }
   }
@@ -506,6 +638,9 @@ class LiveInvoiceService implements IInvoiceService {
       }
       return success(result.hash);
     } catch (error) {
+      if (error instanceof BadSequenceError) {
+        throw error;
+      }
       return failure("SUBMIT_ERROR", "Failed to submit transaction", { cause: String(error) });
     }
   }
@@ -533,8 +668,8 @@ export async function fetchInvoices(
   return result.value;
 }
 
-export async function fetchInvoiceById(id: string): Promise<Invoice | null> {
-  const result = await service.getInvoice(id);
+export async function fetchInvoiceById(id: string, _sourcePublicKey?: string): Promise<Invoice | null> {
+  const result = await service.getInvoice(id, _sourcePublicKey);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }
@@ -543,6 +678,32 @@ export async function fetchIpfsMetadata(cid: string): Promise<Record<string, unk
   const result = await service.getIpfsMetadata(cid);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
+}
+
+/**
+ * Fetch invoices similar to the given reference invoice.
+ *
+ * Works entirely offline against the cached/mock invoice list so it
+ * degrades gracefully when the live indexer is sparse or unavailable.
+ *
+ * @param referenceId  ID of the invoice currently being viewed.
+ * @param maxResults   Maximum candidates to return (default 6).
+ */
+export async function fetchSimilarInvoices(
+  referenceId: string,
+  maxResults = 6
+): Promise<import("@/lib/comparison").SimilarInvoice[]> {
+  const { getSimilarInvoices } = await import("@/lib/comparison");
+
+  // Always resolve candidates from the mock list (or replace with live call).
+  const candidates = USE_MOCK
+    ? MOCK_INVOICES
+    : (await fetchInvoices({}, { key: "apr", direction: "desc" }, 1, 100)).data;
+
+  const reference = candidates.find((i) => i.id === referenceId);
+  if (!reference) return [];
+
+  return getSimilarInvoices(reference, candidates, maxResults);
 }
 
 export async function fetchInvoicesByOwner(ownerAddress: string): Promise<Invoice[]> {
@@ -563,7 +724,7 @@ export async function fetchInvoicesByTokenIds(
   tokenIds: string[],
   sourcePublicKey: string
 ): Promise<Invoice[]> {
-  if (USE_MOCK) {
+  if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
     // No RPC calls in mock mode — just look up from static mock data
     const idSet = new Set(tokenIds);
     return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
@@ -597,7 +758,7 @@ export async function fetchInvoicesByTokenIds(
             Math.max(
               0,
               (Number(onChain.financing_amount) - Number(onChain.funded_amount)) /
-                1_000_000
+              1_000_000
             ),
         },
         status: ON_CHAIN_STATUS_MAP[onChain.status] ?? "listed",
@@ -616,6 +777,87 @@ const ON_CHAIN_STATUS_MAP: Record<number, import("@/types").InvoiceStatus> = {
   6: "defaulted",
   7: "cancelled",
 };
+
+/**
+ * Map on-chain invoice data to the full Invoice shape, merging with IPFS metadata.
+ * Falls back to safe defaults when IPFS metadata is missing or stale.
+ */
+function mapOnChainToInvoiceLive(
+  id: string,
+  onChain: import("@/types/contract").OnChainInvoice,
+  ipfsResult: PromiseSettledResult<Result<Record<string, unknown>>>
+): Invoice {
+  const ipfsMetadata = ipfsResult.status === "fulfilled" && ipfsResult.value.ok
+    ? ipfsResult.value.value
+    : null;
+
+  const dueDate = new Date(Number(onChain.due_date) * 1000).toISOString();
+  const amount = Number(onChain.amount) / 1_000_000;
+  const financingAmount = Number(onChain.financing_amount) / 1_000_000;
+  const fundedAmount = Number(onChain.funded_amount) / 1_000_000;
+  const discountRate = onChain.discount_rate / 10_000;
+  const fundingProgress = financingAmount > 0 ? Math.min(fundedAmount / financingAmount, 1) : 0;
+
+  // Extract metadata from IPFS, with safe fallbacks
+  const metadata = {
+    invoiceNumber: (ipfsMetadata?.invoiceNumber as string) || `INV-${onChain.token_id}`,
+    issuerName: (ipfsMetadata?.issuerName as string) || "",
+    issuerAddress: (ipfsMetadata?.issuerAddress as string) || onChain.owner,
+    debtorName: (ipfsMetadata?.debtorName as string) || "",
+    debtorAddress: (ipfsMetadata?.debtorAddress as string) || "",
+    amount: (ipfsMetadata?.amount as number) || amount,
+    currency: (ipfsMetadata?.currency as string) || "USDC",
+    issueDate: (ipfsMetadata?.issueDate as string) || new Date().toISOString(),
+    dueDate: (ipfsMetadata?.dueDate as string) || dueDate,
+    description: (ipfsMetadata?.description as string) || "",
+    jurisdiction: (ipfsMetadata?.jurisdiction as string) || "OTHER",
+    category: (ipfsMetadata?.category as string) || "other",
+    documentHash: (ipfsMetadata?.documentHash as string) || onChain.ipfs_cid,
+    documentUrl: (ipfsMetadata?.documentUrl as string) || `${env.NEXT_PUBLIC_IPFS_GATEWAY}/${onChain.ipfs_cid}`,
+    // NFT-standard preview image (Issue #438). Carried through so the
+    // marketplace card can render a thumbnail via next/image; left undefined
+    // for invoices minted before thumbnails existed, which fall back to the
+    // generated placeholder.
+    image: ipfsMetadata?.image as string | undefined,
+  };
+
+  // Determine status from on-chain enum
+  const status = ON_CHAIN_STATUS_MAP[onChain.status] ?? "listed";
+
+  // Calculate APR from discount rate and tenor (if available from IPFS)
+  const tenorDays = ipfsMetadata?.tenor ? Number(ipfsMetadata.tenor) : 90;
+  const apr = discountRate * (365 / tenorDays) * 100;
+
+  return {
+    id,
+    tokenId: onChain.token_id.toString(),
+    contractAddress: env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
+    ipfsCid: onChain.ipfs_cid,
+    metadata,
+    terms: {
+      discountRate,
+      apr,
+      financingAmount,
+      minInvestment: 0,
+      maxInvestment: financingAmount,
+      tenor: tenorDays,
+      repaymentDate: dueDate,
+    },
+    funding: {
+      totalRaised: fundedAmount,
+      targetAmount: financingAmount,
+      fundingProgress,
+      investorCount: 0,
+      remainingCapacity: Math.max(0, financingAmount - fundedAmount),
+    },
+    riskTier: "A",
+    riskScore: 0,
+    status,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ownerAddress: onChain.owner,
+  } as Invoice;
+}
 
 export async function fetchPositions(investorAddress: string) {
   const result = await service.getPositions(investorAddress);
@@ -671,6 +913,50 @@ export async function prepareCancelInvoice(
   return result.value;
 }
 
+/**
+ * Build an unsigned XDR to transfer an investor position to a new owner
+ * (P2P secondary-market sale). Signed by the current position owner.
+ *
+ * See the `TransferPositionParams` doc comment in types/contract.ts for the
+ * assumed single-call contract ABI.
+ */
+export async function prepareTransferPosition(
+  positionId: string,
+  toAddress: string,
+  sellerAddress: string
+): Promise<string> {
+  const result = await service.transferPosition(positionId, toAddress, sellerAddress);
+  if (!result.ok) throw new Error(result.error.message);
+  return result.value;
+}
+
+/**
+ * Buyer acceptance flow — STUB (#443).
+ *
+ * `transferPosition`/`prepareTransferPosition` above assume the deployed
+ * `transfer_position` contract method is a single call authorized only by
+ * the seller (no separate buyer co-signature), matching `claim_position`.
+ * If that assumption doesn't hold once the deployed contract's ABI is
+ * confirmed and a two-step propose/accept pattern is required instead, this
+ * is the intended integration point for the buyer's acceptance transaction:
+ * build the buyer-signed accept call here (e.g. `accept_position_transfer`
+ * or similar) the same way `prepareTransferPosition` builds the seller's.
+ *
+ * Deliberately unimplemented until the contract ABI is confirmed — mirrors
+ * the NOT_IMPLEMENTED pattern already used by `getInvoices`/
+ * `getInvoicesByOwner` in LiveInvoiceService for the same reason.
+ */
+export async function prepareAcceptPositionTransfer(
+  _positionId: string,
+  _buyerAddress: string
+): Promise<never> {
+  throw new Error(
+    "Buyer acceptance for transfer_position is not yet implemented — " +
+      "pending confirmation of the deployed contract's transfer ABI. " +
+      "See prepareAcceptPositionTransfer in services/invoiceService.ts."
+  );
+}
+
 export async function submitAndConfirm(signedXdr: string): Promise<string> {
   const result = await service.submitTransaction(signedXdr);
   if (!result.ok) throw new Error(result.error.message);
@@ -706,7 +992,7 @@ export async function fetchBatchInvoicesByTokenIds(
 ): Promise<Invoice[]> {
   if (tokenIds.length === 0) return [];
 
-  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
   if (useMock) {
     const idSet = new Set(tokenIds);
     return MOCK_INVOICES.filter((i) => idSet.has(i.tokenId));
@@ -743,7 +1029,7 @@ function mapOnChainToInvoice(tokenId: string, onChain: any): Invoice {
   return {
     id: `inv_${tokenId}`,
     tokenId,
-    contractAddress: process.env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
+    contractAddress: env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ?? "",
     ipfsCid: onChain.ipfs_cid,
     metadata: {
       invoiceNumber: `INV-${tokenId}`,
@@ -759,7 +1045,7 @@ function mapOnChainToInvoice(tokenId: string, onChain: any): Invoice {
       jurisdiction: "OTHER",
       category: "other",
       documentHash: onChain.ipfs_cid,
-      documentUrl: `${process.env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs"}/${onChain.ipfs_cid}`,
+      documentUrl: `${env.NEXT_PUBLIC_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs"}/${onChain.ipfs_cid}`,
     },
     terms: {
       discountRate,
@@ -810,7 +1096,7 @@ export async function prepareUpdateInvoiceStatus(
   const chainIndex = STATUS_TO_CHAIN_INDEX[to];
   if (chainIndex < 0) throw new Error(`Status "${to}" has no on-chain representation`);
 
-  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA === "true";
+  const useMock = env.NEXT_PUBLIC_ENABLE_MOCK_DATA;
   if (useMock) {
     return `mock_unsigned_xdr_update_status_${tokenId}_${to}_${ownerAddress}`;
   }
@@ -820,3 +1106,66 @@ export async function prepareUpdateInvoiceStatus(
 }
 
 
+
+
+// ─── Invoice Amendment (#568) ─────────────────────────────────────────────────
+
+/**
+ * Prepare an invoice metadata amendment.
+ *
+ * Validates that:
+ *  1. The invoice is in an eligible status (listed / partially_funded).
+ *  2. Only allowed fields (description, category) are included.
+ *  3. The caller is the invoice owner (enforced client-side + on-chain).
+ *
+ * In mock mode, the amendment is applied in-memory and returned immediately.
+ * In live mode the updated metadata is re-pinned to IPFS and the new CID is
+ * recorded on-chain.
+ *
+ * @param invoiceId      App-level invoice ID.
+ * @param status         Current invoice status (used for eligibility check).
+ * @param ownerAddress   Must match invoice.ownerAddress.
+ * @param amendment      Partial record of amendable fields.
+ * @returns              The new IPFS CID for the amended metadata.
+ */
+export async function prepareAmendInvoiceMetadata(
+  invoiceId: string,
+  status: import("@/types").InvoiceStatus,
+  ownerAddress: string,
+  amendment: import("@/lib/invoiceStateMachine").InvoiceAmendment
+): Promise<string> {
+  const {
+    canAmend,
+    sanitizeAmendment,
+  } = await import("@/lib/invoiceStateMachine");
+
+  if (!canAmend(status)) {
+    throw new Error(
+      `Cannot amend invoice with status "${status}". Only listed or partially_funded invoices may be amended.`
+    );
+  }
+
+  const safe = sanitizeAmendment(amendment as Record<string, unknown>);
+  if (Object.keys(safe).length === 0) {
+    throw new Error("No amendable fields provided. Allowed fields: description, category.");
+  }
+
+  // In mock mode: return a synthetic CID immediately (no IPFS call).
+  if (env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+    return `mock_amended_metadata_cid_${invoiceId}_${Date.now()}`;
+  }
+
+  // Live mode: fetch current IPFS metadata, apply the amendment, re-pin.
+  const currentResult = await service.getIpfsMetadata(invoiceId);
+  if (!currentResult.ok) {
+    throw new Error(`Could not fetch current metadata: ${currentResult.error.message}`);
+  }
+  const updated = { ...currentResult.value, ...safe };
+
+  const newCid = await uploadInvoiceMetadata(
+    updated as import("@/types").InvoiceMetadata,
+    ownerAddress
+  );
+
+  return newCid;
+}

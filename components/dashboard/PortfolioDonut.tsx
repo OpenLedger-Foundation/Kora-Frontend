@@ -1,19 +1,15 @@
 "use client";
 
 /**
- * PortfolioDonut — interactive portfolio composition visualization.
+ * PortfolioDonut — interactive portfolio composition visualization from live positions.
  *
  * Three donut charts:
  *   1. By Risk Tier
  *   2. By Jurisdiction
  *   3. By Category
  *
- * Clicking a segment filters the positions table below via the `onSegmentClick`
- * callback.  The active segment is highlighted and matching rows are indicated
- * by the `activeFilter` prop.
- *
- * Responsive: charts resize correctly; legend moves below on mobile.
- * Empty state: placeholder illustration when no positions exist.
+ * Clicking a segment drills into the marketplace with matching filters via
+ * `onSegmentClick`. Empty state shown when the investor has no positions.
  */
 
 import React, { useCallback, useMemo, useState } from "react";
@@ -26,117 +22,55 @@ import {
   Sector,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { PieChart as PieChartIcon } from "lucide-react";
-import type { InvoicePosition } from "@/types";
+import { useFormatters } from "@/hooks/useFormatters";
+import {
+  aggregatePositions,
+  type AllocatablePosition,
+  type AllocationDimension,
+  type AllocationFilter,
+  type AllocationSlice,
+} from "@/lib/portfolioAllocation";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type DonutDimension = "riskTier" | "jurisdiction" | "category";
-
-export interface DonutFilter {
-  dimension: DonutDimension;
-  value: string;
-}
+export type DonutDimension = AllocationDimension;
+export type DonutFilter = AllocationFilter;
 
 export interface PortfolioDonutProps {
-  /** Investor positions to visualise */
-  positions: InvoicePosition[];
+  /** Live investor positions to visualise */
+  positions: AllocatablePosition[];
   /** Currently active drill-down filter (controlled from parent) */
   activeFilter: DonutFilter | null;
-  /** Called when the user clicks a segment */
+  /** Called when the user clicks a segment (parent navigates to marketplace) */
   onSegmentClick: (filter: DonutFilter | null) => void;
-}
-
-interface DonutSlice {
-  name: string;
-  value: number;   // USDC amount
-  percent: number; // 0–100
-  color: string;
-}
-
-// ─── Colour palettes ──────────────────────────────────────────────────────────
-
-const RISK_TIER_PALETTE: Record<string, string> = {
-  AAA: "#10b981", // emerald-500
-  AA:  "#14b8a6", // teal-500
-  A:   "#06b6d4", // cyan-500
-  BBB: "#f59e0b", // amber-500
-  BB:  "#f97316", // orange-500
-  B:   "#ef4444", // red-500
-  CCC: "#dc2626", // red-600
-};
-
-const JURISDICTION_PALETTE: Record<string, string> = {
-  US:    "#818cf8", // indigo-400
-  EU:    "#a78bfa", // violet-400
-  UK:    "#c084fc", // purple-400
-  NG:    "#34d399", // emerald-400
-  KE:    "#2dd4bf", // teal-400
-  GH:    "#22d3ee", // cyan-400
-  ZA:    "#60a5fa", // blue-400
-  OTHER: "#94a3b8", // slate-400
-};
-
-const CATEGORY_PALETTE: string[] = [
-  "#14b8a6", "#818cf8", "#f59e0b", "#ef4444", "#10b981",
-  "#06b6d4", "#f97316", "#a78bfa", "#34d399", "#60a5fa",
-];
-
-function getCategoryColor(index: number): string {
-  return CATEGORY_PALETTE[index % CATEGORY_PALETTE.length];
-}
-
-// ─── Data builders ────────────────────────────────────────────────────────────
-
-function buildSlices(
-  positions: InvoicePosition[],
-  dimension: DonutDimension
-): DonutSlice[] {
-  const totals: Record<string, number> = {};
-
-  for (const pos of positions) {
-    let key: string;
-    switch (dimension) {
-      case "riskTier":
-        key = pos.invoice.riskTier;
-        break;
-      case "jurisdiction":
-        key = pos.invoice.metadata.jurisdiction;
-        break;
-      case "category":
-        key = pos.invoice.metadata.category;
-        break;
-    }
-    totals[key] = (totals[key] ?? 0) + pos.investedAmount;
-  }
-
-  const grandTotal = Object.values(totals).reduce((s, v) => s + v, 0);
-  if (grandTotal === 0) return [];
-
-  const entries = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-
-  return entries.map(([name, value], idx) => {
-    let color: string;
-    if (dimension === "riskTier") color = RISK_TIER_PALETTE[name] ?? "#94a3b8";
-    else if (dimension === "jurisdiction") color = JURISDICTION_PALETTE[name] ?? "#94a3b8";
-    else color = getCategoryColor(idx);
-
-    return {
-      name,
-      value,
-      percent: (value / grandTotal) * 100,
-      color,
-    };
-  });
 }
 
 // ─── Custom active shape (highlighted segment) ───────────────────────────────
 
-function ActiveShape(props: any) {
+function ActiveShape(props: {
+  cx?: number;
+  cy?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  startAngle?: number;
+  endAngle?: number;
+  fill?: string;
+  payload?: AllocationSlice;
+  percent?: number;
+}) {
+  const { formatPercentage } = useFormatters();
   const {
-    cx, cy, innerRadius, outerRadius, startAngle, endAngle,
-    fill, payload, percent,
+    cx = 0,
+    cy = 0,
+    innerRadius = 0,
+    outerRadius = 0,
+    startAngle = 0,
+    endAngle = 0,
+    fill,
+    payload,
+    percent = 0,
   } = props;
 
   return (
@@ -151,12 +85,25 @@ function ActiveShape(props: any) {
         fill={fill}
         opacity={1}
       />
-      {/* Centre label */}
-      <text x={cx} y={cy - 8} textAnchor="middle" fill="#e4e4e7" fontSize={13} fontWeight={700}>
-        {payload.name}
+      <text
+        x={cx}
+        y={cy - 8}
+        textAnchor="middle"
+        fill="#e4e4e7"
+        fontSize={13}
+        fontWeight={700}
+      >
+        {payload?.name}
       </text>
-      <text x={cx} y={cy + 10} textAnchor="middle" fill="#14b8a6" fontSize={12} fontWeight={600}>
-        {percent.toFixed(1)}%
+      <text
+        x={cx}
+        y={cy + 10}
+        textAnchor="middle"
+        fill="#14b8a6"
+        fontSize={12}
+        fontWeight={600}
+      >
+        {formatPercentage(percent * 100, 1)}
       </text>
     </g>
   );
@@ -164,9 +111,16 @@ function ActiveShape(props: any) {
 
 // ─── Custom tooltip ───────────────────────────────────────────────────────────
 
-function DonutTooltip({ active, payload }: any) {
+function DonutTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: Array<{ payload: AllocationSlice }>;
+}) {
+  const { formatCurrency, formatPercentage } = useFormatters();
   if (!active || !payload?.length) return null;
-  const { name, value, percent } = payload[0].payload as DonutSlice;
+  const { name, value, percent } = payload[0].payload;
   return (
     <div
       style={{
@@ -180,8 +134,11 @@ function DonutTooltip({ active, payload }: any) {
       }}
     >
       <p style={{ fontWeight: 700, marginBottom: 4, color: "#f4f4f5" }}>{name}</p>
-      <p style={{ color: "#14b8a6", fontWeight: 600 }}>{formatCurrency(value, "USDC", true)}</p>
-      <p style={{ color: "#71717a" }}>{percent.toFixed(1)}% of portfolio</p>
+      <p style={{ color: "#14b8a6", fontWeight: 600 }}>
+        {formatCurrency(value, "USDC", true)}
+      </p>
+      <p style={{ color: "#71717a" }}>{formatPercentage(percent * 100, 1)} of portfolio</p>
+      <p style={{ color: "#a1a1aa", marginTop: 4 }}>Click to browse marketplace</p>
     </div>
   );
 }
@@ -189,21 +146,27 @@ function DonutTooltip({ active, payload }: any) {
 // ─── Legend ───────────────────────────────────────────────────────────────────
 
 interface LegendProps {
-  slices: DonutSlice[];
+  slices: AllocationSlice[];
   dimension: DonutDimension;
   activeValue: string | null;
   onItemClick: (value: string) => void;
 }
 
 function DonutLegend({ slices, dimension, activeValue, onItemClick }: LegendProps) {
+  const { formatCurrency, formatPercentage } = useFormatters();
   if (slices.length === 0) return null;
   return (
-    <ul className="mt-3 space-y-1.5 w-full" role="list" aria-label={`${dimension} legend`}>
+    <ul
+      className="mt-3 w-full space-y-1.5"
+      role="list"
+      aria-label={`${dimension} legend`}
+    >
       {slices.map((slice) => {
         const isActive = activeValue === slice.name;
         return (
           <li key={slice.name}>
             <button
+              type="button"
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-xs transition-colors",
                 "hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
@@ -211,26 +174,33 @@ function DonutLegend({ slices, dimension, activeValue, onItemClick }: LegendProp
               )}
               onClick={() => onItemClick(slice.name)}
               aria-pressed={isActive}
-              aria-label={`Filter by ${slice.name}: ${slice.percent.toFixed(1)}%`}
+              aria-label={`Browse marketplace filtered by ${slice.name}: ${formatPercentage(slice.percent * 100, 1)}`}
             >
-              <span className="flex items-center gap-2 min-w-0">
+              <span className="flex min-w-0 items-center gap-2">
                 <span
-                  className="h-2.5 w-2.5 rounded-full flex-shrink-0"
+                  className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                   style={{ backgroundColor: slice.color }}
                 />
-                <span className={cn("truncate", isActive ? "text-foreground font-semibold" : "text-muted-foreground")}>
+                <span
+                  className={cn(
+                    "truncate",
+                    isActive ? "font-semibold text-foreground" : "text-muted-foreground"
+                  )}
+                >
                   {slice.name}
                 </span>
               </span>
-              <span className="flex items-center gap-2 flex-shrink-0 tabular-nums">
-                <span className="text-muted-foreground">{formatCurrency(slice.value, "USDC", true)}</span>
+              <span className="flex flex-shrink-0 items-center gap-2 tabular-nums">
+                <span className="text-muted-foreground">
+                  {formatCurrency(slice.value, "USDC", true)}
+                </span>
                 <span
                   className={cn(
                     "font-semibold",
                     isActive ? "text-primary" : "text-foreground"
                   )}
                 >
-                  {slice.percent.toFixed(1)}%
+                  {formatPercentage(slice.percent * 100, 1)}
                 </span>
               </span>
             </button>
@@ -245,22 +215,30 @@ function DonutLegend({ slices, dimension, activeValue, onItemClick }: LegendProp
 
 interface DonutPanelProps {
   title: string;
-  slices: DonutSlice[];
+  slices: AllocationSlice[];
   dimension: DonutDimension;
   activeFilter: DonutFilter | null;
   onSegmentClick: (filter: DonutFilter | null) => void;
 }
 
-function DonutPanel({ title, slices, dimension, activeFilter, onSegmentClick }: DonutPanelProps) {
+function DonutPanel({
+  title,
+  slices,
+  dimension,
+  activeFilter,
+  onSegmentClick,
+}: DonutPanelProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const activeValue =
     activeFilter?.dimension === dimension ? activeFilter.value : null;
 
   const handleClick = useCallback(
-    (data: DonutSlice) => {
-      // Toggle off if already active
-      if (activeFilter?.dimension === dimension && activeFilter.value === data.name) {
+    (data: AllocationSlice) => {
+      if (
+        activeFilter?.dimension === dimension &&
+        activeFilter.value === data.name
+      ) {
         onSegmentClick(null);
       } else {
         onSegmentClick({ dimension, value: data.name });
@@ -280,7 +258,6 @@ function DonutPanel({ title, slices, dimension, activeFilter, onSegmentClick }: 
     [activeFilter, dimension, onSegmentClick]
   );
 
-  // Dim non-active slices when a filter is active for this dimension
   const cellOpacity = (name: string) => {
     if (!activeValue) return 1;
     return name === activeValue ? 1 : 0.3;
@@ -289,17 +266,18 @@ function DonutPanel({ title, slices, dimension, activeFilter, onSegmentClick }: 
   return (
     <Card className="flex flex-col">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-foreground">{title}</CardTitle>
+        <CardTitle className="text-sm font-semibold text-foreground">
+          {title}
+        </CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col items-center gap-0 pt-0 flex-1">
+      <CardContent className="flex flex-1 flex-col items-center gap-0 pt-0">
         {slices.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center gap-2">
+          <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
             <PieChartIcon className="h-8 w-8 text-muted-foreground/40" />
             <p className="text-xs text-muted-foreground">No data</p>
           </div>
         ) : (
           <>
-            {/* Chart */}
             <div className="w-full" style={{ height: 180 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -312,10 +290,13 @@ function DonutPanel({ title, slices, dimension, activeFilter, onSegmentClick }: 
                     paddingAngle={2}
                     dataKey="value"
                     activeIndex={hoverIndex ?? undefined}
-                    activeShape={<ActiveShape />}
+                    activeShape={ActiveShape}
                     onMouseEnter={(_, index) => setHoverIndex(index)}
                     onMouseLeave={() => setHoverIndex(null)}
-                    onClick={(data: DonutSlice) => handleClick(data)}
+                    onClick={(_, index) => {
+                      const slice = slices[index];
+                      if (slice) handleClick(slice);
+                    }}
                     style={{ cursor: "pointer" }}
                     aria-label={`${title} donut chart`}
                   >
@@ -324,7 +305,9 @@ function DonutPanel({ title, slices, dimension, activeFilter, onSegmentClick }: 
                         key={slice.name}
                         fill={slice.color}
                         opacity={cellOpacity(slice.name)}
-                        stroke={activeValue === slice.name ? slice.color : "transparent"}
+                        stroke={
+                          activeValue === slice.name ? slice.color : "transparent"
+                        }
                         strokeWidth={activeValue === slice.name ? 2 : 0}
                       />
                     ))}
@@ -334,7 +317,6 @@ function DonutPanel({ title, slices, dimension, activeFilter, onSegmentClick }: 
               </ResponsiveContainer>
             </div>
 
-            {/* Legend */}
             <DonutLegend
               slices={slices}
               dimension={dimension}
@@ -357,7 +339,9 @@ function EmptyState() {
         <PieChartIcon className="h-8 w-8 text-muted-foreground" />
       </div>
       <div>
-        <p className="text-sm font-semibold text-foreground">No portfolio data yet</p>
+        <p className="text-sm font-semibold text-foreground">
+          No portfolio data yet
+        </p>
         <p className="mt-1 text-xs text-muted-foreground">
           Fund invoices on the marketplace to see your portfolio composition.
         </p>
@@ -382,11 +366,13 @@ function ActiveFilterBadge({ filter, onClear }: FilterBadgeProps) {
   return (
     <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary">
       <span>
-        Filtering by <strong>{labels[filter.dimension]}</strong>: {filter.value}
+        Filtering marketplace by <strong>{labels[filter.dimension]}</strong>:{" "}
+        {filter.value}
       </span>
       <button
+        type="button"
         onClick={onClear}
-        className="ml-1 rounded-full hover:bg-primary/20 p-0.5 transition-colors"
+        className="ml-1 rounded-full p-0.5 transition-colors hover:bg-primary/20"
         aria-label="Clear filter"
       >
         ×
@@ -397,29 +383,45 @@ function ActiveFilterBadge({ filter, onClear }: FilterBadgeProps) {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 
-export function PortfolioDonut({ positions, activeFilter, onSegmentClick }: PortfolioDonutProps) {
-  const riskSlices = useMemo(() => buildSlices(positions, "riskTier"), [positions]);
-  const jurisdictionSlices = useMemo(() => buildSlices(positions, "jurisdiction"), [positions]);
-  const categorySlices = useMemo(() => buildSlices(positions, "category"), [positions]);
+export function PortfolioDonut({
+  positions,
+  activeFilter,
+  onSegmentClick,
+}: PortfolioDonutProps) {
+  const riskSlices = useMemo(
+    () => aggregatePositions(positions, "riskTier"),
+    [positions]
+  );
+  const jurisdictionSlices = useMemo(
+    () => aggregatePositions(positions, "jurisdiction"),
+    [positions]
+  );
+  const categorySlices = useMemo(
+    () => aggregatePositions(positions, "category"),
+    [positions]
+  );
 
   const hasPositions = positions.length > 0;
 
   return (
     <div className="space-y-4">
-      {/* Section header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-foreground">Portfolio Composition</h2>
+          <h2 className="text-base font-semibold text-foreground">
+            Portfolio Composition
+          </h2>
           <p className="text-xs text-muted-foreground">
-            Click a segment or legend item to filter positions below
+            Click a segment to browse matching invoices on the marketplace
           </p>
         </div>
         {activeFilter && (
-          <ActiveFilterBadge filter={activeFilter} onClear={() => onSegmentClick(null)} />
+          <ActiveFilterBadge
+            filter={activeFilter}
+            onClear={() => onSegmentClick(null)}
+          />
         )}
       </div>
 
-      {/* Charts grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {hasPositions ? (
           <>

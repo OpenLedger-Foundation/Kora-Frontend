@@ -172,4 +172,26 @@ describe("useWalletStore - Network Validation", () => {
       vi.mocked(envModule.env).NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
     });
   });
+
+  describe("switchAccount()", () => {
+    it("updates address and clears verification without disconnecting", () => {
+      const { result } = renderHook(() => useWalletStore());
+      act(() => {
+        result.current.connect("freighter", "GACC1", "GACC1");
+        result.current.setVerified(true);
+      });
+
+      expect(result.current.address).toBe("GACC1");
+      expect(result.current.isVerified).toBe(true);
+
+      act(() => {
+        result.current.switchAccount("GACC2", "GACC2");
+      });
+
+      expect(result.current.address).toBe("GACC2");
+      expect(result.current.isConnected).toBe(true);
+      expect(result.current.isVerified).toBe(false);
+      expect(result.current.verifiedAt).toBeNull();
+    });
+  });
 });

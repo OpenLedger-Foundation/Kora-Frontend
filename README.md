@@ -1,3 +1,7 @@
+### Marketplace watchlist
+
+Investors can star invoices from marketplace cards or the invoice detail view. The Marketplace watchlist drawer keeps up to 50 watched invoices in durable browser storage and exposes independent preferences for funding progress, status, and APR alerts. Alerts are disabled for the initial snapshot and deduplicated per invoice change so refreshes do not produce notification spam.
+
 <div align="center">
   <img src="https://img.shields.io/badge/Stellar-Soroban-14b8a6?style=for-the-badge&logo=stellar&logoColor=white" alt="Stellar Soroban" />
   <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" alt="Next.js 15" />
@@ -24,7 +28,8 @@
 - [Tech Stack](#tech-stack)
 - [Getting Started](#getting-started)
 - [Project Structure](#project-structure)
-- [Design System](./DESIGN_SYSTEM.md)
+- [Documentation](#documentation)
+- [Getting Started](#getting-started)
 - [Environment Variables](#environment-variables)
 - [Core User Flows](#core-user-flows)
 - [Smart Contract Integration](#smart-contract-integration)
@@ -126,7 +131,19 @@ The Kora frontend uses a semantic Tailwind-based design system with CSS custom p
 - The app is dark-mode-first and supports light mode through theme overrides.
 - Reusable primitives live under `components/ui`.
 
-Read the full design system documentation in [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md).
+See [docs/design-system.md](./docs/design-system.md) for the full guide.
+
+---
+
+## Documentation
+
+| Doc | Path |
+| --- | ---- |
+| Architecture | [docs/architecture.md](./docs/architecture.md) |
+| Design system | [docs/design-system.md](./docs/design-system.md) |
+| Contributing | [CONTRIBUTING.md](./CONTRIBUTING.md) |
+| Security | [SECURITY.md](./SECURITY.md) |
+| Doc index | [docs/README.md](./docs/README.md) |
 
 ---
 
@@ -158,11 +175,57 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Docker Dev Environment
+
+If you prefer Docker, run:
+
+```bash
+cp .env.example .env.local
+# Edit .env.local with your values
+docker compose up --build
+```
+
+The app will be available at [http://localhost:3000](http://localhost:3000) with hot reload enabled.
+
+Recommended contributor flow:
+
+1. Keep `NEXT_PUBLIC_ENABLE_MOCK_DATA=true` for first-run development unless you are testing live Soroban contracts.
+2. Start the container with `docker compose up --build`.
+3. Open [http://localhost:3000](http://localhost:3000) and verify the marketplace loads.
+4. Confirm hot reload by editing a copy-only string in a component and checking that the browser updates without rebuilding the image.
+5. Stop the stack with `docker compose down`. Use `docker compose down --volumes` only when you intentionally want to remove the container-managed `node_modules` volume.
+
+Troubleshooting:
+
+- If changes do not appear, confirm Docker Desktop file sharing includes this repository path.
+- If dependencies change, rerun `docker compose build --no-cache kora-frontend`.
+- If `.env.local` is missing, Docker will fail because the compose file mounts it read-only.
+
 ### Quick Start with Mock Data
 
 The app ships with mock data enabled by default (`NEXT_PUBLIC_ENABLE_MOCK_DATA=true`). You can browse the marketplace, view invoice details, and explore dashboards without a live Soroban connection.
 
 To test wallet interactions, install [Freighter](https://freighter.app), switch it to **Testnet**, and fund your account via [Stellar Friendbot](https://friendbot.stellar.org).
+
+### Seeding Testnet Data
+
+Once you have real contract IDs deployed to testnet (`NEXT_PUBLIC_ENABLE_MOCK_DATA=false`), `scripts/seed-testnet.ts` sets up a wallet with sample data to develop against:
+
+```bash
+npm run seed:testnet
+```
+
+This generates a new keypair, funds it via Friendbot, mints it testnet USDC, mints 5 sample invoices, partially funds 2 of them, and prints the wallet's public/secret key and the minted token IDs to the console — save the secret key if you want to reuse that wallet (e.g. to import it into Freighter).
+
+Validate the script against your configured contracts without writing any invoice or funding state on-chain:
+
+```bash
+npm run seed:testnet -- --dry-run
+```
+
+`--dry-run` still generates and funds a keypair (a real, funded account is required to simulate contract calls at all) and builds + simulates every mint call, but never signs or submits a mint or fund transaction.
+
+The script refuses to run unless `NEXT_PUBLIC_STELLAR_NETWORK=testnet` — it will never touch mainnet. It reuses `lib/stellar/contracts.ts` and `@stellar/stellar-sdk` directly (no extra tooling needed) via [Node's built-in TypeScript support](https://nodejs.org/api/typescript.html), so it requires **Node.js 22.6+**.
 
 ---
 
@@ -235,6 +298,11 @@ kora-frontend/
 │   ├── contract.ts               # ContractConfig, TxState, etc.
 │   └── index.ts
 │
+├── docs/                         # Architecture, design system, doc index
+│   ├── README.md
+│   ├── architecture.md
+│   └── design-system.md
+│
 ├── .env.example                  # Environment variable template
 ├── next.config.js
 ├── tailwind.config.ts
@@ -255,19 +323,24 @@ NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
 NEXT_PUBLIC_STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
 NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
 
-# Contract Addresses (deploy your own or use testnet deployments)
-NEXT_PUBLIC_INVOICE_CONTRACT_ID=C...
-NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID=C...
-NEXT_PUBLIC_TOKEN_CONTRACT_ID=C...
+# Contract Addresses — v0.2 testnet deployments (replace with your own if needed)
+NEXT_PUBLIC_INVOICE_CONTRACT_ID=CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA
+NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID=CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4
+NEXT_PUBLIC_TOKEN_CONTRACT_ID=CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC
 
 # IPFS (Pinata)
 NEXT_PUBLIC_IPFS_GATEWAY=https://gateway.pinata.cloud/ipfs
 PINATA_JWT=your_pinata_jwt_token
 
 # Feature Flags
-NEXT_PUBLIC_ENABLE_MOCK_DATA=true   # Set to false for live data
+NEXT_PUBLIC_ENABLE_MOCK_DATA=true   # Set to false for live on-chain calls
 NEXT_PUBLIC_ENABLE_DEVTOOLS=true
+NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
+NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
+NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 ```
+
+> **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
 
 ---
 
@@ -308,6 +381,77 @@ NEXT_PUBLIC_ENABLE_DEVTOOLS=true
 ## Smart Contract Integration
 
 The frontend interacts with two Soroban contracts:
+
+### v0.2 Testnet Deployments
+
+| Contract | Address | Explorer |
+|----------|---------|---------|
+| Invoice NFT | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | [View](https://stellar.expert/explorer/testnet/contract/CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA) |
+| Marketplace | `CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4` | [View](https://stellar.expert/explorer/testnet/contract/CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4) |
+| USDC Token | `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC` | [View](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC) |
+
+### Smart Contract Deployment
+
+To deploy your own contracts to testnet:
+
+#### Prerequisites
+
+- [Stellar CLI](https://developers.stellar.org/docs/tools/developer-tools/cli/install-stellar-cli) v21+
+- Funded testnet account — get XLM from [Friendbot](https://friendbot.stellar.org)
+
+#### Steps
+
+```bash
+# 1. Install Stellar CLI
+cargo install --locked stellar-cli --features opt
+
+# 2. Generate or import a deployer keypair
+stellar keys generate --global deployer --network testnet
+stellar keys fund deployer --network testnet   # fund via Friendbot
+
+# 3. Build contract WASM (from the contracts repo)
+stellar contract build
+
+# 4. Deploy the Invoice NFT contract
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/invoice_nft.wasm \
+  --source deployer \
+  --network testnet
+# → Outputs: CONTRACT_ID  (copy this to NEXT_PUBLIC_INVOICE_CONTRACT_ID)
+
+# 5. Deploy the Marketplace contract
+stellar contract deploy \
+  --wasm target/wasm32-unknown-unknown/release/marketplace.wasm \
+  --source deployer \
+  --network testnet
+# → Outputs: CONTRACT_ID  (copy this to NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID)
+
+# 6. Deploy or note the USDC token contract
+#    On testnet you can use the Stellar Lab USDC contract or deploy a test token.
+#    Copy its contract ID to NEXT_PUBLIC_TOKEN_CONTRACT_ID.
+
+# 7. Update .env.local with the three contract IDs, then:
+NEXT_PUBLIC_ENABLE_MOCK_DATA=false npm run dev
+```
+
+> **Note**: The v0.2 testnet addresses in `.env.example` are the canonical deployments.
+> Override them only if you need a private deployment for development/testing.
+
+### Network-aware Contract Switching
+
+`lib/stellar/contracts.ts` maintains a `NETWORK_CONTRACTS` registry keyed by network name.
+When `NEXT_PUBLIC_STELLAR_NETWORK` changes (e.g. `testnet` → `mainnet`), the correct
+addresses are picked automatically — no code changes needed, only env vars.
+
+To add mainnet addresses when ready, extend the registry:
+
+```typescript
+// lib/stellar/contracts.ts
+const NETWORK_CONTRACTS = {
+  testnet: { invoice: "CBIELTK...", marketplace: "CBWOAOZ...", token: "CDLZFC3..." },
+  mainnet: { invoice: "C...",       marketplace: "C...",       token: "C..."       },
+};
+```
 
 ### Invoice Contract (`lib/stellar/contracts.ts`)
 

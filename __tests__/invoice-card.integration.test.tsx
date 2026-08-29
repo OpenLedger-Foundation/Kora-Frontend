@@ -41,15 +41,16 @@ const mockInvoice = createMockInvoice({
 });
 
 const mockPrefetch = vi.fn();
+const mockPush = vi.fn();
+const mockPrefetchNav = vi.fn();
 
 // Mock useRouter
-const mockRouter = {
-  push: vi.fn(),
-  prefetch: vi.fn(),
-};
-
 vi.mock("next/navigation", () => ({
-  useRouter: () => mockRouter,
+  useRouter: () => ({
+    push: mockPush,
+    prefetch: mockPrefetchNav,
+  }),
+  useParams: () => ({ id: "inv_card_test" }),
 }));
 
 // Mock usePrefetchInvoice
@@ -71,17 +72,26 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
 }));
 
+import { useRouter } from "next/navigation";
+import { usePrefetchInvoice } from "@/hooks/useInvoices";
+
 // Simplified InvoiceCard component for testing
 const InvoiceCardTest = ({ invoice }: { invoice: typeof mockInvoice }) => {
-  const router = require("next/navigation").useRouter();
-  const prefetchInvoice = require("@/hooks/useInvoices").usePrefetchInvoice();
+  const router = useRouter();
+  const prefetchInvoice = usePrefetchInvoice();
 
   const handleMouseEnter = () => {
     prefetchInvoice(invoice.id);
   };
 
   const handleClick = () => {
-    router.push(`/marketplace/${invoice.id}`);
+    console.log("handleClick called", invoice.id);
+    try {
+      router.push(`/marketplace/${invoice.id}`);
+      console.log("router.push called successfully");
+    } catch (e) {
+      console.error("Error calling router.push", e);
+    }
   };
 
   const statusColors: Record<string, string> = {
@@ -153,7 +163,8 @@ describe("Invoice Card Integration Tests", () => {
     queryClient = createTestQueryClient();
     vi.clearAllMocks();
     mockPrefetch.mockClear();
-    mockRouter.push.mockClear();
+    mockPush.mockClear();
+    mockPrefetchNav.mockClear();
   });
 
   it("renders invoice card with all data", () => {
@@ -175,7 +186,7 @@ describe("Invoice Card Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    expect(screen.getByTestId("card-amount")).toHaveTextContent("100000");
+    expect(screen.getByTestId("card-amount")).toHaveTextContent("USDC 100,000");
     expect(screen.getByTestId("card-apr")).toHaveTextContent("22.5%");
     expect(screen.getByTestId("card-category")).toHaveTextContent("technology");
     expect(screen.getByTestId("card-jurisdiction")).toHaveTextContent("KE");
@@ -200,7 +211,7 @@ describe("Invoice Card Integration Tests", () => {
     );
 
     expect(screen.getByTestId("card-investor-count")).toHaveTextContent("25 investors");
-    expect(screen.getByTestId("card-remaining-capacity")).toHaveTextContent("25000 remaining");
+    expect(screen.getByTestId("card-remaining-capacity")).toHaveTextContent("USDC 25,000 remaining");
   });
 
   it("displays status badge", () => {
@@ -252,7 +263,7 @@ describe("Invoice Card Integration Tests", () => {
     
     await user.click(card);
 
-    expect(mockRouter.push).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
+    expect(mockPush).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
   });
 
   it("prefetches data before navigation", async () => {
@@ -277,7 +288,7 @@ describe("Invoice Card Integration Tests", () => {
 
     // Both should have been called
     expect(mockPrefetch).toHaveBeenCalledWith(mockInvoice.id);
-    expect(mockRouter.push).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
+    expect(mockPush).toHaveBeenCalledWith(`/marketplace/${mockInvoice.id}`);
   });
 
   it("displays different status colors for different statuses", () => {

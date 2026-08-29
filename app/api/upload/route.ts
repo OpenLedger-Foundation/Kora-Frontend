@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Buffer } from "node:buffer";
 import { verifyUploadToken } from "@/lib/security";
 import { logger } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 const PINATA_BASE = "https://api.pinata.cloud";
 const PINATA_JWT = process.env.PINATA_JWT ?? "";
@@ -11,6 +12,41 @@ const VIRUSTOTAL_API_KEY = process.env.VIRUSTOTAL_API_KEY ?? "";
 const RATE_LIMIT_WINDOW = 1000 * 60 * 60; // 1 hour
 const RATE_LIMIT_MAX = 10;
 const rateLimitMap = new Map<string, number[]>();
+
+// In-memory rate limit store: clientIP -> timestamps (ms)
+// Note: This in-memory storage is suitable only for a single-instance deployment.
+// In a multi-instance (autoscaled or serverless) environment, the rate limit state
+// will not be shared across instances. For multi-instance, use a centralized store like Redis.
+const IP_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const IP_RATE_LIMIT_MAX = 10;
+const ipRateLimitMap = new Map<string, number[]>();
+
+function resetIpRateLimit() {
+  ipRateLimitMap.clear();
+}
+
+if (typeof global !== "undefined") {
+  (global as any).__resetIpRateLimit = resetIpRateLimit;
+}
+
+function checkIpRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
+  const now = Date.now();
+  const timestamps = ipRateLimitMap.get(ip) || [];
+  
+  // Filter out expired timestamps
+  const recent = timestamps.filter((t) => t > now - IP_RATE_LIMIT_WINDOW);
+  
+  if (recent.length >= IP_RATE_LIMIT_MAX) {
+    const oldestTimestamp = recent[0];
+    const timeRemainingMs = oldestTimestamp + IP_RATE_LIMIT_WINDOW - now;
+    const retryAfter = Math.max(1, Math.ceil(timeRemainingMs / 1000));
+    return { allowed: false, retryAfter };
+  }
+  
+  recent.push(now);
+  ipRateLimitMap.set(ip, recent);
+  return { allowed: true };
+}
 
 type VirusScanResult =
   | { ok: true; note?: string }
@@ -103,8 +139,27 @@ function checkRateLimit(wallet: string) {
   return true;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
+
+  const csrfError = verifyCsrf(req);
+  if (csrfError) return csrfError;
+
+  // 1. IP rate limiting (10 req/min)
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : "127.0.0.1";
+  const limitResult = checkIpRateLimit(clientIp);
+  if (!limitResult.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later.", requestId },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(limitResult.retryAfter ?? 60),
+        },
+      }
+    );
+  }
   try {
     if (!PINATA_JWT) {
       return NextResponse.json({ error: "Pinata JWT not configured", requestId }, { status: 500 });
@@ -207,6 +262,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unsupported content type", requestId }, { status: 415 });
   } catch (err) {
     logger.error("[pinata-proxy] error", { requestId, route: "/api/upload", error: err });
+    return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  const requestId = (req as Request & { headers: Headers }).headers.get("x-request-id") ?? crypto.randomUUID();
+  try {
+    const authHeader = req.headers.get("authorization") ?? "";
+    const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!bearerToken) {
+      return NextResponse.json({ error: "Unauthorized: missing token", requestId }, { status: 401 });
+    }
+    const authResult = verifyUploadToken(bearerToken);
+    if (!authResult.ok) {
+      return NextResponse.json({ error: `Unauthorized: ${authResult.error}`, requestId }, { status: 401 });
+    }
+
+    const { cid } = await req.json();
+    if (!cid) {
+      return NextResponse.json({ error: "cid is required", requestId }, { status: 400 });
+    }
+
+    if (PINATA_JWT) {
+      await fetch(`${PINATA_BASE}/pinning/unpin/${cid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${PINATA_JWT}` },
+      });
+    }
+
+    return NextResponse.json({ ok: true, cid });
+  } catch (err) {
+    logger.error("[pinata-proxy] unpin error", { requestId, route: "/api/upload", error: err });
     return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
 }

@@ -376,11 +376,22 @@ describe("svgToFile", () => {
     expect(file.size).toBeGreaterThan(0);
   });
 
-  it("file content matches the SVG string", async () => {
+  it("file content matches the SVG string", () => {
     const svg = generateInvoiceSvg(BASE_METADATA);
     const file = svgToFile(svg);
-    const text = await file.text();
-    expect(text).toBe(svg);
+    return new Promise<void>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          expect(reader.result).toBe(svg);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
   });
 });
 
@@ -405,5 +416,69 @@ describe("svgToDataUri", () => {
     const prefix = "data:image/svg+xml;charset=utf-8,";
     const decoded = decodeURIComponent(uri.slice(prefix.length));
     expect(decoded).toBe(svg);
+  });
+});
+
+// ─── 7. Snapshot — guards against unintended output changes ──────────────────
+
+describe("generateInvoiceSvg — snapshot", () => {
+  it("minimal metadata output is stable", () => {
+    const svg = generateInvoiceSvg(BASE_METADATA);
+    expect(svg).toMatchSnapshot();
+  });
+
+  it("full metadata output is stable", () => {
+    const svg = generateInvoiceSvg(FULL_METADATA);
+    expect(svg).toMatchSnapshot();
+  });
+
+  it("custom dimensions output is stable", () => {
+    const svg = generateInvoiceSvg(BASE_METADATA, { width: 400, height: 300 });
+    expect(svg).toMatchSnapshot();
+  });
+});
+
+// ─── 8. Benchmark — single-pass escapeXml ≥30% faster than 5-chain replace ──
+
+describe("generateInvoiceSvg — performance", () => {
+  const ITERATIONS = 5_000;
+
+  it(`generates ${ITERATIONS} SVGs in under 3 seconds`, () => {
+    const start = performance.now();
+    for (let i = 0; i < ITERATIONS; i++) {
+      generateInvoiceSvg(FULL_METADATA);
+    }
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(3_000);
+  });
+
+  it("single-pass escapeXml is ≥30% faster than five-chain replace on a long string", () => {
+    // Simulate what escapeXml does internally: compare single-pass vs naive 5-chain.
+    const sample = "Hello & World <test> \"quoted\" 'apos' ".repeat(200);
+    const RUNS = 20_000;
+
+    const singlePass = (s: string) =>
+      s.replace(/[&<>"']/g, (c) =>
+        c === "&" ? "&amp;" : c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === '"' ? "&quot;" : "&apos;"
+      );
+
+    const fiveChain = (s: string) =>
+      s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+
+    const t1 = performance.now();
+    for (let i = 0; i < RUNS; i++) singlePass(sample);
+    const singleMs = performance.now() - t1;
+
+    const t2 = performance.now();
+    for (let i = 0; i < RUNS; i++) fiveChain(sample);
+    const chainMs = performance.now() - t2;
+
+    // single-pass must be at least 30% faster (i.e. takes ≤70% of chain time)
+    expect(singleMs).toBeLessThan(chainMs * 0.7);
   });
 });

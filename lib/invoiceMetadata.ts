@@ -11,7 +11,7 @@
 
 import { z } from "zod";
 import { env } from "@/lib/env";
-import { isValidCID } from "./ipfs";
+import { isValidCID, fetchFromIpfsWithFallback } from "./ipfs";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -299,12 +299,11 @@ export async function verifyMetadataIntegrity(
     return false;
   }
   try {
-    const gateway = env.NEXT_PUBLIC_IPFS_GATEWAY || "https://ipfs.io";
-    const response = await fetch(`${gateway}/${cid}`, { cache: "no-store" });
-    if (!response.ok) {
-      return false;
-    }
-    const remote = await response.json();
+    // Rotate across gateways so a single gateway outage doesn't fail
+    // verification. We compare canonicalized content, so integrity is asserted
+    // by content equality here; the CID hash check runs inside the fetch too.
+    const { text } = await fetchFromIpfsWithFallback(cid, { timeoutMs: 10_000 });
+    const remote = JSON.parse(text);
     return canonicalizeMetadata(remote) === canonicalizeMetadata(metadata);
   } catch (error) {
     console.warn("Invoice metadata integrity verification failed", error);
@@ -383,4 +382,193 @@ function buildAttributes(
   }
 
   return attrs;
+}
+
+// ─── Schema Versioning & Migration (#392) ─────────────────────────────────────
+
+/** Schema versions we can detect. "legacy" = pre-versioned camelCase metadata. */
+export type MetadataVersion = "1.0" | "legacy";
+
+/** Versions we can render natively without migration. */
+export const SUPPORTED_METADATA_VERSIONS = [METADATA_VERSION] as const;
+
+/**
+ * Legacy (pre-#121) invoice metadata schema.
+ *
+ * Older on-chain CIDs point at metadata written before the versioned V1 schema
+ * existed. That shape used camelCase keys and had no `metadata_version` field.
+ * We keep a lenient parser so those NFTs still render and can be migrated to V1.
+ */
+export const legacyInvoiceMetadataSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  image: z.string().optional(),
+  invoiceNumber: z.string().min(1),
+  issuerName: z.string().optional(),
+  issuerAddress: z.string().min(1),
+  debtorName: z.string().min(1),
+  debtorAddress: z.string().optional(),
+  amount: z.number().positive(),
+  currency: z.string().min(1),
+  issueDate: z.string().optional(),
+  dueDate: z.string().min(1),
+  description_: z.string().optional(),
+  jurisdiction: z.string().optional(),
+  category: z.string().optional(),
+  documentHash: z.string().optional(),
+  documentUrl: z.string().optional(),
+});
+
+export type LegacyInvoiceMetadata = z.infer<typeof legacyInvoiceMetadataSchema>;
+
+/**
+ * Detect which metadata schema a raw IPFS payload conforms to.
+ *
+ * @returns "1.0"    — has metadata_version === "1.0"
+ * @returns "legacy" — no version field but recognizably invoice metadata
+ * @returns "unknown" — unrecognized / not invoice metadata
+ */
+export function detectMetadataVersion(raw: unknown): MetadataVersion | "unknown" {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "unknown";
+  const obj = raw as Record<string, unknown>;
+
+  if (typeof obj.metadata_version === "string") {
+    return obj.metadata_version === METADATA_VERSION ? "1.0" : "unknown";
+  }
+
+  // No version field — infer legacy from recognizable invoice fields.
+  const looksLikeInvoice =
+    (typeof obj.invoiceNumber === "string" || typeof obj.invoice_number === "string") &&
+    (typeof obj.amount === "number" || typeof obj.amount === "string");
+  return looksLikeInvoice ? "legacy" : "unknown";
+}
+
+/** Normalize an ISO date / date-time string to YYYY-MM-DD. */
+function toDateOnly(value: string | undefined): string {
+  if (!value) return "";
+  return value.slice(0, 10);
+}
+
+/**
+ * Migrate a legacy metadata object to the InvoiceMetadataV1 input shape.
+ *
+ * Best-effort field mapping — the result is still run through the V1 schema by
+ * {@link parseAnyInvoiceMetadata}, so genuinely malformed legacy data surfaces
+ * a clear validation error rather than a silent bad migration.
+ */
+export function migrateLegacyToV1(
+  legacy: LegacyInvoiceMetadata
+): InvoiceMetadataV1Input {
+  const currency = String(legacy.currency).toUpperCase();
+  const image =
+    legacy.image ||
+    (legacy.documentHash ? `ipfs://${legacy.documentHash}` : undefined) ||
+    legacy.documentUrl ||
+    "";
+
+  return {
+    name: legacy.name || `Invoice ${legacy.invoiceNumber}`,
+    description:
+      legacy.description ||
+      `Tokenized invoice ${legacy.invoiceNumber} (migrated from legacy schema)`,
+    image,
+    invoice_number: legacy.invoiceNumber,
+    amount: legacy.amount,
+    currency: currency as InvoiceMetadataV1Input["currency"],
+    due_date: toDateOnly(legacy.dueDate),
+    issuer: {
+      address: legacy.issuerAddress,
+      name: legacy.issuerName || undefined,
+    },
+    debtor: {
+      name: legacy.debtorName,
+      address: legacy.debtorAddress || undefined,
+      privacy: "full",
+    },
+    jurisdiction: legacy.jurisdiction as InvoiceMetadataV1Input["jurisdiction"],
+    category: legacy.category as InvoiceMetadataV1Input["category"],
+    ipfs_document_cid: legacy.documentHash,
+  };
+}
+
+/** Result of parsing metadata of any supported version. */
+export type ParsedInvoiceMetadata = {
+  /** The detected source schema version. */
+  version: MetadataVersion;
+  /** The metadata normalized to the current V1 schema. */
+  data: InvoiceMetadataV1;
+};
+
+/**
+ * Parse invoice metadata of any supported schema version into a normalized
+ * InvoiceMetadataV1 object.
+ *
+ * - V1 payloads are validated directly.
+ * - Legacy payloads are parsed, migrated to V1, then validated.
+ * - Unknown payloads throw a descriptive error.
+ *
+ * @throws {Error} if the schema is unrecognized or the (migrated) data fails
+ *                 V1 validation.
+ */
+export function parseAnyInvoiceMetadata(raw: unknown): ParsedInvoiceMetadata {
+  const version = detectMetadataVersion(raw);
+
+  if (version === "1.0") {
+    return { version, data: parseInvoiceMetadata(raw) };
+  }
+
+  if (version === "legacy") {
+    const parsed = legacyInvoiceMetadataSchema.safeParse(raw);
+    if (!parsed.success) {
+      const errors = parsed.error.issues.map(
+        (issue) => `${issue.path.join(".")}: ${issue.message}`
+      );
+      throw new Error(
+        `Invalid legacy invoice metadata:\n${errors.join("\n")}`
+      );
+    }
+    const migrated = buildInvoiceMetadata(migrateLegacyToV1(parsed.data));
+    return { version, data: migrated };
+  }
+
+  throw new Error(
+    "Unrecognized invoice metadata schema: missing metadata_version and no legacy invoice fields."
+  );
+}
+
+/** UI descriptor for a metadata version badge. */
+export interface MetadataVersionBadge {
+  label: string;
+  tone: "success" | "warning" | "info";
+  description: string;
+}
+
+/**
+ * Map a detected metadata version to a display badge.
+ * Used by the metadata viewer to surface the schema version to users.
+ */
+export function metadataVersionBadge(
+  version: MetadataVersion | "unknown"
+): MetadataVersionBadge {
+  switch (version) {
+    case "1.0":
+      return {
+        label: `Schema v${METADATA_VERSION}`,
+        tone: "success",
+        description: "Current versioned metadata schema.",
+      };
+    case "legacy":
+      return {
+        label: "Legacy schema",
+        tone: "warning",
+        description:
+          "Pre-versioned metadata, migrated to the current schema for display.",
+      };
+    default:
+      return {
+        label: "Unknown schema",
+        tone: "info",
+        description: "Metadata schema could not be identified.",
+      };
+  }
 }

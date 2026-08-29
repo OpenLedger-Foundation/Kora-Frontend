@@ -10,8 +10,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { formatCurrency } from "@/lib/utils";
 import type { Invoice } from "@/types";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface RepaymentDialogProps {
   invoice: Invoice | null;
@@ -22,10 +22,18 @@ interface RepaymentDialogProps {
   insufficientBalance: boolean;
 }
 
-function getRepaymentBreakdown(inv: Invoice) {
-  const principal = inv.funding.totalRaised;
-  const interest = principal * inv.terms.discountRate;
-  return { principal, interest, total: principal + interest };
+import { calculateRepaymentSchedule } from "@/lib/utils";
+import type { SimulationPreview } from "@/hooks/useTransaction";
+
+interface RepaymentDialogProps {
+  invoice: Invoice | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (invoice: Invoice) => void;
+  isLoading: boolean;
+  insufficientBalance: boolean;
+  simulationPreview?: SimulationPreview | null;
+  simulationError?: string;
 }
 
 export function RepaymentDialog({
@@ -35,12 +43,16 @@ export function RepaymentDialog({
   onConfirm,
   isLoading,
   insufficientBalance,
+  simulationPreview,
+  simulationError,
 }: RepaymentDialogProps) {
   const t = useTranslations("repaymentDialog");
+  const { formatCurrency } = useFormatters();
 
   if (!invoice) return null;
 
-  const { principal, interest, total } = getRepaymentBreakdown(invoice);
+  const { principal, yieldAmount, totalRepayment } = calculateRepaymentSchedule(invoice);
+  const isBlocked = insufficientBalance || !!simulationError || !!simulationPreview?.error;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -53,12 +65,20 @@ export function RepaymentDialog({
         </DialogHeader>
 
         <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-4 text-sm">
-          <Row label={t("principal")} value={formatCurrency(principal, "USDC", true)} />
-          <Row label={t("interest")} value={formatCurrency(interest, "USDC", true)} />
+          <Row label={t("principal")} value={formatCurrency(principal, invoice.metadata.currency || "USDC", true)} />
+          <Row label={t("interest")} value={formatCurrency(yieldAmount, invoice.metadata.currency || "USDC", true)} />
+          
+          {simulationPreview && simulationPreview.feeXlm > 0 && (
+            <Row
+              label={t("simulatedFee")}
+              value={`${simulationPreview.feeXlm.toFixed(7)} XLM`}
+            />
+          )}
+
           <div className="border-t border-border pt-3">
             <Row
               label={t("total")}
-              value={formatCurrency(total, "USDC", true)}
+              value={formatCurrency(totalRepayment, invoice.metadata.currency || "USDC", true)}
               bold
             />
           </div>
@@ -67,7 +87,14 @@ export function RepaymentDialog({
         {insufficientBalance && (
           <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-            {t("insufficientBalance", { amount: formatCurrency(total, "USDC", true) })}
+            {t("insufficientBalance", { amount: formatCurrency(totalRepayment, invoice.metadata.currency || "USDC", true) })}
+          </div>
+        )}
+
+        {(simulationError || simulationPreview?.error) && (
+          <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            {simulationError || simulationPreview?.error || t("simulationError")}
           </div>
         )}
 
@@ -83,7 +110,7 @@ export function RepaymentDialog({
           <Button
             className="flex-1"
             onClick={() => onConfirm(invoice)}
-            disabled={isLoading || insufficientBalance}
+            disabled={isLoading || isBlocked}
           >
             {isLoading ? t("processing") : t("confirm")}
           </Button>

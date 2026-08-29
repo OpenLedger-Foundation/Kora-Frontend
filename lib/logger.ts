@@ -9,6 +9,26 @@ export interface LogContext {
   [key: string]: any;
 }
 
+export interface ClientErrorReportContext extends LogContext {
+  boundary?: string;
+  digest?: string;
+  componentStack?: string;
+}
+
+const SENSITIVE_KEY_PATTERN =
+  /password|secret|token|key|authorization|cookie|signature|passphrase|mnemonic|seed|jwt/i;
+const JWT_PATTERN =
+  /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g;
+const STELLAR_SECRET_PATTERN = /\bS[A-Z2-7]{55}\b/g;
+const STELLAR_PUBLIC_KEY_PATTERN = /\bG[A-Z2-7]{55}\b/g;
+
+function redactString(value: string): string {
+  return value
+    .replace(JWT_PATTERN, "[REDACTED_JWT]")
+    .replace(STELLAR_SECRET_PATTERN, "[REDACTED_SECRET_KEY]")
+    .replace(STELLAR_PUBLIC_KEY_PATTERN, "[REDACTED_WALLET]");
+}
+
 /**
  * Recursively redacts sensitive fields and serializes Error objects.
  */
@@ -16,13 +36,13 @@ export function redact(obj: any): any {
   if (obj instanceof Error) {
     return {
       name: obj.name,
-      message: obj.message,
-      stack: obj.stack,
+      message: redactString(obj.message),
+      stack: obj.stack ? redactString(obj.stack) : undefined,
     };
   }
 
   if (obj === null || typeof obj !== "object") {
-    return obj;
+    return typeof obj === "string" ? redactString(obj) : obj;
   }
 
   if (Array.isArray(obj)) {
@@ -31,19 +51,7 @@ export function redact(obj: any): any {
 
   const result: Record<string, any> = {};
   for (const key of Object.keys(obj)) {
-    const lowerKey = key.toLowerCase();
-    if (
-      lowerKey.includes("password") ||
-      lowerKey.includes("secret") ||
-      lowerKey.includes("token") ||
-      lowerKey.includes("key") ||
-      lowerKey.includes("authorization") ||
-      lowerKey.includes("cookie") ||
-      lowerKey.includes("signature") ||
-      lowerKey.includes("passphrase") ||
-      lowerKey.includes("mnemonic") ||
-      lowerKey.includes("seed")
-    ) {
+    if (SENSITIVE_KEY_PATTERN.test(key)) {
       result[key] = "[REDACTED]";
     } else {
       result[key] = redact(obj[key]);
@@ -53,6 +61,10 @@ export function redact(obj: any): any {
 }
 
 class StructuredLogger {
+  private isDevelopment(): boolean {
+    return process.env.NODE_ENV === "development";
+  }
+
   private log(level: "info" | "warn" | "error", message: string, context: LogContext = {}) {
     const { requestId, route, ...extra } = context;
 
@@ -64,6 +76,12 @@ class StructuredLogger {
       route: route || null,
       ...redact(extra),
     };
+
+    if (this.isDevelopment()) {
+      const consoleMethod = level === "error" ? console.error : level === "warn" ? console.warn : console.info;
+      consoleMethod(`[${level.toUpperCase()}] ${message}`, logEntry);
+      return;
+    }
 
     console.log(JSON.stringify(logEntry));
   }
@@ -78,6 +96,59 @@ class StructuredLogger {
 
   error(message: string, context?: LogContext) {
     this.log("error", message, context);
+  }
+
+  async reportClientError(
+    error: Error & { digest?: string },
+    context: ClientErrorReportContext = {}
+  ): Promise<void> {
+    const sanitizedError = redact(error);
+    const sanitizedContext = redact(context);
+
+    this.error("[client-error]", {
+      route: context.route ?? (typeof window !== "undefined" ? window.location.pathname : null),
+      error,
+      ...context,
+    });
+
+    if (typeof window === "undefined") return;
+
+    try {
+      const csrfResponse = await fetch("/api/auth/csrf", {
+        method: "GET",
+        credentials: "same-origin",
+      });
+      const csrfData = await csrfResponse.json().catch(() => ({}));
+      const csrfToken = typeof csrfData?.token === "string" ? csrfData.token : "";
+
+      await fetch("/api/vitals", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { "x-kora-csrf": csrfToken } : {}),
+        },
+        body: JSON.stringify({
+          metrics: [
+            {
+              name: "client_error",
+              value: 1,
+              id: error.digest ?? `client-error-${Date.now()}`,
+              label: "error-boundary",
+              startTime: Date.now(),
+              rating: "poor",
+              url: window.location.href,
+              userAgent: navigator.userAgent,
+              timestamp: Date.now(),
+              error: sanitizedError,
+              context: sanitizedContext,
+            },
+          ],
+        }),
+      });
+    } catch (reportError) {
+      this.warn("[client-error] failed to report", { error: reportError });
+    }
   }
 }
 

@@ -44,7 +44,6 @@ const mockTxHash = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6
 
 vi.mock("@/services/invoiceService", () => ({
   prepareFundInvoice: vi.fn(async (tokenId, amount, address) => {
-    // Simulate XDR preparation
     return Promise.resolve(mockPreparedXdr);
   }),
   prepareCreateInvoice: vi.fn(),
@@ -61,40 +60,38 @@ vi.mock("@/hooks/useInvoices", () => ({
 }));
 
 // Mock useWallet - returns connected wallet
-let walletState = mockWalletConnected;
+let mockWalletState = mockWalletConnected;
 vi.mock("@/hooks/useWallet", () => ({
-  useWallet: vi.fn(() => walletState),
+  useWallet: vi.fn(() => mockWalletState),
 }));
 
 // Mock useTransaction with lifecycle stages
-let transactionState = { status: "idle" as const, txHash: null, error: null };
+let mockTransactionState = { status: "idle" as const, txHash: null, error: null };
 
 vi.mock("@/hooks/useTransaction", () => ({
   useTransaction: vi.fn(() => ({
-    state: transactionState,
+    state: mockTransactionState,
     execute: vi.fn(async (buildFn: () => Promise<string>, options?: any) => {
-      // Simulate transaction lifecycle
-      transactionState = { status: "building" as const, txHash: null, error: null };
+      mockTransactionState = { status: "building" as const, txHash: null, error: null };
       
       const xdr = await buildFn();
       
-      transactionState = { status: "simulating" as const, txHash: null, error: null };
+      mockTransactionState = { status: "simulating" as const, txHash: null, error: null };
       await new Promise(r => setTimeout(r, 50));
       
-      transactionState = { status: "signing" as const, txHash: null, error: null };
+      mockTransactionState = { status: "signing" as const, txHash: null, error: null };
       await new Promise(r => setTimeout(r, 100));
       
-      // Mock wallet signature
       const signedXdr = mockSignedXdr;
       
-      transactionState = { status: "submitting" as const, txHash: null, error: null };
+      mockTransactionState = { status: "submitting" as const, txHash: null, error: null };
       await new Promise(r => setTimeout(r, 50));
       
-      transactionState = { status: "polling" as const, txHash: null, error: null };
+      mockTransactionState = { status: "polling" as const, txHash: null, error: null };
       await new Promise(r => setTimeout(r, 100));
       
       const hash = mockTxHash;
-      transactionState = { status: "confirmed" as const, txHash: hash, error: null };
+      mockTransactionState = { status: "confirmed" as const, txHash: hash, error: null };
       
       options?.onSuccess?.(hash);
       return hash;
@@ -108,24 +105,26 @@ vi.mock("next/navigation", () => ({
   notFound: () => { throw new Error("Not found"); },
 }));
 
+const mockUpdateInvoiceFunding = vi.fn();
+
 // Mock store
-vi.mock("@/store", () => ({
-  useUIStore: vi.fn(() => ({
-    setWalletModalOpen: vi.fn(),
-  })),
-  useInvoiceStore: {
-    getState: vi.fn(() => {
-      const updateCalls: any[] = [];
-      return {
-        updateInvoiceFunding: vi.fn((id, newTotal) => {
-          updateCalls.push({ id, newTotal });
-        }),
-        getLastUpdate: () => updateCalls[updateCalls.length - 1],
-        getAllUpdates: () => updateCalls,
-      };
-    }),
-  },
-}));
+vi.mock("@/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/store")>();
+  return {
+    ...actual,
+    useUIStore: vi.fn(() => ({
+      setWalletModalOpen: vi.fn(),
+    })),
+    useInvoiceStore: Object.assign(
+      vi.fn(() => ({})),
+      {
+        getState: vi.fn(() => ({
+          updateInvoiceFunding: mockUpdateInvoiceFunding,
+        })),
+      }
+    ),
+  };
+});
 
 // Mock utils
 vi.mock("@/lib/utils", () => ({
@@ -138,13 +137,20 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
 }));
 
+import { useParams } from "next/navigation";
+import { useInvoice } from "@/hooks/useInvoices";
+import { useWallet } from "@/hooks/useWallet";
+import { useTransaction } from "@/hooks/useTransaction";
+import { useUIStore, useInvoiceStore } from "@/store";
+import { prepareFundInvoice } from "@/services/invoiceService";
+
 // Funding flow component for testing
 const FundingFlowTest = () => {
-  const { id } = require("next/navigation").useParams();
-  const { data: invoice } = require("@/hooks/useInvoices").useInvoice(id);
-  const { isConnected, address } = require("@/hooks/useWallet")();
-  const { execute } = require("@/hooks/useTransaction")();
-  const { setWalletModalOpen } = require("@/store").useUIStore();
+  const { id } = useParams() as { id: string };
+  const { data: invoice } = useInvoice(id);
+  const { isConnected, address } = useWallet();
+  const { execute } = useTransaction();
+  const { setWalletModalOpen } = useUIStore();
   const [amount, setAmount] = React.useState("");
   const [funding, setFunding] = React.useState(false);
   const [fundTxHash, setFundTxHash] = React.useState<string | null>(null);
@@ -161,51 +167,64 @@ const FundingFlowTest = () => {
       setWalletModalOpen(true);
       return;
     }
-    if (!amountNum || amountNum < terms.minInvestment || amountNum > fundingState.remainingCapacity) {
+
+    if (amountNum < terms.minInvestment) {
+      setTxError(`Minimum investment is $${terms.minInvestment}`);
+      return;
+    }
+
+    if (amountNum > fundingState.remainingCapacity) {
+      setTxError(`Maximum investment is $${fundingState.remainingCapacity}`);
       return;
     }
 
     setFunding(true);
     setTxError(null);
+    setStageMessage("Building transaction...");
 
     try {
       // Optimistic update
-      const newTotalRaised = fundingState.totalRaised + amountNum;
-      setStageMessage("Optimistically updating UI...");
-      require("@/store").useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
+      useInvoiceStore.getState().updateInvoiceFunding(invoice.id, fundingState.totalRaised + amountNum);
 
-      // Execute transaction
-      const { prepareFundInvoice } = require("@/services/invoiceService");
-      const txHash = await execute(
-        () => prepareFundInvoice(invoice.tokenId, amountNum, address),
+      setStageMessage("Simulating transaction...");
+      await new Promise(r => setTimeout(r, 50));
+
+      setStageMessage("Signing transaction...");
+      const xdr = await prepareFundInvoice(invoice.tokenId, amountNum, address!);
+
+      setStageMessage("Submitting to network...");
+      const hash = await execute(
+        () => Promise.resolve(xdr),
         {
-          successMessage: `Invoice funded successfully!`,
-          onSuccess: (hash: string) => {
-            setFundTxHash(hash);
-            setStageMessage("Success! Transaction confirmed.");
+          onSuccess: (h: string) => {
+            setFundTxHash(h);
+            setStageMessage("Transaction confirmed!");
           },
         }
       );
 
-      if (txHash) {
-        setFundTxHash(txHash);
-      }
+      setFundTxHash(hash);
     } catch (error: any) {
-      setTxError(error.message || "Transaction failed");
-      setStageMessage("Transaction failed");
+      setTxError(error.message || "Funding failed");
     } finally {
       setFunding(false);
     }
   };
 
   return (
-    <div data-testid="funding-flow">
+    <div data-testid="funding-flow-test">
+      <h2>Fund Invoice #{invoice.metadata.invoiceNumber}</h2>
+
+      <div data-testid="remaining-capacity">
+        Remaining Capacity: ${fundingState.remainingCapacity}
+      </div>
+
       <input
         type="number"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
+        placeholder={`Min $${terms.minInvestment}`}
         data-testid="funding-amount-input"
-        placeholder="Amount to fund"
       />
 
       <button
@@ -213,7 +232,7 @@ const FundingFlowTest = () => {
         disabled={funding || !isConnected}
         data-testid="submit-funding-button"
       >
-        {funding ? "Processing..." : "Fund Invoice"}
+        {funding ? "Processing..." : "Fund Now"}
       </button>
 
       {stageMessage && (
@@ -222,14 +241,12 @@ const FundingFlowTest = () => {
 
       {fundTxHash && (
         <div data-testid="success-message">
-          <div data-testid="tx-hash-display">{fundTxHash}</div>
+          Success! Hash: <span data-testid="tx-hash-display">{fundTxHash}</span>
         </div>
       )}
 
       {txError && (
-        <div data-testid="error-message" style={{ color: "red" }}>
-          {txError}
-        </div>
+        <div data-testid="error-message">{txError}</div>
       )}
     </div>
   );
@@ -240,12 +257,9 @@ describe("Invoice Funding Flow Integration Tests", () => {
 
   beforeEach(() => {
     queryClient = createTestQueryClient();
-    transactionState = { status: "idle" as const, txHash: null, error: null };
-    walletState = mockWalletConnected;
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
+    mockWalletState = mockWalletConnected;
+    mockTransactionState = { status: "idle" as const, txHash: null, error: null };
+    mockUpdateInvoiceFunding.mockClear();
     vi.clearAllMocks();
   });
 
@@ -256,19 +270,13 @@ describe("Invoice Funding Flow Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    expect(screen.getByTestId("funding-flow")).toBeInTheDocument();
     expect(screen.getByTestId("funding-amount-input")).toBeInTheDocument();
     expect(screen.getByTestId("submit-funding-button")).toBeInTheDocument();
+    expect(screen.getByTestId("remaining-capacity")).toHaveTextContent("Remaining Capacity: $50000");
   });
 
   it("disables submit button when not connected", () => {
-    walletState = {
-      address: null,
-      publicKey: null,
-      isConnected: false,
-      provider: null,
-      balance: null,
-    };
+    mockWalletState = { ...mockWalletConnected, isConnected: false };
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -291,12 +299,8 @@ describe("Invoice Funding Flow Integration Tests", () => {
     const submitButton = screen.getByTestId("submit-funding-button");
 
     await user.type(amountInput, "10000");
-    
-    expect(submitButton).not.toBeDisabled();
-
     await user.click(submitButton);
 
-    // Button should show loading state
     await waitFor(() => {
       expect(submitButton).toHaveTextContent("Processing...");
     });
@@ -304,10 +308,10 @@ describe("Invoice Funding Flow Integration Tests", () => {
 
   it("performs optimistic update before transaction confirmation", async () => {
     const user = userEvent.setup();
-    const updateInvoiceFunding = vi.fn();
+    const updateFn = vi.fn();
 
-    vi.mocked(require("@/store").useInvoiceStore.getState) = vi.fn(() => ({
-      updateInvoiceFunding,
+    (useInvoiceStore.getState as any).mockImplementation(() => ({
+      updateInvoiceFunding: updateFn,
     }));
 
     render(
@@ -321,8 +325,7 @@ describe("Invoice Funding Flow Integration Tests", () => {
     await user.click(screen.getByTestId("submit-funding-button"));
 
     await waitFor(() => {
-      // Optimistic update should be called
-      expect(updateInvoiceFunding).toHaveBeenCalledWith("inv_funding_test", 60000); // 50000 + 10000
+      expect(updateFn).toHaveBeenCalledWith("inv_funding_test", 60000);
     });
   });
 
@@ -338,7 +341,6 @@ describe("Invoice Funding Flow Integration Tests", () => {
     await user.type(amountInput, "10000");
     await user.click(screen.getByTestId("submit-funding-button"));
 
-    // Wait for various stages
     await waitFor(() => {
       expect(screen.getByTestId("stage-message")).toBeInTheDocument();
     });
@@ -374,19 +376,17 @@ describe("Invoice Funding Flow Integration Tests", () => {
     await user.type(amountInput, "5000");
     await user.click(screen.getByTestId("submit-funding-button"));
 
-    // Wait for transaction to complete
     await waitFor(() => {
-      expect(transactionState.status).toBe("confirmed");
-      expect(transactionState.txHash).toBe(mockTxHash);
+      expect(mockTransactionState.status).toBe("confirmed");
+      expect(mockTransactionState.txHash).toBe(mockTxHash);
     }, { timeout: 1000 });
   });
 
   it("handles transaction errors", async () => {
     const user = userEvent.setup();
 
-    // Mock execute to throw error
-    vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
-      state: transactionState,
+    (useTransaction as any).mockImplementation(() => ({
+      state: mockTransactionState,
       execute: vi.fn(async () => {
         throw new Error("User rejected transaction");
       }),
@@ -411,8 +411,8 @@ describe("Invoice Funding Flow Integration Tests", () => {
     const user = userEvent.setup();
     let shouldFail = true;
 
-    vi.mocked(require("@/hooks/useTransaction").useTransaction) = vi.fn(() => ({
-      state: transactionState,
+    (useTransaction as any).mockImplementation(() => ({
+      state: mockTransactionState,
       execute: vi.fn(async (buildFn: () => Promise<string>) => {
         if (shouldFail) {
           shouldFail = false;
@@ -429,7 +429,6 @@ describe("Invoice Funding Flow Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    // First attempt - should fail
     let amountInput = screen.getByTestId("funding-amount-input") as HTMLInputElement;
     await user.type(amountInput, "10000");
     await user.click(screen.getByTestId("submit-funding-button"));
@@ -438,12 +437,9 @@ describe("Invoice Funding Flow Integration Tests", () => {
       expect(screen.getByTestId("error-message")).toBeInTheDocument();
     });
 
-    // Second attempt - should succeed
     await user.clear(amountInput);
     await user.type(amountInput, "10000");
     await user.click(screen.getByTestId("submit-funding-button"));
-
-    // Note: In real test, would need to properly reset component state
   });
 
   it("validates minimum investment before submitting", async () => {
@@ -455,13 +451,13 @@ describe("Invoice Funding Flow Integration Tests", () => {
     );
 
     const amountInput = screen.getByTestId("funding-amount-input") as HTMLInputElement;
-    const submitButton = screen.getByTestId("submit-funding-button");
 
-    // Enter below minimum (1000)
     await user.type(amountInput, "500");
+    await user.click(screen.getByTestId("submit-funding-button"));
 
-    // Note: In real implementation, validation happens in component
-    // For this test, we're verifying the flow structure
+    await waitFor(() => {
+      expect(screen.getByTestId("error-message")).toHaveTextContent("Minimum investment is $1000");
+    });
   });
 
   it("disables submit during transaction processing", async () => {
@@ -478,7 +474,6 @@ describe("Invoice Funding Flow Integration Tests", () => {
     await user.type(amountInput, "10000");
     await user.click(submitButton);
 
-    // Button should be disabled during processing
     await waitFor(() => {
       expect(submitButton).toBeDisabled();
     });

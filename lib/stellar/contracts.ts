@@ -4,44 +4,113 @@
  * useTransaction hook.
  */
 import * as StellarSdk from "@stellar/stellar-sdk";
-import { rpc, networkConfig } from "./client";
+import { rpc, networkConfig, sequenceManager } from "./client";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
 import { WALLET_ASSETS } from "@/config/walletAssets";
-import { sequenceManager } from "./client";
+import { parseSorobanError } from "@/lib/stellar/simulationErrors";
 
 import type {
   MintInvoiceParams,
   FundInvoiceParams,
   RepayInvoiceParams,
   ClaimYieldParams,
+  TransferPositionParams,
   OnChainInvoice,
-  OnChainStatusCode,
 } from "@/types/contract";
 import type { InvoicePosition } from "@/types/invoice";
 
-// ─── Error code → human-readable message ─────────────────────────────────────
+// ─── Network-aware contract registry ─────────────────────────────────────────
+//
+// Each network has its own set of deployed contract addresses.  The active set
+// is selected at module load time from NEXT_PUBLIC_STELLAR_NETWORK.
+//
+// To add a new network entry, extend the NETWORK_CONTRACTS map below and ensure
+// the corresponding env vars are set before building.
 
-const SOROBAN_ERROR_CODES: Record<number, string> = {
-  1: "Invoice not found",
-  2: "Invoice already funded",
-  3: "Insufficient balance",
-  4: "Unauthorized: caller is not the owner",
-  5: "Invoice has already been repaid",
-  6: "Funding amount exceeds remaining capacity",
-  7: "Invoice is not in a fundable state",
-  8: "Repayment amount is incorrect",
+const SOROBAN_ZERO_ADDRESS =
+  "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4";
+
+/**
+ * Per-network contract address registry.
+ *
+ * Addresses here are the v0.2 testnet deployments.  When a mainnet deployment
+ * is made, add a "mainnet" entry and set NEXT_PUBLIC_STELLAR_NETWORK=mainnet.
+ */
+const NETWORK_CONTRACTS: Record<
+  string,
+  { invoice: string; marketplace: string; token: string }
+> = {
+  testnet: {
+    invoice: "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+    marketplace: "CBWOAOZCOAJQH7HHZRE5BVNL2C4HRP4JCQZF3YQCQYDL5BZJRN4YGK4",
+    token: "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+  },
+  // mainnet: { invoice: "C...", marketplace: "C...", token: "C..." },
 };
 
-function parseSorobanError(error: string): string {
-  // Extract numeric error code from Soroban error strings like "Error(Contract, #4)"
-  const match = error.match(/#(\d+)/);
-  if (match) {
-    const code = parseInt(match[1], 10);
-    return SOROBAN_ERROR_CODES[code] ?? `Contract error #${code}`;
+/**
+ * Resolve contract addresses with the following priority:
+ *   1. Env vars (`.env.local` / CI secrets) — allows overriding per-deployment
+ *   2. Built-in NETWORK_CONTRACTS registry for the active network
+ *
+ * In live mode (NEXT_PUBLIC_ENABLE_MOCK_DATA=false) the resolved addresses are
+ * validated: they must be non-empty and not the Soroban zero-address.
+ */
+function resolveContractAddresses(): {
+  invoiceContractId: string;
+  marketplaceContractId: string;
+  tokenContractId: string;
+} {
+  const network = env.NEXT_PUBLIC_STELLAR_NETWORK;
+  const networkDefaults = NETWORK_CONTRACTS[network];
+
+  const invoiceContractId =
+    env.NEXT_PUBLIC_INVOICE_CONTRACT_ID ||
+    networkDefaults?.invoice ||
+    SOROBAN_ZERO_ADDRESS;
+
+  const marketplaceContractId =
+    env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID ||
+    networkDefaults?.marketplace ||
+    SOROBAN_ZERO_ADDRESS;
+
+  const tokenContractId =
+    env.NEXT_PUBLIC_TOKEN_CONTRACT_ID ||
+    networkDefaults?.token ||
+    SOROBAN_ZERO_ADDRESS;
+
+  // Fail fast in live mode if any contract resolves to the zero-address.
+  // env.ts already performs this check at startup, but we repeat it here as a
+  // defense-in-depth guard for direct module imports in server contexts.
+  if (!env.NEXT_PUBLIC_ENABLE_MOCK_DATA) {
+    const zeroAddrs: string[] = [];
+    if (invoiceContractId === SOROBAN_ZERO_ADDRESS)
+      zeroAddrs.push("NEXT_PUBLIC_INVOICE_CONTRACT_ID");
+    if (marketplaceContractId === SOROBAN_ZERO_ADDRESS)
+      zeroAddrs.push("NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID");
+    if (tokenContractId === SOROBAN_ZERO_ADDRESS)
+      zeroAddrs.push("NEXT_PUBLIC_TOKEN_CONTRACT_ID");
+
+    if (zeroAddrs.length > 0) {
+      throw new Error(
+        `[contracts] Live mode is active but the following contract IDs resolve ` +
+          `to the Soroban zero-address on ${network}:\n` +
+          zeroAddrs.map((k) => `  ${k}`).join("\n") +
+          `\nSet real deployed addresses in your .env.local or add them to ` +
+          `NETWORK_CONTRACTS in lib/stellar/contracts.ts.`,
+      );
+    }
   }
-  return error;
+
+  return { invoiceContractId, marketplaceContractId, tokenContractId };
 }
+
+const {
+  invoiceContractId: INVOICE_CONTRACT_ID_RESOLVED,
+  marketplaceContractId: MARKETPLACE_CONTRACT_ID_RESOLVED,
+  tokenContractId: TOKEN_CONTRACT_ID_RESOLVED,
+} = resolveContractAddresses();
 
 // ─── XDR helpers ──────────────────────────────────────────────────────────────
 
@@ -155,7 +224,7 @@ async function readCall<T>(
 
 // ─── Invoice Contract ─────────────────────────────────────────────────────────
 
-const INVOICE_CONTRACT_ID = env.NEXT_PUBLIC_INVOICE_CONTRACT_ID;
+const INVOICE_CONTRACT_ID = INVOICE_CONTRACT_ID_RESOLVED;
 
 class InvoiceContractClient {
   readonly contractId = INVOICE_CONTRACT_ID;
@@ -249,8 +318,8 @@ class InvoiceContractClient {
 
 // ─── Marketplace Contract ─────────────────────────────────────────────────────
 
-const MARKETPLACE_CONTRACT_ID = env.NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID;
-const TOKEN_CONTRACT_ID = env.NEXT_PUBLIC_TOKEN_CONTRACT_ID;
+const MARKETPLACE_CONTRACT_ID = MARKETPLACE_CONTRACT_ID_RESOLVED;
+const TOKEN_CONTRACT_ID = TOKEN_CONTRACT_ID_RESOLVED;
 
 class MarketplaceContractClient {
   readonly contractId = MARKETPLACE_CONTRACT_ID;
@@ -336,6 +405,24 @@ class MarketplaceContractClient {
       this.contractId,
       "claim_yield",
       [scvU64(params.tokenId)],
+      sourcePublicKey
+    );
+  }
+
+  /**
+   * P2P secondary-market transfer of an investor position to a new owner.
+   * See the `TransferPositionParams` doc comment in types/contract.ts for
+   * the assumed contract ABI. Returns unsigned XDR string, to be signed by
+   * the current position owner (`sourcePublicKey`).
+   */
+  async transferPosition(
+    params: TransferPositionParams,
+    sourcePublicKey: string
+  ): Promise<string> {
+    return buildCall(
+      this.contractId,
+      "transfer_position",
+      [scvU64(params.positionId), scvAddress(params.toAddress)],
       sourcePublicKey
     );
   }
@@ -482,11 +569,18 @@ export const marketplaceContract = new MarketplaceContractClient();
 
 /**
  * Build an unsigned transaction to mint testnet USDC to a wallet.
+ *
+ * Used by the investor onboarding faucet (`mintTestnetUsdc` / fund panel CTA).
+ * Callers must gate this behind a testnet-only check — never invoke on mainnet.
+ *
+ * @param recipient       Address that receives the minted USDC
+ * @param sourcePublicKey Account that signs / pays fees
+ * @param amount          Amount in token base units (7 decimals). Default = 10,000 USDC.
  */
 export async function buildTestnetUsdcMintTx(
   recipient: string,
   sourcePublicKey: string,
-  amount: bigint = BigInt("10000000000")
+  amount: bigint = BigInt("100000000000")
 ): Promise<string> {
   return buildCall(
     TOKEN_CONTRACT_ID,
@@ -550,5 +644,25 @@ export async function getPositions(
   return marketplaceContract.getPositions(investor, sourcePublicKey);
 }
 
+/**
+ * P2P secondary-market transfer of an investor position.
+ * Returns an unsigned XDR string ready for signing by the seller.
+ *
+ * @param positionId     On-chain position ID (string, BigInt-convertible).
+ * @param toAddress      Recipient's Stellar G-address.
+ * @param sellerAddress  Current owner's Stellar G-address (transaction signer).
+ */
+export async function transferPosition(
+  positionId: string,
+  toAddress: string,
+  sellerAddress: string
+): Promise<string> {
+  return marketplaceContract.transferPosition(
+    { positionId: BigInt(positionId), toAddress },
+    sellerAddress
+  );
+}
+
 // Re-export low-level helpers for advanced use
 export { buildCall, readCall, parseSorobanError, simulate, scvAddress };
+

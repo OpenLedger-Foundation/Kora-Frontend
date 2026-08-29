@@ -1,47 +1,61 @@
 /**
  * Integration tests for InvoiceCard hover popover behavior.
- *
- * Covers:
- *  - Popover opens on mouse enter (300ms delay)
- *  - No popover flash on quick hovers (< 300ms)
- *  - Popover closes on mouse leave
- *  - Popover opens on focus (keyboard)
- *  - Popover closes on blur
- *  - aria-describedby linked when popover is open
- *  - Popover doesn't open for expired invoices
- *  - Cleanup on unmount
  */
 
 import React from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { InvoiceCard } from "../InvoiceCard";
 import { useInvoiceStore } from "@/store/invoiceStore";
-import * as queryModule from "@tanstack/react-query";
 import type { Invoice } from "@/types";
+
+// Helper to wait in real time
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ── Mocks ──────────────────────────────────────────────────────────────────────
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: vi.fn(() => ({
-    prefetchQuery: vi.fn(),
+    prefetchQuery: vi.fn().mockResolvedValue(undefined),
+    getQueryData: vi.fn(),
+    getQueryState: vi.fn(),
   })),
 }));
 
-vi.mock("@/store/invoiceStore", () => ({
+vi.mock("@/hooks/usePrefetchInvoice", () => ({
+  usePrefetchInvoice: vi.fn(() => ({
+    prefetch: vi.fn(),
+    cancelPrefetch: vi.fn(),
+  })),
+}));
+
+vi.mock("../../../store/invoiceStore", () => ({
   useInvoiceStore: vi.fn(() => ({
     comparisonList: [],
     toggleComparison: vi.fn(),
   })),
 }));
 
-vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: any) => (
-    <a href={href} {...props}>
+vi.mock("next/link", () => {
+  const React = require("react");
+  const LinkMock = React.forwardRef(({ children, href, ...props }: any, ref: any) => (
+    <a href={href} {...props} ref={ref}>
       {children}
     </a>
-  ),
+  ));
+  LinkMock.displayName = "LinkMock";
+  return { default: LinkMock };
+});
+
+vi.mock("../../ui/CountdownTimer", () => ({
+  default: () => <div data-testid="mock-countdown">Mock Timer</div>,
+}));
+
+vi.mock("../../../hooks/useCountdown", () => ({
+  default: () => ({
+    isExpired: false,
+    timeLeft: { days: 1, hours: 1, minutes: 1, seconds: 1 },
+  }),
 }));
 
 // ── Mock Invoice ───────────────────────────────────────────────────────────────
@@ -102,12 +116,11 @@ const expiredInvoice: Invoice = {
 
 describe("InvoiceCard Hover Popover Integration", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
+    delete (window as any).ontouchstart;
+    Object.defineProperty(navigator, "maxTouchPoints", {
+      value: 0,
+      configurable: true,
+    });
   });
 
   it("should open popover on hover after 300ms delay", async () => {
@@ -121,8 +134,8 @@ describe("InvoiceCard Hover Popover Integration", () => {
     // Before 300ms - should not show popover
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 
-    // After 300ms - should show popover
-    vi.advanceTimersByTime(300);
+    // Wait for the hover timeout (300ms) to trigger popover open
+    await sleep(400);
 
     await waitFor(() => {
       expect(screen.getByRole("tooltip")).toBeInTheDocument();
@@ -136,11 +149,11 @@ describe("InvoiceCard Hover Popover Integration", () => {
 
     // Hover for 100ms
     fireEvent.mouseEnter(link);
-    vi.advanceTimersByTime(100);
+    await sleep(100);
 
     // Leave before 300ms
     fireEvent.mouseLeave(link);
-    vi.advanceTimersByTime(250);
+    await sleep(250);
 
     // Popover should never have appeared
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
@@ -153,7 +166,7 @@ describe("InvoiceCard Hover Popover Integration", () => {
 
     // Open popover
     fireEvent.mouseEnter(link);
-    vi.advanceTimersByTime(300);
+    await sleep(400);
 
     await waitFor(() => {
       expect(screen.getByRole("tooltip")).toBeInTheDocument();
@@ -172,7 +185,7 @@ describe("InvoiceCard Hover Popover Integration", () => {
 
     const link = screen.getByRole("article");
 
-    // Focus via keyboard
+    // Focus via keyboard - open should be immediate (no delay)
     fireEvent.focus(link);
 
     await waitFor(() => {
@@ -210,7 +223,7 @@ describe("InvoiceCard Hover Popover Integration", () => {
 
     // Open popover
     fireEvent.mouseEnter(link);
-    vi.advanceTimersByTime(300);
+    await sleep(400);
 
     await waitFor(() => {
       expect(link).toHaveAttribute("aria-describedby", `invoice-popover-${mockInvoice.id}`);
@@ -224,7 +237,7 @@ describe("InvoiceCard Hover Popover Integration", () => {
 
     // Open popover
     fireEvent.mouseEnter(link);
-    vi.advanceTimersByTime(300);
+    await sleep(400);
 
     await waitFor(() => {
       expect(link).toHaveAttribute("aria-describedby");
@@ -244,7 +257,7 @@ describe("InvoiceCard Hover Popover Integration", () => {
     const link = screen.getByRole("article");
 
     fireEvent.mouseEnter(link);
-    vi.advanceTimersByTime(300);
+    await sleep(400);
 
     // Should not show popover for expired invoice
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
@@ -270,8 +283,8 @@ describe("InvoiceCard Hover Popover Integration", () => {
     // Unmount before timeout completes
     unmount();
 
-    // Advance timer - should not cause errors
-    vi.advanceTimersByTime(300);
+    // Wait - should not cause errors
+    await sleep(400);
 
     // No error thrown
     expect(true).toBe(true);
@@ -283,14 +296,16 @@ describe("InvoiceCard Hover Popover Integration", () => {
     const link = screen.getByRole("article");
 
     fireEvent.mouseEnter(link);
-    vi.advanceTimersByTime(300);
+    await sleep(400);
 
-    await waitFor(() => {
-      expect(screen.getByText("Invoice Preview")).toBeInTheDocument();
-      expect(screen.getByText("12.5%")).toBeInTheDocument();
-      expect(screen.getByText("A")).toBeInTheDocument();
-      expect(screen.getByText("Kenya")).toBeInTheDocument();
-      expect(screen.getByText("75%")).toBeInTheDocument();
-    });
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toBeInTheDocument();
+
+    const tooltipQuery = within(tooltip);
+    expect(tooltipQuery.getByText("Invoice Preview")).toBeInTheDocument();
+    expect(tooltipQuery.getByText("12.50% APR")).toBeInTheDocument();
+    expect(tooltipQuery.getByText("A")).toBeInTheDocument();
+    expect(tooltipQuery.getByText("Kenya")).toBeInTheDocument();
+    expect(tooltipQuery.getByText("75%")).toBeInTheDocument();
   });
 });

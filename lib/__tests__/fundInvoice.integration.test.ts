@@ -23,11 +23,13 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-const mockGetAccount = vi.fn();
-const mockSimulate = vi.fn();
-const mockGetLatestLedger = vi.fn();
-const mockReadCall = vi.fn();
-const mockBuildCall = vi.fn();
+const { mockGetAccount, mockSimulate, mockGetLatestLedger, mockReadCall, mockBuildCall } = vi.hoisted(() => ({
+  mockGetAccount: vi.fn(),
+  mockSimulate: vi.fn(),
+  mockGetLatestLedger: vi.fn(),
+  mockReadCall: vi.fn(),
+  mockBuildCall: vi.fn(),
+}));
 
 // Track which contract methods were called and in what order
 const callLog: string[] = [];

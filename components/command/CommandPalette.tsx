@@ -8,6 +8,7 @@ import {
   Store,
   LayoutDashboard,
   BarChart3,
+  ArrowLeftRight,
   PlusCircle,
   History,
   Wallet,
@@ -15,13 +16,19 @@ import {
   Clock,
   Zap,
   X,
+  LogOut,
+  Keyboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store/uiStore";
-import { formatCurrency } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
+import { useWalletStore } from "@/store";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 // ─── Highlight matching characters ───────────────────────────────────────────
 
@@ -46,6 +53,12 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 
 const PAGE_COMMANDS = [
   { id: "page-marketplace", label: "Marketplace", href: "/marketplace", icon: Store },
+  {
+    id: "page-secondary",
+    label: "Secondary Market",
+    href: "/secondary",
+    icon: ArrowLeftRight,
+  },
   { id: "page-invest", label: "Investor Dashboard", href: "/dashboard/investor", icon: BarChart3 },
   { id: "page-sme", label: "My Invoices", href: "/dashboard/sme", icon: LayoutDashboard },
   { id: "page-create", label: "Create Invoice", href: "/invoice/create", icon: PlusCircle },
@@ -59,12 +72,14 @@ export function CommandPalette() {
   const router = useRouter();
   const { open, setOpen, getRecent, pushRecent } = useCommandPalette();
   const { isConnected } = useWallet();
+  const disconnect = useWalletStore((s) => s.disconnect);
   const setWalletModalOpen = useUIStore((s) => s.setWalletModalOpen);
   const [query, setQuery] = React.useState("");
+  const { formatCurrency, formatPercentage } = useFormatters();
 
   // Fetch invoices for search (only when palette is open)
   const { data: invoiceData } = useInvoices();
-  const invoices = invoiceData?.data ?? [];
+  const invoices = React.useMemo(() => invoiceData?.data ?? [], [invoiceData?.data]);
 
   // Reset query on close
   React.useEffect(() => {
@@ -73,18 +88,25 @@ export function CommandPalette() {
 
   const recent = React.useMemo(() => getRecent(), [open, getRecent]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fuzzy-filter invoices by ID or debtor name
+  // Debounce the search query before filtering so fast typing doesn't
+  // re-filter the (potentially large) invoice list on every keystroke.
+  const debouncedQuery = useDebounce(query, SEARCH_DEBOUNCE_MS);
+
+  // Filter invoices by debtor name, invoice number, on-chain token ID, or face value.
   const filteredInvoices = React.useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
+    const trimmed = debouncedQuery.trim();
+    if (!trimmed) return [];
+    const q = trimmed.toLowerCase();
     return invoices
       .filter(
         (inv) =>
           inv.metadata.invoiceNumber.toLowerCase().includes(q) ||
-          inv.metadata.debtorName.toLowerCase().includes(q)
+          inv.metadata.debtorName.toLowerCase().includes(q) ||
+          inv.tokenId.toLowerCase().includes(q) ||
+          String(inv.metadata.amount).includes(q)
       )
       .slice(0, 6);
-  }, [invoices, query]);
+  }, [invoices, debouncedQuery]);
 
   function navigate(href: string, label: string, type: "page" | "invoice") {
     pushRecent({ id: href, label, href, type });
@@ -95,6 +117,10 @@ export function CommandPalette() {
   function runAction(action: () => void) {
     setOpen(false);
     action();
+  }
+
+  function handleDisconnect() {
+    runAction(() => disconnect());
   }
 
   const showEmpty = !query.trim();
@@ -116,6 +142,13 @@ export function CommandPalette() {
           role="dialog"
           aria-modal="true"
           aria-label="Command palette"
+          data-testid="command-palette-dialog"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setOpen(false);
+            }
+          }}
           className={cn(
             "fixed left-1/2 top-[20%] z-50 w-full max-w-xl -translate-x-1/2",
             "animate-in fade-in-0 zoom-in-95 slide-in-from-top-4 duration-150"
@@ -200,6 +233,7 @@ export function CommandPalette() {
                       icon={<page.icon className="h-4 w-4" />}
                       label={page.label}
                       query={query}
+                      testId={`nav-${page.id}`}
                       onSelect={() => navigate(page.href, page.label, "page")}
                     />
                   ))}
@@ -218,7 +252,7 @@ export function CommandPalette() {
                       key={inv.id}
                       icon={<FileText className="h-4 w-4" />}
                       label={inv.metadata.invoiceNumber}
-                      sublabel={`${inv.metadata.debtorName} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)}`}
+                      sublabel={`${inv.metadata.debtorName} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)} · ${formatPercentage(inv.funding.fundingProgress * 100, 0)} funded`}
                       query={query}
                       badge={inv.status}
                       onSelect={() =>
@@ -231,7 +265,7 @@ export function CommandPalette() {
 
               {/* Actions */}
               {(showEmpty ||
-                ["connect wallet", "create invoice", "disconnect"].some((a) =>
+                ["connect wallet", "create invoice", "disconnect wallet", "shortcuts", "keyboard shortcuts"].some((a) =>
                   a.includes(query.toLowerCase())
                 )) && (
                 <Command.Group
@@ -244,6 +278,7 @@ export function CommandPalette() {
                       icon={<Wallet className="h-4 w-4" />}
                       label="Connect Wallet"
                       query={query}
+                      testId="action-connect-wallet"
                       onSelect={() => runAction(() => setWalletModalOpen(true))}
                     />
                   )}
@@ -251,7 +286,28 @@ export function CommandPalette() {
                     icon={<PlusCircle className="h-4 w-4" />}
                     label="Create Invoice"
                     query={query}
+                    testId="action-create-invoice"
                     onSelect={() => navigate("/invoice/create", "Create Invoice", "page")}
+                  />
+                  {isConnected && (
+                    <PaletteItem
+                      icon={<LogOut className="h-4 w-4" />}
+                      label="Disconnect Wallet"
+                      query={query}
+                      testId="action-disconnect-wallet"
+                      onSelect={handleDisconnect}
+                    />
+                  )}
+                  <PaletteItem
+                    icon={<Keyboard className="h-4 w-4" />}
+                    label="Shortcuts"
+                    query={query}
+                    testId="action-shortcuts"
+                    onSelect={() =>
+                      runAction(() =>
+                        window.dispatchEvent(new CustomEvent("kora:open-shortcut-modal"))
+                      )
+                    }
                   />
                 </Command.Group>
               )}
@@ -296,14 +352,16 @@ interface PaletteItemProps {
   sublabel?: string;
   query: string;
   badge?: string;
+  testId?: string;
   onSelect: () => void;
 }
 
-function PaletteItem({ icon, label, sublabel, query, badge, onSelect }: PaletteItemProps) {
+function PaletteItem({ icon, label, sublabel, query, badge, testId, onSelect }: PaletteItemProps) {
   return (
     <Command.Item
       value={label}
       onSelect={onSelect}
+      data-testid={testId}
       className={cn(
         "flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
         "text-foreground outline-none transition-colors",

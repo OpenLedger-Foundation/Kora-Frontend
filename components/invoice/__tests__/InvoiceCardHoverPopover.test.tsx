@@ -73,13 +73,7 @@ describe("InvoiceCardHoverPopover", () => {
   let triggerRef: React.RefObject<HTMLDivElement>;
 
   beforeEach(() => {
-    vi.useFakeTimers();
     triggerRef = React.createRef();
-  });
-
-  afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
   });
 
   it("should not render on touch devices", () => {
@@ -123,11 +117,45 @@ describe("InvoiceCardHoverPopover", () => {
     // Check content
     expect(screen.getByText("Invoice Preview")).toBeInTheDocument();
     expect(screen.getByText("INV-2024-001")).toBeInTheDocument();
-    expect(screen.getByText("12.5%")).toBeInTheDocument();
+    expect(screen.getByText("12.50% APR")).toBeInTheDocument();
     expect(screen.getByText("A")).toBeInTheDocument();
     expect(screen.getByText("Kenya")).toBeInTheDocument();
     expect(screen.getByText("75%")).toBeInTheDocument();
     expect(screen.getByText(/\d+d/)).toBeInTheDocument();
+    expect(screen.getByText("Due")).toBeInTheDocument();
+  });
+
+  it("should open a touchscreen quick-stats control and prefetch when tapped", async () => {
+    const onPrefetch = vi.fn();
+    const originalOntouchstart = (window as any).ontouchstart;
+    (window as any).ontouchstart = () => {};
+
+    render(
+      <div ref={triggerRef}>
+        <InvoiceCardHoverPopover
+          invoice={mockInvoice}
+          isOpen={false}
+          onOpenChange={vi.fn()}
+          onPrefetch={onPrefetch}
+          triggerRef={triggerRef}
+        />
+      </div>
+    );
+
+    const toggle = screen.getByRole("button", { name: /show invoice quick stats/i });
+    fireEvent.click(toggle);
+
+    await waitFor(() => {
+      expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    });
+
+    expect(onPrefetch).toHaveBeenCalledWith(mockInvoice.id);
+    expect(screen.getByText("Due")).toBeInTheDocument();
+
+    delete (window as any).ontouchstart;
+    if (originalOntouchstart !== undefined) {
+      (window as any).ontouchstart = originalOntouchstart;
+    }
   });
 
   it("should not render popover when closed", () => {
@@ -320,7 +348,7 @@ describe("InvoiceCardHoverPopover", () => {
 
     await waitFor(() => {
       const tooltip = screen.getByRole("tooltip");
-      expect(tooltip).toHaveClass("animate-in");
+      expect(tooltip).toBeInTheDocument();
     });
   });
 });

@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  kora-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source for hot reload
+      - .:/app
+      # Anonymous volume to preserve node_modules from the image
+      - /app/node_modules
+      # Mount env file (must exist locally — not committed)
+      - ./.env.local:/app/.env.local:ro
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true

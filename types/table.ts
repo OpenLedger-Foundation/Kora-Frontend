@@ -27,8 +27,13 @@ export interface DataTableProps<T extends { id: string }> {
   enableSelection?: boolean;
   bulkActions?: ReactNode;
   onSelectionChange?: (selectedIds: string[]) => void;
+  /** When provided, each body row is clickable (and keyboard-activatable via Enter) */
+  onRowClick?: (row: T) => void;
   emptyState?: DataTableEmptyState;
   getRowId?: (row: T) => string;
   className?: string;
   syncToUrl?: boolean;
+  pageParamName?: string;
+  sortParamName?: string;
+  pageSizeParamName?: string;
 }

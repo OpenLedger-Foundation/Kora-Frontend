@@ -22,32 +22,6 @@ export function createTestQueryClient() {
   });
 }
 
-/**
- * Mock next/navigation for client components
- */
-export function setupNextNavigationMocks() {
-  const useRouter = vi.fn(() => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    prefetch: vi.fn(),
-    back: vi.fn(),
-    forward: vi.fn(),
-    refresh: vi.fn(),
-  }));
-
-  const useSearchParams = vi.fn(() => new URLSearchParams());
-  const usePathname = vi.fn(() => "/");
-  const useParams = vi.fn(() => ({}));
-
-  vi.mock("next/navigation", () => ({
-    useRouter,
-    useSearchParams,
-    usePathname,
-    useParams,
-  }));
-
-  return { useRouter, useSearchParams, usePathname, useParams };
-}
 
 /**
  * Mock framer-motion to avoid animation complications in tests
@@ -55,10 +29,13 @@ export function setupNextNavigationMocks() {
 export function setupFramerMotionMocks() {
   vi.mock("framer-motion", () => ({
     motion: {
-      div: ({ children, ...props }: any) => {
-        const { div: Div } = require("react");
-        return Div({ ...props }, children);
-      },
+      div: "div",
+      button: "button",
+      span: "span",
+      p: "p",
+      h1: "h1",
+      h2: "h2",
+      h3: "h3",
     },
     AnimatePresence: ({ children }: any) => children,
   }));

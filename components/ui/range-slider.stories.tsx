@@ -66,7 +66,7 @@ function WithHistogramWrapper() {
   const [value, setValue] = useState<[number, number]>([10, 40]);
   const [histogram] = useState(() => Array.from({ length: 20 }, (_, i) => ({
     value: i * 2.5,
-    count: Math.floor(Math.random() * 100) + 10,
+    count: Math.floor(((i * 7 + 13) % 90)) + 10,
   })));
   
   return (

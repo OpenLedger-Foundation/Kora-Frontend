@@ -3,4 +3,4 @@ export * from "./user";
 export * from "./contract";
 export * from "./table";
 export * from "./stellar";
-export * from "./service";
+export type { Result, IInvoiceService } from "./service";

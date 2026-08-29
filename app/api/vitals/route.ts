@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logger } from "@/lib/logger";
+import { logger, redact } from "@/lib/logger";
+import { verifyCsrf } from "@/lib/csrf";
 
 /**
  * POST /api/vitals
@@ -20,6 +21,8 @@ interface VitalPayload {
   url: string;
   userAgent: string;
   timestamp: number;
+  error?: unknown;
+  context?: unknown;
 }
 
 interface VitalsBody {
@@ -27,6 +30,9 @@ interface VitalsBody {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const csrfError = verifyCsrf(request);
+  if (csrfError) return csrfError;
+
   const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
   try {
     const body: VitalsBody = await request.json();
@@ -51,15 +57,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         startTime: m.startTime ?? 0,
         rating: m.rating ?? "good",
         url: typeof m.url === "string" ? m.url.slice(0, 200) : "/",
+        userAgent: typeof m.userAgent === "string" ? m.userAgent.slice(0, 200) : "",
         timestamp: m.timestamp ?? Date.now(),
+        error: m.error ? redact(m.error) : undefined,
+        context: m.context ? redact(m.context) : undefined,
       }));
 
     if (sanitised.length === 0) {
       return new NextResponse(null, { status: 204 });
     }
 
+    const redacted = redact(sanitised);
+
     // Log to server console (visible in Vercel Function logs)
-    for (const metric of sanitised) {
+    for (const metric of redacted) {
       logger.info(`Web vital report: ${metric.name}`, {
         requestId,
         route: "/api/vitals",
@@ -68,11 +79,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         metricId: metric.id,
         rating: metric.rating,
         url: metric.url,
+        userAgent: metric.userAgent,
+        error: metric.error,
+        context: metric.context,
       });
     }
 
-    // TODO: forward to your analytics backend, e.g.:
-    // await fetch(process.env.ANALYTICS_INGEST_URL, { method: "POST", body: JSON.stringify(sanitised) })
+    const ingestUrl = process.env.ANALYTICS_INGEST_URL;
+    if (ingestUrl) {
+      try {
+        await fetch(ingestUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-request-id": requestId,
+          },
+          body: JSON.stringify(redacted),
+        });
+      } catch (err) {
+        logger.error("[vitals] forward failure", { requestId, error: err });
+      }
+    }
 
     return new NextResponse(null, { status: 204 });
   } catch (err) {

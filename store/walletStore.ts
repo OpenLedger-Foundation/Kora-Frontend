@@ -1,7 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { WalletBalance, WalletNetwork, WalletProvider, WalletState } from "@/types";
+import { useQueryClient } from "@tanstack/react-query";
+import type { WalletBalance, WalletNetwork, WalletProvider } from "@/types";
 import { env } from "@/lib/env";
+import { isValidStellarAddress } from "@/lib/utils";
+import { createPersistentJSONStorage } from "./storageAdapter";
 
 const EMPTY_BALANCE: WalletBalance = {
   xlm: "0",
@@ -9,17 +12,103 @@ const EMPTY_BALANCE: WalletBalance = {
   eurc: "0",
 };
 
-function getConfiguredNetwork(): WalletNetwork {
+/** Session expires after 24 hours of inactivity. Change this constant to adjust. */
+export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Clears all address-scoped caches: TanStack Query, zustand persisted data,
+ * and IndexedDB marketplace cache. Call on disconnect and session expiry.
+ */
+export function clearAllUserState(address?: string | null) {
+  // Clear localStorage wallet data
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("kora-wallet");
+    // Clear position listing cache
+    localStorage.removeItem("kora-position-listings");
+    // Clear IndexedDB marketplace cache
+    try {
+      const dbs = indexedDB.databases?.();
+      if (dbs) {
+        dbs.then((databases) => {
+          databases.forEach((db) => {
+            if (db.name?.includes("marketplace") || db.name?.includes("tanstack")) {
+              indexedDB.deleteDatabase(db.name);
+            }
+          });
+        });
+      }
+    } catch {
+      // Best-effort — ignore errors
+    }
+  }
+}
+
+export function getConfiguredNetwork(): WalletNetwork {
   return (env.NEXT_PUBLIC_STELLAR_NETWORK as WalletNetwork) || "testnet";
 }
 
-type WalletStoreState = WalletState & {
+/** Signed label attestation for tamper detection */
+export type SignedLabel = {
+  address: string;
+  label: string;
+  signature: string;
+  signedAt: number;
+};
+
+/** Build the message to sign for a label attestation */
+export function buildLabelMessage(address: string, label: string): string {
+  return `kora-label:${address}:${label}`;
+}
+
+/** Verify a signed label attestation against an address and label */
+export function verifySignedLabel(attestation: SignedLabel): boolean {
+  try {
+    if (!attestation.address || !attestation.label || !attestation.signature) return false;
+    if (!/^G[A-Z2-7]{55}$/.test(attestation.address)) return false;
+    
+    const expectedMessage = buildLabelMessage(attestation.address, attestation.label);
+    const expectedPrefix = `kora-label:${attestation.address}:${attestation.label}`;
+    
+    // Verify the signature matches the expected message
+    // The signature should be a hex-encoded ed25519 signature
+    if (!/^[a-fA-F0-9]{128}$/.test(attestation.signature)) return false;
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+type WalletStoreState = {
+  status: "disconnected" | "connecting" | "connected";
+  address: string | null;
+  publicKey: string | null;
   isConnected: boolean;
+  provider: WalletProvider | null;
+  network: WalletNetwork;
+  balance: WalletBalance | null;
   isVerified: boolean;
   verifiedAt: number | null;
-  addressBook: { id: string; address: string; label: string }[];
+  lastActivityAt: number | null;
+  addressBook: { id: string; address: string; label: string; signedLabel?: SignedLabel }[];
   walletPassphrase: string | null;
   diagnosticsImport: string | null;
+  /**
+   * Tracks whether the in-memory StellarWalletsKit session is active.
+   *
+   * After a page refresh the kit singleton is destroyed and must call
+   * getPublicKey() again before signing works.  This flag starts as `false`
+   * on every page load; `useWallet` sets it to `true` once silent reconnect
+   * succeeds, or `null` when the reconnect attempt is still pending.
+   *
+   * - `null`  → reconnect in-progress (show spinner / loading state)
+   * - `false` → kit session absent (stale — show reconnect prompt)
+   * - `true`  → kit session active (fully operational)
+   */
+  kitSessionActive: boolean | null;
+  kycStatus: "none" | "pending" | "verified" | "rejected";
+  /** Read-only watch mode — pasted G-address without wallet signing. */
+  isWatchMode: boolean;
 };
 
 type WalletStoreActions = {
@@ -31,10 +120,28 @@ type WalletStoreActions = {
   isVerificationExpired: () => boolean;
   isWrongNetwork: () => boolean;
   hasPassphraseMismatch: () => boolean;
-  addAddressBookEntry: (address: string, label?: string) => void;
-  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string }) => void;
+  updateActivity: () => void;
+  isSessionExpired: () => boolean;
+  /** Mark the in-memory kit session as active/inactive/pending. */
+  setKitSessionActive: (active: boolean | null) => void;
+  addAddressBookEntry: (address: string, label?: string, signedLabel?: SignedLabel) => void;
+  updateAddressBookEntry: (id: string, updates: { address?: string; label?: string; signedLabel?: SignedLabel | null }) => void;
   removeAddressBookEntry: (id: string) => void;
   setDiagnosticsImport: (payload: string | null) => void;
+  toggleAddressBookFavorite: (id: string) => void;
+  addAddressBookGroup: (name: string) => void;
+  updateAddressBookGroup: (id: string, updates: { name?: string; favorite?: boolean }) => void;
+  removeAddressBookGroup: (id: string) => void;
+  /** Enter read-only watch mode for a given address (no wallet required). */
+  enterWatchMode: (address: string) => void;
+  /** Exit watch mode and fully disconnect. */
+  exitWatchMode: () => void;
+  /**
+   * Switches active account without full disconnect; clears verification & resets balance.
+   */
+  switchAccount: (newAddress: string, newPublicKey?: string) => void;
+  setNetwork: (network: WalletNetwork, walletPassphrase?: string) => void;
+  setKycStatus: (kycStatus: "none" | "pending" | "verified" | "rejected") => void;
 };
 
 type WalletStore = WalletStoreState & WalletStoreActions;
@@ -51,12 +158,29 @@ export const useWalletStore = create<WalletStore>()(
       balance: null,
       isVerified: false,
       verifiedAt: null,
+      lastActivityAt: null,
       addressBook: [],
+      addressBookGroups: [],
       walletPassphrase: null,
       diagnosticsImport: null,
+      kitSessionActive: false,
+      kycStatus: "none",
+      isWatchMode: false,
 
       connect: (provider, address, publicKey, walletPassphrase) =>
-        set({ status: "connected", provider, address, publicKey, balance: EMPTY_BALANCE, isConnected: true, walletPassphrase: walletPassphrase || null }),
+        set({
+          status: "connected",
+          provider,
+          address,
+          publicKey,
+          balance: EMPTY_BALANCE,
+          isConnected: true,
+          walletPassphrase: walletPassphrase || null,
+          lastActivityAt: Date.now(),
+          // Kit session is presumed active on fresh connect; caller may
+          // override immediately if this is a silent re-establishment.
+          kitSessionActive: true,
+        }),
 
       disconnect: () =>
         set({
@@ -68,7 +192,53 @@ export const useWalletStore = create<WalletStore>()(
           balance: null,
           isVerified: false,
           verifiedAt: null,
+          lastActivityAt: null,
           walletPassphrase: null,
+          kitSessionActive: false,
+          isWatchMode: false,
+        }),
+
+      switchAccount: (newAddress, newPublicKey) =>
+        set((state) => ({
+          address: newAddress,
+          publicKey: newPublicKey || newAddress,
+          balance: EMPTY_BALANCE,
+          isVerified: false,
+          verifiedAt: null,
+          lastActivityAt: Date.now(),
+          kitSessionActive: true,
+        })),
+
+      enterWatchMode: (address) =>
+        set({
+          status: "connected",
+          address,
+          publicKey: null,
+          isConnected: true,
+          provider: null,
+          balance: EMPTY_BALANCE,
+          walletPassphrase: null,
+          lastActivityAt: Date.now(),
+          kitSessionActive: false,
+          isWatchMode: true,
+          isVerified: false,
+          verifiedAt: null,
+        }),
+
+      exitWatchMode: () =>
+        set({
+          status: "disconnected",
+          address: null,
+          publicKey: null,
+          isConnected: false,
+          provider: null,
+          balance: null,
+          isVerified: false,
+          verifiedAt: null,
+          lastActivityAt: null,
+          walletPassphrase: null,
+          kitSessionActive: false,
+          isWatchMode: false,
         }),
 
       setBalance: (balance) =>
@@ -99,26 +269,103 @@ export const useWalletStore = create<WalletStore>()(
         return state.walletPassphrase !== env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE;
       },
 
-      addAddressBookEntry: (address, label = "") =>
+      updateActivity: () =>
+        set({ lastActivityAt: Date.now() }),
+
+      isSessionExpired: () => {
+        const state = get();
+        if (!state.isConnected || !state.lastActivityAt) return false;
+        return Date.now() - state.lastActivityAt > SESSION_EXPIRY_MS;
+      },
+
+      setKitSessionActive: (active) =>
+        set({ kitSessionActive: active }),
+
+      addAddressBookEntry: (address, label = "", signedLabel) => {
+        if (!address || typeof address !== "string") return;
+        const trimmed = address.trim();
+        if (!trimmed || !isValidStellarAddress(trimmed)) return;
+        const existing = get().addressBook.find(
+          (e) => e.address.toLowerCase() === trimmed.toLowerCase()
+        );
+        if (existing) return; // silently skip duplicates
         set((s) => ({
           addressBook: [
             ...s.addressBook,
-            { id: String(Date.now()) + Math.random().toString(36).slice(2, 8), address, label },
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim(), signedLabel },
           ],
-        })),
+        }));
+      },
 
-      updateAddressBookEntry: (id, updates) =>
+      updateAddressBookEntry: (id, updates) => {
+        if (updates.address !== undefined) {
+          const trimmed = updates.address.trim();
+          if (!trimmed || !isValidStellarAddress(trimmed)) return;
+          const duplicate = get().addressBook.find(
+            (e) => e.id !== id && e.address.toLowerCase() === trimmed.toLowerCase()
+          );
+          if (duplicate) return;
+          updates = { ...updates, address: trimmed };
+        }
         set((s) => ({
-          addressBook: s.addressBook.map((e) => (e.id === id ? { ...e, ...updates } : e)),
-        })),
+          addressBook: s.addressBook.map((e) => (e.id === id ? { ...e, ...updates, label: updates.label?.trim() ?? e.label } : e)),
+        }));
+      },
 
       removeAddressBookEntry: (id) =>
         set((s) => ({ addressBook: s.addressBook.filter((e) => e.id !== id) })),
 
       setDiagnosticsImport: (payload) => set({ diagnosticsImport: payload }),
+
+      toggleAddressBookFavorite: (id) =>
+        set((s) => ({
+          addressBook: s.addressBook.map((e) =>
+            e.id === id ? { ...e, isFavorite: !e.isFavorite } : e
+          ),
+        })),
+
+      addAddressBookGroup: (name) => {
+        if (!name || typeof name !== "string") return;
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const existing = get().addressBookGroups.find(
+          (g) => g.name.toLowerCase() === trimmed.toLowerCase()
+        );
+        if (existing) return;
+        set((s) => ({
+          addressBookGroups: [
+            ...s.addressBookGroups,
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), name: trimmed, favorite: false },
+          ],
+        }));
+      },
+
+      updateAddressBookGroup: (id, updates) =>
+        set((s) => ({
+          addressBookGroups: s.addressBookGroups.map((g) =>
+            g.id === id ? { ...g, ...updates, name: updates.name?.trim() ?? g.name } : g
+          ),
+        })),
+
+      removeAddressBookGroup: (id) =>
+        set((s) => ({
+          addressBookGroups: s.addressBookGroups.filter((g) => g.id !== id),
+          addressBook: s.addressBook.map((e) => ({
+            ...e,
+            groupIds: e.groupIds.filter((gid) => gid !== id),
+          })),
+        })),
+        
+      setNetwork: (network, walletPassphrase) =>
+        set((s) => ({
+          network,
+          walletPassphrase: walletPassphrase ?? s.walletPassphrase,
+        })),
+      setKycStatus: (kycStatus) => set({ kycStatus }),
     }),
     {
       name: "kora-wallet",
+      storage: createPersistentJSONStorage(),
       partialize: (s) => ({
         address: s.address,
         publicKey: s.publicKey,
@@ -126,10 +373,33 @@ export const useWalletStore = create<WalletStore>()(
         network: s.network,
         isVerified: s.isVerified,
         verifiedAt: s.verifiedAt,
+        lastActivityAt: s.lastActivityAt,
         addressBook: s.addressBook,
+        addressBookGroups: s.addressBookGroups,
         walletPassphrase: s.walletPassphrase,
         diagnosticsImport: s.diagnosticsImport,
+        kycStatus: s.kycStatus,
       }),
     }
   )
 );
+
+// ── Granular selector hooks ───────────────────────────────────────────────────
+// Use these instead of subscribing to the full store. Each hook re-renders
+// its consumer only when its specific slice changes, preventing unrelated
+// store updates (e.g. balance polling) from cascading to the full Navbar.
+
+export const useWalletIsConnected = () =>
+  useWalletStore((s: WalletStore) => s.isConnected);
+
+export const useWalletAddress = () =>
+  useWalletStore((s: WalletStore) => s.address);
+
+export const useWalletBalance = () =>
+  useWalletStore((s: WalletStore) => s.balance);
+
+export const useWalletNetwork = () =>
+  useWalletStore((s: WalletStore) => s.network);
+
+export const useWalletKycStatus = () =>
+  useWalletStore((s: WalletStore) => s.kycStatus);

@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  LOCALE_COOKIE_NAME,
+  getLocaleCookieOptions,
+  resolveLocaleFromRequest,
+} from "@/i18n/locale";
 import { locales, defaultLocale } from "@/i18n/config";
-
-const PROTECTED = ["/invoice/create", "/dashboard/sme", "/dashboard/investor"];
 
 /**
  * Detect the best locale from the Accept-Language header.
@@ -20,47 +23,72 @@ function detectLocaleFromHeader(req: NextRequest): string {
   return defaultLocale;
 }
 
-export function middleware(req: NextRequest) {
-  const { pathname, search } = req.nextUrl;
+/**
+ * Builds a nonce-scoped CSP script-src so inline <script nonce="..."> tags
+ * are allow-listed per-request instead of relying on 'unsafe-inline'
+ * (next.config.js keeps 'unsafe-inline' only for dev-mode fallback).
+ */
+function buildNonceCsp(nonce: string): string {
+  const isDev = process.env.NODE_ENV === "development";
+  const scriptSrc = isDev
+    ? `'self' 'nonce-${nonce}' 'unsafe-inline' 'unsafe-eval'`
+    : `'self' 'nonce-${nonce}' 'strict-dynamic'`;
+  return `script-src ${scriptSrc}`;
+}
 
+export function middleware(req: NextRequest) {
   // ── X-Request-ID (#277) ───────────────────────────────────────────────────
-  // Generate a unique request ID for every request. API routes read this from
-  // the incoming request header so they can include it in error response bodies.
   const requestId = crypto.randomUUID();
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-request-id", requestId);
 
-  // ── Locale cookie: set on first visit if not already present ──────────────
+  // ── CSP nonce (per-request) ───────────────────────────────────────────────
+  const nonce = crypto.randomUUID();
+  requestHeaders.set("x-nonce", nonce);
+
+  // ── Locale: read cookie for SSR, fall back to Accept-Language ─────────────
+  const acceptLanguage = req.headers.get("accept-language") ?? "";
+  const cookieValue = req.cookies.get(LOCALE_COOKIE_NAME)?.value;
+  const locale = resolveLocaleFromRequest(cookieValue, acceptLanguage);
+  requestHeaders.set("x-kora-locale", locale);
+
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("x-request-id", requestId);
-
-  if (!req.cookies.get("kora-locale")) {
-    const detected = detectLocaleFromHeader(req);
-    response.cookies.set("kora-locale", detected, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365, // 1 year
-      sameSite: "lax",
-    });
+  // Override the static script-src from next.config.js with a per-request
+  // nonce-scoped one — the CSP directive itself is unaffected, only the
+  // Content-Security-Policy header value is replaced.
+  const existingCsp = response.headers.get("Content-Security-Policy");
+  if (existingCsp) {
+    const nonceScriptSrc = buildNonceCsp(nonce);
+    const withoutScriptSrc = existingCsp.replace(/script-src[^;]*/, "").trim();
+    response.headers.set(
+      "Content-Security-Policy",
+      [nonceScriptSrc, withoutScriptSrc].filter(Boolean).join("; ")
+    );
   }
 
-  // ── Protected route guard ─────────────────────────────────────────────────
-  for (const p of PROTECTED) {
-    if (pathname === p || pathname.startsWith(p + "/")) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/";
-      url.searchParams.set("redirectTo", pathname + (search || ""));
-      const redirect = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
-      redirect.headers.set("x-request-id", requestId);
-      return redirect;
-    }
+  if (!cookieValue || cookieValue !== locale) {
+    response.cookies.set(LOCALE_COOKIE_NAME, locale, getLocaleCookieOptions(process.env.NODE_ENV === "production"));
   }
 
+  // Wallet-gated routes (/invoice/create, /dashboard/sme, /dashboard/investor)
+  // are guarded client-side by ConnectWalletGuard instead of here: wallet
+  // connection state lives in the browser (wallet extension + localStorage),
+  // so middleware has no server-readable signal to gate on. A prior version
+  // of this middleware unconditionally rewrote /invoice/create to "/" for
+  // every visitor regardless of wallet state, which made that route
+  // permanently unreachable — removed rather than papered over.
+  //
+  // KYB verification gating (Issue #489 — `kyb-mint-gate` flag):
+  // `kycStatus` is also stored in localStorage via Zustand persist, making
+  // it equally inaccessible to Edge middleware.  The KYB gate is therefore
+  // enforced at the page level inside `app/invoice/create/page.tsx`, where
+  // the full store is available and the wizard step context is known.
   return response;
 }
 
 export const config = {
   matcher: [
-    // Apply to all routes so X-Request-ID is universal
     "/((?!_next/static|_next/image|favicon.ico|icons|wallets|manifest.json).*)",
   ],
 };

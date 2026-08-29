@@ -166,10 +166,14 @@ describe("useResizeObserver", () => {
 
     vi.stubGlobal(
       "ResizeObserver",
-      vi.fn((cb: ResizeObserverCallback) => {
-        observerCallback = cb;
-        return { observe: observeMock, disconnect: disconnectMock };
-      })
+      class {
+        constructor(cb: ResizeObserverCallback) {
+          observerCallback = cb;
+        }
+        observe = observeMock;
+        disconnect = disconnectMock;
+        unobserve = vi.fn();
+      }
     );
   });
 

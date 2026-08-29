@@ -31,7 +31,9 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-const mockBuildCall = vi.fn();
+const { mockBuildCall } = vi.hoisted(() => ({
+  mockBuildCall: vi.fn(),
+}));
 vi.mock("@/lib/stellar/client", () => ({
   rpc: {
     getAccount: vi.fn(),
@@ -91,7 +93,7 @@ vi.mock("@/lib/stellar/contracts", async (importOriginal) => {
 import { invoiceContract } from "@/lib/stellar/contracts";
 import type { MintInvoiceParams } from "@/types/contract";
 
-const VALID_PUBLIC_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
+const VALID_PUBLIC_KEY = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWNN";
 const FUTURE_DATE = BigInt(Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30); // 30 days
 
 const validParams: MintInvoiceParams = {

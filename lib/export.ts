@@ -96,3 +96,66 @@ export function exportCsv<T extends Record<string, unknown>>(
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * exportInvoiceCalendarIcs — exports an invoice repayment/maturity date as an ICS calendar file.
+ *
+ * Generates RFC 5545 compliant iCalendar event file with zero PII beyond invoice number and amount.
+ */
+export function exportInvoiceCalendarIcs(invoice: {
+  id: string;
+  metadata: { invoiceNumber: string; debtorName?: string; amount: number; currency: string };
+  terms: { repaymentDate: string; apr: number };
+}): void {
+  const dtStart = new Date(invoice.terms.repaymentDate);
+  if (isNaN(dtStart.getTime())) {
+    console.warn("[exportInvoiceCalendarIcs] Invalid repayment date:", invoice.terms.repaymentDate);
+    return;
+  }
+
+  // 1-hour event duration
+  const dtEnd = new Date(dtStart.getTime() + 60 * 60 * 1000);
+
+  const formatDateUtc = (d: Date) =>
+    d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+
+  const nowStr = formatDateUtc(new Date());
+  const startStr = formatDateUtc(dtStart);
+  const endStr = formatDateUtc(dtEnd);
+
+  const summary = `Invoice Repayment Due: ${invoice.metadata.invoiceNumber}`;
+  const debtorText = invoice.metadata.debtorName ? ` (${invoice.metadata.debtorName})` : "";
+  const description = `Repayment due for invoice ${invoice.metadata.invoiceNumber}${debtorText}. Amount: ${invoice.metadata.amount} ${invoice.metadata.currency}, APR: ${invoice.terms.apr}%.`;
+
+  const icsLines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Kora Protocol//Invoice Maturity Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:invoice-${invoice.id}@kora.finance`,
+    `DTSTAMP:${nowStr}`,
+    `DTSTART:${startStr}`,
+    `DTEND:${endStr}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${description}`,
+    "STATUS:CONFIRMED",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ];
+
+  const blob = new Blob([icsLines.join("\r\n")], {
+    type: "text/calendar;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `invoice-${invoice.metadata.invoiceNumber || invoice.id}-maturity.ics`;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+

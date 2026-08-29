@@ -3,11 +3,7 @@
 export type Result<T, E = ServiceError> = { ok: true; value: T } | { ok: false; error: E };
 
 // ─── Service Error ────────────────────────────────────────────────────────────
-export interface ServiceError {
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
+// Imported from ./contract
 
 // ─── Invoice Service Interface ────────────────────────────────────────────────
 import type {
@@ -19,6 +15,7 @@ import type {
   PaginatedResponse,
   MarketplaceFilters,
   MarketplaceSort,
+  ServiceError,
 } from "./contract";
 
 export interface IInvoiceService {
@@ -30,7 +27,7 @@ export interface IInvoiceService {
     pageSize?: number
   ): Promise<Result<PaginatedResponse<Invoice>>>;
 
-  getInvoice(id: string): Promise<Result<Invoice | null>>;
+  getInvoice(id: string, sourcePublicKey?: string): Promise<Result<Invoice | null>>;
 
   getInvoicesByOwner(ownerAddress: string): Promise<Result<Invoice[]>>;
 
@@ -59,7 +56,25 @@ export interface IInvoiceService {
 
   claimPosition(positionId: string, investorAddress: string): Promise<Result<string>>;
 
-  cancelInvoice(tokenId: string, ownerAddress: string): Promise<Result<string>>;
+  /**
+   * Cancel an active or listed invoice.
+   * Note on Live Mode On-Chain Limitations:
+   * The Soroban contract `cancel_invoice` entry point takes (token_id, owner).
+   * Structured cancellation reasons are captured for compliance/support and
+   * stored in local audit logs / transaction history.
+   */
+  cancelInvoice(tokenId: string, ownerAddress: string, reason?: string): Promise<Result<string>>;
+
+  /**
+   * Transfer an investor position to a new owner (P2P secondary-market
+   * sale). Returns unsigned XDR string, signed by `sellerAddress` (the
+   * current position owner).
+   */
+  transferPosition(
+    positionId: string,
+    toAddress: string,
+    sellerAddress: string
+  ): Promise<Result<string>>;
 
   submitTransaction(signedXdr: string): Promise<Result<string>>;
 }

@@ -1,143 +1,283 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
-  getAllowedTransitions,
-  isValidTransition,
-  getBlockedReason,
   STATUS_TO_CHAIN_INDEX,
+  getAllowedTransitions,
+  getBlockedReason,
+  isValidTransition,
+  canAmend,
+  getAmendBlockedReason,
+  sanitizeAmendment,
+  AMENDMENT_ELIGIBLE_STATUSES,
+  AMENDABLE_FIELDS,
 } from "../invoiceStateMachine";
 import type { InvoiceStatus } from "@/types/invoice";
 
-// ─── getAllowedTransitions ────────────────────────────────────────────────────
+const ALL_STATUSES: readonly InvoiceStatus[] = [
+  "draft",
+  "pending_mint",
+  "listed",
+  "partially_funded",
+  "fully_funded",
+  "active",
+  "repaid",
+  "defaulted",
+  "cancelled",
+];
 
-describe("getAllowedTransitions", () => {
-  it("listed → [fully_funded, cancelled]", () => {
-    const targets = getAllowedTransitions("listed").map((t) => t.to);
-    expect(targets).toContain("fully_funded");
-    expect(targets).toContain("cancelled");
-    expect(targets).toHaveLength(2);
+const EXPECTED_TRANSITIONS: Record<InvoiceStatus, readonly InvoiceStatus[]> = {
+  draft: [],
+  pending_mint: [],
+  listed: ["fully_funded", "cancelled"],
+  partially_funded: ["fully_funded", "cancelled"],
+  fully_funded: ["repaid"],
+  active: ["repaid"],
+  repaid: [],
+  defaulted: [],
+  cancelled: [],
+};
+
+describe("invoiceStateMachine", () => {
+  describe("getAllowedTransitions", () => {
+    it.each(ALL_STATUSES)(
+      "returns the exact allowed transitions for %s",
+      (from) => {
+        const targets = getAllowedTransitions(from).map((transition) => transition.to);
+        expect(targets).toEqual([...EXPECTED_TRANSITIONS[from]]);
+      },
+    );
+
+    it("keeps action metadata stable for every valid transition", () => {
+      const metadata = Object.fromEntries(
+        ALL_STATUSES.flatMap((from) =>
+          getAllowedTransitions(from).map((transition) => [
+            `${from}->${transition.to}`,
+            {
+              label: transition.label,
+              variant: transition.variant,
+              description: transition.description,
+            },
+          ]),
+        ),
+      );
+
+      expect(metadata).toEqual({
+        "listed->fully_funded": {
+          label: "Mark as Funded",
+          variant: "default",
+          description:
+            "Marks this invoice as fully funded. Investors will be notified.",
+        },
+        "listed->cancelled": {
+          label: "Cancel Invoice",
+          variant: "destructive",
+          description:
+            "Cancels this invoice and refunds any invested amount.",
+        },
+        "partially_funded->fully_funded": {
+          label: "Mark as Funded",
+          variant: "default",
+          description:
+            "Marks this invoice as fully funded. Investors will be notified.",
+        },
+        "partially_funded->cancelled": {
+          label: "Cancel Invoice",
+          variant: "destructive",
+          description:
+            "Cancels this invoice and refunds any invested amount.",
+        },
+        "fully_funded->repaid": {
+          label: "Mark as Repaid",
+          variant: "default",
+          description:
+            "Marks repayment complete and triggers yield distribution to investors.",
+        },
+        "active->repaid": {
+          label: "Mark as Repaid",
+          variant: "default",
+          description:
+            "Marks repayment complete and triggers yield distribution to investors.",
+        },
+      });
+    });
   });
 
-  it("partially_funded → [fully_funded, cancelled]", () => {
-    const targets = getAllowedTransitions("partially_funded").map((t) => t.to);
-    expect(targets).toContain("fully_funded");
-    expect(targets).toContain("cancelled");
-    expect(targets).toHaveLength(2);
+  describe("isValidTransition", () => {
+    it("accepts every allowed transition and rejects every other transition", () => {
+      for (const from of ALL_STATUSES) {
+        for (const to of ALL_STATUSES) {
+          const expected = EXPECTED_TRANSITIONS[from].includes(to);
+          expect(isValidTransition(from, to)).toBe(expected);
+        }
+      }
+    });
+
+    it("never allows self-transitions", () => {
+      for (const status of ALL_STATUSES) {
+        expect(isValidTransition(status, status)).toBe(false);
+      }
+    });
+
+    it("treats every terminal state as non-transitioning", () => {
+      const terminalStates: InvoiceStatus[] = [
+        "draft",
+        "pending_mint",
+        "repaid",
+        "defaulted",
+        "cancelled",
+      ];
+
+      for (const from of terminalStates) {
+        for (const to of ALL_STATUSES) {
+          expect(isValidTransition(from, to)).toBe(false);
+        }
+      }
+    });
   });
 
-  it("fully_funded → [repaid]", () => {
-    const targets = getAllowedTransitions("fully_funded").map((t) => t.to);
-    expect(targets).toEqual(["repaid"]);
+  describe("getBlockedReason", () => {
+    it("returns null for every valid owner transition", () => {
+      for (const from of ALL_STATUSES) {
+        for (const to of EXPECTED_TRANSITIONS[from]) {
+          expect(getBlockedReason(from, to, true)).toBeNull();
+        }
+      }
+    });
+
+    it("returns the ownership error for every non-owner attempt", () => {
+      for (const from of ALL_STATUSES) {
+        for (const to of ALL_STATUSES) {
+          expect(getBlockedReason(from, to, false)).toBe(
+            "Only the invoice owner can trigger status changes.",
+          );
+        }
+      }
+    });
+
+    it("returns a precise invalid-transition message for every illegal owner transition", () => {
+      for (const from of ALL_STATUSES) {
+        for (const to of ALL_STATUSES) {
+          if (EXPECTED_TRANSITIONS[from].includes(to)) continue;
+
+          expect(getBlockedReason(from, to, true)).toBe(
+            `Cannot transition from "${from}" to "${to}".`,
+          );
+        }
+      }
+    });
   });
 
-  it("active → [repaid]", () => {
-    const targets = getAllowedTransitions("active").map((t) => t.to);
-    expect(targets).toEqual(["repaid"]);
-  });
-
-  it("terminal states return empty array", () => {
-    const terminals: InvoiceStatus[] = ["repaid", "defaulted", "cancelled", "pending_mint", "draft"];
-    for (const s of terminals) {
-      expect(getAllowedTransitions(s)).toHaveLength(0);
-    }
+  describe("STATUS_TO_CHAIN_INDEX", () => {
+    it("maps each status to the expected on-chain index", () => {
+      expect(STATUS_TO_CHAIN_INDEX).toEqual({
+        draft: -1,
+        pending_mint: 0,
+        listed: 1,
+        partially_funded: 2,
+        fully_funded: 3,
+        active: 4,
+        repaid: 5,
+        defaulted: 6,
+        cancelled: 7,
+      });
+    });
   });
 });
 
-// ─── isValidTransition ────────────────────────────────────────────────────────
+// ─── Amendment tests (#568) ───────────────────────────────────────────────────
 
-describe("isValidTransition", () => {
-  it("allows listed → fully_funded", () => {
-    expect(isValidTransition("listed", "fully_funded")).toBe(true);
+describe("invoice amendment (#568)", () => {
+  describe("canAmend", () => {
+    it("returns true for listed", () => {
+      expect(canAmend("listed")).toBe(true);
+    });
+
+    it("returns true for partially_funded", () => {
+      expect(canAmend("partially_funded")).toBe(true);
+    });
+
+    it.each([
+      "fully_funded",
+      "active",
+      "repaid",
+      "defaulted",
+      "cancelled",
+      "draft",
+      "pending_mint",
+    ] as InvoiceStatus[])(
+      "returns false for %s",
+      (status) => {
+        expect(canAmend(status)).toBe(false);
+      }
+    );
+
+    it("AMENDMENT_ELIGIBLE_STATUSES matches canAmend for all statuses", () => {
+      for (const status of ALL_STATUSES) {
+        expect(canAmend(status)).toBe(AMENDMENT_ELIGIBLE_STATUSES.has(status));
+      }
+    });
   });
 
-  it("allows listed → cancelled", () => {
-    expect(isValidTransition("listed", "cancelled")).toBe(true);
+  describe("getAmendBlockedReason", () => {
+    it("returns null when owner and status is eligible", () => {
+      expect(getAmendBlockedReason("listed", true)).toBeNull();
+      expect(getAmendBlockedReason("partially_funded", true)).toBeNull();
+    });
+
+    it("returns wallet message when not connected", () => {
+      expect(getAmendBlockedReason("listed", true, false)).toMatch(/wallet/i);
+    });
+
+    it("returns ownership message for non-owner", () => {
+      expect(getAmendBlockedReason("listed", false)).toMatch(/owner/i);
+    });
+
+    it("returns status message for ineligible status", () => {
+      const reason = getAmendBlockedReason("fully_funded", true);
+      expect(reason).not.toBeNull();
+      expect(reason).toMatch(/fully funded/i);
+    });
+
+    it("funded invoices cannot amend critical fields — blocked at fully_funded", () => {
+      expect(getAmendBlockedReason("fully_funded", true)).not.toBeNull();
+      expect(getAmendBlockedReason("active", true)).not.toBeNull();
+      expect(getAmendBlockedReason("repaid", true)).not.toBeNull();
+    });
   });
 
-  it("allows partially_funded → fully_funded", () => {
-    expect(isValidTransition("partially_funded", "fully_funded")).toBe(true);
-  });
+  describe("sanitizeAmendment", () => {
+    it("keeps only amendable fields", () => {
+      const result = sanitizeAmendment({
+        description: "Updated memo",
+        category: "technology",
+        amount: 99999,          // should be stripped
+        discountRate: 0.5,      // should be stripped
+        dueDate: "2030-01-01",  // should be stripped
+        walletAddress: "GABC",  // should be stripped
+      });
+      expect(result).toEqual({
+        description: "Updated memo",
+        category: "technology",
+      });
+    });
 
-  it("allows partially_funded → cancelled", () => {
-    expect(isValidTransition("partially_funded", "cancelled")).toBe(true);
-  });
+    it("returns empty object when no amendable fields are present", () => {
+      expect(sanitizeAmendment({ amount: 5000, dueDate: "2030-01-01" })).toEqual({});
+    });
 
-  it("allows fully_funded → repaid", () => {
-    expect(isValidTransition("fully_funded", "repaid")).toBe(true);
-  });
+    it("handles empty input without throwing", () => {
+      expect(sanitizeAmendment({})).toEqual({});
+    });
 
-  it("allows active → repaid", () => {
-    expect(isValidTransition("active", "repaid")).toBe(true);
-  });
+    it("AMENDABLE_FIELDS contains only description and category", () => {
+      expect([...AMENDABLE_FIELDS].sort()).toEqual(["category", "description"]);
+    });
 
-  it("blocks listed → repaid (skipping steps)", () => {
-    expect(isValidTransition("listed", "repaid")).toBe(false);
-  });
-
-  it("blocks repaid → listed (backward)", () => {
-    expect(isValidTransition("repaid", "listed")).toBe(false);
-  });
-
-  it("blocks cancelled → listed (backward from terminal)", () => {
-    expect(isValidTransition("cancelled", "listed")).toBe(false);
-  });
-
-  it("blocks fully_funded → cancelled", () => {
-    expect(isValidTransition("fully_funded", "cancelled")).toBe(false);
-  });
-
-  it("blocks active → cancelled", () => {
-    expect(isValidTransition("active", "cancelled")).toBe(false);
-  });
-
-  it("blocks pending_mint transitions", () => {
-    expect(isValidTransition("pending_mint", "listed")).toBe(false);
-    expect(isValidTransition("pending_mint", "cancelled")).toBe(false);
-  });
-});
-
-// ─── getBlockedReason ─────────────────────────────────────────────────────────
-
-describe("getBlockedReason", () => {
-  it("returns null for valid transition by owner", () => {
-    expect(getBlockedReason("listed", "fully_funded", true)).toBeNull();
-  });
-
-  it("returns null for cancel by owner", () => {
-    expect(getBlockedReason("listed", "cancelled", true)).toBeNull();
-  });
-
-  it("returns ownership error when not owner (even valid transition)", () => {
-    const reason = getBlockedReason("listed", "fully_funded", false);
-    expect(reason).not.toBeNull();
-    expect(reason).toMatch(/owner/i);
-  });
-
-  it("returns invalid transition error for illegal state jump", () => {
-    const reason = getBlockedReason("listed", "repaid", true);
-    expect(reason).not.toBeNull();
-    expect(reason).toMatch(/Cannot transition/i);
-  });
-
-  it("ownership check takes priority over transition check", () => {
-    const reason = getBlockedReason("listed", "repaid", false);
-    expect(reason).toMatch(/owner/i);
-  });
-});
-
-// ─── STATUS_TO_CHAIN_INDEX ────────────────────────────────────────────────────
-
-describe("STATUS_TO_CHAIN_INDEX", () => {
-  it("maps all expected statuses", () => {
-    expect(STATUS_TO_CHAIN_INDEX["listed"]).toBe(1);
-    expect(STATUS_TO_CHAIN_INDEX["partially_funded"]).toBe(2);
-    expect(STATUS_TO_CHAIN_INDEX["fully_funded"]).toBe(3);
-    expect(STATUS_TO_CHAIN_INDEX["active"]).toBe(4);
-    expect(STATUS_TO_CHAIN_INDEX["repaid"]).toBe(5);
-    expect(STATUS_TO_CHAIN_INDEX["defaulted"]).toBe(6);
-    expect(STATUS_TO_CHAIN_INDEX["cancelled"]).toBe(7);
-  });
-
-  it("draft has no on-chain representation (-1)", () => {
-    expect(STATUS_TO_CHAIN_INDEX["draft"]).toBe(-1);
+    it("strips non-string values for amendable keys", () => {
+      const result = sanitizeAmendment({
+        description: 42,    // not a string — should be excluded
+        category: "energy",
+      });
+      expect(result).toEqual({ category: "energy" });
+    });
   });
 });

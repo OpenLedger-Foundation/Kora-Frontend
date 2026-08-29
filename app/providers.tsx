@@ -2,8 +2,12 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import {
+  persistQueryClientRestore,
+  persistQueryClientSubscribe,
+} from "@tanstack/query-persist-client-core";
 import { Toaster } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 
 const WalletConnectModal = dynamic(
@@ -30,23 +34,39 @@ const InProgressOverlay = dynamic(
   () => import("@/components/transactions").then((m) => m.InProgressOverlay),
   { ssr: false, loading: () => null }
 );
+const TransactionAnnouncer = dynamic(
+  () => import("@/components/transactions").then((m) => m.TransactionAnnouncer),
+  { ssr: false, loading: () => null }
+);
+const FeatureFlagPanel = dynamic(
+  () => import("@/components/dev/FeatureFlagPanel").then((m) => m.FeatureFlagPanel),
+  { ssr: false, loading: () => null }
+);
 
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { VerificationProvider } from "@/components/wallet/VerificationProvider";
 import { LocaleProvider } from "@/i18n/LocaleProvider";
 import { useUIStore } from "@/store/uiStore";
-import { env } from "@/lib/env";
+import { useFeatureFlag } from "@/lib/featureFlags";
+import {
+  createIndexedDbPersister,
+  MARKETPLACE_CACHE_MAX_AGE_MS,
+  shouldPersistMarketplaceQuery,
+} from "@/lib/queryPersistence";
 
 // Pre-load both locale message files at the module level so they are
 // bundled and available synchronously on the client.
 import enMessages from "@/messages/en.json";
 import esMessages from "@/messages/es.json";
 import arMessages from "@/messages/ar.json";
+import ptBRMessages from "@/messages/pt-BR.json";
 import type { Locale } from "@/i18n/config";
 
 const ALL_MESSAGES: Record<Locale, Record<string, unknown>> = {
   en: enMessages as Record<string, unknown>,
   es: esMessages as Record<string, unknown>,
   ar: arMessages as Record<string, unknown>,
+  "pt-BR": ptBRMessages as Record<string, unknown>,
 };
 const FeedbackWidget = dynamic(
   () => import("@/components/feedback/FeedbackWidget").then((m) => m.FeedbackWidget),
@@ -78,7 +98,15 @@ function ThemedToaster() {
   );
 }
 
+function WatchlistAlertObserver() {
+  useWatchlistAlerts();
+  return null;
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
+  const onboardingTourEnabled = useFeatureFlag("onboarding-tour");
+  const devtoolsEnabled = useFeatureFlag("devtools");
+  const [isPersistenceReady, setIsPersistenceReady] = useState(typeof window === "undefined");
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -88,25 +116,97 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      setIsPersistenceReady(true);
+      return;
+    }
+
+    const persister = createIndexedDbPersister();
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    const setupPersistence = async () => {
+      try {
+        await persistQueryClientRestore({
+          queryClient,
+          persister,
+          maxAge: MARKETPLACE_CACHE_MAX_AGE_MS,
+        });
+
+        if (cancelled) return;
+
+        unsubscribe = persistQueryClientSubscribe({
+          queryClient,
+          persister,
+          dehydrateOptions: {
+            shouldDehydrateQuery: shouldPersistMarketplaceQuery,
+          },
+        });
+      } catch (error) {
+        console.warn("[QueryPersistence] Failed to restore marketplace cache.", error);
+      } finally {
+        if (!cancelled) {
+          setIsPersistenceReady(true);
+        }
+      }
+    };
+
+    void setupPersistence();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+    const handleControllerChange = () => {
+      // Guard: do not reload or interrupt if user is currently signing a transaction
+      const isSigning = useUIStore.getState().txState.status === "signing";
+      if (isSigning) {
+        console.warn("[PWA] Service worker update deferred during active wallet signing session.");
+        return;
+      }
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
+      {!isPersistenceReady ? null : (
       <LocaleProvider allMessages={ALL_MESSAGES}>
         <ThemeProvider>
+          {/* Raises the re-verification modal that `useVerifiedAction` awaits
+              (#681). It was imported here but never mounted, so every gated
+              action — fund, repay, and now claim — silently fell back to the
+              "no provider" branch and no prompt was ever shown. */}
+          <VerificationProvider>
           {children}
-          <OnboardingTour />
+          {onboardingTourEnabled && <OnboardingTour />}
           <WalletConnectModal />
           <InProgressOverlay />
+          <TransactionAnnouncer />
           <InstallPrompt />
           <FeedbackWidget />
           <KeyboardShortcutsProvider />
           <CommandPalette />
           <ChangelogModal />
           <ThemedToaster />
-          {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
+          <FeatureFlagPanel />
+          {devtoolsEnabled && (
             <ReactQueryDevtools initialIsOpen={false} />
           )}
+          </VerificationProvider>
         </ThemeProvider>
       </LocaleProvider>
+      )}
     </QueryClientProvider>
   );
 }

@@ -23,12 +23,25 @@ export type TxState =
   | { status: "idle" }
   | { status: "building"; startedAt?: number }
   | { status: "simulating"; startedAt?: number }
-  | { status: "signing"; startedAt?: number }
+  | {
+      status: "signing";
+      startedAt?: number;
+      provider?: string;
+      timeoutMs?: number;
+      tips?: string[];
+      canExtend?: boolean;
+    }
   | { status: "submitting"; txHash?: string }
   | { status: "polling"; txHash: string }
   | { status: "confirmed"; txHash: string }
   | { status: "failed"; error: ServiceError; txHash?: string }
-  | { status: "timeout"; txHash?: string };
+  | {
+      status: "timeout";
+      txHash?: string;
+      provider?: string;
+      timeoutMs?: number;
+      canExtend?: boolean;
+    };
 
 export type ServiceErrorCode =
   | "NETWORK_ERROR"
@@ -53,6 +66,22 @@ export type ServiceErrorCode =
   | "UNSUPPORTED_MEDIA_TYPE"
   | "VALIDATION_FAILED"
   | "INVALID_RESPONSE"
+  | "FETCH_ERROR"
+  | "INVALID_CID"
+  | "IPFS_ERROR"
+  | "IPFS_TAMPERED"
+  | "CONTRACT_ERROR"
+  | "SUBMISSION_ERROR"
+  | "CONFIRMATION_ERROR"
+  | "SUBMIT_ERROR"
+  | "INVALID_FORM"
+  | "CREATE_ERROR"
+  | "FUND_ERROR"
+  | "REPAY_ERROR"
+  | "CLAIM_ERROR"
+  | "CANCEL_ERROR"
+  | "TRANSFER_ERROR"
+  | "NOT_IMPLEMENTED"
   | "UNKNOWN_ERROR";
 
 export interface ServiceError {
@@ -95,6 +124,22 @@ export interface RepayInvoiceParams {
 
 export interface ClaimYieldParams {
   tokenId: bigint;
+}
+
+/**
+ * P2P secondary-market transfer of an investor position (#443).
+ *
+ * ABI assumption: `transfer_position(position_id: u64, to: Address)` is a
+ * single atomic call authorized by the position's current owner (the
+ * `sourcePublicKey` signer), mirroring `claim_position`/`claim_yield`. The
+ * recipient is not required to co-sign the transfer itself. If the deployed
+ * contract instead requires a two-step propose/accept pattern, wire the
+ * buyer's confirmation into `acceptPositionTransfer` in
+ * services/invoiceService.ts, which is currently a documented stub.
+ */
+export interface TransferPositionParams {
+  positionId: bigint;
+  toAddress: string;
 }
 
 // ─── API Response Wrappers ────────────────────────────────────────────────────

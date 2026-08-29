@@ -3,7 +3,6 @@
  * Configures jsdom environment, mocks, and global test utilities
  */
 
-import React from "react";
 import { expect, afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
@@ -39,9 +38,12 @@ global.IntersectionObserver = class IntersectionObserver {
   unobserve() {}
 } as any;
 
+import React from "react";
+
 // Mock next/image
 vi.mock("next/image", () => ({
   default: (props: any) => {
+    // eslint-disable-next-line jsx-a11y/alt-text
     return React.createElement("img", props);
   },
 }));
@@ -56,5 +58,5 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// Add custom matchers if needed
-expect.extend({});
+import * as matchers from "@testing-library/jest-dom/matchers";
+expect.extend(matchers);

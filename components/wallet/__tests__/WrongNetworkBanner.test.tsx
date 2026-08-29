@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { WrongNetworkBanner } from "../WrongNetworkBanner";
 import { useWallet } from "@/hooks/useWallet";
 import { useWalletStore } from "@/store";
@@ -11,7 +11,13 @@ vi.mock("@/store");
 vi.mock("@/lib/env", () => ({
   env: {
     NEXT_PUBLIC_STELLAR_NETWORK: "testnet",
+    NEXT_PUBLIC_STELLAR_RPC_URL: "https://soroban-testnet.stellar.org",
+    NEXT_PUBLIC_STELLAR_HORIZON_URL: "https://horizon-testnet.stellar.org",
     NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
+    NEXT_PUBLIC_INVOICE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_TOKEN_CONTRACT_ID: "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    NEXT_PUBLIC_IPFS_GATEWAY: "https://gateway.pinata.cloud/ipfs",
   },
 }));
 
@@ -31,7 +37,7 @@ describe("WrongNetworkBanner", () => {
     } as any);
 
     const { container } = render(<WrongNetworkBanner />);
-    expect(container.firstChild).toBeEmptyDOMElement();
+    expect(container.firstChild).toBeNull();
   });
 
   it("should not render when network is correct", () => {
@@ -45,7 +51,7 @@ describe("WrongNetworkBanner", () => {
     } as any);
 
     const { container } = render(<WrongNetworkBanner />);
-    expect(container.firstChild).toBeEmptyDOMElement();
+    expect(container.firstChild).toBeNull();
   });
 
   it("should render when connected to wrong network enum", () => {
@@ -60,7 +66,7 @@ describe("WrongNetworkBanner", () => {
 
     render(<WrongNetworkBanner />);
     expect(screen.getByText(/Wrong Network/)).toBeInTheDocument();
-    expect(screen.getByText(/Connected to.*Mainnet/)).toBeInTheDocument();
+    expect(screen.getByText("Wrong Network:", { exact: false })).toHaveTextContent(/Connected to.*Mainnet/);
   });
 
   it("should render when passphrase mismatches", () => {
@@ -117,8 +123,9 @@ describe("WrongNetworkBanner", () => {
     fireEvent.click(closeButton);
     expect(screen.queryByText(/Wrong Network/)).not.toBeInTheDocument();
 
-    // Re-render (simulate navigation away and back)
-    rerender(<WrongNetworkBanner />);
+    // Re-render (simulate navigation away and back by unmounting and mounting again)
+    cleanup();
+    render(<WrongNetworkBanner />);
     expect(screen.getByText(/Wrong Network/)).toBeInTheDocument();
   });
 
@@ -133,8 +140,9 @@ describe("WrongNetworkBanner", () => {
     } as any);
 
     render(<WrongNetworkBanner />);
-    expect(screen.getByText(/Connected to.*Mainnet/)).toBeInTheDocument();
-    expect(screen.getByText(/Testnet/)).toBeInTheDocument();
+    const banner = screen.getByText("Wrong Network:", { exact: false });
+    expect(banner).toHaveTextContent(/Connected to.*Mainnet/);
+    expect(banner).toHaveTextContent(/Testnet/);
   });
 
   it("should show passphrase mismatch in banner text", () => {
@@ -164,8 +172,9 @@ describe("WrongNetworkBanner", () => {
     } as any);
 
     render(<WrongNetworkBanner />);
-    expect(screen.getByText(/Connected to.*Testnet/)).toBeInTheDocument();
-    expect(screen.getByText(/passphrase mismatch/)).toBeInTheDocument();
+    const banner = screen.getByText("Wrong Network:", { exact: false });
+    expect(banner).toHaveTextContent(/Connected to.*Testnet/);
+    expect(banner).toHaveTextContent(/passphrase mismatch/);
   });
 
   it("should handle mainnet->testnet scenario", () => {
@@ -180,8 +189,9 @@ describe("WrongNetworkBanner", () => {
     } as any);
 
     render(<WrongNetworkBanner />);
-    expect(screen.getByText(/Connected to.*Mainnet/)).toBeInTheDocument();
-    expect(screen.getByText(/Testnet/)).toBeInTheDocument();
-    expect(screen.getByText(/passphrase mismatch/)).toBeInTheDocument();
+    const banner = screen.getByText("Wrong Network:", { exact: false });
+    expect(banner).toHaveTextContent(/Connected to.*Mainnet/);
+    expect(banner).toHaveTextContent(/Testnet/);
+    expect(banner).toHaveTextContent(/passphrase mismatch/);
   });
 });

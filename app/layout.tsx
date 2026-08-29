@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { NextWebVitalsMetric } from "next/app";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -7,9 +7,10 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { WrongNetworkBanner } from "@/components/wallet/WrongNetworkBanner";
 import { PageTransition } from "@/components/layout/PageTransition";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { env } from "@/lib/env";
 import { websiteSchema, organizationSchema, serializeSchema } from "@/lib/structuredData";
-import { handleWebVital } from "@/lib/webVitals";
+import { WebVitalsReporter } from "@/components/dev/WebVitalsReporter";
 import { WebVitalsPanel as WebVitalsPanelClient } from "@/components/dev/WebVitalsPanel";
 import { defaultLocale, locales, type Locale } from "@/i18n/config";
 
@@ -17,23 +18,6 @@ const WebVitalsPanel =
   process.env.NODE_ENV === "development"
     ? WebVitalsPanelClient
     : () => null;
-
-/**
- * reportWebVitals — called by Next.js for each Core Web Vital.
- * In development: logs to console with pass/fail colouring + fires a
- * CustomEvent so the WebVitalsPanel overlay can display live readings.
- * In production: batches and POSTs to /api/vitals.
- */
-export function reportWebVitals(metric: NextWebVitalsMetric): void {
-  handleWebVital(metric);
-
-  // Broadcast to the dev panel (no-op in production because the panel is not mounted)
-  if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
-    window.dispatchEvent(
-      new CustomEvent("kora:webvital", { detail: metric })
-    );
-  }
-}
 
 // Optimised font loading: display=swap prevents render-blocking, subset limits
 // download size. Both fonts are preloaded by next/font automatically.
@@ -71,6 +55,8 @@ function localeToOgLocale(locale: Locale): string {
   const localeMap: Record<Locale, string> = {
     en: "en_US",
     es: "es_ES",
+    ar: "ar_SA",
+    "pt-BR": "pt_BR",
   };
   return localeMap[locale] || "en_US";
 }
@@ -157,10 +143,6 @@ export const metadata: Metadata = {
 
   // App manifest / theme
   manifest: "/manifest.json",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
-  ],
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -169,6 +151,13 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
 };
 
 // Security: static compile-time string, zero user input — safe for dangerouslySetInnerHTML.
@@ -185,12 +174,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Apple PWA meta — Next.js metadata API doesn't cover all apple-* tags */}
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
-        {/* DNS prefetch for external origins used at runtime */}
-        <link rel="dns-prefetch" href="https://soroban-testnet.stellar.org" />
-        <link rel="dns-prefetch" href="https://horizon-testnet.stellar.org" />
-        <link rel="dns-prefetch" href="https://gateway.pinata.cloud" />
-        {/* Preconnect to IPFS gateway — used for invoice images on marketplace */}
-        <link rel="preconnect" href="https://gateway.pinata.cloud" crossOrigin="anonymous" />
+        {/* Resource hints: URLs sourced from env vars; testnet hints omitted in production */}
+        {env.NEXT_PUBLIC_STELLAR_RPC_URL && (
+          <link rel="preconnect" href={new URL(env.NEXT_PUBLIC_STELLAR_RPC_URL).origin} crossOrigin="anonymous" />
+        )}
+        {env.NEXT_PUBLIC_STELLAR_HORIZON_URL && (
+          <link rel="preconnect" href={new URL(env.NEXT_PUBLIC_STELLAR_HORIZON_URL).origin} crossOrigin="anonymous" />
+        )}
+        {env.NEXT_PUBLIC_IPFS_GATEWAY && (
+          <>
+            <link rel="preconnect" href={new URL(env.NEXT_PUBLIC_IPFS_GATEWAY).origin} crossOrigin="anonymous" />
+            <link rel="dns-prefetch" href={new URL(env.NEXT_PUBLIC_IPFS_GATEWAY).origin} />
+          </>
+        )}
         {/* Structured data: WebSite + Organization for SEO ≥ 95 */}
         <script
           type="application/ld+json"
@@ -210,12 +206,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to main content
         </a>
         <Providers>
+          <WebVitalsReporter />
           <Navbar />
           <WrongNetworkBanner />
           <main id="main-content" className="min-h-screen">
             <PageTransition>{children}</PageTransition>
           </main>
           <WebVitalsPanel />
+          <InstallPrompt />
           <Footer />
         </Providers>
       </body>

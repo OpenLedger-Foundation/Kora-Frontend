@@ -19,41 +19,55 @@ export const MOCK_ADDRESS =
  * Inject wallet stubs into every new page opened in this context.
  * Call once per test that needs a "connected" wallet state.
  */
-export async function injectWalletStubs(context: BrowserContext) {
-  await context.addInitScript(() => {
-    // Freighter stub — minimal API surface used by StellarWalletsKit
-    (window as any).freighter = {
-      isConnected: () => Promise.resolve(true),
-      getPublicKey: () =>
-        Promise.resolve(
-          "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ"
-        ),
-      signTransaction: (xdr: string) => Promise.resolve({ signedTxXdr: xdr }),
-      getNetwork: () => Promise.resolve({ network: "TESTNET", networkPassphrase: "Test SDF Network ; September 2015" }),
-      getNetworkDetails: () =>
-        Promise.resolve({
-          network: "TESTNET",
-          networkPassphrase: "Test SDF Network ; September 2015",
-          sorobanRpcUrl: "https://soroban-testnet.stellar.org",
-        }),
-    };
+export async function injectWalletStubs(
+  context: BrowserContext,
+  options: { usdcBalance?: string } = {},
+) {
+  await context.addInitScript(
+    ({ address, usdcBalance }) => {
+      // Freighter stub — minimal API surface used by StellarWalletsKit
+      (window as any).freighter = {
+        isConnected: () => Promise.resolve(true),
+        getPublicKey: () => Promise.resolve(address),
+        signTransaction: (xdr: string) => Promise.resolve({ signedTxXdr: xdr }),
+        getNetwork: () =>
+          Promise.resolve({
+            network: "TESTNET",
+            networkPassphrase: "Test SDF Network ; September 2015",
+          }),
+        getNetworkDetails: () =>
+          Promise.resolve({
+            network: "TESTNET",
+            networkPassphrase: "Test SDF Network ; September 2015",
+            sorobanRpcUrl: "https://soroban-testnet.stellar.org",
+          }),
+      };
 
-    // Persist a connected wallet state in localStorage so the Zustand
-    // walletStore rehydrates as connected on page load.
-    const walletState = {
-      state: {
-        address: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
-        publicKey: "GBVZQ4YWKJXQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQKZQ",
-        isConnected: true,
-        provider: "freighter",
-        balance: "1000.00",
-        isVerified: false,
-        verifiedAt: null,
-      },
-      version: 0,
-    };
-    localStorage.setItem("kora-wallet-store", JSON.stringify(walletState));
-  });
+      // Persist a connected wallet state in localStorage so the Zustand
+      // walletStore rehydrates as connected on page load.
+      const walletState = {
+        state: {
+          address,
+          publicKey: address,
+          isConnected: true,
+          provider: "freighter",
+          network: "testnet",
+          balance: {
+            xlm: "1000.00",
+            usdc: usdcBalance,
+            eurc: "0",
+          },
+          isVerified: false,
+          verifiedAt: null,
+          walletPassphrase: "Test SDF Network ; September 2015",
+        },
+        version: 0,
+      };
+      localStorage.setItem("kora-wallet", JSON.stringify(walletState));
+      localStorage.setItem("kora-wallet-store", JSON.stringify(walletState));
+    },
+    { address: MOCK_ADDRESS, usdcBalance: options.usdcBalance ?? "1000.00" },
+  );
 }
 
 /**
@@ -64,6 +78,9 @@ export async function connectWalletViaModal(page: Page) {
   const modal = page.getByRole("dialog");
   if (await modal.isVisible()) {
     // Click Freighter — always the first wallet button in the list
-    await modal.getByRole("button", { name: /freighter/i }).first().click();
+    await modal
+      .getByRole("button", { name: /freighter/i })
+      .first()
+      .click();
   }
 }

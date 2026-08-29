@@ -3,10 +3,13 @@
 import { useEffect, useRef } from "react";
 import {
   useQuery,
+  useInfiniteQuery,
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { useQueryTuning } from "@/lib/featureFlags";
+import { MARKETPLACE_CACHE_GC_TIME_MS } from "@/lib/queryPersistence";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import {
   fetchInvoices,
@@ -20,16 +23,52 @@ import {
 } from "@/services/invoiceService";
 import type { CreateInvoiceFormData, InvoiceStatus, MarketplaceSortKey } from "@/types";
 
-const STALE_30S = 30_000;
-const GC_5MIN = 5 * 60 * 1000;
-const POLL_INTERVAL_MS = 30_000;
+// Re-export marketplace prefetch helpers for existing import sites.
+export {
+  usePrefetchInvoice,
+  PREFETCH_DELAY_MS,
+  MAX_CONCURRENT_PREFETCHES,
+} from "./usePrefetchInvoice";
+
+/**
+ * Gate a tuned refetch interval on tab visibility.
+ *
+ * Returns `false` (no polling) when the interval is disabled for the active
+ * network mode, or when the tab is hidden — a backgrounded tab is refreshed on
+ * `visibilitychange` instead, so there is nothing to gain from polling it.
+ */
+function whenVisible(interval: number | false): number | false {
+  if (interval === false) return false;
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return false;
+  }
+  return interval;
+}
 
 const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
   apr: "apr",
   amount: "amount",
   dueDate: "duration",
+  duration: "duration",
+  due: "duration",
   listed: "createdAt",
+  newest: "createdAt",
+  createdAt: "createdAt",
 };
+
+function resolveMarketplaceSort(sortBy: string): {
+  key: MarketplaceSortKey;
+  direction: "asc" | "desc";
+} {
+  const rawKey = sortBy?.split("_")[0] ?? "apr";
+  const key = SORT_KEY_MAP[rawKey] ?? "apr";
+  // due_soonest / newest style keys
+  if (sortBy === "due_soonest") return { key: "duration", direction: "asc" };
+  if (sortBy === "due_latest") return { key: "duration", direction: "desc" };
+  if (sortBy === "newest") return { key: "createdAt", direction: "desc" };
+  const direction = sortBy?.endsWith("asc") ? "asc" : "desc";
+  return { key, direction };
+}
 
 // ─── List ─────────────────────────────────────────────────────────────────────
 
@@ -37,6 +76,7 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
   const page = typeof pageOrOpts === "number" ? pageOrOpts : 1;
   const refetchInterval = typeof pageOrOpts === "object" ? pageOrOpts?.refetchInterval : opts?.refetchInterval;
   const { filters, sort } = useInvoiceStore();
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.list(filters, sort, page),
     queryFn: () =>
@@ -45,13 +85,55 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
         { key: SORT_KEY_MAP[sort.sortBy] ?? "apr", direction: sort.sortDir },
         page
       ),
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    refetchInterval: () =>
-      typeof document !== "undefined" && document.visibilityState === "hidden"
-        ? false
-        : 15_000,
+    staleTime: tuning.staleTime,
+    gcTime: Math.max(tuning.gcTime, MARKETPLACE_CACHE_GC_TIME_MS),
+    meta: { persistOffline: true },
+    // An explicit caller-supplied interval wins over the mode default; before
+    // this it was computed and then silently ignored by a hard-coded 15 s.
+    refetchInterval: () => whenVisible(refetchInterval ?? tuning.listRefetchInterval),
     refetchIntervalInBackground: false,
+  });
+}
+
+/** Default page size for marketplace infinite scroll. */
+export const MARKETPLACE_PAGE_SIZE = 12;
+
+/**
+ * Cursor/page-based infinite invoice list for the marketplace.
+ * Initial load fetches page 1 only; call fetchNextPage as the sentinel intersects.
+ * Filter/sort changes reset pagination via the query key.
+ */
+export function useInfiniteInvoices(options?: {
+  pageSize?: number;
+  enabled?: boolean;
+}) {
+  const pageSize = options?.pageSize ?? MARKETPLACE_PAGE_SIZE;
+  const enabled = options?.enabled ?? true;
+  const filters = useInvoiceStore((s) => s.filters);
+  const sortBy = useInvoiceStore((s) => s.sortBy);
+  const tuning = useQueryTuning();
+
+  return useInfiniteQuery({
+    queryKey: queryKeys.invoices.infinite(filters, sortBy, pageSize),
+    queryFn: ({ pageParam }) =>
+      fetchInvoices(
+        {
+          categories: filters.categories,
+          jurisdictions: filters.jurisdictions,
+          riskTiers: filters.riskTiers,
+          aprRange: filters.aprRange,
+          activeOnly: filters.activeOnly,
+        },
+        resolveMarketplaceSort(sortBy),
+        pageParam,
+        pageSize
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
+    enabled,
+    staleTime: tuning.staleTime,
+    gcTime: Math.max(tuning.gcTime, MARKETPLACE_CACHE_GC_TIME_MS),
+    meta: { persistOffline: true },
   });
 }
 
@@ -59,49 +141,40 @@ export function useInvoices(pageOrOpts?: number | { refetchInterval?: number }, 
 
 const ACTIVE_STATUSES = new Set(["listed", "partially_funded"]);
 
-export function useInvoice(id: string) {
+export function useInvoice(id: string, walletAddress?: string) {
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.detail(id),
-    queryFn: () => fetchInvoiceById(id),
+    queryFn: () => fetchInvoiceById(id, walletAddress),
     enabled: !!id,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
+    staleTime: tuning.staleTime,
+    gcTime: Math.max(tuning.gcTime, MARKETPLACE_CACHE_GC_TIME_MS),
+    meta: { persistOffline: true },
     refetchInterval: (query) => {
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
+      // Only invoices that can still change are worth polling at all: a
+      // settled or fully-funded invoice is terminal until an event says
+      // otherwise, and events invalidate this key directly.
       const status = query.state.data?.status;
       if (!status || !ACTIVE_STATUSES.has(status)) return false;
       if ((query.state.data?.funding.fundingProgress ?? 0) >= 1) return false;
-      return ACTIVE_STATUSES.has(status) ? 15_000 : 60_000;
+      return whenVisible(tuning.detailRefetchInterval);
     },
     refetchIntervalInBackground: false,
   });
 }
 
-/** Call on InvoiceCard mouseEnter to warm the cache before navigation. */
-export function usePrefetchInvoice() {
-  const queryClient = useQueryClient();
-  return (id: string) =>
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.invoices.detail(id),
-      queryFn: () => fetchInvoiceById(id),
-      staleTime: STALE_30S,
-    });
-}
-
 // ─── SME invoices ─────────────────────────────────────────────────────────────
 
 export function useSMEInvoices(address: string | undefined) {
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.byOwner(address ?? ""),
     queryFn: () => fetchInvoicesByOwner(address!),
     enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
-    // Visibility-based polling: refetch every 30s only when the tab is visible
-    refetchInterval: () =>
-      typeof document !== "undefined" && document.visibilityState === "hidden"
-        ? false
-        : POLL_INTERVAL_MS,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
+    // Backstop poll, gated on tab visibility. Disabled entirely in mock mode.
+    refetchInterval: () => whenVisible(tuning.ownerRefetchInterval),
     refetchIntervalInBackground: false,
   });
 }
@@ -130,6 +203,7 @@ export function useBatchInvoicePolling(
 ) {
   const queryClient = useQueryClient();
   const { mergeInvoicesBatch } = useInvoiceStore();
+  const tuning = useQueryTuning();
 
   // Track intersection visibility via a ref so the refetchInterval closure
   // always reads the latest value without causing re-renders.
@@ -160,18 +234,15 @@ export function useBatchInvoicePolling(
       return invoices;
     },
     enabled,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
     refetchInterval: () => {
-      // Pause when the tab is hidden
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-        return false;
-      }
-      // Pause when the sentinel element has scrolled out of view
+      // Pause when the sentinel element has scrolled out of view. Tab
+      // visibility and the mode default are handled by whenVisible().
       if (!isVisibleRef.current) {
         return false;
       }
-      return POLL_INTERVAL_MS;
+      return whenVisible(tuning.batchRefetchInterval);
     },
     refetchIntervalInBackground: false,
   });
@@ -201,12 +272,13 @@ export function useBatchInvoicePolling(
 // ─── Investor positions ───────────────────────────────────────────────────────
 
 export function useInvestorPositions(address: string | undefined) {
+  const tuning = useQueryTuning();
   return useQuery({
     queryKey: queryKeys.invoices.positions(address ?? ""),
     queryFn: () => fetchInvestorPositions(address!),
     enabled: !!address,
-    staleTime: STALE_30S,
-    gcTime: GC_5MIN,
+    staleTime: tuning.staleTime,
+    gcTime: tuning.gcTime,
   });
 }
 
@@ -223,7 +295,12 @@ export function useInvoiceMutation() {
       formData: CreateInvoiceFormData;
       ownerAddress: string;
       onProgress?: (p: number) => void;
-    }) => prepareCreateInvoice(formData, ownerAddress, onProgress),
+    }) => {
+      if (typeof window !== "undefined" && !window.navigator.onLine) {
+        return Promise.reject(new Error("You're offline. Reconnect to create an invoice."));
+      }
+      return prepareCreateInvoice(formData, ownerAddress, onProgress);
+    },
 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
@@ -247,7 +324,12 @@ export function useUpdateStatusMutation() {
       from: InvoiceStatus;
       to: InvoiceStatus;
       ownerAddress: string;
-    }) => prepareUpdateInvoiceStatus(tokenId, from, to, ownerAddress),
+    }) => {
+      if (typeof window !== "undefined" && !window.navigator.onLine) {
+        return Promise.reject(new Error("You're offline. Reconnect to update invoice status."));
+      }
+      return prepareUpdateInvoiceStatus(tokenId, from, to, ownerAddress);
+    },
 
     onSettled: (_data, _err, { tokenId, ownerAddress }) => {
       // Invalidate both the owner query and the individual detail so the UI
@@ -271,7 +353,12 @@ export function useFundInvoiceMutation() {
       tokenId: string;
       amount: number;
       investorAddress: string;
-    }) => prepareFundInvoice(tokenId, amount, investorAddress),
+    }) => {
+      if (typeof window !== "undefined" && !window.navigator.onLine) {
+        return Promise.reject(new Error("You're offline. Reconnect to fund this invoice."));
+      }
+      return prepareFundInvoice(tokenId, amount, investorAddress);
+    },
 
     onMutate: async ({ tokenId, amount }) => {
       const { invoices } = useInvoiceStore.getState();
