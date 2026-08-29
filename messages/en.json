@@ -1114,5 +1114,13 @@
       "kycRequired": "KYC Verification Required",
       "kycDesc": "Acquisitions above the compliance threshold require verified KYC."
     }
+  },
+  "footer": {
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "changelog": "Changelog",
+    "openShortcutsLabel": "Open keyboard shortcuts reference",
+    "openChangelogLabel": "Open changelog",
+    "openChangelogUnreadLabel": "Open changelog (new release available)",
+    "copyright": "© {year} Kora Protocol"
   }
 }

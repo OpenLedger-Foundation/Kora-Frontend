@@ -1161,5 +1161,13 @@
       "kycRequired": "Verificação KYC Necessária",
       "kycDesc": "Aquisições acima do limite regulatório exigem verificação KYC."
     }
+  },
+  "footer": {
+    "keyboardShortcuts": "Atalhos de Teclado",
+    "changelog": "Registro de Alterações",
+    "openShortcutsLabel": "Abrir referência de atalhos de teclado",
+    "openChangelogLabel": "Abrir registro de alterações",
+    "openChangelogUnreadLabel": "Abrir registro de alterações (nova versão disponível)",
+    "copyright": "© {year} Kora Protocol"
   }
 }
