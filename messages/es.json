@@ -375,6 +375,12 @@
       "needProofAddress": "Proof of business address",
       "needTime": "Takes approximately 2 minutes",
       "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    },
+    "draftRecovery": {
+      "title": "Tienes un borrador de factura sin terminar",
+      "description": "Encontramos un borrador guardado de tu sesión anterior. ¿Quieres continuar donde lo dejaste?",
+      "resume": "Continuar Borrador",
+      "discard": "Descartar"
     }
   },
   "smeDashboard": {

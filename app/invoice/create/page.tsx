@@ -16,6 +16,8 @@ import {
   AlertCircle,
   WifiOff,
   RefreshCw,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { queryKeys } from "@/lib/queryKeys";
 import { Button } from "@/components/ui/button";
@@ -150,12 +152,50 @@ export default function CreateInvoicePage() {
     },
   });
 
+  // ── Draft recovery (Issue #655) ───────────────────────────────────────────
+  // Check once on mount whether a non-empty draft exists. If so, show a banner.
+  // We block the watch autosave listener until the user resolves the banner so
+  // that form default values never silently overwrite the persisted draft.
+  const [isDraftResolved, setIsDraftResolved] = useState(false);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+
+  const isDraftNonEmpty = useMemo(() => {
+    if (!createDraft) return false;
+    const SENTINEL_KEYS: (keyof typeof createDraft)[] = [
+      "invoiceNumber",
+      "debtorName",
+      "debtorAddress",
+      "amount",
+      "dueDate",
+      "discountRate",
+      "minInvestment",
+      "listingExpiryDate",
+    ];
+    return SENTINEL_KEYS.some((k) => {
+      const v = createDraft[k];
+      return v !== undefined && v !== null && v !== "" && v !== 0;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
+    if (isDraftNonEmpty) {
+      setShowDraftBanner(true);
+    } else {
+      setIsDraftResolved(true);
+    }
+  // Only run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!isDraftResolved) return;
     const subscription = watch((values) => {
       setCreateDraft(values as Partial<CreateInvoiceSchema>);
     });
     return () => subscription.unsubscribe();
-  }, [watch, setCreateDraft]);
+  }, [watch, setCreateDraft, isDraftResolved]);
 
   const formValues = watch();
   const step0Valid = useMemo(
@@ -273,6 +313,43 @@ export default function CreateInvoicePage() {
   };
 
   const { executeProtectedAction } = useVerifiedAction();
+
+  // ── Draft recovery handlers (Issue #655) ────────────────────────────
+  const handleResumeDraft = () => {
+    const draftValues = {
+      currency: "USDC" as const,
+      issueDate: TODAY,
+      jurisdiction: "KE" as const,
+      category: "technology" as const,
+      debtorPrivacy: "full" as const,
+      ...createDraft,
+    };
+    reset(draftValues);
+
+    // Determine which step the user was on by running Zod schemas:
+    // - If financing terms are valid, jump to step 2 (Upload & Review)
+    // - If invoice details are valid, jump to step 1 (Financing Terms)
+    // - Otherwise stay on step 0 (Invoice Details)
+    const { financingTermsSchema: fts, invoiceDetailsStepSchema: dts } =
+      { financingTermsSchema, invoiceDetailsStepSchema };
+    if (fts.safeParse(draftValues).success) {
+      setStep(2);
+    } else if (dts.safeParse(draftValues).success) {
+      setStep(1);
+    } else {
+      setStep(0);
+    }
+
+    setShowDraftBanner(false);
+    setIsDraftResolved(true);
+  };
+
+  const handleDiscardDraft = () => {
+    clearCreateDraft();
+    setShowDraftBanner(false);
+    setIsDraftResolved(true);
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const onSubmit = async (data: CreateInvoiceSchema) => {
     if (!isConnected) {
@@ -441,6 +518,59 @@ export default function CreateInvoicePage() {
               {t("subtitle")}
             </p>
           </div>
+
+          {/* ── Draft recovery banner (Issue #655) ─────────────────────── */}
+          <AnimatePresence>
+            {showDraftBanner && (
+              <motion.div
+                key="draft-recovery-banner"
+                initial={{ opacity: 0, y: -12, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                role="alert"
+                data-testid="draft-recovery-banner"
+                className="mb-6 flex flex-col gap-3 rounded-xl border border-kora-500/30 bg-kora-500/8 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-start gap-3">
+                  <RotateCcw
+                    className="mt-0.5 h-4 w-4 shrink-0 text-kora-400"
+                    aria-hidden="true"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-zinc-100">
+                      {t("draftRecovery.title")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      {t("draftRecovery.description")}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
+                  <button
+                    id="draft-recovery-discard"
+                    type="button"
+                    onClick={handleDiscardDraft}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-transparent px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:border-zinc-600 hover:text-zinc-200"
+                    aria-label={t("draftRecovery.discard")}
+                  >
+                    <Trash2 className="h-3 w-3" aria-hidden="true" />
+                    {t("draftRecovery.discard")}
+                  </button>
+                  <button
+                    id="draft-recovery-resume"
+                    type="button"
+                    onClick={handleResumeDraft}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-kora-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-kora-600"
+                    aria-label={t("draftRecovery.resume")}
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden="true" />
+                    {t("draftRecovery.resume")}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Step indicator */}
           <div className="mb-8 flex items-center gap-2">

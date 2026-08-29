@@ -375,6 +375,12 @@
       "needProofAddress": "Proof of business address",
       "needTime": "Takes approximately 2 minutes",
       "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    },
+    "draftRecovery": {
+      "title": "لديك مسودة فاتورة غير مكتملة",
+      "description": "وجدنا مسودة محفوظة من جلستك السابقة. هل تريد الاستمرار من حيث توقفت؟",
+      "resume": "استئناف المسودة",
+      "discard": "تجاهل"
     }
   },
   "smeDashboard": {

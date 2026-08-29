@@ -334,6 +334,12 @@
       "needProofAddress": "Proof of business address",
       "needTime": "Takes approximately 2 minutes",
       "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    },
+    "draftRecovery": {
+      "title": "You have an unfinished invoice draft",
+      "description": "We found a saved draft from your previous session. Would you like to pick up where you left off?",
+      "resume": "Resume Draft",
+      "discard": "Discard"
     }
   },
   "smeDashboard": {
