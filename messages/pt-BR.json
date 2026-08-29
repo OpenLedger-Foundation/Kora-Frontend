@@ -951,7 +951,18 @@
     "qrCodeAlt": "Código QR para o link da fatura compartilhada",
     "linkCopiedToast": "Link copiado",
     "unableToCopy": "Não foi possível copiar o link",
-    "sharedSuccessfully": "Compartilhado com sucesso"
+    "sharedSuccessfully": "Compartilhado com sucesso",
+    "defaultInvoiceTitle": "Fatura",
+    "recipientLabel": "Destinatário:",
+    "defaultShareTitle": "Oportunidade de financiamento de fatura na Kora",
+    "defaultShareText": "Veja esta oportunidade de financiamento de fatura na Kora.",
+    "defaultTweetSummary": "Fatura listada na Kora"
+  },
+  "copyButton": {
+    "copyAriaLabel": "Copiar",
+    "copiedAriaLabel": "Copiado",
+    "copyTooltip": "Copiar",
+    "copiedTooltip": "Copiado!"
   },
   "contractEvents": {
     "invoiceFunded": "Fatura Financiada",

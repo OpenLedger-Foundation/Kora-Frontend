@@ -904,7 +904,18 @@
     "qrCodeAlt": "QR code for shared invoice link",
     "linkCopiedToast": "Link copied",
     "unableToCopy": "Unable to copy link",
-    "sharedSuccessfully": "Shared successfully"
+    "sharedSuccessfully": "Shared successfully",
+    "defaultInvoiceTitle": "Invoice",
+    "recipientLabel": "Recipient:",
+    "defaultShareTitle": "Kora invoice opportunity",
+    "defaultShareText": "Review this invoice financing opportunity on Kora.",
+    "defaultTweetSummary": "Invoice listed on Kora"
+  },
+  "copyButton": {
+    "copyAriaLabel": "Copy",
+    "copiedAriaLabel": "Copied",
+    "copyTooltip": "Copy",
+    "copiedTooltip": "Copied!"
   },
   "contractEvents": {
     "invoiceFunded": "Invoice Funded",

@@ -112,7 +112,7 @@ export default function ShareInvoiceButton({
   const copyWithRecipient = async () => {
     if (selectedRecipient) {
       const recipient = selectedRecipient.label || selectedRecipient.address;
-      const message = `${invoiceTitle ?? "Invoice"} — ${invoiceUrl}\nRecipient: ${recipient}`;
+      const message = `${invoiceTitle ?? t("defaultInvoiceTitle")} — ${invoiceUrl}\n${t("recipientLabel")} ${recipient}`;
       const success = await copy(message);
       if (success) {
         toast.success(t("linkCopiedToast"));
@@ -129,8 +129,8 @@ export default function ShareInvoiceButton({
     if (supportsMobileShare()) {
       try {
         await navigator.share({
-          title: invoiceTitle ?? "Kora invoice opportunity",
-          text: summary ?? "Review this invoice financing opportunity on Kora.",
+          title: invoiceTitle ?? t("defaultShareTitle"),
+          text: summary ?? t("defaultShareText"),
           url: invoiceUrl,
         });
         toast.success(t("sharedSuccessfully"));
@@ -142,7 +142,9 @@ export default function ShareInvoiceButton({
     await copyShareLink();
   };
 
-  const tweetText = encodeURIComponent(`${invoiceTitle ?? "Invoice"} · ${summary ?? "Invoice listed on Kora"}`);
+  const tweetText = encodeURIComponent(
+    `${invoiceTitle ?? t("defaultInvoiceTitle")} · ${summary ?? t("defaultTweetSummary")}`,
+  );
   const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${encodeURIComponent(invoiceUrl)}`;
   const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(invoiceUrl)}`;
 

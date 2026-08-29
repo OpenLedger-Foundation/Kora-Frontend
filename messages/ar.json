@@ -951,7 +951,18 @@
     "qrCodeAlt": "رمز QR لرابط الفاتورة المشتركة",
     "linkCopiedToast": "تم نسخ الرابط",
     "unableToCopy": "تعذّر نسخ الرابط",
-    "sharedSuccessfully": "تمت المشاركة بنجاح"
+    "sharedSuccessfully": "تمت المشاركة بنجاح",
+    "defaultInvoiceTitle": "فاتورة",
+    "recipientLabel": "المستلم:",
+    "defaultShareTitle": "فرصة تمويل فاتورة على Kora",
+    "defaultShareText": "اطّلع على فرصة تمويل هذه الفاتورة على Kora.",
+    "defaultTweetSummary": "فاتورة مُدرجة على Kora"
+  },
+  "copyButton": {
+    "copyAriaLabel": "نسخ",
+    "copiedAriaLabel": "تم النسخ",
+    "copyTooltip": "نسخ",
+    "copiedTooltip": "تم النسخ!"
   },
   "contractEvents": {
     "invoiceFunded": "تم تمويل الفاتورة",

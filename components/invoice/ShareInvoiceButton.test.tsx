@@ -21,6 +21,11 @@ vi.mock("next-intl", () => ({
       linkCopiedToast: "Link copied",
       unableToCopy: "Unable to copy link",
       sharedSuccessfully: "Shared successfully",
+      defaultInvoiceTitle: "Invoice",
+      recipientLabel: "Recipient:",
+      defaultShareTitle: "Kora invoice opportunity",
+      defaultShareText: "Review this invoice financing opportunity on Kora.",
+      defaultTweetSummary: "Invoice listed on Kora",
     };
     return map[key] ?? key;
   },
@@ -118,6 +123,32 @@ describe("ShareInvoiceButton", () => {
         }),
       );
       expect(toast.success).toHaveBeenCalledWith("Shared successfully");
+    });
+  });
+
+  it("uses translated defaults for native sharing when no title/summary is supplied", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "maxTouchPoints", {
+      configurable: true,
+      value: 1,
+    });
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: share,
+    });
+
+    render(<ShareInvoiceButton id="token-11" />);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Share invoice" }),
+    );
+
+    await waitFor(() => {
+      expect(share).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Kora invoice opportunity",
+          text: "Review this invoice financing opportunity on Kora.",
+        }),
+      );
     });
   });
 });
