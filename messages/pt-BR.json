@@ -336,7 +336,10 @@
       "errors": {
         "tooLarge": "Arquivo muito grande. O tamanho máximo é exatamente 10MB.",
         "invalidType": "Tipo de arquivo inválido. Apenas documentos PDF são permitidos.",
-        "required": "Por favor, envie o PDF da fatura antes de criar o token."
+        "required": "Por favor, envie o PDF da fatura antes de criar o token.",
+        "virusScanRejected": "Arquivo rejeitado pela verificação de segurança",
+        "virusScanRejectedDescription": "{reason} Por favor, selecione um arquivo diferente e tente novamente.",
+        "virusScanInfo": "Saiba mais sobre nossa verificação de segurança"
       }
     },
     "review": {

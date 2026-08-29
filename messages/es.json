@@ -336,7 +336,10 @@
       "errors": {
         "tooLarge": "El archivo es demasiado grande. El tamaño máximo es exactamente 10MB.",
         "invalidType": "Tipo de archivo inválido. Solo se permiten documentos PDF.",
-        "required": "Por favor sube el PDF de la factura antes de acuñar."
+        "required": "Por favor sube el PDF de la factura antes de acuñar.",
+        "virusScanRejected": "Archivo rechazado por escaneo de seguridad",
+        "virusScanRejectedDescription": "{reason} Por favor selecciona un archivo diferente e intenta de nuevo.",
+        "virusScanInfo": "Obtén más información sobre nuestro escaneo de seguridad"
       }
     },
     "review": {
