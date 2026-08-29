@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
 
 export const metadata: Metadata = {
   title: "SME Dashboard",
@@ -36,15 +35,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// Mirror the investor layout pattern: ssr:false prevents the hook from running
-// server-side where IndexedDB / WebSocket APIs are unavailable.
-const ContractEventSubscriber = dynamic(
-  () =>
-    import("@/components/marketplace/ContractEventSubscriber").then(
-      (m) => m.ContractEventSubscriber
-    ),
-  { ssr: false }
-);
+import { ContractEventSubscriber } from "@/components/marketplace/ContractEventSubscriber";
 
 import { ConnectWalletGuard } from "@/components/layout/ConnectWalletGuard";
 

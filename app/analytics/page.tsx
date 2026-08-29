@@ -12,6 +12,19 @@ const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCh
   ssr: false,
   loading: () => <AnalyticsSkeleton />,
 });
+
+const YieldProjectionCalculator = dynamic(
+  () =>
+    import("@/components/dashboard/YieldProjectionCalculator").then(
+      (mod) => mod.YieldProjectionCalculator
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[400px] w-full animate-pulse rounded-xl border border-zinc-800 bg-zinc-950/50" />
+    ),
+  }
+);
 import { BarChart3, DollarSign, TrendingUp, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
 import { StatCard } from "@/components/ui/stat-card";
@@ -210,6 +223,28 @@ function PortfolioAnalyticsInner() {
       filteredPositions.length
     : 0;
 
+  const defaultTier = useMemo(() => {
+    const RISK_TIERS_LIST = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
+    const validPositions = filteredPositions.filter(
+      (p) => p.invoice?.riskTier && RISK_TIERS_LIST.includes(p.invoice.riskTier)
+    );
+    if (validPositions.length === 0) {
+      return "A";
+    }
+    let totalWeight = 0;
+    let weightedSum = 0;
+    for (const pos of validPositions) {
+      const tier = pos.invoice!.riskTier!;
+      const weight = pos.investedAmount;
+      const index = RISK_TIERS_LIST.indexOf(tier);
+      weightedSum += index * weight;
+      totalWeight += weight;
+    }
+    if (totalWeight === 0) return "A";
+    const avgIndex = Math.round(weightedSum / totalWeight);
+    return RISK_TIERS_LIST[avgIndex] || "A";
+  }, [filteredPositions]);
+
   const stats = [
     {
       label: "Portfolio Value",
@@ -344,6 +379,25 @@ function PortfolioAnalyticsInner() {
           {/* Filter bar — changes push new URL params, charts re-slice instantly */}
           <div className="mb-6 print:hidden">
             <AnalyticsFilterBar filters={filters} onChange={handleFiltersChange} />
+          </div>
+
+          {/* Stat cards */}
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {stats.map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.07 }}
+              >
+                <StatCard {...stat} />
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Yield Projection Calculator */}
+          <div className="mb-6 print-hidden">
+            <YieldProjectionCalculator defaultTier={defaultTier} />
           </div>
 
           {/* Charts */}

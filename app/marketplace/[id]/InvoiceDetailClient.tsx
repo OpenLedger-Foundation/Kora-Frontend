@@ -68,6 +68,7 @@ import {
   useUsdcBalance,
 } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
+import { exportInvoiceCalendarIcs } from "@/lib/export";
 import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 

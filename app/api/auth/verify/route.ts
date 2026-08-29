@@ -3,7 +3,7 @@ import * as StellarSdk from "@stellar/stellar-sdk";
 import { logger } from "@/lib/logger";
 import { verifyCsrf } from "@/lib/csrf";
 import { markWalletVerified } from "@/lib/verifiedSessions";
-import { consumeNonce, nonceExists } from "../challenge/route";
+import { consumeNonce, nonceExists } from "../challenge/store";
 
 interface VerifyRequest {
   challenge: string;

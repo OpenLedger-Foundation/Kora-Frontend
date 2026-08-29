@@ -243,6 +243,7 @@ html {
   nav,
   header,
   footer,
+  .print-hidden,
   .print\:hidden,
   [data-print="hidden"],
   [data-print-hide],
