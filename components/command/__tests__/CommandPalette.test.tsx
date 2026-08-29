@@ -409,3 +409,31 @@ describe("CommandPalette — recent items", () => {
     expect(setOpenMock).toHaveBeenCalledWith(false);
   });
 });
+
+// ── Shortcuts action (issue #709) ───────────────────────────────────────────
+
+describe("CommandPalette — shortcuts action", () => {
+  it("dispatches the global shortcut-modal event and closes the palette", async () => {
+    const listener = vi.fn();
+    window.addEventListener("kora:open-shortcut-modal", listener);
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await user.click(screen.getByText("Shortcuts"));
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(setOpenMock).toHaveBeenCalledWith(false);
+
+    window.removeEventListener("kora:open-shortcut-modal", listener);
+  });
+
+  it("surfaces the Shortcuts action when searching", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await typeQuery(user, "shortcut");
+
+    expect(screen.getByTestId("action-shortcuts")).toBeInTheDocument();
+  });
+});
