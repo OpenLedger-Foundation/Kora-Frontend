@@ -8,13 +8,32 @@ import { useUIStore } from "@/store";
 import { WalletButton } from "@/components/wallet/WalletButton";
 
 function IntendedDestinationSetter() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { setIntendedDestination } = useUIStore();
+  const { setIntendedDestination, intendedDestination } = useUIStore();
 
   useEffect(() => {
+    // First priority: redirectTo query param (explicit redirect URL)
     const redirectTo = searchParams.get("redirectTo");
-    if (redirectTo) setIntendedDestination(redirectTo);
-  }, [searchParams, setIntendedDestination]);
+    if (redirectTo) {
+      setIntendedDestination(redirectTo);
+      return;
+    }
+
+    // Second priority: current pathname for protected routes (implicit redirect)
+    // Only set if not already set to avoid overwriting an existing intended destination
+    if (!intendedDestination) {
+      const isProtectedRoute = [
+        "/invoice/create",
+        "/dashboard/sme",
+        "/dashboard/investor",
+      ].some((p) => pathname === p || pathname.startsWith(p + "/"));
+
+      if (isProtectedRoute) {
+        setIntendedDestination(pathname);
+      }
+    }
+  }, [pathname, searchParams, setIntendedDestination, intendedDestination]);
 
   return null;
 }
