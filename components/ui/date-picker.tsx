@@ -187,9 +187,15 @@ const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
           </label>
         )}
 
-        {/* Hidden input registered with react-hook-form */}
+        {/* Visually-hidden input registered with react-hook-form.
+            We use className="sr-only" rather than type="hidden" so that
+            React's synthetic onChange fires correctly (type="hidden" inputs
+            silently swallow React change events, breaking RTL tests).
+            tabIndex={-1} ensures keyboard users skip it (the trigger button
+            is the keyboard target). */}
         <input
-          type="hidden"
+          className="sr-only"
+          tabIndex={-1}
           id={inputId}
           ref={ref}
           name={props.name}
