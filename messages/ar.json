@@ -135,6 +135,8 @@
     "resetFilters": "إعادة تعيين كل الفلاتر",
     "activeOnly": "النشطة فقط",
     "activeOnlyDesc": "إخفاء الفواتير الممولة بالكامل أو المتعثرة",
+    "showExpired": "إظهار منتهية الصلاحية",
+    "showExpiredDesc": "إدراج العروض التي مرت تاريخ صلاحيتها",
     "aprRange": "نطاق APR",
     "riskTier": "مستوى المخاطرة",
     "categories": "الفئات",

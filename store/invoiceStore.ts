@@ -269,6 +269,7 @@ export function hydratePresets(value: unknown): SavedMarketplacePreset[] {
       Array.isArray(candidate.filters.riskTiers) &&
       Array.isArray(candidate.filters.aprRange) &&
       typeof candidate.filters.activeOnly === "boolean" &&
+      typeof candidate.filters.showExpired === "boolean" &&
       !!candidate.sort &&
       ["apr", "amount", "dueDate", "listed"].includes(candidate.sort.sortBy) &&
       ["asc", "desc"].includes(candidate.sort.sortDir)

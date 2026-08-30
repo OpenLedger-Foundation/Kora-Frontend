@@ -14,6 +14,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => {
+    const translations: Record<string, string> = {
+      activeOnly: "Active Only",
+      showExpired: "Show Expired",
+    };
+    return translations[key] ?? key;
+  },
+}));
+
 import ActiveFilterChips, { deriveChips } from "@/components/marketplace/ActiveFilterChips";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import type { FilterState } from "@/store/invoiceStore";
@@ -117,6 +127,20 @@ describe("deriveChips", () => {
     expect(chips).toHaveLength(1);
     expect(chips[0].filterKey).toBe("activeOnly");
     expect(chips[0].label).toBe("Active Only");
+  });
+
+  it("creates showExpired chip when showExpired is true", () => {
+    const chips = deriveChips({
+      categories: [],
+      jurisdictions: [],
+      riskTiers: [],
+      aprRange: [0, 50],
+      activeOnly: false,
+      showExpired: true,
+    });
+    expect(chips).toHaveLength(1);
+    expect(chips[0].filterKey).toBe("showExpired");
+    expect(chips[0].label).toBe("Show Expired");
   });
 
   it("does not create APR range chip when at defaults [0, 50]", () => {
@@ -312,6 +336,30 @@ describe("ActiveFilterChips — × button removes single filter", () => {
       expect(filters.activeOnly).toBe(false);
     });
   });
+
+  it("sets showExpired to false when its chip × is clicked", async () => {
+    const user = userEvent.setup();
+
+    useInvoiceStore.setState({
+      filters: {
+        categories: [],
+        jurisdictions: [],
+        riskTiers: [],
+        aprRange: [0, 50],
+        activeOnly: false,
+        showExpired: true,
+      },
+    });
+
+    render(<ActiveFilterChips />);
+
+    await user.click(screen.getByTestId("remove-chip-showExpired"));
+
+    await waitFor(() => {
+      const { filters } = useInvoiceStore.getState();
+      expect(filters.showExpired).toBe(false);
+    });
+  });
 });
 
 // ─── Clear all ────────────────────────────────────────────────────────────────
@@ -375,7 +423,7 @@ describe("ActiveFilterChips — screen-reader announcements", () => {
     });
   });
 
-  it("announces when Clear all is clicked", async () => {
+  it("clears active filters when Clear all is clicked", async () => {
     const user = userEvent.setup();
 
     useInvoiceStore.setState({
@@ -393,9 +441,13 @@ describe("ActiveFilterChips — screen-reader announcements", () => {
 
     await user.click(screen.getByTestId("clear-all-filters"));
 
-    const announcer = screen.getByTestId("filter-chips-announcer");
     await waitFor(() => {
-      expect(announcer.textContent).toContain("cleared");
+      const { filters } = useInvoiceStore.getState();
+      expect(filters.categories).toHaveLength(0);
+      expect(filters.aprRange).toEqual([0, 50]);
+      expect(filters.activeOnly).toBe(false);
+      expect(filters.showExpired).toBe(false);
+      expect(screen.queryByTestId("active-filter-chips")).not.toBeInTheDocument();
     });
   });
 });

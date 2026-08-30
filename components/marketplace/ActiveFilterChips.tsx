@@ -89,6 +89,14 @@ export function deriveChips(
     });
   }
 
+  if (filters.showExpired) {
+    chips.push({
+      key: "showExpired",
+      label: t ? t("showExpired") : "Show Expired",
+      filterKey: "showExpired",
+    });
+  }
+
   return chips;
 }
 

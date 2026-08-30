@@ -135,6 +135,8 @@
     "resetFilters": "Redefinir Todos os Filtros",
     "activeOnly": "Apenas Ativas",
     "activeOnlyDesc": "Ocultar faturas totalmente financiadas ou inadimplentes",
+    "showExpired": "Mostrar expiradas",
+    "showExpiredDesc": "Incluir listagens cuja data de expiração já passou",
     "aprRange": "Faixa de APR",
     "riskTier": "Nível de Risco",
     "categories": "Categorias",
