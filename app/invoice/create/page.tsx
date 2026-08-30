@@ -986,7 +986,8 @@ export default function CreateInvoicePage() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
-              {/* Pinata unavailability banner */}
+              {/* Pinata unavailability banner — surfaces degraded/unavailable
+                  gateway state via usePinataHealth before the user drops a file. */}
               {!pinataChecking && pinataStatus === "unhealthy" && (
                 <motion.div
                   initial={{ opacity: 0, y: -8 }}
