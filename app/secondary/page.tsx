@@ -17,6 +17,8 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { Container } from "@/components/layout/Container";
+import { SellerAnalyticsDashboard } from "@/components/analytics/SellerAnalyticsDashboard";
+import { usePositions } from "@/hooks/usePositions";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -272,6 +274,15 @@ function SecondaryMarketplaceContent() {
 
   const { listings: storeListings } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
+
+  // Issue #593/#655: sellers listing positions here need the same
+  // views/discounts/time-on-market stats shown on the investor dashboard.
+  const myPositionsQuery = usePositions(publicKey ?? undefined);
+  const myPositions = useMemo(() => myPositionsQuery.data ?? [], [myPositionsQuery.data]);
+  const myListings = useMemo(
+    () => Object.values(storeListings).filter((l) => myPositions.some((p) => p.id === l.positionId)),
+    [storeListings, myPositions]
+  );
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -463,6 +474,15 @@ function SecondaryMarketplaceContent() {
             )}
           </Button>
         </div>
+
+        {/* Seller analytics (#593/#655) — shown whenever the connected wallet has active listings */}
+        {publicKey && myListings.length > 0 && (
+          <SellerAnalyticsDashboard
+            listings={myListings}
+            positions={myPositions}
+            className="mb-8"
+          />
+        )}
 
         {/* Filter Controls Bar */}
         <div className="mb-6 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-md">
