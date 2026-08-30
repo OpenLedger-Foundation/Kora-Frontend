@@ -727,6 +727,7 @@
     "descriptionDefault": "Prueba que eres dueño de esta billetera firmando un mensaje. Sin transacciones ni tarifas de gas.",
     "messageToSign": "Mensaje a firmar:",
     "challengeLabel": "Mensaje de desafío a firmar",
+    "sessionExpiresIn": "La sesión expira en {time}",
     "signAndVerify": "Firmar y Verificar",
     "verifying": "Verificando…",
     "cancel": "Cancelar"

@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useWallet } from "@/hooks/useWallet";
 import { VerificationModal } from "./VerificationModal";
+import { VERIFICATION_EXPIRY_MS } from "@/store/walletStore";
 
 interface VerificationContextType {
   requireVerification: (actionType: string) => Promise<void>;
@@ -136,6 +137,11 @@ export function VerificationProvider({ children }: { children: ReactNode }) {
         error={error ?? undefined}
         actionType={actionType}
         challengeMessage={challengeMessage}
+        sessionExpiresAt={
+          wallet.isVerified && wallet.verifiedAt
+            ? wallet.verifiedAt + VERIFICATION_EXPIRY_MS
+            : undefined
+        }
         onVerify={handleVerify}
         onCancel={handleCancel}
       />
