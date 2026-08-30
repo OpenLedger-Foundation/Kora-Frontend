@@ -1,3 +1,5 @@
+import * as StellarSdk from "@stellar/stellar-sdk";
+
 export type WalletAssetType = "native" | "credit";
 
 export interface WalletAssetConfig {
@@ -8,6 +10,29 @@ export interface WalletAssetConfig {
   decimals?: number;
   lowBalanceThreshold?: number;
 }
+
+export const TESTNET_USDC_ISSUER =
+  "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+export const TESTNET_EURC_ISSUER =
+  "GBBD47IF6Q4X3GQ6J3KQW7R4Z5H7L7O2N6B4V6K3QG5N5YJQ5A6L7ABC";
+
+/**
+ * Stellar asset objects + trustline helpers for onboarding flows (EURC/USDC).
+ */
+export const WALLET_ASSETS = {
+  usdc: {
+    code: "USDC",
+    issuer: TESTNET_USDC_ISSUER,
+    trustlineLimit: "1000000",
+    asset: new StellarSdk.Asset("USDC", TESTNET_USDC_ISSUER),
+  },
+  eurc: {
+    code: "EURC",
+    issuer: TESTNET_EURC_ISSUER,
+    trustlineLimit: "1000000",
+    asset: new StellarSdk.Asset("EURC", TESTNET_EURC_ISSUER),
+  },
+} as const;
 
 /**
  * Default asset list shown in the wallet balance panel.
@@ -25,6 +50,7 @@ export const DEFAULT_WALLET_ASSETS: readonly WalletAssetConfig[] = [
     symbol: "USDC",
     type: "credit",
     code: "USDC",
+    issuer: TESTNET_USDC_ISSUER,
     decimals: 2,
     lowBalanceThreshold: 100,
   },
@@ -32,8 +58,31 @@ export const DEFAULT_WALLET_ASSETS: readonly WalletAssetConfig[] = [
     symbol: "EURC",
     type: "credit",
     code: "EURC",
+    issuer: TESTNET_EURC_ISSUER,
     decimals: 2,
   },
 ];
 
 export const DEFAULT_FUNDING_ASSET_SYMBOL = "USDC";
+
+export function getAssetBalance(
+  balances: Array<{ code: string; issuer?: string; balance: string }>,
+  code: string,
+  issuer?: string
+): string {
+  return (
+    balances.find(
+      (asset) => asset.code === code && (!issuer || asset.issuer === issuer)
+    )?.balance ?? "0"
+  );
+}
+
+export function hasTrustline(
+  balances: Array<{ code: string; issuer?: string; balance: string }>,
+  code: string,
+  issuer: string
+): boolean {
+  return balances.some(
+    (asset) => asset.code === code && asset.issuer === issuer
+  );
+}

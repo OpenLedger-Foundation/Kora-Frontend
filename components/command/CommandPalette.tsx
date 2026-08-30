@@ -8,6 +8,7 @@ import {
   Store,
   LayoutDashboard,
   BarChart3,
+  ArrowLeftRight,
   PlusCircle,
   History,
   Wallet,
@@ -16,6 +17,7 @@ import {
   Zap,
   X,
   LogOut,
+  Keyboard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
@@ -51,6 +53,12 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 
 const PAGE_COMMANDS = [
   { id: "page-marketplace", label: "Marketplace", href: "/marketplace", icon: Store },
+  {
+    id: "page-secondary",
+    label: "Secondary Market",
+    href: "/secondary",
+    icon: ArrowLeftRight,
+  },
   { id: "page-invest", label: "Investor Dashboard", href: "/dashboard/investor", icon: BarChart3 },
   { id: "page-sme", label: "My Invoices", href: "/dashboard/sme", icon: LayoutDashboard },
   { id: "page-create", label: "Create Invoice", href: "/invoice/create", icon: PlusCircle },
@@ -257,7 +265,7 @@ export function CommandPalette() {
 
               {/* Actions */}
               {(showEmpty ||
-                ["connect wallet", "create invoice", "disconnect wallet"].some((a) =>
+                ["connect wallet", "create invoice", "disconnect wallet", "shortcuts", "keyboard shortcuts"].some((a) =>
                   a.includes(query.toLowerCase())
                 )) && (
                 <Command.Group
@@ -290,6 +298,17 @@ export function CommandPalette() {
                       onSelect={handleDisconnect}
                     />
                   )}
+                  <PaletteItem
+                    icon={<Keyboard className="h-4 w-4" />}
+                    label="Shortcuts"
+                    query={query}
+                    testId="action-shortcuts"
+                    onSelect={() =>
+                      runAction(() =>
+                        window.dispatchEvent(new CustomEvent("kora:open-shortcut-modal"))
+                      )
+                    }
+                  />
                 </Command.Group>
               )}
             </Command.List>

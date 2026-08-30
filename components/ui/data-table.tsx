@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import type { ColumnDef, DataTableProps, TableSortDirection } from "@/types/table";
 import { Pagination } from "./pagination";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 
 function getSortValue<T>(row: T, column: ColumnDef<T>): string | number {
   if (column.accessor) {
@@ -43,13 +44,53 @@ export function DataTable<T extends { id: string }>({
   getRowId = (row) => row.id,
   className,
   syncToUrl = false,
+  pageParamName = "page",
+  sortParamName = "sort",
+  pageSizeParamName = "pageSize",
 }: DataTableProps<T>) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<TableSortDirection>(null);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const { isMobile } = useBreakpoint();
+  const { width } = useBreakpoint();
+  const isMobileView = width < 640;
+
+  // Sync state from URL parameters on mount and searchParams changes
+  useEffect(() => {
+    if (!syncToUrl) return;
+
+    const urlPage = searchParams.get(pageParamName);
+    const urlPageSize = searchParams.get(pageSizeParamName);
+    const urlSort = searchParams.get(sortParamName);
+
+    if (urlPage) {
+      const parsedPage = parseInt(urlPage, 10);
+      if (!isNaN(parsedPage) && parsedPage > 0) {
+        setPage(parsedPage - 1);
+      }
+    }
+    if (urlPageSize) {
+      const parsedSize = parseInt(urlPageSize, 10);
+      if (!isNaN(parsedSize) && parsedSize > 0) {
+        setPageSize(parsedSize);
+      }
+    }
+    if (urlSort) {
+      const parts = urlSort.split(":");
+      if (parts.length === 2 && (parts[1] === "asc" || parts[1] === "desc")) {
+        const columnExists = columns.some((c) => c.id === parts[0]);
+        if (columnExists) {
+          setSortColumn(parts[0]);
+          setSortDirection(parts[1] as TableSortDirection);
+        }
+      }
+    }
+  }, [searchParams, syncToUrl, pageParamName, pageSizeParamName, sortParamName, columns]);
 
   const sortedData = useMemo(() => {
     if (!sortColumn || !sortDirection) return data;
@@ -65,17 +106,32 @@ export function DataTable<T extends { id: string }>({
   const pageData = sortedData.slice(currentPage * pageSize, currentPage * pageSize + pageSize);
 
   const toggleSort = (columnId: string) => {
+    let nextColumn: string | null = columnId;
+    let nextDirection: TableSortDirection = "asc";
+
     if (sortColumn !== columnId) {
-      setSortColumn(columnId);
-      setSortDirection("asc");
-      return;
+      nextColumn = columnId;
+      nextDirection = "asc";
+    } else if (sortDirection === "asc") {
+      nextColumn = columnId;
+      nextDirection = "desc";
+    } else {
+      nextColumn = null;
+      nextDirection = null;
     }
-    if (sortDirection === "asc") {
-      setSortDirection("desc");
-      return;
+
+    setSortColumn(nextColumn);
+    setSortDirection(nextDirection);
+
+    if (syncToUrl) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (nextColumn && nextDirection) {
+        params.set(sortParamName, `${nextColumn}:${nextDirection}`);
+      } else {
+        params.delete(sortParamName);
+      }
+      router.push(`${pathname}?${params.toString()}`);
     }
-    setSortColumn(null);
-    setSortDirection(null);
   };
 
   const toggleRow = (id: string) => {
@@ -101,6 +157,23 @@ export function DataTable<T extends { id: string }>({
       onSelectionChange?.(Array.from(next));
       return next;
     });
+  };
+
+  const getRowProps = (row: T) => {
+    if (!onRowClick) return {};
+    return {
+      role: "row",
+      tabIndex: 0,
+      "aria-label": `Open details for ${getRowId(row)}`,
+      className: "cursor-pointer",
+      onClick: () => onRowClick(row),
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onRowClick(row);
+        }
+      },
+    } as const;
   };
 
   const renderCellValue = (row: T, column: ColumnDef<T>) => {
@@ -147,9 +220,76 @@ export function DataTable<T extends { id: string }>({
 
   const skeletonRowCount = Math.min(pageSize, 5);
 
-  if (isMobile) {
+  if (isMobileView) {
     return (
       <div className={cn("space-y-4", className)}>
+        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-border/50 pb-4">
+          {enableSelection && (
+            <label className="inline-flex items-center gap-2 text-xs text-muted-foreground select-none cursor-pointer">
+              <input
+                type="checkbox"
+                className="rounded border-input"
+                checked={
+                  pageData.length > 0 && pageData.every((row) => selected.has(getRowId(row)))
+                }
+                onChange={toggleAll}
+                aria-label="Select all rows on this page"
+              />
+              Select all on page
+            </label>
+          )}
+
+          <div className="flex items-center gap-2">
+            <label htmlFor="mobile-sort-select" className="text-xs text-muted-foreground whitespace-nowrap">
+              Sort by
+            </label>
+            <select
+              id="mobile-sort-select"
+              className="h-9 rounded-lg border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              value={sortColumn && sortDirection ? `${sortColumn}:${sortDirection}` : ""}
+              onChange={(e) => {
+                if (e.target.value === "") {
+                  setSortColumn(null);
+                  setSortDirection(null);
+                  if (syncToUrl) {
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.delete(sortParamName);
+                    router.push(`${pathname}?${params.toString()}`);
+                  }
+                } else {
+                  const [col, dir] = e.target.value.split(":");
+                  setSortColumn(col);
+                  setSortDirection(dir as TableSortDirection);
+                  if (syncToUrl) {
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set(sortParamName, `${col}:${dir}`);
+                    router.push(`${pathname}?${params.toString()}`);
+                  }
+                }
+              }}
+            >
+              <option value="">None</option>
+              {columns
+                .filter((c) => c.sortable !== false && c.accessor)
+                .flatMap((column) => [
+                  {
+                    value: `${column.id}:asc`,
+                    label: `${column.header} (Ascending)`,
+                  },
+                  {
+                    value: `${column.id}:desc`,
+                    label: `${column.header} (Descending)`,
+                  },
+                ])
+                .map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+            </select>
+          </div>
+        </div>
+
         {enableSelection && selected.size > 0 && bulkActions && (
           <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-2">
             <span className="text-sm text-muted-foreground">
@@ -175,14 +315,19 @@ export function DataTable<T extends { id: string }>({
             ))
           : pageData.map((row) => {
               const rowId = getRowId(row);
+              const props = getRowProps(row);
               return (
                 <div
                   key={rowId}
-                  className="rounded-2xl border border-border bg-card p-4 shadow-sm"
+                  {...props}
+                  className={cn(
+                    "rounded-2xl border border-border bg-card p-4 shadow-sm",
+                    props.className
+                  )}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-border/50">
                     {enableSelection && (
-                      <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                      <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                         <input
                           type="checkbox"
                           className="rounded border-input"
@@ -203,72 +348,45 @@ export function DataTable<T extends { id: string }>({
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3">
-                    {columns.slice(0, columns.length).map((column) => (
-                      <div key={column.id} className="space-y-1">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {column.header}
-                        </p>
-                        <div className="text-sm text-foreground">
-                          {renderCellValue(row, column)}
+                    {columns.slice(2).map((column) => {
+                      if (column.id === "actions") {
+                        return (
+                          <div key={column.id} className="mt-2 pt-2 border-t border-border/50 flex items-center justify-end">
+                            {renderCellValue(row, column)}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={column.id} className="space-y-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {column.header}
+                          </p>
+                          <div className="text-sm text-foreground">
+                            {renderCellValue(row, column)}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
             })}
 
         {!isLoading && data.length > 0 && (
-          <div className="flex flex-col gap-3">
-            <p className="text-xs text-muted-foreground">
-              Showing {currentPage * pageSize + 1}–
-              {Math.min((currentPage + 1) * pageSize, sortedData.length)} of {sortedData.length}
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                Rows
-                <select
-                  className="h-8 rounded-md border border-input bg-card px-2 text-foreground"
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(0);
-                  }}
-                >
-                  {pageSizeOptions.map((size) => (
-                    <option key={size} value={size}>
-                      {size}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={currentPage === 0}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  Page {currentPage + 1} of {totalPages}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                  disabled={currentPage >= totalPages - 1}
-                  aria-label="Next page"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
+          <Pagination
+            totalItems={sortedData.length}
+            pageSize={pageSize}
+            currentPage={page + 1}
+            onPageChange={(p) => setPage(p - 1)}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(0);
+            }}
+            pageSizeOptions={pageSizeOptions}
+            syncToUrl={syncToUrl}
+            pageParamName={pageParamName}
+            pageSizeParamName={pageSizeParamName}
+          />
         )}
       </div>
     );
@@ -342,10 +460,15 @@ export function DataTable<T extends { id: string }>({
                 ))
               : pageData.map((row) => {
                   const rowId = getRowId(row);
+                  const props = getRowProps(row);
                   return (
                     <tr
                       key={rowId}
-                      className="border-b border-border/50 transition-colors hover:bg-muted/30"
+                      {...props}
+                      className={cn(
+                        "border-b border-border/50 transition-colors hover:bg-muted/30",
+                        props.className
+                      )}
                     >
                       {enableSelection && (
                         <td className="px-4 py-3">
@@ -388,6 +511,8 @@ export function DataTable<T extends { id: string }>({
           }}
           pageSizeOptions={pageSizeOptions}
           syncToUrl={syncToUrl}
+          pageParamName={pageParamName}
+          pageSizeParamName={pageSizeParamName}
         />
       )}
     </div>

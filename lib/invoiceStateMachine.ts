@@ -40,6 +40,9 @@ export const STATUS_TO_CHAIN_INDEX: Record<InvoiceStatus, number> = {
   cancelled: 7,
 };
 
+/** Number of seconds the user has to undo a destructive transition. */
+export const DESTRUCTIVE_TRANSITION_UNDO_SECONDS = 5;
+
 // ─── Transition definition ────────────────────────────────────────────────────
 
 /**

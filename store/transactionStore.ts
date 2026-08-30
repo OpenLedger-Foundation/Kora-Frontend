@@ -49,7 +49,7 @@ export interface EscrowStepAttempt {
 }
 
 export interface EscrowState {
-  step: "idle" | "buyer_funding" | "buyer_funded" | "seller_transferring" | "seller_transferred" | "settled";
+  step: EscrowStep;
   errorStep?: "buyer_funding" | "seller_transferring" | null;
   errorMessage?: string | null;
   txHash?: string | null;
@@ -110,7 +110,7 @@ interface TransactionStore {
 
 const MAX_HISTORY = 200; // cap to avoid unbounded localStorage growth
 
-const DEFAULT_ESCROW_STATE = {
+const DEFAULT_ESCROW_STATE: EscrowState = {
   step: "idle",
   errorStep: null,
   errorMessage: null,
@@ -195,51 +195,24 @@ interface TransactionStore {
   setEscrowContext: (context: { positionId: string; buyerAddress: string; sellerAddress: string; amount: number } | null) => void;
 }
 
-// 💾 Defaults ──────────────────────────────────────────────────────────
-
-const MAX_HISTORY = 200; // cap to avoid unbounded localStorage growth
-
-const DEFAULT_ESCROW_STATE = {
-  step: "idle",
-  errorStep: null,
-  errorMessage: null,
-  txHash: null,
-  attemptHistory: [] as any[],
-  currentAttempt: undefined,
-  totalRetryCount: 0,
-  currentContext: undefined,
-};
-
 // 🏪 Store ────────────────────────────────────────────────────────────
-
-import { create } from "zustand";
-import { persist } from "zustand/middleware";
 
 export const useTransactionStore = create<TransactionStore>()(
   persist(
     (set) => ({
       transactions: [],
-      escrowState: {
-        step: "idle",
-        errorStep: null,
-        errorMessage: null,
-        txHash: null,
-        attemptHistory: [],
-        currentAttempt: undefined,
-        totalRetryCount: 0,
-        currentContext: undefined,
-      },
+      escrowState: { ...DEFAULT_ESCROW_STATE },
 
       addTransaction: (record) =>
         set((s) => {
-          const entry = {
+          const entry: TxRecord = {
             ...record,
             timestamp: record.timestamp ?? new Date().toISOString(),
           };
           // Deduplicate by hash — replace if already exists (e.g. status update)
           const filtered = s.transactions.filter((t) => t.hash !== entry.hash);
           return {
-            transactions: [entry, ...filtered].slice(0, 200),
+            transactions: [entry, ...filtered].slice(0, MAX_HISTORY),
           };
         }),
 
@@ -274,12 +247,8 @@ export const useTransactionStore = create<TransactionStore>()(
       resetEscrow: () =>
         set((s) => ({
           escrowState: {
-            step: "idle",
-            errorStep: null,
-            errorMessage: null,
-            txHash: null,
+            ...DEFAULT_ESCROW_STATE,
             attemptHistory: s.escrowState.attemptHistory,
-            currentAttempt: undefined,
             totalRetryCount: s.escrowState.totalRetryCount,
             currentContext: s.escrowState.currentContext,
           },

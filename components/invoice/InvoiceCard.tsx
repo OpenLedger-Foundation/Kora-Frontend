@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRef, useState, useCallback, memo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useTranslations } from "next-intl";
-import { Calendar, Users, TrendingUp, MapPin, ArrowRight, Clock, GitCompareArrows } from "lucide-react";
+import { Calendar, Users, TrendingUp, ArrowRight, Clock, GitCompareArrows, Star } from "lucide-react";
 import { RiskBadge, Badge } from "@/components/ui/badge";
 import { InvoiceFundingProgress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -34,12 +34,15 @@ import {
   THUMBNAIL_HEIGHT,
 } from "@/lib/invoiceSvg";
 import type { Invoice } from "@/types";
-import { useInvoiceStore } from "@/store";
 
 interface InvoiceCardProps {
   invoice: Invoice;
   index?: number;
   updatedAt?: number;
+  tabIndex?: number;
+  onCardKeyDown?: (event: React.KeyboardEvent<HTMLAnchorElement>) => void;
+  onCardFocus?: () => void;
+  isSelectedForComparison?: boolean;
 }
 
 const JURISDICTION_FLAGS: Record<string, string> = {
@@ -80,7 +83,7 @@ function getFlagEmoji(countryCode: string) {
   }
 }
 
-export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt }: InvoiceCardProps) {
+export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt, tabIndex, onCardKeyDown, onCardFocus, isSelectedForComparison = false }: InvoiceCardProps) {
   const t = useTranslations("invoiceCard");
   const tMarketplace = useTranslations("marketplace");
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
@@ -90,13 +93,14 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const jurisdictionNames = getJurisdictionNames(tMarketplace);
   const countryName = jurisdictionNames[metadata.jurisdiction] || metadata.jurisdiction;
   const { prefetch: prefetchInvoice, cancelPrefetch } = usePrefetchInvoice();
-  const { comparisonList, toggleComparison } = useInvoiceStore();
+  const { comparisonList, toggleComparison, toggleWatchedInvoice, isInvoiceWatched } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= MAX_COMPARISON_INVOICES && !isInComparison;
   const comparisonEnabled = useFeatureFlag("comparison");
   const reduced = useReducedMotion();
   const { isOnline } = useNetworkStatus();
-  
+  const watched = isInvoiceWatched(invoice.id);
+
   // Hover popover state
   const [popoverOpen, setPopoverOpen] = useState(false);
   const cardRef = useRef<HTMLAnchorElement>(null);
@@ -166,6 +170,10 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
       ref={cardRef}
       href={`/marketplace/${invoice.id}`}
       data-tour={index === 0 ? "invoice-card" : undefined}
+      tabIndex={tabIndex}
+      onKeyDown={onCardKeyDown}
+      onFocusCapture={onCardFocus}
+      data-comparison-selected={comparisonEnabled ? String(isSelectedForComparison) : undefined}
       className={cn("block group relative h-full", isExpired && "opacity-60")}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -179,7 +187,8 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
         layoutId={`invoice-card-${invoice.id}`}
         className={cn(
           "relative overflow-hidden rounded-xl border bg-card/60 p-5 backdrop-blur-sm transition-all duration-200 hover:bg-card hover:shadow-token-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background flex flex-col h-full justify-between",
-          isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border"
+          isExpired ? "border-muted bg-muted/30 hover:border-muted" : "border-border hover:border-border",
+          isSelectedForComparison && "ring-2 ring-primary ring-offset-2 ring-offset-background"
         )}
         initial={reduced ? false : { opacity: 0, y: 16 }}
         animate={reduced ? {} : { opacity: 1, y: 0 }}
@@ -247,7 +256,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           </div>
           <button
             type="button"
-            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatched(invoice.id); }}
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatchedInvoice(invoice.id); }}
             className="absolute right-4 top-4 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
             aria-label={watched ? `Unstar ${metadata.invoiceNumber}` : `Star ${metadata.invoiceNumber}`}
           >
@@ -305,6 +314,27 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               </p>
             </div>
           </div>
+
+          {/* Time to repayment (#692). Distinct from the listing countdown in
+              the footer: that one says when the card leaves the marketplace,
+              this one says when the investor gets paid back. Compact so the
+              card keeps its height. */}
+          {terms.repaymentDate ? (
+            <div
+              className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-4"
+              data-testid="invoice-card-maturity"
+            >
+              <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <Clock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                {t("maturityLabel")}
+              </span>
+              <CountdownTimer
+                targetDate={terms.repaymentDate}
+                compact
+                expiredLabel={t("overdue")}
+              />
+            </div>
+          ) : null}
         </div>
 
         <div>

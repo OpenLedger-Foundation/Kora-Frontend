@@ -51,21 +51,15 @@
     "restoringSession": "جارٍ استعادة جلسة المحفظة..."
   },
   "transaction": {
-    "building": "جارٍ إنشاء المعاملة...",
-    "simulating": "جارٍ محاكاة المعاملة...",
-    "signing": "في انتظار توقيع المحفظة...",
-    "submitting": "جارٍ إرسال المعاملة...",
-    "polling": "جارٍ تأكيد المعاملة على السلسلة...",
+    "building": "جارٍ بناء المعاملة…",
+    "simulating": "جارٍ محاكاة المعاملة…",
+    "signing": "في انتظار توقيع المحفظة…",
+    "submitting": "جارٍ الإرسال إلى شبكة Stellar…",
+    "polling": "في انتظار التأكيد…",
     "confirmed": "تم تأكيد المعاملة!",
     "failed": "فشلت المعاملة",
-    "cancelled": "تم إلغاء توقيع المعاملة",
-    "timedOut": "انتهت مهلة توقيع المعاملة",
-    "timeoutNotice": "استغرق التوقيع وقتًا أطول من المتوقع.",
-    "extendTime": "تمديد الوقت (+60 ث)",
-    "retrySigning": "إعادة محاولة التوقيع",
-    "cancelSigning": "إلغاء بأمان",
-    "hardwareTip": "أكّد على محفظة الأجهزة الخاصة بك",
-    "mobileTip": "تحقق من تطبيق المحفظة على هاتفك"
+    "retry": "إعادة المحاولة",
+    "dismiss": "تجاهل"
   },
   "landing": {
     "headline": "تمويل الفواتير على السلسلة",
@@ -125,6 +119,7 @@
     "subtitle": "جارٍ اكتشاف الصفقات...",
     "showing": "عرض {count} فاتورة مدرجة",
     "shareFilters": "مشاركة الفلاتر",
+    "shareFiltersCopied": "تم نسخ رابط الفلتر إلى الحافظة",
     "searchPlaceholder": "ابحث بالمدين أو رقم الفاتورة أو الجهة القضائية…",
     "clearSearch": "مسح البحث",
     "filters": "الفلاتر",
@@ -370,7 +365,28 @@
       "partial": "جزئي (الاسم فقط)",
       "anonymized": "مجهول (الصناعة + البلد)"
     },
-    "discountRateDesc": "الخصم المقدم للمستثمرين. يجذب السعر الأعلى تمويلًا أسرع لكنه يزيد تكلفة التمويل."
+    "discountRateDesc": "الخصم المقدم للمستثمرين. يجذب السعر الأعلى تمويلًا أسرع لكنه يزيد تكلفة التمويل.",
+    "kybGate": {
+      "title": "Business Verification Required",
+      "subtitleNone": "To mint an invoice on Kora, your SME account must complete KYB verification. The process takes about 2 minutes.",
+      "subtitlePending": "Your verification documents are under review. We'll automatically continue once approved — this page will refresh for you.",
+      "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
+      "ctaNone": "Start Verification",
+      "ctaRejected": "Re-verify Business",
+      "ctaPending": "Checking verification status…",
+      "backToWizard": "Go Back",
+      "whatYouNeed": "What you will need:",
+      "needIdDoc": "Government-issued ID or business registration document",
+      "needProofAddress": "Proof of business address",
+      "needTime": "Takes approximately 2 minutes",
+      "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    },
+    "draftRecovery": {
+      "title": "لديك مسودة فاتورة غير مكتملة",
+      "description": "وجدنا مسودة محفوظة من جلستك السابقة. هل تريد الاستمرار من حيث توقفت؟",
+      "resume": "استئناف المسودة",
+      "discard": "تجاهل"
+    }
   },
   "smeDashboard": {
     "title": "لوحة الشركات الصغيرة والمتوسطة",
@@ -409,7 +425,34 @@
       "title": "ملخص العملية الدُفعية",
       "exportSelected": "تصدير المحدد",
       "processingLabel": "جارٍ إلغاء {count} فاتورة..."
-    }
+    },
+    "filters": {
+      "statusLabel": "الحالة",
+      "statusAria": "تصفية الفواتير حسب الحالة"
+    },
+    "statusFilters": {
+      "all": "جميع الحالات",
+      "draft": "مسودة",
+      "pending_mint": "في انتظار الإصدار",
+      "listed": "مدرجة",
+      "partially_funded": "ممولة جزئياً",
+      "fully_funded": "ممولة بالكامل",
+      "active": "نشطة",
+      "repaid": "مسددة",
+      "defaulted": "متعثرة",
+      "cancelled": "ملغاة"
+    },
+    "batchCancel": {
+      "title": "{count, plural, zero {إلغاء الفواتير؟} one {إلغاء فاتورة واحدة؟} two {إلغاء فاتورتين؟} few {إلغاء # فواتير؟} many {إلغاء # فاتورة؟} other {إلغاء # فاتورة؟}}",
+      "body": "{count, plural, zero {أنت على وشك إلغاء <b>فواتير غير ممولة</b>.} one {أنت على وشك إلغاء <b>فاتورة واحدة غير ممولة</b>.} two {أنت على وشك إلغاء <b>فاتورتين غير ممولتين</b>.} few {أنت على وشك إلغاء <b># فواتير غير ممولة</b>.} many {أنت على وشك إلغاء <b># فاتورة غير ممولة</b>.} other {أنت على وشك إلغاء <b># فاتورة غير ممولة</b>.}} تُنفَّذ المعاملات بالتتابع؛ ولن يوقف أي إخفاق بقية القائمة.",
+      "confirm": "{count, plural, zero {نعم، إلغاء الفواتير} one {نعم، إلغاء فاتورة واحدة} two {نعم، إلغاء فاتورتين} few {نعم، إلغاء # فواتير} many {نعم، إلغاء # فاتورة} other {نعم، إلغاء # فاتورة}}"
+    },
+    "batchRepay": {
+      "title": "{count, plural, zero {سداد الفواتير؟} one {سداد فاتورة واحدة؟} two {سداد فاتورتين؟} few {سداد # فواتير؟} many {سداد # فاتورة؟} other {سداد # فاتورة؟}}",
+      "body": "{count, plural, zero {أنت على وشك سداد <b>فواتير مستحقة</b>.} one {أنت على وشك سداد <b>فاتورة واحدة مستحقة</b>.} two {أنت على وشك سداد <b>فاتورتين مستحقتين</b>.} few {أنت على وشك سداد <b># فواتير مستحقة</b>.} many {أنت على وشك سداد <b># فاتورة مستحقة</b>.} other {أنت على وشك سداد <b># فاتورة مستحقة</b>.}} يُوقَّع كل سداد ويُرسَل بالتتابع.",
+      "confirm": "{count, plural, zero {نعم، سداد الفواتير} one {نعم، سداد فاتورة واحدة} two {نعم، سداد فاتورتين} few {نعم، سداد # فواتير} many {نعم، سداد # فاتورة} other {نعم، سداد # فاتورة}}"
+    },
+    "goBack": "رجوع"
   },
   "investorDashboard": {
     "title": "لوحة المستثمر",
@@ -490,7 +533,16 @@
     "txCount": "{count} معاملة",
     "txCountPlural": "{count} معاملات",
     "viewStellar": "عرض على Stellar Expert",
-    "remove": "إزالة المعاملة"
+    "remove": "إزالة المعاملة",
+    "listTitle": "المعاملات",
+    "reason": "السبب:",
+    "searchAria": "البحث في المعاملات",
+    "typeFilterAria": "تصفية حسب نوع المعاملة",
+    "statusFilterAria": "تصفية حسب الحالة",
+    "statusLabels": {
+      "confirmed": "مؤكدة",
+      "failed": "فاشلة"
+    }
   },
   "analytics": {
     "title": "تحليلات المحفظة",
@@ -546,6 +598,10 @@
   "cancelDialog": {
     "title": "إلغاء الفاتورة",
     "description": "لا يمكن التراجع عن هذا الإجراء. سيتم إلغاء الفاتورة نهائيًا.",
+    "undoTitle": "تم وضع الإلغاء قيد الانتظار",
+    "undoDescription": "لم يُرسل الإلغاء بعد. راجع العد التنازلي وتراجع عنه إذا لزم الأمر.",
+    "undoCountdown": "سيتم إرسال الإلغاء خلال {seconds} ثوانٍ",
+    "undo": "التراجع عن الإلغاء",
     "reasonLabel": "سبب الإلغاء",
     "selectReasonPlaceholder": "اختر سببًا للإلغاء",
     "reasons": {
@@ -578,17 +634,6 @@
       "dueDate": "تاريخ الاستحقاق",
       "fundedAmount": "المبلغ الممول"
     }
-  },
-  "transaction": {
-    "building": "جارٍ بناء المعاملة…",
-    "simulating": "جارٍ محاكاة المعاملة…",
-    "signing": "في انتظار توقيع المحفظة…",
-    "submitting": "جارٍ الإرسال إلى شبكة Stellar…",
-    "polling": "في انتظار التأكيد…",
-    "confirmed": "تم تأكيد المعاملة!",
-    "failed": "فشلت المعاملة",
-    "retry": "إعادة المحاولة",
-    "dismiss": "تجاهل"
   },
   "txSimulation": {
     "title": "معاينة المعاملة",
@@ -651,13 +696,17 @@
     "title": "الصفحة غير موجودة",
     "description": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
     "goHome": "الذهاب للرئيسية",
-    "goBack": "رجوع"
+    "goBack": "رجوع",
+    "goMarketplace": "تصفح السوق",
+    "goSecondary": "السوق الثانوية",
+    "recoveryHint": "ربما تم تمويل الفاتورة أو إزالتها من القائمة، أو أن الرابط لم يعد صالحًا."
   },
   "error": {
     "title": "حدث خطأ ما",
     "description": "حدث خطأ غير متوقع. يمكنك المحاولة مجددًا أو العودة إلى الصفحة الرئيسية.",
     "tryAgain": "حاول مجددًا",
-    "goHome": "الذهاب للرئيسية"
+    "goHome": "الذهاب للرئيسية",
+    "goMarketplace": "الذهاب إلى السوق"
   },
   "common": {
     "loading": "جارٍ التحميل…",
@@ -728,7 +777,11 @@
     "footerHint": "يتم حفظ جهات الاتصال محليًا في متصفحك.",
     "pickContact": "اختيار جهة اتصال محفوظة",
     "noContacts": "لا توجد جهات اتصال محفوظة بعد",
-    "pickFromAddressBook": "اختيار من دفتر العناوين"
+    "pickFromAddressBook": "اختيار من دفتر العناوين",
+    "verifiedLabel": "Label verified with signature",
+    "signLabel": "Sign label for {label}",
+    "labelSigned": "Label signed successfully",
+    "signFailed": "Failed to sign label"
   },
   "installPrompt": {
     "ariaLabel": "تثبيت تطبيق Kora Protocol",
@@ -746,6 +799,15 @@
     "whatsNew": "ما الجديد",
     "latestVersion": "أنت تستخدم أحدث إصدار.",
     "gotIt": "حسنًا"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "subtitle": "إدارة تفضيلات الإشعارات وجولة المنتج.",
+    "connectTitle": "اربط محفظتك",
+    "connectDesc": "تُحفظ الإعدادات لكل محفظة على حدة. اربط محفظتك لعرض تفضيلاتك وتغييرها.",
+    "connectCta": "ربط المحفظة",
+    "navLabel": "الإعدادات",
+    "openFull": "فتح الإعدادات الكاملة"
   },
   "shortcuts": {
     "title": "اختصارات لوحة المفاتيح",
@@ -826,6 +888,8 @@
     "tenorLabel": "المدة",
     "investorsLabel": "المستثمرون",
     "tenorDays": "{count}ي",
+    "maturityLabel": "الاستحقاق",
+    "overdue": "متأخرة",
     "fundInvoice": "تمويل الفاتورة",
     "addToCompare": "إضافة {debtor} إلى المقارنة",
     "removeFromCompare": "إزالة {debtor} من المقارنة",
@@ -898,7 +962,18 @@
     "qrCodeAlt": "رمز QR لرابط الفاتورة المشتركة",
     "linkCopiedToast": "تم نسخ الرابط",
     "unableToCopy": "تعذّر نسخ الرابط",
-    "sharedSuccessfully": "تمت المشاركة بنجاح"
+    "sharedSuccessfully": "تمت المشاركة بنجاح",
+    "defaultInvoiceTitle": "فاتورة",
+    "recipientLabel": "المستلم:",
+    "defaultShareTitle": "فرصة تمويل فاتورة على Kora",
+    "defaultShareText": "اطّلع على فرصة تمويل هذه الفاتورة على Kora.",
+    "defaultTweetSummary": "فاتورة مُدرجة على Kora"
+  },
+  "copyButton": {
+    "copyAriaLabel": "نسخ",
+    "copiedAriaLabel": "تم النسخ",
+    "copyTooltip": "نسخ",
+    "copiedTooltip": "تم النسخ!"
   },
   "contractEvents": {
     "invoiceFunded": "تم تمويل الفاتورة",
@@ -1007,5 +1082,97 @@
     "empty": "لا توجد مراكز ممولة هذا الشهر",
     "noData": "لا توجد مراكز ممولة للتجميع بعد.",
     "export": "تصدير المجموعات"
+  },
+  "secondaryMarket": {
+    "title": "السوق الثانوي",
+    "badge": "مراكز قابلة للتحويل من نظير لنظير",
+    "subtitle": "تصفح واشترِ مراكز المستثمرين النشطة بعوائد تنافسية قبل الاستحقاق.",
+    "shareView": "مشاركة العرض",
+    "copied": "تم النسخ!",
+    "copyAria": "نسخ الرابط القابل للمشاركة للتصفيات الحالية",
+    "searchPlaceholder": "البحث حسب المدين، رقم الفاتورة، الفئة...",
+    "searchAria": "البحث في عروض السوق الثانوي",
+    "tenorAria": "التصفية حسب المدة المتبقية",
+    "yieldAria": "التصفية حسب الحد الأدنى للعائد",
+    "sellerPlaceholder": "عنوان البائع...",
+    "sellerAria": "التصفية حسب عنوان البائع",
+    "reset": "إعادة تعيين",
+    "resetAria": "إعادة تعيين جميع التصفيات",
+    "filterPositions": "تصفية المراكز",
+    "active": "نشط",
+    "mobileTenorLabel": "المدة المتبقية",
+    "mobileYieldLabel": "الحد الأدنى للعائد",
+    "mobileSellerLabel": "عنوان البائع",
+    "applyFilters": "تطبيق التصفيات",
+    "bottomSheetTitle": "تصفية مراكز السوق الثانوي",
+    "emptyTitle": "لم يتم العثور على مراكز قابلة للتحويل",
+    "emptyDesc": "لا توجد عروض في السوق الثانوي تطابق معاييرك. حاول توسيع متطلبات المدة أو العائد.",
+    "clearFilters": "مسح جميع التصفيات",
+    "disabledTitle": "السوق الثانوي معطّل",
+    "disabledDesc": "ميزة السوق الثانوي غير متاحة حاليًا أو معطلة للصيانة. يُرجى التحقق لاحقًا أو استكشاف السوق الرئيسي.",
+    "exploreMarketplace": "استكشاف السوق",
+    "yieldBadge": "+{yield}% عائد",
+    "staleBadge": "تم نقل المركز بالفعل — العرض غير متاح",
+    "askPrice": "السعر المطلوب",
+    "expectedReturn": "العائد المتوقع",
+    "remainingTenor": "المدة المتبقية",
+    "daysRemaining": "متبقي {days} يوم",
+    "listingExpires": "ينتهي العرض في",
+    "expired": "(منتهي)",
+    "impliedDiscount": "الخصم الضمني",
+    "sellerAddress": "عنوان البائع",
+    "acquirePosition": "الاستحواذ على المركز",
+    "connectWalletToAcquire": "اتصل بالمحفظة للاستحواذ",
+    "acceptTransfer": "قبول النقل",
+    "listingAria": "عرض ثانوي للفاتورة {invoiceNumber}",
+    "listingAriaStale": "عرض ثانوي للفاتورة {invoiceNumber} — غير متاح، تم نقل المركز",
+    "acceptDialog": {
+      "title": "قبول نقل المركز",
+      "description": "راجع تفاصيل المركز قبل قبول هذا النقل في السوق الثانوية.",
+      "positionLabel": "المركز",
+      "expectedReturn": "العائد المتوقع",
+      "positionDetails": "تفاصيل المركز",
+      "remainingTenor": "المدة المتبقية",
+      "fromAddress": "عنوان المُرسِل",
+      "notImplementedTitle": "غير متاح بعد",
+      "notImplementedHint": "قبول المشتري غير متاح بعد على السلسلة — يُرجى المحاولة مرة أخرى بعد تفعيل هذا المسار في العقد.",
+      "cancel": "إلغاء",
+      "confirmAccept": "قبول النقل",
+      "pending": "جارٍ المعالجة…"
+    },
+    "acquireDialog": {
+      "title": "تأكيد الاستحواذ",
+      "description": "راجع تفاصيل المركز قبل الاستحواذ عليه من السوق الثانوي.",
+      "positionLabel": "المركز",
+      "askPrice": "السعر المطلوب",
+      "expectedReturn": "العائد المتوقع",
+      "impliedDiscount": "الخصم الضمني",
+      "discountNote": "يحصل المشتري على خصم مقارنة بالعائد المتوقع.",
+      "premiumNote": "السعر المطلوب أعلى من العائد المتوقع (علاوة).",
+      "extremeAlert": "تنبيه سعر استثنائي",
+      "priceWarning": "تحذير بشأن السعر",
+      "extremeDiscountMsg": "تم رصد خصم كبير جدًا - تم تسعير هذا المركز بأقل بكثير من العائد المتوقع.",
+      "extremePremiumMsg": "تم رصد علاوة كبيرة جدًا - تم تسعير هذا المركز بأعلى بكثير من العائد المتوقع.",
+      "warningDiscountMsg": "تحذير: تم رصد خصم ملحوظ.",
+      "warningPremiumMsg": "تحذير: تم رصد علاوة ملحوظة.",
+      "positionDetails": "تفاصيل المركز",
+      "remainingTenor": "المدة المتبقية",
+      "sellerAddress": "عنوان البائع",
+      "riskTier": "فئة المخاطر",
+      "riskScore": "درجة المخاطر: {score}",
+      "cancel": "إلغاء",
+      "confirmAcquire": "تأكيد الاستحواذ",
+      "connectWallet": "الاتصال بالمحفظة",
+      "kycRequired": "التحقق من الهوية مطلوب",
+      "kycDesc": "الاستحواذات التي تتجاوز الحد التنظيمي تتطلب التحقق من الهوية."
+    }
+  },
+  "footer": {
+    "keyboardShortcuts": "اختصارات لوحة المفاتيح",
+    "changelog": "سجل التغييرات",
+    "openShortcutsLabel": "فتح مرجع اختصارات لوحة المفاتيح",
+    "openChangelogLabel": "فتح سجل التغييرات",
+    "openChangelogUnreadLabel": "فتح سجل التغييرات (إصدار جديد متاح)",
+    "copyright": "© {year} Kora Protocol"
   }
 }

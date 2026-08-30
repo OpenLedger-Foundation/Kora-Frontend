@@ -23,6 +23,7 @@ import { useSyncExternalStore } from "react";
  * | onboarding-tour   | NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR     | Guided onboarding tour for new users           |
  * | batch-actions     | NEXT_PUBLIC_ENABLE_BATCH_ACTIONS       | Batch cancel/repay in SME dashboard            |
  * | kyb-mint-gate     | NEXT_PUBLIC_ENABLE_KYB_MINT_GATE       | Gate invoice minting behind KYB verification   |
+ * | secondary-market  | NEXT_PUBLIC_ENABLE_SECONDARY_MARKET    | Secondary market P2P trading route             |
  */
 export type FeatureFlag =
   | "mock-data"
@@ -31,6 +32,7 @@ export type FeatureFlag =
   | "onboarding-tour"
   | "batch-actions"
   | "kyb-mint-gate"
+  | "secondary-market"
   | "category-taxonomy-preview";
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
@@ -40,6 +42,7 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "onboarding-tour",
   "batch-actions",
   "kyb-mint-gate",
+  "secondary-market",
   "category-taxonomy-preview",
 ];
 
@@ -57,6 +60,7 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "onboarding-tour": "NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR",
   "batch-actions": "NEXT_PUBLIC_ENABLE_BATCH_ACTIONS",
   "kyb-mint-gate": "NEXT_PUBLIC_ENABLE_KYB_MINT_GATE",
+  "secondary-market": "NEXT_PUBLIC_ENABLE_SECONDARY_MARKET",
   "category-taxonomy-preview": "NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW",
 };
 

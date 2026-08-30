@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * Roving tabindex for a one-dimensional group of related controls (toggle
@@ -10,10 +10,21 @@ import { useCallback, useRef, useState } from "react";
  * controls (#440): without it, each filter chip is its own Tab stop, so
  * tabbing through a 10-item jurisdiction list takes 10 presses instead of
  * one Tab in + arrow keys + one Tab out.
+ *
+ * Also exposes `activeIndex` / `move` for marketplace keyboard comparison
+ * multi-select that manages focus externally.
  */
 export function useRovingTabIndex(itemCount: number) {
   const [activeIndex, setActiveIndex] = useState(0);
   const itemRefs = useRef<Array<HTMLElement | null>>([]);
+
+  useEffect(() => {
+    if (itemCount === 0) {
+      setActiveIndex(0);
+      return;
+    }
+    setActiveIndex((current) => Math.min(current, itemCount - 1));
+  }, [itemCount]);
 
   const registerRef = useCallback(
     (index: number) => (el: HTMLElement | null) => {
@@ -65,5 +76,28 @@ export function useRovingTabIndex(itemCount: number) {
     [activeIndex]
   );
 
-  return { registerRef, handleKeyDown, getTabIndex, setActiveIndex };
+  const move = (direction: "next" | "prev" | "first" | "last") => {
+    setActiveIndex((current) => {
+      if (itemCount === 0) return 0;
+      switch (direction) {
+        case "first":
+          return 0;
+        case "last":
+          return itemCount - 1;
+        case "next":
+          return Math.min(current + 1, itemCount - 1);
+        case "prev":
+          return Math.max(current - 1, 0);
+      }
+    });
+  };
+
+  return {
+    activeIndex,
+    setActiveIndex,
+    move,
+    registerRef,
+    handleKeyDown,
+    getTabIndex,
+  };
 }

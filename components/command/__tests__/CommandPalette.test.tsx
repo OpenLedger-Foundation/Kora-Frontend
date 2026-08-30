@@ -107,6 +107,22 @@ vi.mock("@/hooks/useInvoices", () => ({
   useInvoices: () => ({ data: { data: mockInvoices } }),
 }));
 
+vi.mock("@/hooks/useFormatters", () => ({
+  useFormatters: () => ({
+    formatCurrency: (value: number) => String(value),
+    formatPercentage: (value: number) => `${value.toFixed(0)}%`,
+  }),
+}));
+
+vi.stubGlobal(
+  "ResizeObserver",
+  class ResizeObserverMock {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+);
+
 // cmdk may call scrollIntoView when moving the highlighted item — not implemented in jsdom.
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
@@ -224,6 +240,7 @@ describe("CommandPalette — invoice search", () => {
 describe("CommandPalette — navigation commands", () => {
   const PAGE_LABELS = [
     "Marketplace",
+    "Secondary Market",
     "Investor Dashboard",
     "My Invoices",
     "Create Invoice",
@@ -256,12 +273,38 @@ describe("CommandPalette — navigation commands", () => {
     expect(pushMock).toHaveBeenCalledWith("/transactions");
   });
 
+  it("surfaces Secondary Market from search and navigates with Enter", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await typeQuery(user, "secondary");
+
+    expect(screen.getByTestId("nav-page-secondary")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-page-marketplace")).not.toBeInTheDocument();
+
+    await user.keyboard("{ArrowDown}{Enter}");
+
+    expect(pushMock).toHaveBeenCalledWith("/secondary");
+    expect(pushRecentMock).toHaveBeenCalledWith({
+      id: "/secondary",
+      label: "Secondary Market",
+      href: "/secondary",
+      type: "page",
+    });
+  });
+
   it("navigates to /analytics when Analytics is selected", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<CommandPalette />);
 
     await user.click(screen.getByText("Analytics"));
     expect(pushMock).toHaveBeenCalledWith("/analytics");
+    expect(pushRecentMock).toHaveBeenCalledWith({
+      id: "/analytics",
+      label: "Analytics",
+      href: "/analytics",
+      type: "page",
+    });
   });
 
   it("filters page commands by search query", async () => {
@@ -364,5 +407,33 @@ describe("CommandPalette — recent items", () => {
     await user.click(analyticsItems[0]);
 
     expect(setOpenMock).toHaveBeenCalledWith(false);
+  });
+});
+
+// ── Shortcuts action (issue #709) ───────────────────────────────────────────
+
+describe("CommandPalette — shortcuts action", () => {
+  it("dispatches the global shortcut-modal event and closes the palette", async () => {
+    const listener = vi.fn();
+    window.addEventListener("kora:open-shortcut-modal", listener);
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await user.click(screen.getByText("Shortcuts"));
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(setOpenMock).toHaveBeenCalledWith(false);
+
+    window.removeEventListener("kora:open-shortcut-modal", listener);
+  });
+
+  it("surfaces the Shortcuts action when searching", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+
+    await typeQuery(user, "shortcut");
+
+    expect(screen.getByTestId("action-shortcuts")).toBeInTheDocument();
   });
 });

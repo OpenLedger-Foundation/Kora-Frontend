@@ -17,6 +17,10 @@ import {
   APR_WINDOW,
   TENOR_WINDOW,
   RISK_TIER_ORDER,
+  MAX_COMPARISON,
+  buildRangeSelection,
+  normalizeComparisonList,
+  toggleComparisonId,
 } from "../comparison";
 import type { Invoice } from "@/types";
 
@@ -381,5 +385,30 @@ describe("getSimilarInvoices", () => {
     expect(result.similarity.dimensions).toHaveProperty("riskTier");
     expect(result.similarity.dimensions).toHaveProperty("aprBand");
     expect(result.similarity.dimensions).toHaveProperty("tenorBand");
+  });
+});
+
+// ─── Comparison list helpers (keyboard multi-select) ─────────────────────────
+
+describe("comparison helpers", () => {
+  it("normalizes duplicate ids and enforces the max limit", () => {
+    expect(normalizeComparisonList(["a", "b", "a", "c", "d", "e"])).toEqual([
+      "b",
+      "c",
+      "d",
+      "e",
+    ]);
+  });
+
+  it("toggles invoice ids in and out of the list", () => {
+    expect(toggleComparisonId(["a", "b"], "b")).toEqual(["a"]);
+    expect(toggleComparisonId(["a", "b"], "c")).toEqual(["a", "b", "c"]);
+  });
+
+  it("builds a contiguous range selection within the max comparison size", () => {
+    const ids = ["a", "b", "c", "d", "e"];
+    const range = buildRangeSelection(ids, 0, 4, []);
+    expect(range).toHaveLength(MAX_COMPARISON);
+    expect(range).toEqual(["b", "c", "d", "e"]);
   });
 });

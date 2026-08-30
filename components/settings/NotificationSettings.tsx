@@ -1,10 +1,13 @@
 "use client";
 
-import { Compass, Keyboard, RotateCcw } from "lucide-react";
+import { useRef, useState } from "react";
+import { Compass, Download, Keyboard, RotateCcw, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/store/uiStore";
 import { useSettingsStore, type MaturityReminderDays, type Persona } from "@/store/settingsStore";
 import { Button } from "@/components/ui/button";
+import { useWallet } from "@/hooks/useWallet";
+import { env } from "@/lib/env";
 
 const NOTIFICATION_ITEMS: Array<{
   key: "maturityReminder" | "fundingAlerts" | "repaymentAlerts";
@@ -64,6 +67,40 @@ export function NotificationSettings() {
   const { notifications, setNotifications, resetNotifications, tour, setTourSettings, restartTour } = useSettingsStore();
   const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
   const setShortcutsEnabled = useUIStore((s) => s.setShortcutsEnabled);
+  const { exportWalletDiagnostics, importWalletDiagnostics } = useWallet();
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportDiagnostics = () => {
+    const payload = exportWalletDiagnostics();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "kora-wallet-diagnostics.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportDiagnostics = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const raw = await file.text();
+      importWalletDiagnostics(raw);
+      setImportStatus("Diagnostics imported for local debug.");
+    } catch (error) {
+      setImportStatus(
+        error instanceof Error ? error.message : "Diagnostics import failed."
+      );
+    } finally {
+      event.target.value = "";
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -179,6 +216,52 @@ export function NotificationSettings() {
           onChange={setShortcutsEnabled}
           ariaLabel="Toggle keyboard shortcuts"
         />
+      </div>
+
+      <div className="space-y-2 pt-2">
+        <h3 className="text-base font-semibold text-foreground">Support Diagnostics</h3>
+        <p className="text-sm text-muted-foreground">
+          Export a redacted wallet session snapshot with network and feature-flag state.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            leftIcon={<Download className="h-3.5 w-3.5" />}
+            onClick={handleExportDiagnostics}
+          >
+            Export diagnostics JSON
+          </Button>
+          {env.NEXT_PUBLIC_ENABLE_DEVTOOLS && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={handleImportDiagnostics}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                leftIcon={<Upload className="h-3.5 w-3.5" />}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Import diagnostics
+              </Button>
+            </>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Export includes provider, network, kit session flags, and feature flags. No secrets, seed phrases, JWTs, or full addresses are included.
+        </p>
+        {importStatus && (
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {importStatus}
+          </p>
+        )}
       </div>
     </div>
   );

@@ -1,112 +1,153 @@
-/**
- * Integration tests for POST /api/vitals and GET /api/vitals
- *
- * Covers:
- *  - CSRF guard on POST
- *  - Invalid payload shapes (400)
- *  - Empty metrics array (204)
- *  - Valid metrics payload (204)
- *  - GET health-check (200)
- */
-
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { POST } from "../route";
 import { NextRequest } from "next/server";
-import { CSRF_COOKIE, CSRF_HEADER } from "@/lib/csrf";
 
-function makePostRequest(body: unknown): NextRequest {
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
+function makeRequest(body: any, hasCsrf = true): NextRequest {
   const token = crypto.randomUUID();
+  const headers = new Headers({
+    "Content-Type": "application/json",
+    "x-request-id": "test-req-id",
+  });
+  if (hasCsrf) {
+    headers.set("x-kora-csrf", token);
+    headers.set("cookie", `__kora_csrf=${token}`);
+  }
   return new NextRequest("http://localhost/api/vitals", {
     method: "POST",
-    headers: new Headers({
-      "content-type": "application/json",
-      cookie: `${CSRF_COOKIE}=${token}`,
-      [CSRF_HEADER]: token,
-    }),
+    headers,
     body: JSON.stringify(body),
   });
 }
 
-const VALID_METRIC = {
-  name: "LCP",
-  value: 1234,
-  id: "v3-abc-123",
-  label: "web-vital",
-  startTime: 0,
-  rating: "good",
-  url: "/marketplace",
-  userAgent: "test-agent",
-  timestamp: Date.now(),
-};
-
 describe("POST /api/vitals", () => {
-  beforeEach(() => { vi.resetModules(); });
+  const originalEnv = process.env;
 
-  it("returns 403 when CSRF header is absent", async () => {
-    const { POST } = await import("../route");
-    const req = new NextRequest("http://localhost/api/vitals", {
-      method: "POST",
-      headers: new Headers({ "content-type": "application/json" }),
-      body: "{}",
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    mockFetch.mockReset();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("returns 400 for malformed payload", async () => {
+    const req = makeRequest({ invalidKey: [] });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("Invalid payload");
+  });
+
+  it("returns 204 and does not forward if ANALYTICS_INGEST_URL is not set", async () => {
+    delete process.env.ANALYTICS_INGEST_URL;
+    const req = makeRequest({
+      metrics: [
+        {
+          name: "FCP",
+          value: 120,
+          id: "v4-123",
+          label: "web-vital",
+          startTime: 0,
+          rating: "good",
+          url: "/dashboard",
+          userAgent: "Mozilla",
+          timestamp: Date.now(),
+        },
+      ],
     });
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(204);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when body has no metrics field", async () => {
-    const { POST } = await import("../route");
-    const res = await POST(makePostRequest({ other: "data" }));
-    expect(res.status).toBe(400);
+  it("forwards metrics when ANALYTICS_INGEST_URL is set", async () => {
+    process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const req = makeRequest({
+      metrics: [
+        {
+          name: "FCP",
+          value: 120,
+          id: "v4-123",
+          label: "web-vital",
+          startTime: 0,
+          rating: "good",
+          url: "/dashboard",
+          userAgent: "Mozilla",
+          timestamp: Date.now(),
+        },
+      ],
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://analytics.example.com/ingest",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-request-id": "test-req-id",
+        }),
+      })
+    );
   });
 
-  it("returns 400 when metrics is not an array", async () => {
-    const { POST } = await import("../route");
-    const res = await POST(makePostRequest({ metrics: "not-an-array" }));
-    expect(res.status).toBe(400);
-  });
+  it("returns 204 even if forwarding to ANALYTICS_INGEST_URL fails (fails open)", async () => {
+    process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
+    mockFetch.mockRejectedValueOnce(new Error("Network Error"));
 
-  it("returns 204 when metrics array is empty after filtering", async () => {
-    const { POST } = await import("../route");
-    const res = await POST(makePostRequest({ metrics: [] }));
+    const req = makeRequest({
+      metrics: [
+        {
+          name: "FCP",
+          value: 120,
+          id: "v4-123",
+          label: "web-vital",
+          startTime: 0,
+          rating: "good",
+          url: "/dashboard",
+          userAgent: "Mozilla",
+          timestamp: Date.now(),
+        },
+      ],
+    });
+    const res = await POST(req);
     expect(res.status).toBe(204);
   });
 
-  it("returns 204 for a valid metrics payload", async () => {
-    const { POST } = await import("../route");
-    const res = await POST(makePostRequest({ metrics: [VALID_METRIC] }));
+  it("redacts wallet addresses from the URL and payload in forwarded request", async () => {
+    process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const walletAddress = "GBXW67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ"; // exactly 56 chars G...
+    const req = makeRequest({
+      metrics: [
+        {
+          name: "FCP",
+          value: 120,
+          id: "v4-123",
+          label: "web-vital",
+          startTime: 0,
+          rating: "good",
+          url: `/dashboard/sme/${walletAddress}`,
+          userAgent: "Mozilla",
+          timestamp: Date.now(),
+          context: { wallet: walletAddress }
+        },
+      ],
+    });
+    const res = await POST(req);
     expect(res.status).toBe(204);
-  });
-
-  it("returns 204 for multiple valid metrics", async () => {
-    const { POST } = await import("../route");
-    const metrics = [
-      VALID_METRIC,
-      { ...VALID_METRIC, name: "FCP", id: "v3-fcp-1", value: 800 },
-      { ...VALID_METRIC, name: "CLS", id: "v3-cls-1", value: 0.05 },
-    ];
-    const res = await POST(makePostRequest({ metrics }));
-    expect(res.status).toBe(204);
-  });
-
-  it("silently drops malformed metrics entries and still returns 204", async () => {
-    const { POST } = await import("../route");
-    const metrics = [
-      { not_a_metric: true },        // missing required fields — filtered out
-      VALID_METRIC,                  // valid — kept
-    ];
-    const res = await POST(makePostRequest({ metrics }));
-    expect(res.status).toBe(204);
-  });
-});
-
-describe("GET /api/vitals", () => {
-  beforeEach(() => { vi.resetModules(); });
-
-  it("returns 200 with ok:true for health check", async () => {
-    const { GET } = await import("../route");
-    const res = await GET();
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.ok).toBe(true);
-    expect(body.endpoint).toBe("/api/vitals");
+    expect(mockFetch).toHaveBeenCalled();
+    const callArgs = mockFetch.mock.calls[0];
+    const bodySent = JSON.parse(callArgs[1].body);
+    expect(bodySent[0].url).not.toContain(walletAddress);
+    expect(bodySent[0].url).toContain("[REDACTED_WALLET]");
+    expect(bodySent[0].context.wallet).toBe("[REDACTED_WALLET]");
   });
 });

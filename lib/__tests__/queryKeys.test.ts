@@ -78,10 +78,27 @@ describe("query invalidation rules", () => {
       "invoice_cancelled",
       "invoice_funded",
       "invoice_repaid",
+      "kyc_status_changed",
       "mint_invoice",
       "usdc_balance_changed",
       "wallet_connected",
       "wallet_disconnected",
+    ]);
+  });
+
+  it("invalidates the KYC status and the invoice caches the funding gate reads", () => {
+    // A KYC transition opens or closes the funding gate, so the lists and
+    // details that render it have to re-evaluate alongside the status itself.
+    expect(getInvalidationKeys("kyc_status_changed", { address: "GABC" })).toEqual([
+      queryKeys.kyc.status("GABC"),
+      queryKeys.invoices.all,
+    ]);
+  });
+
+  it("falls back to the KYC root when no address is supplied", () => {
+    expect(getInvalidationKeys("kyc_status_changed")).toEqual([
+      queryKeys.kyc.all,
+      queryKeys.invoices.all,
     ]);
   });
 

@@ -108,6 +108,12 @@ const clientSchema = z.object({
     .transform((v) => v === "true")
     .default("false"),
 
+  /** Enable invoice comparison features. Defaults to true. */
+  NEXT_PUBLIC_ENABLE_INVOICE_COMPARISON: z
+    .string()
+    .transform((v) => v !== "false")
+    .default("true"),
+
   /** Configurable USDC threshold requiring KYC before funding above this limit. */
   NEXT_PUBLIC_KYC_FUND_THRESHOLD: z
     .string()
@@ -154,6 +160,13 @@ const serverSchema = z.object({
 
   /** Optional VirusTotal API key for PDF scanning on upload. */
   VIRUSTOTAL_API_KEY: z.string().optional(),
+
+  /**
+   * Shared secret for verifying Synaps KYC webhook signatures (#694).
+   * Optional: when unset the callback signature header is still required but
+   * cannot be checked, which is the mock/dev posture.
+   */
+  SYNAPS_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const clientEnv = {

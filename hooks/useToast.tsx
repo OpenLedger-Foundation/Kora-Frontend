@@ -80,6 +80,19 @@ export function ErrorToast({
   );
 }
 
+/**
+ * Canonical toast API — Issue #691.
+ *
+ * `hooks/` previously held both a `useToast.ts` and this `useToast.tsx`, with
+ * incompatible APIs. Every call site imports the extensionless
+ * `@/hooks/useToast`, so resolution order alone decided which one they got —
+ * `.ts` wins under bundler resolution, which is why `useTransaction` and
+ * `InvoiceDetailClient` were calling a `toast.error` that did not exist on the
+ * module they actually resolved to.
+ *
+ * This is now the only implementation. The thin module's `info` helper is
+ * preserved below so its one consumer (`useWatchlistAlerts`) keeps working.
+ */
 export function useToast() {
   const notificationPreferences = useUIStore((s) => s.notificationPreferences);
   const t = useTranslations("transaction");
@@ -142,6 +155,20 @@ export function useToast() {
     );
   };
 
+  /**
+   * Plain informational toast — no transaction chrome, no retry affordance.
+   * Carried over from the module this one absorbed; used for passive notices
+   * such as watchlist alerts.
+   */
+  const showInfo = (message: string, type?: NotificationPreferenceType) => {
+    if (!shouldNotify(type)) return;
+    return toast.info(
+      <div role="status" aria-live="polite" className="font-medium text-foreground">
+        {message}
+      </div>
+    );
+  };
+
   const dismiss = (id?: string | number) => {
     toast.dismiss(id);
   };
@@ -150,6 +177,7 @@ export function useToast() {
     loading: showLoading,
     success: showSuccess,
     error: showError,
+    info: showInfo,
     dismiss,
   };
 }

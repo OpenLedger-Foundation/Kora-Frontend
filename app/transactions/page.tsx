@@ -35,43 +35,41 @@ import { useTranslations } from "next-intl";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Presentation only. The human-readable label lives in the `transactions`
+// message namespace under `types.<type>Label` — keeping it out of this table
+// is what stops a new transaction type from shipping with an English-only
+// name, which is how the hardcoded labels got here in the first place.
 const TX_TYPE_CONFIG: Record<
   TxType,
-  { label: string; icon: React.ElementType; colorClass: string; bgClass: string }
+  { icon: React.ElementType; colorClass: string; bgClass: string }
 > = {
   mint: {
-    label: "Invoice Minted",
     icon: FileText,
     colorClass: "text-blue-400",
     bgClass: "bg-blue-400/10",
   },
   fund: {
-    label: "Invoice Funded",
     icon: Coins,
     colorClass: "text-emerald-400",
     bgClass: "bg-emerald-400/10",
   },
   repay: {
-    label: "Repayment",
     icon: RefreshCw,
     colorClass: "text-cyan-400",
     bgClass: "bg-cyan-400/10",
   },
   claim: {
-    label: "Yield Claimed",
     icon: Gift,
     colorClass: "text-yellow-400",
     bgClass: "bg-yellow-400/10",
   },
 };
 
-const TYPE_FILTER_OPTIONS: { value: TxType | "all"; label: string }[] = [
-  { value: "all", label: "All Types" },
-  { value: "mint", label: "Mints" },
-  { value: "fund", label: "Funding" },
-  { value: "repay", label: "Repayments" },
-  { value: "claim", label: "Claims" },
-];
+// Filter values in display order. Labels are resolved per-render from
+// `transactions.types.*` so the dropdown follows the active locale.
+const TYPE_FILTER_VALUES: (TxType | "all")[] = ["all", "mint", "fund", "repay", "claim"];
+
+const STATUS_FILTER_VALUES = ["all", "confirmed", "failed"] as const;
 
 function TxTypeIcon({ type }: { type: TxType }) {
   const config = TX_TYPE_CONFIG[type];
@@ -89,18 +87,20 @@ function TxTypeIcon({ type }: { type: TxType }) {
 }
 
 function StatusBadge({ status }: { status: TxRecord["status"] }) {
+  const t = useTranslations("transactions");
+
   if (status === "confirmed") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-400/10 px-2 py-0.5 text-xs font-medium text-emerald-400">
         <CheckCircle2 className="h-3 w-3" aria-hidden />
-        Confirmed
+        {t("statusLabels.confirmed")}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-red-400/10 px-2 py-0.5 text-xs font-medium text-red-400">
       <XCircle className="h-3 w-3" aria-hidden />
-      Failed
+      {t("statusLabels.failed")}
     </span>
   );
 }
@@ -114,6 +114,7 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
 function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => void }) {
   const config = TX_TYPE_CONFIG[tx.type];
   const { formatDate, formatCurrency } = useFormatters();
+  const t = useTranslations("transactions");
 
   return (
     <motion.div
@@ -127,7 +128,9 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("text-sm font-semibold", config.colorClass)}>{config.label}</span>
+          <span className={cn("text-sm font-semibold", config.colorClass)}>
+            {t(`types.${tx.type}Label` as Parameters<typeof t>[0])}
+          </span>
           <StatusBadge status={tx.status} />
           {tx.invoiceNumber && (
             <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
@@ -142,7 +145,8 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 
         {tx.cancelReason && (
           <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-            Reason: <span className="capitalize">{tx.cancelReason.replace(/_/g, " ")}</span>
+            {t("reason")}{" "}
+            <span className="capitalize">{tx.cancelReason.replace(/_/g, " ")}</span>
             {tx.cancelNotes ? ` — ${tx.cancelNotes}` : ""}
           </p>
         )}
@@ -164,8 +168,8 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
           target="_blank"
           rel="noopener noreferrer"
           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="View on Stellar Expert"
-          title="View on Stellar Expert"
+          aria-label={t("viewStellar")}
+          title={t("viewStellar")}
         >
           <ExternalLink className="h-3.5 w-3.5" aria-hidden />
         </a>
@@ -173,8 +177,8 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
           type="button"
           onClick={() => onRemove(tx.hash)}
           className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-          aria-label="Remove transaction"
-          title="Remove from history"
+          aria-label={t("remove")}
+          title={t("remove")}
         >
           <X className="h-3.5 w-3.5" aria-hidden />
         </button>
@@ -189,7 +193,7 @@ export default function TransactionHistoryPage() {
   const { isConnected } = useWallet();
   const { setWalletModalOpen } = useUIStore();
   const { transactions, removeTransaction, clearHistory } = useTransactionStore();
-  const { formatCurrency } = useFormatters();
+  const { formatCurrency, formatNumber } = useFormatters();
   const t = useTranslations("transactions");
 
   const [search, setSearch] = useState("");
@@ -310,30 +314,30 @@ export default function TransactionHistoryPage() {
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             {
-              label: "Total Transactions",
-              value: stats.total.toString(),
+              label: t("stats.total"),
+              value: formatNumber(stats.total),
               valueRaw: stats.total,
               icon: <History className="h-4 w-4" />,
             },
             {
-              label: "Confirmed",
-              value: stats.confirmed.toString(),
+              label: t("stats.confirmed"),
+              value: formatNumber(stats.confirmed),
               valueRaw: stats.confirmed,
-              change: `${stats.failed} failed`,
+              change: t("stats.failed", { count: stats.failed }),
               changePositive: stats.failed === 0,
               icon: <CheckCircle2 className="h-4 w-4" />,
             },
             {
-              label: "Total Volume",
+              label: t("stats.totalVolume"),
               value: formatCurrency(stats.totalVolume, "USDC", true),
               valueRaw: stats.totalVolume,
               icon: <ArrowUpRight className="h-4 w-4" />,
             },
             {
-              label: "Invoices Funded",
-              value: stats.funds.toString(),
+              label: t("stats.invoicesFunded"),
+              value: formatNumber(stats.funds),
               valueRaw: stats.funds,
-              change: `${stats.mints} minted`,
+              change: t("stats.minted", { count: stats.mints }),
               changePositive: true,
               icon: <Coins className="h-4 w-4" />,
             },
@@ -357,18 +361,18 @@ export default function TransactionHistoryPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
             <Input
-              placeholder="Search by hash, invoice number, or description…"
+              placeholder={t("searchPlaceholder")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9"
-              aria-label="Search transactions"
+              aria-label={t("searchAria")}
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch("")}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label="Clear search"
+                aria-label={t("clearSearch")}
               >
                 <X className="h-4 w-4" aria-hidden />
               </button>
@@ -376,39 +380,41 @@ export default function TransactionHistoryPage() {
           </div>
 
           {/* Type filter */}
-          <div className="flex flex-wrap gap-1.5">
-            {TYPE_FILTER_OPTIONS.map((opt) => (
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label={t("typeFilterAria")}>
+            {TYPE_FILTER_VALUES.map((value) => (
               <button
-                key={opt.value}
+                key={value}
                 type="button"
-                onClick={() => setTypeFilter(opt.value)}
+                onClick={() => setTypeFilter(value)}
+                aria-pressed={typeFilter === value}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                  typeFilter === opt.value
+                  typeFilter === value
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 )}
               >
-                {opt.label}
+                {t(`types.${value}` as Parameters<typeof t>[0])}
               </button>
             ))}
           </div>
 
           {/* Status filter */}
-          <div className="flex gap-1.5">
-            {(["all", "confirmed", "failed"] as const).map((s) => (
+          <div className="flex gap-1.5" role="group" aria-label={t("statusFilterAria")}>
+            {STATUS_FILTER_VALUES.map((value) => (
               <button
-                key={s}
+                key={value}
                 type="button"
-                onClick={() => setStatusFilter(s)}
+                onClick={() => setStatusFilter(value)}
+                aria-pressed={statusFilter === value}
                 className={cn(
-                  "rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                  statusFilter === s
+                  "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                  statusFilter === value
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
                 )}
               >
-                {s}
+                {t(`status.${value}` as Parameters<typeof t>[0])}
               </button>
             ))}
           </div>
@@ -419,13 +425,15 @@ export default function TransactionHistoryPage() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">
-            {filtered.length > 0
-              ? `${filtered.length} transaction${filtered.length === 1 ? "" : "s"}`
-              : "Transactions"}
+            {filtered.length === 0
+              ? t("listTitle")
+              : filtered.length === 1
+                ? t("txCount", { count: filtered.length })
+                : t("txCountPlural", { count: filtered.length })}
           </CardTitle>
           {filtered.length !== transactions.length && (
             <span className="text-xs text-muted-foreground">
-              Filtered from {transactions.length} total
+              {t("filteredFrom", { total: transactions.length })}
             </span>
           )}
         </CardHeader>

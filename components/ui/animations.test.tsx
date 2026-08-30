@@ -16,8 +16,13 @@ vi.mock("framer-motion", async (importOriginal) => {
   };
 });
 
+vi.mock("next/navigation", () => ({
+  usePathname: vi.fn(() => "/test-path"),
+}));
+
 import { useReducedMotion } from "framer-motion";
 import { SuccessCheckmark, SpinnerCircle, SpinnerDots, SpinnerPulse } from "./animations";
+import { PageTransition } from "@/components/layout/PageTransition";
 
 const mockUseReducedMotion = vi.mocked(useReducedMotion);
 
@@ -78,6 +83,28 @@ describe("animations — prefers-reduced-motion", () => {
       mockUseReducedMotion.mockReturnValue(true);
       const { container } = render(<SpinnerPulse />);
       expect(container.firstChild).toBeInTheDocument();
+    });
+  });
+
+  describe("PageTransition", () => {
+    it("renders children with animated wrapper when motion is enabled", () => {
+      mockUseReducedMotion.mockReturnValue(false);
+      render(
+        <PageTransition>
+          <div data-testid="page-child">Content</div>
+        </PageTransition>
+      );
+      expect(screen.getByTestId("page-child")).toBeInTheDocument();
+    });
+
+    it("renders children without motion animation when reduced motion is preferred", () => {
+      mockUseReducedMotion.mockReturnValue(true);
+      render(
+        <PageTransition>
+          <div data-testid="page-child">Content</div>
+        </PageTransition>
+      );
+      expect(screen.getByTestId("page-child")).toBeInTheDocument();
     });
   });
 });

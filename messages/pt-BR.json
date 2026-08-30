@@ -51,21 +51,15 @@
     "restoringSession": "Restaurando sessão da carteira..."
   },
   "transaction": {
-    "building": "Construindo transação...",
-    "simulating": "Simulando transação...",
-    "signing": "Aguardando assinatura da carteira...",
-    "submitting": "Enviando transação...",
-    "polling": "Confirmando transação na rede...",
+    "building": "Construindo transação…",
+    "simulating": "Simulando transação…",
+    "signing": "Aguardando assinatura da carteira…",
+    "submitting": "Enviando para a rede Stellar…",
+    "polling": "Aguardando confirmação…",
     "confirmed": "Transação confirmada!",
-    "failed": "Falha na transação",
-    "cancelled": "Assinatura da transação cancelada",
-    "timedOut": "Tempo limite de assinatura esgotado",
-    "timeoutNotice": "A assinatura demorou muito para ser concluída.",
-    "extendTime": "Estender Tempo (+60s)",
-    "retrySigning": "Tentar Assinar Novamente",
-    "cancelSigning": "Cancelar com Segurança",
-    "hardwareTip": "Confirme em sua carteira de hardware",
-    "mobileTip": "Verifique o app no celular"
+    "failed": "Transação falhou",
+    "retry": "Tentar novamente",
+    "dismiss": "Fechar"
   },
   "landing": {
     "headline": "Financiamento de Faturas, On-Chain",
@@ -125,6 +119,7 @@
     "subtitle": "Descobrindo oportunidades...",
     "showing": "Exibindo {count} faturas listadas",
     "shareFilters": "Compartilhar Filtros",
+    "shareFiltersCopied": "Link do filtro copiado para a área de transferência",
     "searchPlaceholder": "Buscar por devedor, número de fatura ou jurisdição…",
     "clearSearch": "Limpar busca",
     "filters": "Filtros",
@@ -370,7 +365,28 @@
       "partial": "Parcial (Apenas Nome)",
       "anonymized": "Anonimizado (Setor + País)"
     },
-    "discountRateDesc": "O desconto oferecido aos investidores. Uma taxa maior atrai financiamento mais rápido, mas aumenta o custo."
+    "discountRateDesc": "O desconto oferecido aos investidores. Uma taxa maior atrai financiamento mais rápido, mas aumenta o custo.",
+    "kybGate": {
+      "title": "Business Verification Required",
+      "subtitleNone": "To mint an invoice on Kora, your SME account must complete KYB verification. The process takes about 2 minutes.",
+      "subtitlePending": "Your verification documents are under review. We'll automatically continue once approved — this page will refresh for you.",
+      "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
+      "ctaNone": "Start Verification",
+      "ctaRejected": "Re-verify Business",
+      "ctaPending": "Checking verification status…",
+      "backToWizard": "Go Back",
+      "whatYouNeed": "What you will need:",
+      "needIdDoc": "Government-issued ID or business registration document",
+      "needProofAddress": "Proof of business address",
+      "needTime": "Takes approximately 2 minutes",
+      "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+    },
+    "draftRecovery": {
+      "title": "Você tem um rascunho de fatura não finalizado",
+      "description": "Encontramos um rascunho salvo da sua sessão anterior. Deseja continuar de onde parou?",
+      "resume": "Continuar Rascunho",
+      "discard": "Descartar"
+    }
   },
   "smeDashboard": {
     "title": "Painel PME",
@@ -409,7 +425,34 @@
       "title": "Resumo da Operação em Lote",
       "exportSelected": "Exportar selecionados",
       "processingLabel": "Cancelando {count} fatura(s)..."
-    }
+    },
+    "filters": {
+      "statusLabel": "Status",
+      "statusAria": "Filtrar faturas por status"
+    },
+    "statusFilters": {
+      "all": "Todos os status",
+      "draft": "Rascunho",
+      "pending_mint": "Emissão pendente",
+      "listed": "Listada",
+      "partially_funded": "Parcialmente financiada",
+      "fully_funded": "Totalmente financiada",
+      "active": "Ativa",
+      "repaid": "Liquidada",
+      "defaulted": "Inadimplente",
+      "cancelled": "Cancelada"
+    },
+    "batchCancel": {
+      "title": "{count, plural, one {Cancelar # fatura?} other {Cancelar # faturas?}}",
+      "body": "{count, plural, one {Você está prestes a cancelar <b>uma fatura não financiada</b>.} other {Você está prestes a cancelar <b># faturas não financiadas</b>.}} As transações são executadas sequencialmente; uma falha não bloqueará o restante da fila.",
+      "confirm": "{count, plural, one {Sim, cancelar # fatura} other {Sim, cancelar # faturas}}"
+    },
+    "batchRepay": {
+      "title": "{count, plural, one {Liquidar # fatura?} other {Liquidar # faturas?}}",
+      "body": "{count, plural, one {Você está prestes a liquidar <b>uma fatura vencida</b>.} other {Você está prestes a liquidar <b># faturas vencidas</b>.}} Cada liquidação é assinada e enviada sequencialmente.",
+      "confirm": "{count, plural, one {Sim, liquidar # fatura} other {Sim, liquidar # faturas}}"
+    },
+    "goBack": "Voltar"
   },
   "investorDashboard": {
     "title": "Painel do Investidor",
@@ -490,7 +533,16 @@
     "txCount": "{count} transação",
     "txCountPlural": "{count} transações",
     "viewStellar": "Ver no Stellar Expert",
-    "remove": "Remover transação"
+    "remove": "Remover transação",
+    "listTitle": "Transações",
+    "reason": "Motivo:",
+    "searchAria": "Buscar transações",
+    "typeFilterAria": "Filtrar por tipo de transação",
+    "statusFilterAria": "Filtrar por status",
+    "statusLabels": {
+      "confirmed": "Confirmada",
+      "failed": "Falhou"
+    }
   },
   "analytics": {
     "title": "Análise de Carteira",
@@ -546,6 +598,10 @@
   "cancelDialog": {
     "title": "Cancelar Fatura",
     "description": "Esta ação não pode ser desfeita. A fatura será cancelada permanentemente.",
+    "undoTitle": "Cancelamento aguardando",
+    "undoDescription": "O cancelamento ainda não foi enviado. Revise a contagem regressiva e desfaça se necessário.",
+    "undoCountdown": "Enviando cancelamento em {seconds} segundos",
+    "undo": "Desfazer cancelamento",
     "reasonLabel": "Motivo do cancelamento",
     "selectReasonPlaceholder": "Selecione um motivo para cancelar",
     "reasons": {
@@ -578,17 +634,6 @@
       "dueDate": "Vencimento",
       "fundedAmount": "Valor Financiado"
     }
-  },
-  "transaction": {
-    "building": "Construindo transação…",
-    "simulating": "Simulando transação…",
-    "signing": "Aguardando assinatura da carteira…",
-    "submitting": "Enviando para a rede Stellar…",
-    "polling": "Aguardando confirmação…",
-    "confirmed": "Transação confirmada!",
-    "failed": "Transação falhou",
-    "retry": "Tentar novamente",
-    "dismiss": "Fechar"
   },
   "txSimulation": {
     "title": "Pré-visualização da Transação",
@@ -624,7 +669,15 @@
     "lastChecked": "Última verificação: {time}",
     "testnet": "Testnet",
     "mainnet": "Mainnet",
-    "error": "Erro"
+    "error": "Erro",
+    "offline": "Offline",
+    "offlineDesc": "You're offline. Cached marketplace data may still be available.",
+    "offlineCached": "Offline - showing cached data",
+    "offlineCachedShort": "Cached data",
+    "lastUpdated": "Last updated {time}",
+    "rpcDown": "RPC Down",
+    "rpcDegraded": "RPC Degraded",
+    "statusAriaLabel": "Network status: {status} on {network}"
   },
   "offline": {
     "title": "Você está offline",
@@ -643,13 +696,17 @@
     "title": "Página não encontrada",
     "description": "A página que você procura não existe ou foi movida.",
     "goHome": "Ir para o Início",
-    "goBack": "Voltar"
+    "goBack": "Voltar",
+    "goMarketplace": "Explorar o Mercado",
+    "goSecondary": "Mercado Secundário",
+    "recoveryHint": "A fatura pode ter sido financiada ou removida, ou o link pode estar desatualizado."
   },
   "error": {
     "title": "Algo deu errado",
     "description": "Ocorreu um erro inesperado. Você pode tentar novamente ou voltar para a página inicial.",
     "tryAgain": "Tentar Novamente",
-    "goHome": "Ir para o Início"
+    "goHome": "Ir para o Início",
+    "goMarketplace": "Ir para o Mercado"
   },
   "common": {
     "loading": "Carregando…",
@@ -720,7 +777,11 @@
     "footerHint": "Os contatos são salvos localmente no seu navegador.",
     "pickContact": "Escolher um contato salvo",
     "noContacts": "Nenhum contato salvo ainda",
-    "pickFromAddressBook": "Escolher da Agenda"
+    "pickFromAddressBook": "Escolher da Agenda",
+    "verifiedLabel": "Label verified with signature",
+    "signLabel": "Sign label for {label}",
+    "labelSigned": "Label signed successfully",
+    "signFailed": "Failed to sign label"
   },
   "installPrompt": {
     "ariaLabel": "Instalar aplicativo Kora Protocol",
@@ -738,6 +799,15 @@
     "whatsNew": "O que há de novo",
     "latestVersion": "Você está na versão mais recente.",
     "gotIt": "Entendi"
+  },
+  "settings": {
+    "title": "Configurações",
+    "subtitle": "Gerencie as preferências de notificação e o tour do produto.",
+    "connectTitle": "Conecte sua carteira",
+    "connectDesc": "As configurações são salvas por carteira. Conecte-se para ver e alterar suas preferências.",
+    "connectCta": "Conectar carteira",
+    "navLabel": "Configurações",
+    "openFull": "Abrir configurações completas"
   },
   "shortcuts": {
     "title": "Atalhos de Teclado",
@@ -818,6 +888,8 @@
     "tenorLabel": "Prazo",
     "investorsLabel": "Investidores",
     "tenorDays": "{count}d",
+    "maturityLabel": "Vencimento",
+    "overdue": "Vencida",
     "fundInvoice": "Financiar Fatura",
     "addToCompare": "Adicionar {debtor} à comparação",
     "removeFromCompare": "Remover {debtor} da comparação",
@@ -890,7 +962,18 @@
     "qrCodeAlt": "Código QR para o link da fatura compartilhada",
     "linkCopiedToast": "Link copiado",
     "unableToCopy": "Não foi possível copiar o link",
-    "sharedSuccessfully": "Compartilhado com sucesso"
+    "sharedSuccessfully": "Compartilhado com sucesso",
+    "defaultInvoiceTitle": "Fatura",
+    "recipientLabel": "Destinatário:",
+    "defaultShareTitle": "Oportunidade de financiamento de fatura na Kora",
+    "defaultShareText": "Veja esta oportunidade de financiamento de fatura na Kora.",
+    "defaultTweetSummary": "Fatura listada na Kora"
+  },
+  "copyButton": {
+    "copyAriaLabel": "Copiar",
+    "copiedAriaLabel": "Copiado",
+    "copyTooltip": "Copiar",
+    "copiedTooltip": "Copiado!"
   },
   "contractEvents": {
     "invoiceFunded": "Fatura Financiada",
@@ -999,5 +1082,97 @@
     "empty": "Nenhuma posição financiada neste mês",
     "noData": "Ainda não há posições financiadas para agrupar.",
     "export": "Exportar safras"
+  },
+  "secondaryMarket": {
+    "title": "Mercado Secundário",
+    "badge": "Posições Transferíveis P2P",
+    "subtitle": "Navegue e adquira posições ativas de investidores com rendimentos competitivos antes do vencimento.",
+    "shareView": "Compartilhar Visualização",
+    "copied": "Copiado!",
+    "copyAria": "Copiar URL compartilhável para os filtros atuais",
+    "searchPlaceholder": "Buscar por devedor, número da fatura, categoria...",
+    "searchAria": "Buscar ofertas no mercado secundário",
+    "tenorAria": "Filtrar por prazo restante",
+    "yieldAria": "Filtrar por rendimento mínimo",
+    "sellerPlaceholder": "Endereço G do vendedor...",
+    "sellerAria": "Filtrar por endereço do vendedor",
+    "reset": "Redefinir",
+    "resetAria": "Redefinir todos os filtros",
+    "filterPositions": "Filtrar Posições",
+    "active": "Ativo",
+    "mobileTenorLabel": "Prazo Restante",
+    "mobileYieldLabel": "Rendimento Mínimo",
+    "mobileSellerLabel": "Endereço do Vendedor",
+    "applyFilters": "Aplicar Filtros",
+    "bottomSheetTitle": "Filtrar Posições Secundárias",
+    "emptyTitle": "Nenhuma Posição Transferível Encontrada",
+    "emptyDesc": "Nenhuma oferta no mercado secundário corresponde aos seus critérios. Tente ampliar seus requisitos de prazo ou rendimento.",
+    "clearFilters": "Limpar Todos os Filtros",
+    "disabledTitle": "Mercado Secundário Desativado",
+    "disabledDesc": "O mercado secundário está indisponível no momento ou desativado para manutenção. Volte a conferir mais tarde ou explore o mercado principal.",
+    "exploreMarketplace": "Explorar Mercado",
+    "yieldBadge": "+{yield}% Rendimento",
+    "staleBadge": "Posição já transferida — oferta indisponível",
+    "askPrice": "Preço Pedido",
+    "expectedReturn": "Retorno Esperado",
+    "remainingTenor": "Prazo Restante",
+    "daysRemaining": "{days} dias restantes",
+    "listingExpires": "Oferta Expira",
+    "expired": "(Expirado)",
+    "impliedDiscount": "Desconto Implícito",
+    "sellerAddress": "Endereço do Vendedor",
+    "acquirePosition": "Adquirir Posição",
+    "connectWalletToAcquire": "Conectar Carteira para Adquirir",
+    "acceptTransfer": "Aceitar Transferência",
+    "listingAria": "Oferta secundária para {invoiceNumber}",
+    "listingAriaStale": "Oferta secundária para {invoiceNumber} — indisponível, posição transferida",
+    "acceptDialog": {
+      "title": "Aceitar Transferência de Posição",
+      "description": "Revise os detalhes da posição antes de aceitar esta transferência no mercado secundário.",
+      "positionLabel": "Posição",
+      "expectedReturn": "Retorno Esperado",
+      "positionDetails": "Detalhes da Posição",
+      "remainingTenor": "Prazo Restante",
+      "fromAddress": "Endereço de Origem",
+      "notImplementedTitle": "Ainda Não Disponível",
+      "notImplementedHint": "A aceitação pelo comprador ainda não está disponível on-chain — volte a tentar quando esse caminho do contrato estiver disponível.",
+      "cancel": "Cancelar",
+      "confirmAccept": "Aceitar Transferência",
+      "pending": "Processando…"
+    },
+    "acquireDialog": {
+      "title": "Confirmar Aquisição",
+      "description": "Revise os detalhes da posição antes de adquiri-la no mercado secundário.",
+      "positionLabel": "Posição",
+      "askPrice": "Preço Pedido",
+      "expectedReturn": "Retorno Esperado",
+      "impliedDiscount": "Desconto implícito",
+      "discountNote": "O comprador recebe um desconto em relação ao retorno esperado.",
+      "premiumNote": "Você está pedindo acima do retorno esperado (ágio).",
+      "extremeAlert": "Alerta de Preço Extremo",
+      "priceWarning": "Aviso de Preço",
+      "extremeDiscountMsg": "Desconto extremo detectado: esta posição está com preço significativamente abaixo do retorno esperado.",
+      "extremePremiumMsg": "Ágio extremo detectado: esta posição está com preço significativamente acima do retorno esperado.",
+      "warningDiscountMsg": "Aviso: desconto significativo detectado.",
+      "warningPremiumMsg": "Aviso: ágio significativo detectado.",
+      "positionDetails": "Detalhes da Posição",
+      "remainingTenor": "Prazo Restante",
+      "sellerAddress": "Endereço do Vendedor",
+      "riskTier": "Nível de Risco",
+      "riskScore": "Pontuação de Risco: {score}",
+      "cancel": "Cancelar",
+      "confirmAcquire": "Confirmar Aquisição",
+      "connectWallet": "Conectar Carteira",
+      "kycRequired": "Verificação KYC Necessária",
+      "kycDesc": "Aquisições acima do limite regulatório exigem verificação KYC."
+    }
+  },
+  "footer": {
+    "keyboardShortcuts": "Atalhos de Teclado",
+    "changelog": "Registro de Alterações",
+    "openShortcutsLabel": "Abrir referência de atalhos de teclado",
+    "openChangelogLabel": "Abrir registro de alterações",
+    "openChangelogUnreadLabel": "Abrir registro de alterações (nova versão disponível)",
+    "copyright": "© {year} Kora Protocol"
   }
 }
