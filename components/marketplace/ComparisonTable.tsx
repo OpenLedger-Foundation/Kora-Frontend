@@ -22,9 +22,11 @@ import {
   cn,
 } from "@/lib/utils";
 import { useFormatters } from "@/hooks/useFormatters";
+import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
 import type { Invoice } from "@/types";
 import { isEnabled } from "@/lib/featureFlags";
 import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
+import { useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -180,6 +182,9 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
   const { removeFromComparison } = useInvoiceStore();
   const formatters = useFormatters();
   const METRIC_ROWS = buildMetricRows(formatters, tInvoiceCard, tMarketplace);
+  const [rowAnnouncement, setRowAnnouncement] = useState("");
+  const { registerRef, handleKeyDown, getTabIndex, setActiveIndex } =
+    useRovingTabIndex(METRIC_ROWS.length);
 
   // ─── Feature flag ────────────────────────────────────────────────────────
   if (!isEnabled("comparison")) return null;
@@ -231,6 +236,11 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
           </button>
         </div>
 
+        {/* Live region announcing roving-tabindex row selection for screen readers */}
+        <span className="sr-only" role="status" aria-live="polite">
+          {rowAnnouncement}
+        </span>
+
         {/* Scrollable table - mobile: horizontal scroll with sticky first column */}
         <div className="overflow-auto flex-1">
           <div className="min-w-[640px] sm:min-w-0">
@@ -277,8 +287,17 @@ export function ComparisonTable({ invoices, onClose }: ComparisonTableProps) {
                   return (
                     <tr
                       key={row.label}
+                      ref={registerRef(rowIdx)}
+                      tabIndex={getTabIndex(rowIdx)}
+                      role="row"
+                      aria-label={row.label}
+                      onKeyDown={(e) => handleKeyDown(e, rowIdx)}
+                      onFocus={() => {
+                        setActiveIndex(rowIdx);
+                        setRowAnnouncement(`${row.label} row selected`);
+                      }}
                       className={cn(
-                        "border-b border-border/50 transition-colors",
+                        "border-b border-border/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
                         rowIdx % 2 === 0 ? "bg-transparent" : "bg-muted/20"
                       )}
                     >
