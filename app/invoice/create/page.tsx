@@ -411,7 +411,12 @@ export default function CreateInvoicePage() {
     );
 
     if (txError) {
-      setFileError(txError);
+      // Check if error message indicates a virus scan rejection
+      if (txError.includes("File rejected by security scan") || txError.includes("Virus scan failed")) {
+        setFileError(txError);
+      } else {
+        setFileError(txError);
+      }
       setIsUploading(false);
     }
   };

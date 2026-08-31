@@ -15,6 +15,8 @@ import {
   unpinMultipleFromPinata,
   uploadFileToPinata,
   uploadJsonToPinata,
+  VirusScanRejectionError,
+  UploadError,
 } from "../ipfs";
 
 // Mock the env module to return a stable gateway URL
@@ -418,6 +420,47 @@ describe("IPFS Upload Service", () => {
     });
   });
 
+  // ─── 8a. Virus Scan Rejection Error Classes ─────────────────────────────
+
+  describe("Virus Scan Rejection Error Classes", () => {
+    it("VirusScanRejectionError should have name, reason, and stats properties", () => {
+      const err = new VirusScanRejectionError(
+        "This file was flagged by 3 security vendor(s) and cannot be uploaded.",
+        { malicious: 2, suspicious: 1 }
+      );
+
+      expect(err.name).toBe("VirusScanRejectionError");
+      expect(err.reason).toBe("This file was flagged by 3 security vendor(s) and cannot be uploaded.");
+      expect(err.stats).toEqual({ malicious: 2, suspicious: 1 });
+      expect(err.message).toContain("File rejected by security scan");
+    });
+
+    it("VirusScanRejectionError reason can be set without stats", () => {
+      const err = new VirusScanRejectionError("Malware detected");
+
+      expect(err.name).toBe("VirusScanRejectionError");
+      expect(err.reason).toBe("Malware detected");
+      expect(err.stats).toBeUndefined();
+    });
+
+    it("UploadError should have name and message", () => {
+      const err = new UploadError("Upload failed: 502 Bad Gateway");
+
+      expect(err.name).toBe("UploadError");
+      expect(err.message).toBe("Upload failed: 502 Bad Gateway");
+    });
+
+    it("UploadError is distinguishable from VirusScanRejectionError", () => {
+      const scanErr = new VirusScanRejectionError("Scan failed");
+      const uploadErr = new UploadError("Network failed");
+
+      expect(scanErr instanceof VirusScanRejectionError).toBe(true);
+      expect(scanErr instanceof UploadError).toBe(false);
+      expect(uploadErr instanceof UploadError).toBe(true);
+      expect(uploadErr instanceof VirusScanRejectionError).toBe(false);
+    });
+  });
+
   // ─── 9. Gateway Fallback Tests ──────────────────────────────────────────
 
   describe("Gateway Fallback Tests", () => {
@@ -441,4 +484,4 @@ describe("IPFS Upload Service", () => {
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
-});
+});

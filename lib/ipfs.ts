@@ -18,6 +18,7 @@ import {
 } from "@/lib/invoiceMetadata";
 import { generateInvoiceSvg, svgToFile, rasterizeSvgToThumbnail } from "@/lib/invoiceSvg";
 import { createMockUploadToken } from "@/lib/security";
+import { parseUploadRejection } from "@/lib/uploadScanResult";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
@@ -127,6 +128,27 @@ export class FileSizeError extends Error {
   }
 }
 
+/** Thrown when a file is rejected by the VirusTotal scan. */
+export class VirusScanRejectionError extends Error {
+  public readonly reason: string;
+  public readonly stats?: Record<string, number>;
+
+  constructor(reason: string, stats?: Record<string, number>) {
+    super(`File rejected by security scan: ${reason}`);
+    this.name = "VirusScanRejectionError";
+    this.reason = reason;
+    this.stats = stats;
+  }
+}
+
+/** Thrown for non-scan upload failures (network, server, etc). */
+export class UploadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadError";
+  }
+}
+
 /** Upload a file via XHR so we get real progress events. */
 function xhrUpload(
   url: string,
@@ -155,11 +177,25 @@ function xhrUpload(
         const cid = parsed.cid || parsed.IpfsHash;
         resolve({ IpfsHash: cid });
       } else {
-        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+        // Parse error response to check if it's a virus scan rejection
+        try {
+          const errorBody = JSON.parse(xhr.responseText);
+          const rejection = parseUploadRejection(errorBody);
+          if (rejection.rejected) {
+            // Scan rejection — throw with specific error type
+            reject(new VirusScanRejectionError(rejection.reason, rejection.stats));
+          } else {
+            // Generic upload error
+            reject(new UploadError(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+          }
+        } catch {
+          // Failed to parse response, treat as generic error
+          reject(new UploadError(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+        }
       }
     };
 
-    xhr.onerror = () => reject(new Error("Network error during IPFS upload"));
+    xhr.onerror = () => reject(new UploadError("Network error during IPFS upload"));
     xhr.send(form);
   });
 }

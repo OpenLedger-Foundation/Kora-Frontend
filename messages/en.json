@@ -290,7 +290,10 @@
       "errors": {
         "tooLarge": "File is too large. Max size is exactly 10MB.",
         "invalidType": "Invalid file type. Only PDF documents are allowed.",
-        "required": "Please upload the invoice PDF before minting."
+        "required": "Please upload the invoice PDF before minting.",
+        "virusScanRejected": "File rejected by security scan",
+        "virusScanRejectedDescription": "{reason} Please select a different file and try again.",
+        "virusScanInfo": "Learn more about our security scanning"
       }
     },
     "review": {
