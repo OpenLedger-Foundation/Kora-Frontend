@@ -255,7 +255,8 @@ function MarketplaceContent() {
     (filters.jurisdictions?.length || 0) +
     (filters.riskTiers?.length || 0) +
     (filters.aprRange && (filters.aprRange[0] > 0 || filters.aprRange[1] < 50) ? 1 : 0) +
-    (filters.activeOnly ? 1 : 0);
+    (filters.activeOnly ? 1 : 0) +
+    (filters.showExpired ? 1 : 0);
 
   const [showFilters, setShowFilters] = useState(false);
   const [watchlistOpen, setWatchlistOpen] = useState(false);
@@ -304,6 +305,7 @@ function MarketplaceContent() {
     const maxApr = searchParams.get("maxApr") ? Number(searchParams.get("maxApr")) : 50;
     
     const activeOnly = searchParams.get("activeOnly") === "true";
+    const showExpired = searchParams.get("showExpired") === "true" || searchParams.get("showExpired") === "1";
     const sortByParam = searchParams.get("sortBy") || "apr_desc";
     const qParam = sanitizeQueryParam(searchParams.get("q"));
 
@@ -321,6 +323,7 @@ function MarketplaceContent() {
       riskTiers,
       aprRange: [minApr, maxApr],
       activeOnly,
+      showExpired,
     });
     setSortBy(sortByParam);
     setSearchQuery(qParam);
@@ -364,6 +367,9 @@ function MarketplaceContent() {
     }
     if (debouncedFilters.activeOnly) {
       params.set("activeOnly", "true");
+    }
+    if (debouncedFilters.showExpired) {
+      params.set("showExpired", "true");
     }
     if (debouncedSearchQuery) {
       params.set("q", debouncedSearchQuery);
@@ -599,6 +605,13 @@ function MarketplaceContent() {
         onChange={(val) => updateSingleFilter("activeOnly", val)}
         label={t("activeOnly")}
         description={t("activeOnlyDesc")}
+      />
+
+      <Switch
+        checked={!!filters.showExpired}
+        onChange={(val) => updateSingleFilter("showExpired", val)}
+        label={t("showExpired")}
+        description={t("showExpiredDesc")}
       />
 
       {/* Reset Button */}

@@ -130,6 +130,8 @@
     "resetFilters": "Restablecer Filtros",
     "activeOnly": "Solo Activas",
     "activeOnlyDesc": "Ocultar facturas totalmente financiadas o en mora",
+    "showExpired": "Mostrar expiradas",
+    "showExpiredDesc": "Incluir listados cuya fecha de vencimiento ya pasó",
     "aprRange": "Rango de APR",
     "riskTier": "Nivel de Riesgo",
     "categories": "Categorías",

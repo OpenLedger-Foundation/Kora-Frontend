@@ -137,6 +137,8 @@
     "resetFilters": "Reset All Filters",
     "activeOnly": "Active Only",
     "activeOnlyDesc": "Hide fully funded or defaulted invoices",
+    "showExpired": "Show Expired",
+    "showExpiredDesc": "Include listings whose expiry date has passed",
     "aprRange": "APR Range",
     "riskTier": "Risk Tier",
     "categories": "Categories",
