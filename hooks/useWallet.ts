@@ -460,14 +460,22 @@ export function useWallet() {
       // Kit session is live immediately after a fresh connect.
       setKitSessionActive(true);
       setShowReconnectPrompt(false);
+      
+      // Close the wallet modal before navigating
+      useUIStore.getState().setWalletModalOpen(false);
+
+      // Handle post-connect navigation
       try {
         const intended = useUIStore.getState().intendedDestination;
         if (intended) {
+          // Clear the intended destination after one use to prevent redirect loops
           useUIStore.getState().setIntendedDestination(null);
           router.push(intended);
         }
+        // Fallback: if no intended destination is set, stay on current page
+        // (e.g., accessed the page normally while connected)
       } catch {
-        // best-effort redirect
+        // best-effort redirect — if navigation fails, stay on current page
       }
     },
     [connect, setBalance, setKitSessionActive, setNetwork, router],
