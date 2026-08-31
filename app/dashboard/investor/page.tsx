@@ -37,6 +37,7 @@ import { computeImpliedDiscount } from "@/types/invoice";
 import type { ColumnDef, DataTableProps } from "@/types/table";
 import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
 import { KycStatusCard } from "@/components/dashboard/KycStatusCard";
+import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import { SellerAnalyticsDashboard } from "@/components/analytics/SellerAnalyticsDashboard";
 
 const DataTable = dynamic<DataTableProps<InvestorPosition>>(
@@ -480,6 +481,10 @@ export default function InvestorDashboardPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             {t("subtitle")}
           </p>
+          <StaleDataBadge
+            updatedAt={positionsQuery.dataUpdatedAt || null}
+            className="mt-2"
+          />
         </div>
         <Link href="/marketplace">
           <Button variant="outline">

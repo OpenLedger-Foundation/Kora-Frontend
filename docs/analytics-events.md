@@ -156,3 +156,18 @@ trackMarketplaceFundCta(searchParams, filterCount, sortBy);
 | `hooks/useInvoices.ts`            | No change required                                |
 | `middleware.ts`                   | No change required                                |
 | `lib/installPromptAnalytics.ts`   | Same transport pattern (reference implementation) |
+
+---
+
+## PWA Install Prompt (Issue #708)
+
+`components/pwa/InstallPrompt.tsx` emits these via `lib/installPromptAnalytics.ts`:
+
+| Event                       | Fired when                                        |
+|-----------------------------|---------------------------------------------------|
+| `install_prompt_shown`      | Banner becomes visible (immediately on 2nd+ visit, after the 30s delay on first visit) |
+| `install_prompt_accepted`   | `userChoice` resolves with `accepted`             |
+| `install_prompt_dismissed`  | "Not now"/× pressed, or `userChoice` resolves with `dismissed` |
+
+Payload is `{ name, cohort, visitCount, timestamp }` — cohort is derived from the
+current route (`sme` / `investor` / `unknown`). No PII is included.

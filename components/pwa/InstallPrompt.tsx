@@ -24,6 +24,11 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { X, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
+import {
+  trackInstallPromptShown,
+  trackInstallPromptAccepted,
+  trackInstallPromptDismissed,
+} from "@/lib/installPromptAnalytics";
 
 // ─── LocalStorage keys ────────────────────────────────────────────────────────
 
@@ -88,6 +93,7 @@ export function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visitCountRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -105,6 +111,7 @@ export function InstallPrompt() {
 
     // Increment visit count for this session
     const visitCount = incrementVisitCount();
+    visitCountRef.current = visitCount;
 
     const handler = (e: Event) => {
       e.preventDefault();
@@ -114,10 +121,12 @@ export function InstallPrompt() {
       if (visitCount >= 2) {
         // 2nd+ visit: show immediately when the event fires
         setVisible(true);
+        trackInstallPromptShown(visitCount);
       } else {
         // 1st visit: wait 30 seconds before showing
         timerRef.current = setTimeout(() => {
           setVisible(true);
+          trackInstallPromptShown(visitCount);
         }, FIRST_VISIT_DELAY_MS);
       }
     };
@@ -136,6 +145,9 @@ export function InstallPrompt() {
     if (outcome === "accepted") {
       // Permanent dismiss — user installed the app
       suppressForDays(365 * 10);
+      trackInstallPromptAccepted(visitCountRef.current);
+    } else {
+      trackInstallPromptDismissed(visitCountRef.current);
     }
     setDeferredPrompt(null);
     setVisible(false);
@@ -143,6 +155,7 @@ export function InstallPrompt() {
 
   const handleDismiss = useCallback(() => {
     suppressForDays(SUPPRESS_DAYS);
+    trackInstallPromptDismissed(visitCountRef.current);
     setVisible(false);
     setDeferredPrompt(null);
     if (timerRef.current !== null) {
