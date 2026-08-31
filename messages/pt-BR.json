@@ -873,7 +873,9 @@
       "fundInvoiceTitle": "Financie uma fatura",
       "fundInvoiceBody": "Abra uma listagem elegível pela sua ação de financiamento quando estiver pronto para investir.",
       "trackPortfolioTitle": "Acompanhe sua carteira",
-      "trackPortfolioBody": "Use o painel do investidor para monitorar posições, reembolsos e rendimentos obtidos."
+      "trackPortfolioBody": "Use o painel do investidor para monitorar posições, reembolsos e rendimentos obtidos.",
+      "viewAnalyticsTitle": "Explore portfolio analytics",
+      "viewAnalyticsBody": "Dive into charts, yield projections, vintage cohorts, and export your full portfolio data from the Analytics page."
     }
   },
   "invoiceCard": {

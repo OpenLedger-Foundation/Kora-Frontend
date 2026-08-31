@@ -873,7 +873,9 @@
       "fundInvoiceTitle": "Financia una factura",
       "fundInvoiceBody": "Abre un listado elegible desde su acción de financiamiento cuando estés listo para invertir.",
       "trackPortfolioTitle": "Sigue tu portafolio",
-      "trackPortfolioBody": "Usa el panel de inversor para monitorear posiciones, pagos y rendimiento generado."
+      "trackPortfolioBody": "Usa el panel de inversor para monitorear posiciones, pagos y rendimiento generado.",
+      "viewAnalyticsTitle": "Explore portfolio analytics",
+      "viewAnalyticsBody": "Dive into charts, yield projections, vintage cohorts, and export your full portfolio data from the Analytics page."
     }
   },
   "invoiceCard": {
