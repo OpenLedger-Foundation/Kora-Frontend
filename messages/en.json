@@ -701,6 +701,7 @@
     "descriptionDefault": "Prove you own this wallet by signing a message. No transaction or gas fees.",
     "messageToSign": "Message to sign:",
     "challengeLabel": "Challenge message to be signed",
+    "sessionExpiresIn": "Session expires in {time}",
     "signAndVerify": "Sign & Verify",
     "verifying": "Verifying…",
     "cancel": "Cancel"

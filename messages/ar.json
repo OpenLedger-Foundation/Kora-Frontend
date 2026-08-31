@@ -730,6 +730,7 @@
     "descriptionDefault": "أثبت ملكيتك لهذه المحفظة بتوقيع رسالة. دون معاملات أو رسوم غاز.",
     "messageToSign": "الرسالة المراد توقيعها:",
     "challengeLabel": "رسالة التحدي المراد توقيعها",
+    "sessionExpiresIn": "تنتهي الجلسة خلال {time}",
     "signAndVerify": "توقيع والتحقق",
     "verifying": "جارٍ التحقق…",
     "cancel": "إلغاء"

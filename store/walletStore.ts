@@ -15,6 +15,9 @@ const EMPTY_BALANCE: WalletBalance = {
 /** Session expires after 24 hours of inactivity. Change this constant to adjust. */
 export const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000;
 
+/** Wallet ownership verification expires 1 hour after it was granted. */
+export const VERIFICATION_EXPIRY_MS = 60 * 60 * 1000;
+
 /**
  * Clears all address-scoped caches: TanStack Query, zustand persisted data,
  * and IndexedDB marketplace cache. Call on disconnect and session expiry.

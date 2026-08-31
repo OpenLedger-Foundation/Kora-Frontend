@@ -730,6 +730,7 @@
     "descriptionDefault": "Prove que você é dono desta carteira assinando uma mensagem. Sem transações ou taxas de gas.",
     "messageToSign": "Mensagem para assinar:",
     "challengeLabel": "Mensagem de desafio a ser assinada",
+    "sessionExpiresIn": "A sessão expira em {time}",
     "signAndVerify": "Assinar e Verificar",
     "verifying": "Verificando…",
     "cancel": "Cancelar"
