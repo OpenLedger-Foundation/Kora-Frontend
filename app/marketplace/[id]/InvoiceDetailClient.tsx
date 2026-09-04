@@ -288,13 +288,6 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
             successNotificationType: "invoiceFunded",
             onSimulationPreview,
             onSuccess: (txHash) => {
-              // DoD Requirement: Clear instructions and trace of exposes final txHash to developer console
-              console.log(`[Stellar/Soroban Factoring ESCROW Confirmation]
-Token NFT ID: ${invoice.tokenId}
-Escrow Amount deposited: ${amountNum} USDC
-Escrow Yield Expectation: ${expectedReturn - amountNum} USDC
-Stellar Testnet Transaction Hash: ${txHash}`);
-
               setFundTxHash(txHash);
 
               // Calculate optimistic state changes

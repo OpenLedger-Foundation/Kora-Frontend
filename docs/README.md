@@ -1,6 +1,6 @@
 # Kora Frontend — Documentation
 
-Project documentation lives here. GitHub-specific files (`CONTRIBUTING.md`, `SECURITY.md`, root `CHANGELOG.md`) stay at the repo root so tooling and policies resolve correctly.
+Project documentation lives here. GitHub-facing files (`CONTRIBUTING.md`, `SECURITY.md`, root `CHANGELOG.md`) stay at the repo root so tooling and policies resolve correctly.
 
 ## Guides
 
@@ -8,13 +8,21 @@ Project documentation lives here. GitHub-specific files (`CONTRIBUTING.md`, `SEC
 | -------- | ----------- |
 | [Architecture](./architecture.md) | Layer breakdown, data flow, wallet/contract/IPFS integration |
 | [Design System](./design-system.md) | Semantic tokens, theming, and UI primitives |
+| [Debtor Privacy](./debtor-privacy.md) | Debtor display rules and privacy constraints |
+| [Analytics Events](./analytics-events.md) | Marketplace analytics event schema (no PII) |
+
+## Contributing
+
+| Document | Description |
+| -------- | ----------- |
+| [Contributing guide](../CONTRIBUTING.md) | Setup, workflow, testing, and PR checklist |
+| [Stellar Wave (archived)](./contributing/stellar-wave.md) | Historical notes from the completed Wave program |
 
 ## Repository docs (root)
 
 | Document | Description |
 | -------- | ----------- |
 | [README](../README.md) | Overview, setup, and project structure |
-| [Contributing](../CONTRIBUTING.md) | Dev workflow, testing, and PR guidelines |
 | [Security](../SECURITY.md) | Vulnerability reporting policy |
 | [Changelog](../CHANGELOG.md) | Auto-generated release history (semantic-release) |
 

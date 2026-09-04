@@ -1,6 +1,5 @@
 # Marketplace Analytics Events — Schema Documentation
 
-**Issue:** #563  
 **Module:** `lib/marketplaceAnalytics.ts`
 
 ---

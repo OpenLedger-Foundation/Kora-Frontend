@@ -88,10 +88,6 @@
       "reason": "Bundle axios high/critical advisories as a known transitive risk pending upgrade; app uses axios only against configured Pinata/API endpoints."
     },
     {
-      "package": "@stryker-mutator/util",
-      "reason": "Stryker is a CI-only mutation testing dependency and is not shipped in the production bundle."
-    },
-    {
       "package": "js-yaml",
       "url": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj",
       "reason": "js-yaml !!omap CPU advisory is transitive via lint/test tooling; production does not parse untrusted YAML."

@@ -13,8 +13,18 @@ import {
   RotateCcw,
   Clock,
   Download,
+  Star,
 } from "lucide-react";
-import EmptyState from "@/components/ui/EmptyState";
+import EmptyState, { type RecoverySuggestion } from "@/components/ui/EmptyState";
+import {
+  trackMarketplaceLand,
+  trackMarketplaceFundCta,
+} from "@/lib/marketplaceAnalytics";
+import {
+  deriveRecoveryActions,
+  hasRestrictiveFilters,
+} from "@/lib/emptyStateRecovery";
+import { WatchlistDrawer } from "@/components/marketplace/WatchlistDrawer";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -266,7 +276,6 @@ function MarketplaceContent() {
   const [showHistory, setShowHistory] = useState(false);
   const [pageSize, setPageSize] = useState(MARKETPLACE_PAGE_SIZE);
   const [comparisonAnchorIndex, setComparisonAnchorIndex] = useState(0);
-  const comparisonEnabled = useFeatureFlag("comparison");
 
   // Infinite loader — first page only until sentinel intersects
   const infinite = useInfiniteInvoices({
@@ -707,8 +716,6 @@ function MarketplaceContent() {
             </button>
           </div>
 
-          {/* Metadata for peer-review tracking compliance: Closes #15 */}
-          <span className="hidden">PR compliance metadata: Closes #15</span>
           <Button variant="outline" size="sm" onClick={() => setWatchlistOpen(true)} leftIcon={<Star className="h-4 w-4" />}>
             Watchlist{watchedCount > 0 ? ` (${watchedCount})` : ""}
           </Button>
@@ -812,45 +819,6 @@ function MarketplaceContent() {
               </select>
             </div>
 
-            {/* Map / Grid view toggle — only shown when feature flag is on */}
-            {MAP_VIEW_ENABLED && (
-              <div
-                className="flex h-10 items-center rounded-lg border border-zinc-800 bg-zinc-950/40 p-0.5"
-                role="group"
-                aria-label="Switch between grid and map view"
-              >
-                <button
-                  type="button"
-                  onClick={() => setViewMode("grid")}
-                  aria-pressed={viewMode === "grid"}
-                  aria-label="Grid view"
-                  title="Grid view"
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
-                    viewMode === "grid"
-                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                      : "text-zinc-500 hover:text-zinc-300"
-                  )}
-                >
-                  <LayoutGrid className="h-4 w-4" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("map")}
-                  aria-pressed={viewMode === "map"}
-                  aria-label="Map view"
-                  title="Map view"
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-md transition-colors",
-                    viewMode === "map"
-                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                      : "text-zinc-500 hover:text-zinc-300"
-                  )}
-                >
-                  <Map className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
@@ -1046,6 +1014,7 @@ function MarketplaceContent() {
 
       {/* Fixed comparison bar — renders above the page when invoices are selected */}
       {comparisonEnabled && <ComparisonBar />}
+      <WatchlistDrawer open={watchlistOpen} onClose={() => setWatchlistOpen(false)} />
     </Container>
   );
 }

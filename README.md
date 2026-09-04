@@ -1,7 +1,3 @@
-### Marketplace watchlist
-
-Investors can star invoices from marketplace cards or the invoice detail view. The Marketplace watchlist drawer keeps up to 50 watched invoices in durable browser storage and exposes independent preferences for funding progress, status, and APR alerts. Alerts are disabled for the initial snapshot and deduplicated per invoice change so refreshes do not produce notification spam.
-
 <div align="center">
   <img src="https://img.shields.io/badge/Stellar-Soroban-14b8a6?style=for-the-badge&logo=stellar&logoColor=white" alt="Stellar Soroban" />
   <img src="https://img.shields.io/badge/Next.js-15-black?style=for-the-badge&logo=next.js" alt="Next.js 15" />
@@ -29,7 +25,6 @@ Investors can star invoices from marketplace cards or the invoice detail view. T
 - [Getting Started](#getting-started)
 - [Project Structure](#project-structure)
 - [Documentation](#documentation)
-- [Getting Started](#getting-started)
 - [Environment Variables](#environment-variables)
 - [Core User Flows](#core-user-flows)
 - [Smart Contract Integration](#smart-contract-integration)
@@ -87,6 +82,7 @@ To run locally, see [Getting Started](#getting-started).
 
 ### For Investors
 - ✅ Browse marketplace with filters (category, jurisdiction, risk tier, APR)
+- ✅ Watchlist invoices with funding, status, and APR alerts
 - ✅ View detailed invoice information and risk scores
 - ✅ Fund invoices with USDC (partial or full)
 - ✅ Real-time funding progress bars
@@ -141,6 +137,8 @@ See [docs/design-system.md](./docs/design-system.md) for the full guide.
 | --- | ---- |
 | Architecture | [docs/architecture.md](./docs/architecture.md) |
 | Design system | [docs/design-system.md](./docs/design-system.md) |
+| Debtor privacy | [docs/debtor-privacy.md](./docs/debtor-privacy.md) |
+| Analytics events | [docs/analytics-events.md](./docs/analytics-events.md) |
 | Contributing | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 | Security | [SECURITY.md](./SECURITY.md) |
 | Doc index | [docs/README.md](./docs/README.md) |

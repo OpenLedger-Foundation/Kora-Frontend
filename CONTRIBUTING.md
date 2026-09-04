@@ -14,7 +14,6 @@ This guide is written for first-time contributors. Follow it from top to bottom 
 - [Storybook](#storybook)
 - [Internationalization (i18n)](#internationalization-i18n)
 - [Your First Issue](#your-first-issue)
-- [Stellar Wave Quick Start](#stellar-wave-quick-start)
 - [Branch Naming](#branch-naming)
 - [Commit Messages](#commit-messages)
 - [Testing Checklist](#testing-checklist)
@@ -84,7 +83,7 @@ Open `http://localhost:3000`.
 
 ### Docker Development
 
-The Docker path is useful for Wave contributors who want a reproducible local
+The Docker path is useful for contributors who want a reproducible local
 environment without installing Node modules on the host:
 
 ```bash
@@ -136,38 +135,22 @@ If a command fails because of existing unrelated failures, mention that clearly 
 
 ## Storybook
 
-Storybook is available for isolated UI work:
-
-```bash
-npm run storybook
-```
-
-Open the local Storybook URL printed by the command, usually `http://localhost:6006`.
-
-Build Storybook before submitting changes that add or modify stories:
-
-```bash
-npm run build-storybook
-```
-
-Use Storybook for components in `components/ui`, invoice cards, empty states, loading states, dialogs, drawers, and other reusable UI pieces.
-
-### Storybook Snapshot Tests
-
-We use Vitest to run automated HTML snapshot tests for all Storybook stories. This ensures that any changes to component rendering are explicitly tracked and reviewed.
-
-To run the snapshot tests:
+Component stories live beside components as `*.stories.tsx` files. Storybook
+packages are not currently wired as an `npm run storybook` script; use Vitest
+snapshot coverage instead:
 
 ```bash
 npm run test -- __tests__/stories.snapshot.test.tsx
 ```
 
-If you make intentional changes to a component's markup, you must update the snapshot files by running:
+If you make intentional markup changes, update snapshots with:
 
 ```bash
 npm run test -- __tests__/stories.snapshot.test.tsx -u
 ```
 
+Add or update stories when you change reusable UI in `components/ui`, invoice
+cards, empty states, dialogs, drawers, and similar pieces.
 Or using the full `--updateSnapshot` flag:
 
 ```bash
@@ -315,108 +298,19 @@ the fastest way to catch a missed `t()` call or a broken placeholder.
 
 ## Your First Issue
 
-Start with small issues that have clear files, acceptance criteria, and tests. The best search is:
+Start with small issues that have clear files, acceptance criteria, and tests:
 
 ```text
 is:issue is:open label:"good first issue"
 ```
 
-If the `good first issue` label has not been populated yet, use the same approach with small documentation, test, or accessibility issues under the `Stellar Wave` label. Good starter-style candidates are:
+You can also look for documentation, test, or accessibility issues labeled
+`help wanted`. Before starting, read the issue comments. Do not take an issue
+that is already assigned. If a maintainer asks contributors to apply first,
+comment on the issue and wait for assignment.
 
-- `#228` - active filter chips with individual clear buttons.
-- `#232` - unit tests for `lib/utils.ts`.
-- `#233` - integration tests for the `useWallet` hook.
-- `#235` - filter and sort tests for `invoiceStore`.
-- `#245` - IPFS upload and verification tests.
-- `#296` - contributor quick-start guide.
-
-Before starting, read the issue comments. Do not take an issue that has already been assigned or accepted for another contributor. If a maintainer asks contributors to apply first, comment on the issue and wait for assignment before expecting reward-program credit.
-
-## Stellar Wave Quick Start
-
-Kora Protocol takes contributions through the **Stellar Wave** program. Wave work is tracked with the
-`Stellar Wave` label, and merged pull requests earn points that are paid out through
-[Drips](https://www.drips.network/) — see the [Drips documentation](https://docs.drips.network/) for
-how splits and payouts work.
-
-### 1. Find an issue
-
-```text
-is:issue is:open label:"Stellar Wave" no:assignee
-```
-
-### 2. Apply and wait for assignment
-
-Comment on the issue saying you would like to take it, and include a short note on how you plan to
-approach it. **Do not open a pull request before a maintainer assigns you** — unassigned work is not
-eligible for points.
-
-### 3. Branch
-
-Use the branch name suggested in the issue body, or one of the prefixes in
-[Branch Naming](#branch-naming):
-
-```bash
-git switch -c feat/sme-invoice-table
-```
-
-### 4. Build and verify
-
-Run the full local gate before pushing:
-
-```bash
-npm run lint && npm run type-check && npm run test && npm run build
-```
-
-### 5. Open the pull request
-
-Fill in the template like this:
-
-```markdown
-## Summary
-
-Adds a status filter to the SME dashboard invoice table so SMEs can narrow a long
-invoice list to a single status.
-
-Closes #481
-
-## Changes
-
-- Added a status `<select>` above the invoice table
-- Selection resets when the filter changes so hidden rows cannot stay selected
-- Added an empty state for a filter that matches nothing
-
-## Testing
-
-- [x] `npm run lint`
-- [x] `npm run type-check`
-- [x] `npm run test`
-- [x] `npm run build`
-
-## Screenshots
-
-<!-- Required for UI changes -->
-```
-
-Every Wave pull request description **must** contain `Closes #<issue_number>` so the issue closes on
-merge and the points are attributed to you.
-
-### Complexity and points
-
-Issues carry a complexity rating in the body, which maps to Drips points:
-
-| Complexity | Points | Typical scope |
-| ---------- | ------ | ------------- |
-| Low        | 50     | Docs, copy, a single small component |
-| Medium     | 100    | One feature or test suite in a single module |
-| High       | 200    | Engineering work touching multiple modules |
-
-### Wave rules
-
-- Assignment before starting — always.
-- One issue at a time unless a maintainer says otherwise.
-- If you go quiet for a week, a maintainer may unassign the issue.
-- UI changes need screenshots or a recording in the pull request.
+Historical notes from the completed Stellar Wave program live in
+[docs/contributing/stellar-wave.md](./docs/contributing/stellar-wave.md).
 
 ## Branch Naming
 
