@@ -309,9 +309,6 @@ You can also look for documentation, test, or accessibility issues labeled
 that is already assigned. If a maintainer asks contributors to apply first,
 comment on the issue and wait for assignment.
 
-Historical notes from the completed Stellar Wave program live in
-[docs/contributing/stellar-wave.md](./docs/contributing/stellar-wave.md).
-
 ## Branch Naming
 
 Use short, descriptive branch names:

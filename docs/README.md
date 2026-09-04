@@ -11,18 +11,12 @@ Project documentation lives here. GitHub-facing files (`CONTRIBUTING.md`, `SECUR
 | [Debtor Privacy](./debtor-privacy.md) | Debtor display rules and privacy constraints |
 | [Analytics Events](./analytics-events.md) | Marketplace analytics event schema (no PII) |
 
-## Contributing
-
-| Document | Description |
-| -------- | ----------- |
-| [Contributing guide](../CONTRIBUTING.md) | Setup, workflow, testing, and PR checklist |
-| [Stellar Wave (archived)](./contributing/stellar-wave.md) | Historical notes from the completed Wave program |
-
 ## Repository docs (root)
 
 | Document | Description |
 | -------- | ----------- |
 | [README](../README.md) | Overview, setup, and project structure |
+| [Contributing](../CONTRIBUTING.md) | Setup, workflow, testing, and PR checklist |
 | [Security](../SECURITY.md) | Vulnerability reporting policy |
 | [Changelog](../CHANGELOG.md) | Auto-generated release history (semantic-release) |
 
