@@ -63,7 +63,52 @@
     "dismiss": "Dismiss",
     "cancelSigningSafely": "Cancel signing safely",
     "addExtraTime": "Add extra time for slow wallet",
-    "cancelTransactionSigningSafely": "Cancel transaction signing safely"
+    "cancelTransactionSigningSafely": "Cancel transaction signing safely",
+    "cancelSafely": "Cancel Safely",
+    "close": "Close",
+    "cancel": "Cancel",
+    "retryStep": "Retry Step",
+    "retryHistory": "Retry History",
+    "attempts": "{count} attempt{count, plural, one {} other {s}}",
+    "attemptLabel": "Attempt #{number}",
+    "successLabel": "Success",
+    "failedLabel": "Failed",
+    "yourWallet": "your wallet",
+    "escrowSettlement": "Escrow Settlement",
+    "escrowSubtitle": "Secondary trade transaction in progress",
+    "escrowTransactionFailed": "Transaction Failed",
+    "signingRequestTimedOut": "Signing Request Timed Out",
+    "signingTimedOutDesc": "The wallet did not respond in time. Hardware devices or mobile wallets often require unlocking the app or confirming settings.",
+    "troubleshootingTips": "Troubleshooting tips:",
+    "extendTime": "Extend Time (+60s) & Keep Waiting",
+    "extendTimeShort": "+60s Time",
+    "waitingForSignature": "Waiting for Signature",
+    "waitingForSignatureDesc": "Complete the signature request on your wallet or device",
+    "timeRemaining": "Time remaining",
+    "hardwareGuidance": "Hardware Wallet Guidance:",
+    "mobileGuidance": "Mobile Signer Guidance:",
+    "signingGuidance": "Signing Guidance:",
+    "escrowStep": {
+      "buyerDeposit": "Buyer Deposit",
+      "buyerDepositDesc": "Escrow funds locked in smart contract",
+      "sellerTransfer": "Seller Position Transfer",
+      "sellerTransferDesc": "Seller signs over yield rights",
+      "settled": "Escrow Settlement Complete",
+      "settledDesc": "Yield rights transferred to Buyer"
+    },
+    "announce": {
+      "escrowFailed": "Escrow transaction failed: {error}",
+      "escrowSettled": "Escrow Settlement Complete",
+      "escrowBuyerFunding": "Escrow step 1: Buyer Deposit in progress",
+      "escrowSellerTransfer": "Escrow step 2: Seller Position Transfer in progress",
+      "escrowInProgress": "Escrow transaction in progress",
+      "timeout": "Transaction signing request timed out. Please extend time, retry, or cancel safely.",
+      "signing": "Waiting for transaction signature from {provider}. Please approve the request on your device.",
+      "submitting": "Submitting transaction to the network…",
+      "confirmed": "Transaction confirmed",
+      "failed": "Transaction failed",
+      "status": "Transaction status: {status}"
+    }
   },
   "landing": {
     "headline": "Invoice Financing, On-Chain",
@@ -297,10 +342,13 @@
       "insufficientBalance": "Insufficient USDC balance. Available: {amount}",
       "invalidAmount": "Enter a valid funding amount",
       "maxInvestment": "Maximum investment is {amount}",
-      "dustRemainder": "This would leave less than the minimum ticket unfunded. Fund the full remaining {amount} or leave at least {min}."
+      "dustRemainder": "This would leave less than the minimum ticket unfunded. Fund the full remaining {amount} or leave at least {min}.",
+      "kycRequired": "Investments above {amount} require KYC identity verification."
     },
+    "offlineFund": "Offline — Reconnect to Fund",
+    "offlineNote": "You're offline. Reconnect to fund this invoice.",
     "hint": {
-      "minRemaining": "Min: ${min} · Remaining Capacity: ${remaining}"
+      "minRemaining": "Min: {min} · Remaining Capacity: {remaining}"
     }
   },
   "createInvoice": {
@@ -459,6 +507,32 @@
       "title": "Batch Operation Summary",
       "exportSelected": "Export selected",
       "processingLabel": "Cancelling {count} invoices..."
+    },
+    "batchPanel": {
+      "headingQueued": "Queued Batch Operations",
+      "headingRunning": "Processing Batch…",
+      "headingComplete": "Batch Complete",
+      "headingDoneFailed": "Batch Done — {count} failed",
+      "counter": "{success} / {total} succeeded",
+      "counterFailed": "{count} failed",
+      "retryFailed": "Retry {count} failed",
+      "dismiss": "Dismiss",
+      "expandPanel": "Expand queue panel",
+      "collapsePanel": "Collapse queue panel",
+      "progressAriaLabel": "Batch transaction progress",
+      "percentComplete": "{percent}% complete",
+      "itemListAriaLabel": "Batch operation items",
+      "status": {
+        "pending": "Pending",
+        "processing": "Processing…",
+        "success": "Success",
+        "failed": "Failed",
+        "skipped": "Skipped"
+      },
+      "announceProgress": "Batch progress: {processed} of {total} processed.",
+      "announcePartial": "Batch complete. {success} of {total} succeeded, {failed} failed.",
+      "announceAllSuccess": "Batch complete. All {total} operations succeeded.",
+      "announceFailed": "Batch operation failed. {failed} of {total} failed so far."
     },
     "filters": {
       "statusLabel": "Status",

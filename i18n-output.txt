@@ -1,0 +1,6 @@
+✅  es: full parity (1116 keys)
+✅  ar: full parity (1116 keys)
+✅  pt-BR: full parity (1116 keys)
+
+✅  i18n key parity check passed.
+

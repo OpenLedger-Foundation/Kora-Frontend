@@ -63,7 +63,52 @@
     "dismiss": "Descartar",
     "cancelSigningSafely": "Cancelar la firma de forma segura",
     "addExtraTime": "Añadir tiempo adicional para una billetera lenta",
-    "cancelTransactionSigningSafely": "Cancelar la firma de la transacción de forma segura"
+    "cancelTransactionSigningSafely": "Cancelar la firma de la transacción de forma segura",
+    "cancelSafely": "Cancelar de forma segura",
+    "close": "Cerrar",
+    "cancel": "Cancelar",
+    "retryStep": "Reintentar Paso",
+    "retryHistory": "Historial de Reintentos",
+    "attempts": "{count} intento{count, plural, one {} other {s}}",
+    "attemptLabel": "Intento #{number}",
+    "successLabel": "Éxito",
+    "failedLabel": "Fallido",
+    "yourWallet": "tu billetera",
+    "escrowSettlement": "Liquidación de Depósito en Garantía",
+    "escrowSubtitle": "Transacción de intercambio secundario en progreso",
+    "escrowTransactionFailed": "Transacción Fallida",
+    "signingRequestTimedOut": "La Solicitud de Firma Expiró",
+    "signingTimedOutDesc": "La billetera no respondió a tiempo. Los dispositivos de hardware o billeteras móviles a menudo requieren desbloquear la app o confirmar ajustes.",
+    "troubleshootingTips": "Consejos de solución de problemas:",
+    "extendTime": "Extender Tiempo (+60s) y Seguir Esperando",
+    "extendTimeShort": "+60s Tiempo",
+    "waitingForSignature": "Esperando Firma",
+    "waitingForSignatureDesc": "Completa la solicitud de firma en tu billetera o dispositivo",
+    "timeRemaining": "Tiempo restante",
+    "hardwareGuidance": "Guía para Billetera de Hardware:",
+    "mobileGuidance": "Guía para Firmante Móvil:",
+    "signingGuidance": "Guía de Firma:",
+    "escrowStep": {
+      "buyerDeposit": "Depósito del Comprador",
+      "buyerDepositDesc": "Fondos bloqueados en contrato inteligente",
+      "sellerTransfer": "Transferencia de Posición del Vendedor",
+      "sellerTransferDesc": "El vendedor cede los derechos de rendimiento",
+      "settled": "Liquidación de Garantía Completa",
+      "settledDesc": "Derechos de rendimiento transferidos al Comprador"
+    },
+    "announce": {
+      "escrowFailed": "Transacción de garantía fallida: {error}",
+      "escrowSettled": "Liquidación de Garantía Completa",
+      "escrowBuyerFunding": "Paso 1 de garantía: Depósito del Comprador en progreso",
+      "escrowSellerTransfer": "Paso 2 de garantía: Transferencia de Posición del Vendedor en progreso",
+      "escrowInProgress": "Transacción de garantía en progreso",
+      "timeout": "La solicitud de firma de transacción expiró. Extiende el tiempo, reintenta o cancela de forma segura.",
+      "signing": "Esperando firma de transacción de {provider}. Aprueba la solicitud en tu dispositivo.",
+      "submitting": "Enviando transacción a la red…",
+      "confirmed": "Transacción confirmada",
+      "failed": "Transacción fallida",
+      "status": "Estado de la transacción: {status}"
+    }
   },
   "landing": {
     "headline": "Financiamiento de Facturas, En Cadena",
@@ -297,10 +342,13 @@
       "insufficientBalance": "Saldo USDC insuficiente. Disponible: {amount}",
       "invalidAmount": "Introduce un monto de financiación válido",
       "maxInvestment": "La inversión máxima es {amount}",
-      "dustRemainder": "Esto dejaría sin financiar menos que el ticket mínimo. Financia el total restante de {amount} o deja al menos {min}."
+      "dustRemainder": "Esto dejaría sin financiar menos que el ticket mínimo. Financia el total restante de {amount} o deja al menos {min}.",
+      "kycRequired": "Las inversiones superiores a {amount} requieren verificación de identidad KYC."
     },
+    "offlineFund": "Sin conexión — Reconéctate para financiar",
+    "offlineNote": "Estás sin conexión. Reconéctate para financiar esta factura.",
     "hint": {
-      "minRemaining": "Mín: ${min} · Capacidad Restante: ${remaining}"
+      "minRemaining": "Mín: {min} · Capacidad Restante: {remaining}"
     }
   },
   "createInvoice": {
@@ -459,6 +507,32 @@
       "title": "Resumen de Operación por Lotes",
       "exportSelected": "Exportar seleccionadas",
       "processingLabel": "Cancelando {count} facturas..."
+    },
+    "batchPanel": {
+      "headingQueued": "Operaciones en Cola",
+      "headingRunning": "Procesando Lote…",
+      "headingComplete": "Lote Completado",
+      "headingDoneFailed": "Lote Finalizado — {count} fallidos",
+      "counter": "{success} / {total} completados",
+      "counterFailed": "{count} fallidos",
+      "retryFailed": "Reintentar {count} fallidos",
+      "dismiss": "Descartar",
+      "expandPanel": "Expandir panel de cola",
+      "collapsePanel": "Contraer panel de cola",
+      "progressAriaLabel": "Progreso de transacciones por lotes",
+      "percentComplete": "{percent}% completado",
+      "itemListAriaLabel": "Elementos de operación por lotes",
+      "status": {
+        "pending": "Pendiente",
+        "processing": "Procesando…",
+        "success": "Exitoso",
+        "failed": "Fallido",
+        "skipped": "Omitido"
+      },
+      "announceProgress": "Progreso del lote: {processed} de {total} procesados.",
+      "announcePartial": "Lote completado. {success} de {total} exitosos, {failed} fallidos.",
+      "announceAllSuccess": "Lote completado. Las {total} operaciones fueron exitosas.",
+      "announceFailed": "Operación de lote fallida. {failed} de {total} fallidos hasta ahora."
     },
     "filters": {
       "statusLabel": "Estado",

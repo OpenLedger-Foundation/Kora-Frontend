@@ -63,7 +63,52 @@
     "dismiss": "تجاهل",
     "cancelSigningSafely": "إلغاء التوقيع بأمان",
     "addExtraTime": "إضافة وقت إضافي للمحفظة البطيئة",
-    "cancelTransactionSigningSafely": "إلغاء توقيع المعاملة بأمان"
+    "cancelTransactionSigningSafely": "إلغاء توقيع المعاملة بأمان",
+    "cancelSafely": "إلغاء بأمان",
+    "close": "إغلاق",
+    "cancel": "إلغاء",
+    "retryStep": "إعادة محاولة الخطوة",
+    "retryHistory": "سجل الإعادة",
+    "attempts": "{count} محاولة",
+    "attemptLabel": "محاولة #{number}",
+    "successLabel": "نجاح",
+    "failedLabel": "فشل",
+    "yourWallet": "محفظتك",
+    "escrowSettlement": "تسوية الضمان",
+    "escrowSubtitle": "معاملة التداول الثانوي قيد التنفيذ",
+    "escrowTransactionFailed": "فشلت المعاملة",
+    "signingRequestTimedOut": "انتهت مهلة طلب التوقيع",
+    "signingTimedOutDesc": "لم تستجب المحفظة في الوقت المحدد. غالبًا ما تتطلب أجهزة الأجهزة أو المحافظ المحمولة فتح التطبيق أو تأكيد الإعدادات.",
+    "troubleshootingTips": "نصائح لاستكشاف الأخطاء:",
+    "extendTime": "تمديد الوقت (+60 ثانية) والاستمرار في الانتظار",
+    "extendTimeShort": "+60 ث",
+    "waitingForSignature": "في انتظار التوقيع",
+    "waitingForSignatureDesc": "أكمل طلب التوقيع على محفظتك أو جهازك",
+    "timeRemaining": "الوقت المتبقي",
+    "hardwareGuidance": "إرشادات المحفظة المادية:",
+    "mobileGuidance": "إرشادات الموقّع المحمول:",
+    "signingGuidance": "إرشادات التوقيع:",
+    "escrowStep": {
+      "buyerDeposit": "إيداع المشتري",
+      "buyerDepositDesc": "الأموال محجوزة في العقد الذكي",
+      "sellerTransfer": "نقل موضع البائع",
+      "sellerTransferDesc": "البائع يتنازل عن حقوق العائد",
+      "settled": "اكتملت تسوية الضمان",
+      "settledDesc": "تم نقل حقوق العائد إلى المشتري"
+    },
+    "announce": {
+      "escrowFailed": "فشلت معاملة الضمان: {error}",
+      "escrowSettled": "اكتملت تسوية الضمان",
+      "escrowBuyerFunding": "الخطوة 1 من الضمان: إيداع المشتري قيد التنفيذ",
+      "escrowSellerTransfer": "الخطوة 2 من الضمان: نقل موضع البائع قيد التنفيذ",
+      "escrowInProgress": "معاملة الضمان قيد التنفيذ",
+      "timeout": "انتهت مهلة طلب توقيع المعاملة. يرجى تمديد الوقت أو المحاولة مجددًا أو الإلغاء بأمان.",
+      "signing": "في انتظار توقيع المعاملة من {provider}. يرجى الموافقة على الطلب على جهازك.",
+      "submitting": "جارٍ إرسال المعاملة إلى الشبكة…",
+      "confirmed": "تمت تأكيد المعاملة",
+      "failed": "فشلت المعاملة",
+      "status": "حالة المعاملة: {status}"
+    }
   },
   "landing": {
     "headline": "تمويل الفواتير على السلسلة",
@@ -297,10 +342,13 @@
       "insufficientBalance": "رصيد USDC غير كافٍ. المتاح: {amount}",
       "invalidAmount": "أدخل مبلغ تمويل صالحًا",
       "maxInvestment": "الحد الأقصى للاستثمار هو {amount}",
-      "dustRemainder": "سيترك هذا مبلغًا أقل من الحد الأدنى للاستثمار دون تمويل. مَوِّل كامل المبلغ المتبقي {amount} أو اترك {min} على الأقل."
+      "dustRemainder": "سيترك هذا مبلغًا أقل من الحد الأدنى للاستثمار دون تمويل. مَوِّل كامل المبلغ المتبقي {amount} أو اترك {min} على الأقل.",
+      "kycRequired": "تتطلب الاستثمارات التي تتجاوز {amount} التحقق من الهوية KYC."
     },
+    "offlineFund": "غير متصل — أعد الاتصال للتمويل",
+    "offlineNote": "أنت غير متصل. أعد الاتصال لتمويل هذه الفاتورة.",
     "hint": {
-      "minRemaining": "الحد الأدنى: ${min} · الطاقة المتبقية: ${remaining}"
+      "minRemaining": "الحد الأدنى: {min} · الطاقة المتبقية: {remaining}"
     }
   },
   "createInvoice": {
@@ -459,6 +507,32 @@
       "title": "ملخص العملية الدُفعية",
       "exportSelected": "تصدير المحدد",
       "processingLabel": "جارٍ إلغاء {count} فاتورة..."
+    },
+    "batchPanel": {
+      "headingQueued": "العمليات في قائمة الانتظار",
+      "headingRunning": "معالجة الدُفعة…",
+      "headingComplete": "اكتملت الدُفعة",
+      "headingDoneFailed": "انتهت الدُفعة — {count} فشلت",
+      "counter": "{success} / {total} نجحت",
+      "counterFailed": "{count} فشلت",
+      "retryFailed": "إعادة محاولة {count} فاشل",
+      "dismiss": "إغلاق",
+      "expandPanel": "توسيع لوحة قائمة الانتظار",
+      "collapsePanel": "طي لوحة قائمة الانتظار",
+      "progressAriaLabel": "تقدم معاملات الدُفعة",
+      "percentComplete": "{percent}% مكتمل",
+      "itemListAriaLabel": "عناصر عملية الدُفعة",
+      "status": {
+        "pending": "معلّق",
+        "processing": "جارٍ المعالجة…",
+        "success": "ناجح",
+        "failed": "فاشل",
+        "skipped": "تم التخطي"
+      },
+      "announceProgress": "تقدم الدُفعة: تمت معالجة {processed} من {total}.",
+      "announcePartial": "اكتملت الدُفعة. {success} من {total} نجحت، {failed} فشلت.",
+      "announceAllSuccess": "اكتملت الدُفعة. نجحت جميع {total} عملية.",
+      "announceFailed": "فشلت عملية الدُفعة. {failed} من {total} فشلت حتى الآن."
     },
     "filters": {
       "statusLabel": "الحالة",
