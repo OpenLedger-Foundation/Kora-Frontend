@@ -4,6 +4,7 @@ import { useDebounce } from "../hooks/useDebounce";
 import { useThrottle } from "../hooks/useThrottle";
 import { useDebouncedCallback } from "../hooks/useDebouncedCallback";
 import { useResizeObserver } from "../hooks/useResizeObserver";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { createRef } from "react";
 
 // ─── useDebounce ──────────────────────────────────────────────────────────────
@@ -218,5 +219,101 @@ describe("useResizeObserver", () => {
     const { unmount } = renderHook(() => useResizeObserver(ref));
     unmount();
     expect(disconnectMock).toHaveBeenCalled();
+  });
+});
+
+// ─── useKeyboardShortcuts ─────────────────────────────────────────────────────
+
+describe("useKeyboardShortcuts", () => {
+  const fireKey = (init: KeyboardEventInit) => {
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...init }));
+    });
+  };
+
+  const focusElement = (el: HTMLElement) => {
+    document.body.appendChild(el);
+    el.focus();
+    return el;
+  };
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("invokes the handler for a matching single-key shortcut", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    fireKey({ key: "k" });
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("ignores shortcuts when focus is in an input", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    focusElement(document.createElement("input"));
+    fireKey({ key: "k" });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("ignores shortcuts when focus is in a textarea", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    focusElement(document.createElement("textarea"));
+    fireKey({ key: "k" });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("ignores shortcuts when focus is in a select", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    focusElement(document.createElement("select"));
+    fireKey({ key: "k" });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("ignores shortcuts when focus is in a contenteditable element", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    const el = document.createElement("div");
+    el.setAttribute("contenteditable", "true");
+    focusElement(el);
+    fireKey({ key: "k" });
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("still fires when focus is on a non-editable element", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    focusElement(document.createElement("button"));
+    fireKey({ key: "k" });
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("triggers the correct handler for a chord sequence", () => {
+    const chordHandler = vi.fn();
+    const singleHandler = vi.fn();
+    renderHook(() =>
+      useKeyboardShortcuts({ "g d": chordHandler, "g": singleHandler })
+    );
+    fireKey({ key: "g" });
+    fireKey({ key: "d" });
+    expect(chordHandler).toHaveBeenCalledOnce();
+  });
+
+  it("does not fire the chord handler when only the first key is pressed", () => {
+    const chordHandler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "g d": chordHandler }));
+    fireKey({ key: "g" });
+    expect(chordHandler).not.toHaveBeenCalled();
+  });
+
+  it("ignores chord sequences while focus is in an input", () => {
+    const chordHandler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "g d": chordHandler }));
+    focusElement(document.createElement("input"));
+    fireKey({ key: "g" });
+    fireKey({ key: "d" });
+    expect(chordHandler).not.toHaveBeenCalled();
   });
 });
