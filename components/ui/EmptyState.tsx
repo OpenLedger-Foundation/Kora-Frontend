@@ -24,76 +24,37 @@ export interface RecoverySuggestion {
 }
 
 type Props = {
-  title: string;
+  /** Override heading. When omitted the variant's translated default is used. */
+  title?: string;
+  /** Override description. When omitted the variant's translated default is used. */
   description?: string;
   cta?: { label: string; onClick: () => void } | null;
   variant?: EmptyStateVariant;
   className?: string;
   /**
    * One-click recovery suggestions shown as chips below the description.
-   * Intended for the marketplace empty state (#564) — each chip relaxes one
-   * or more active filters so the user can quickly find results.
+   * Intended for the marketplace empty state (#564).
    */
   suggestions?: RecoverySuggestion[];
 };
 
-const VARIANT_CONFIG: Record<
-  EmptyStateVariant,
-  { icon: string; heading: string; subtext: string }
-> = {
-  "no-invoices": {
-    icon: "📄",
-    heading: "No invoices yet",
-    subtext: "Create your first invoice to start raising liquidity on-chain.",
-  },
-  "no-positions": {
-    icon: "📊",
-    heading: "No positions yet",
-    subtext: "Fund invoices on the marketplace to build your investment portfolio.",
-  },
-  "no-transactions": {
-    icon: "🔄",
-    heading: "No transactions yet",
-    subtext: "Your on-chain transaction history will appear here.",
-  },
-  "no-results": {
-    icon: "🔍",
-    heading: "No results found",
-    subtext: "We couldn't find anything matching your current filters. Try resetting.",
-  },
-  // Legacy variants kept for backward compat
-  marketplace: {
-    icon: "🏪",
-    heading: "No invoices match your filters",
-    subtext: "Try adjusting your filters to explore more opportunities.",
-  },
-  sme: {
-    icon: "📄",
-    heading: "No invoices yet",
-    subtext: "Create your first invoice to start raising liquidity.",
-  },
-  investor: {
-    icon: "📊",
-    heading: "No positions yet",
-    subtext: "Fund invoices on the marketplace to build your portfolio.",
-  },
-  transactions: {
-    icon: "🔄",
-    heading: "No transactions yet",
-    subtext: "Your transaction history will appear here.",
-  },
-  analytics: {
-    icon: "📈",
-    heading: "No data yet",
-    subtext: "Analytics will populate once you have activity.",
-  },
+// Icons are UI concerns, not copy — keep them here rather than in messages.
+const VARIANT_ICONS: Record<EmptyStateVariant, string> = {
+  "no-invoices": "📄",
+  "no-positions": "📊",
+  "no-transactions": "🔄",
+  "no-results": "🔍",
+  marketplace: "🏪",
+  sme: "📄",
+  investor: "📊",
+  transactions: "🔄",
+  analytics: "📈",
 };
 
 function Illustration({ variant }: { variant: EmptyStateVariant }) {
-  const { icon } = VARIANT_CONFIG[variant];
   return (
     <span className="text-6xl" role="img" aria-hidden="true">
-      {icon}
+      {VARIANT_ICONS[variant]}
     </span>
   );
 }
@@ -106,9 +67,10 @@ export function EmptyState({
   className = "",
   suggestions,
 }: Props) {
-  const config = VARIANT_CONFIG[variant];
-  const displayTitle = title || config.heading;
-  const displayDescription = description ?? config.subtext;
+  const t = useTranslations("emptyState");
+
+  const displayTitle = title || t(`variants.${variant}.heading`);
+  const displayDescription = description ?? t(`variants.${variant}.subtext`);
 
   return (
     <div
@@ -130,7 +92,7 @@ export function EmptyState({
       {suggestions && suggestions.length > 0 && (
         <div
           className="flex flex-wrap justify-center gap-2 mt-1"
-          aria-label="Recovery suggestions"
+          aria-label={t("suggestionsAria")}
           data-testid="empty-state-suggestions"
         >
           {suggestions.map((suggestion, i) => (

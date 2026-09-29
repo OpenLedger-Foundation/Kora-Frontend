@@ -76,5 +76,21 @@ export interface IInvoiceService {
     sellerAddress: string
   ): Promise<Result<string>>;
 
+  /**
+   * Buyer acceptance step for a pending P2P position transfer.
+   * Returns unsigned XDR authorised by `buyerAddress`.
+   *
+   * The deployed `transfer_position` ABI is a single seller-authorised call,
+   * so in both mock and live paths this mirrors `transferPosition` from the
+   * buyer's perspective — building an equivalent co-authorisation envelope.
+   * If the contract is later upgraded to a two-step propose/accept model,
+   * swap the `marketplaceContract` call here for the new entry-point without
+   * touching the rest of the stack.
+   */
+  acceptPositionTransfer(
+    positionId: string,
+    buyerAddress: string
+  ): Promise<Result<string>>;
+
   submitTransaction(signedXdr: string): Promise<Result<string>>;
 }
