@@ -113,15 +113,13 @@ export function Pagination({
       className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-4"
     >
       <div className="text-sm text-muted-foreground">
-        Showing <span className="font-medium text-foreground">{startItem}</span>–
-        <span className="font-medium text-foreground">{endItem}</span> of{" "}
-        <span className="font-medium text-foreground">{totalItems}</span> results
+        {t("showingRange", { start: startItem, end: endItem, total: totalItems })}
       </div>
 
       <div className="flex flex-wrap items-center gap-4 sm:gap-6">
         {onPageSizeChange && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Show</span>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">{t("showLabel")}</span>
             <select
               aria-label={t("pageSizeAria")}
               className="h-9 rounded-lg border border-input bg-card px-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"

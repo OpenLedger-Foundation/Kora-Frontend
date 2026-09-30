@@ -1330,7 +1330,50 @@
     "pageSizeAria": "Page size options",
     "previousPage": "Previous page",
     "nextPage": "Next page",
-    "goToPage": "Go to page {page}"
+    "goToPage": "Go to page {page}",
+    "showingRange": "Showing {start}–{end} of {total} results",
+    "showLabel": "Show"
+  },
+  "emptyState": {
+    "suggestionsAria": "Recovery suggestions",
+    "variants": {
+      "no-invoices": {
+        "heading": "No invoices yet",
+        "subtext": "Create your first invoice to start raising liquidity on-chain."
+      },
+      "no-positions": {
+        "heading": "No positions yet",
+        "subtext": "Fund invoices on the marketplace to build your investment portfolio."
+      },
+      "no-transactions": {
+        "heading": "No transactions yet",
+        "subtext": "Your on-chain transaction history will appear here."
+      },
+      "no-results": {
+        "heading": "No results found",
+        "subtext": "We couldn't find anything matching your current filters. Try resetting."
+      },
+      "marketplace": {
+        "heading": "No invoices match your filters",
+        "subtext": "Try adjusting your filters to explore more opportunities."
+      },
+      "sme": {
+        "heading": "No invoices yet",
+        "subtext": "Create your first invoice to start raising liquidity."
+      },
+      "investor": {
+        "heading": "No positions yet",
+        "subtext": "Fund invoices on the marketplace to build your portfolio."
+      },
+      "transactions": {
+        "heading": "No transactions yet",
+        "subtext": "Your transaction history will appear here."
+      },
+      "analytics": {
+        "heading": "No data yet",
+        "subtext": "Analytics will populate once you have activity."
+      }
+    }
   },
   "dataTable": {
     "selectAllAria": "Select all rows on this page",

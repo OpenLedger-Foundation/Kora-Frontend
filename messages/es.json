@@ -1330,7 +1330,50 @@
     "pageSizeAria": "Opciones de tamaño de página",
     "previousPage": "Página anterior",
     "nextPage": "Página siguiente",
-    "goToPage": "Ir a la página {page}"
+    "goToPage": "Ir a la página {page}",
+    "showingRange": "Mostrando {start}–{end} de {total} resultados",
+    "showLabel": "Mostrar"
+  },
+  "emptyState": {
+    "suggestionsAria": "Sugerencias de recuperación",
+    "variants": {
+      "no-invoices": {
+        "heading": "Aún no hay facturas",
+        "subtext": "Crea tu primera factura para empezar a obtener liquidez en la cadena."
+      },
+      "no-positions": {
+        "heading": "Aún no hay posiciones",
+        "subtext": "Financia facturas en el mercado para construir tu cartera de inversiones."
+      },
+      "no-transactions": {
+        "heading": "Aún no hay transacciones",
+        "subtext": "Tu historial de transacciones en la cadena aparecerá aquí."
+      },
+      "no-results": {
+        "heading": "No se encontraron resultados",
+        "subtext": "No encontramos nada que coincida con tus filtros actuales. Intenta restablecer."
+      },
+      "marketplace": {
+        "heading": "Ninguna factura coincide con tus filtros",
+        "subtext": "Intenta ajustar los filtros para explorar más oportunidades."
+      },
+      "sme": {
+        "heading": "Aún no hay facturas",
+        "subtext": "Crea tu primera factura para empezar a obtener liquidez."
+      },
+      "investor": {
+        "heading": "Aún no hay posiciones",
+        "subtext": "Financia facturas en el mercado para construir tu cartera."
+      },
+      "transactions": {
+        "heading": "Aún no hay transacciones",
+        "subtext": "Tu historial de transacciones aparecerá aquí."
+      },
+      "analytics": {
+        "heading": "Aún no hay datos",
+        "subtext": "Los análisis se completarán una vez que tengas actividad."
+      }
+    }
   },
   "dataTable": {
     "selectAllAria": "Seleccionar todas las filas de esta página",

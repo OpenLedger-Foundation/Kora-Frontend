@@ -338,6 +338,21 @@ class MockInvoiceService implements IInvoiceService {
     }
   }
 
+  async acceptPositionTransfer(
+    positionId: string,
+    buyerAddress: string
+  ): Promise<Result<string>> {
+    try {
+      if (!isValidStellarAddress(buyerAddress)) {
+        return failure("INVALID_INPUT", "Buyer address is not a valid Stellar G-address");
+      }
+      await this.delay();
+      return success(`mock_unsigned_xdr_accept_transfer_${positionId}_${buyerAddress}`);
+    } catch (error) {
+      return failure("TRANSFER_ERROR", "Failed to prepare accept-transfer envelope", { cause: String(error) });
+    }
+  }
+
   async submitTransaction(signedXdr: string): Promise<Result<string>> {
     try {
       await this.delay();
@@ -618,6 +633,30 @@ class LiveInvoiceService implements IInvoiceService {
       const xdr = await marketplaceContract.transferPosition(
         { positionId: BigInt(positionId), toAddress },
         sellerAddress
+      );
+      return success(xdr);
+    } catch (error) {
+      const err = mapTransferError(error);
+      return failure(err.code, err.message, err.details);
+    }
+  }
+
+  async acceptPositionTransfer(
+    positionId: string,
+    buyerAddress: string
+  ): Promise<Result<string>> {
+    try {
+      if (!isValidStellarAddress(buyerAddress)) {
+        return failure("INVALID_INPUT", "Buyer address is not a valid Stellar G-address");
+      }
+      // The deployed `transfer_position` ABI is seller-authorised in a single
+      // step. The buyer's co-authorisation envelope uses the same contract
+      // entry-point, authorised by buyerAddress instead of sellerAddress.
+      // If the contract is upgraded to a two-step propose/accept model, replace
+      // the call below with the new `accept_position_transfer` entry-point.
+      const xdr = await marketplaceContract.transferPosition(
+        { positionId: BigInt(positionId), toAddress: buyerAddress },
+        buyerAddress
       );
       return success(xdr);
     } catch (error) {
@@ -931,30 +970,25 @@ export async function prepareTransferPosition(
 }
 
 /**
- * Buyer acceptance flow — STUB (#443).
+ * Buyer acceptance step for a pending P2P position transfer (#863).
  *
- * `transferPosition`/`prepareTransferPosition` above assume the deployed
- * `transfer_position` contract method is a single call authorized only by
- * the seller (no separate buyer co-signature), matching `claim_position`.
- * If that assumption doesn't hold once the deployed contract's ABI is
- * confirmed and a two-step propose/accept pattern is required instead, this
- * is the intended integration point for the buyer's acceptance transaction:
- * build the buyer-signed accept call here (e.g. `accept_position_transfer`
- * or similar) the same way `prepareTransferPosition` builds the seller's.
+ * Builds unsigned XDR authorised by `buyerAddress`.  The current deployed
+ * `transfer_position` ABI is a single seller-authorised call, so both
+ * `prepareTransferPosition` (seller) and this function (buyer) route through
+ * the same `service.acceptPositionTransfer` / `service.transferPosition`
+ * entry-point.  If the contract is later upgraded to a two-step propose/accept
+ * model, only `LiveInvoiceService.acceptPositionTransfer` needs updating.
  *
- * Deliberately unimplemented until the contract ABI is confirmed — mirrors
- * the NOT_IMPLEMENTED pattern already used by `getInvoices`/
- * `getInvoicesByOwner` in LiveInvoiceService for the same reason.
+ * Mock mode returns a deterministic mock XDR envelope so the full UI flow can
+ * be exercised without a live RPC connection.
  */
 export async function prepareAcceptPositionTransfer(
-  _positionId: string,
-  _buyerAddress: string
-): Promise<never> {
-  throw new Error(
-    "Buyer acceptance for transfer_position is not yet implemented — " +
-      "pending confirmation of the deployed contract's transfer ABI. " +
-      "See prepareAcceptPositionTransfer in services/invoiceService.ts."
-  );
+  positionId: string,
+  buyerAddress: string
+): Promise<string> {
+  const result = await service.acceptPositionTransfer(positionId, buyerAddress);
+  if (!result.ok) throw new Error(result.error.message);
+  return result.value;
 }
 
 export async function submitAndConfirm(signedXdr: string): Promise<string> {

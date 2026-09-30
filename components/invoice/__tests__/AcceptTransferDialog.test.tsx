@@ -178,3 +178,69 @@ describe("AcceptTransferDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
+
+describe("AcceptTransferDialog — success flow (#863)", () => {
+  const onConfirm = vi.fn();
+  const onOpenChange = vi.fn();
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows pending state while the transaction is in-flight", () => {
+    render(
+      <AcceptTransferDialog
+        item={mockItem}
+        open
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        status="submitting"
+      />,
+    );
+    const btn = document.querySelector('[data-testid="accept-transfer-confirm"]') as HTMLButtonElement;
+    expect(btn).toBeDisabled();
+  });
+
+  it("closes without error banner when status reaches confirmed", () => {
+    const { rerender } = render(
+      <AcceptTransferDialog
+        item={mockItem}
+        open
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        status="signing"
+      />,
+    );
+
+    rerender(
+      <AcceptTransferDialog
+        item={mockItem}
+        open
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        status="confirmed"
+      />,
+    );
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(document.querySelector('[data-testid="accept-transfer-error-banner"]')).not.toBeInTheDocument();
+  });
+
+  it("surfaces a real on-chain error in the banner without calling alert()", () => {
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    render(
+      <AcceptTransferDialog
+        item={mockItem}
+        open
+        onOpenChange={onOpenChange}
+        onConfirm={onConfirm}
+        status="failed"
+        error="Transaction rejected by user"
+      />,
+    );
+
+    const banner = document.querySelector('[data-testid="accept-transfer-error-banner"]') as HTMLElement;
+    expect(banner).toBeInTheDocument();
+    expect(banner.textContent).toContain("Transaction rejected by user");
+    expect(alertSpy).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+  });
+});

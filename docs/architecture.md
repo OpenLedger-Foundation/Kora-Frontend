@@ -443,7 +443,7 @@ dialogs (`full` variant).
 | Dialog | Issue | Purpose |
 |--------|-------|---------|
 | `components/invoice/AcquirePositionDialog.tsx` | #642 | Confirms an acquisition before any tx is built; surfaces implied-discount/premium risk banners |
-| `components/invoice/AcceptTransferDialog.tsx` | #732 | Buyer accept-position transfer shell; shows a graceful NOT_IMPLEMENTED banner until the transfer ABI is confirmed |
+| `components/invoice/AcceptTransferDialog.tsx` | #863 | Buyer accept-position transfer; runs through the standard build → simulate → preview → sign → submit pipeline. Shows an error banner on failure (no alert()) |
 | `components/secondary/FeeDisclosure.tsx` | #597 | Fee breakdown (see above) |
 
 ### Buyer flow
@@ -475,11 +475,16 @@ sequenceDiagram
     TX-->>UI: toast + listing update
 ```
 
-`useTransferPositionFlow().acceptTransfer` is currently a stub that routes
-`prepareAcceptPositionTransfer`'s NOT_IMPLEMENTED error through the standard
-toast path. The integration point and assumptions for wiring in a future
-buyer-accept contract call are documented on that function
-(`services/invoiceService.ts:949`).
+Accept-transfer runs through the same pipeline. `useTransferPositionFlow().acceptTransfer`
+calls `prepareAcceptPositionTransfer` → `service.acceptPositionTransfer`.
+
+Mock mode returns `mock_unsigned_xdr_accept_transfer_<positionId>_<buyerAddress>` so the
+full UI flow can be exercised without a live RPC connection.
+
+The deployed `transfer_position` ABI is seller-authorised in a single step; the buyer's
+co-authorisation envelope uses the same contract entry-point authorised by `buyerAddress`.
+If the contract is upgraded to a two-step propose/accept model, update only
+`LiveInvoiceService.acceptPositionTransfer` in `services/invoiceService.ts`.
 
 ---
 
