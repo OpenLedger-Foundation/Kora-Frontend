@@ -34,12 +34,16 @@ import { Badge } from "@/components/ui/badge";
  * hardware wallet extended timeouts, and secondary market escrow flows.
  */
 export function InProgressOverlay() {
+  // ── Single translation instance ────────────────────────────────────
   const t = useTranslations("transaction");
+
   const { txState, setTxState, resetTxState } = useUIStore();
   const provider = useWalletStore((s) => s.provider);
   const { escrowState, retryEscrow, resetEscrow } = useSecondaryEscrowFlow();
   const { cancel, extendTimeout } = useTransaction();
-  const t = useTranslations("transaction");
+
+  // ── Hoisted store read (no hooks inside render helpers) ────────────
+  const { escrowState: { attemptHistory } } = useTransactionStore();
 
   const isSigningStage = txState.status === "signing";
   const isTimeoutStage = txState.status === "timeout";
@@ -49,45 +53,45 @@ export function InProgressOverlay() {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  // Time remaining calculation
   const [secondsRemaining, setSecondsRemaining] = useState<number>(60);
   const signingConfig = getProviderSigningConfig(
     ("provider" in txState && txState.provider) || provider
   );
 
-  const getAnnouncementText = () => {
+  // ── Live-region announcement (all strings from catalog) ────────────
+  const getAnnouncementText = (): string => {
     if (isEscrowActive) {
       if (escrowState.errorMessage) {
-        return `Escrow transaction failed: ${escrowState.errorMessage}`;
+        return t("announce.escrowFailed", { error: escrowState.errorMessage });
       }
       if (escrowState.step === "settled") {
-        return "Escrow Settlement Complete";
+        return t("announce.escrowSettled");
       }
       if (escrowState.step === "buyer_funding") {
-        return "Escrow step 1: Buyer Deposit in progress";
+        return t("announce.escrowBuyerFunding");
       }
       if (escrowState.step === "seller_transferring") {
-        return "Escrow step 2: Seller Position Transfer in progress";
+        return t("announce.escrowSellerTransfer");
       }
-      return "Escrow transaction in progress";
+      return t("announce.escrowInProgress");
     }
     if (isTimeoutStage) {
-      return "Transaction signing request timed out. Please extend time, retry, or cancel safely.";
+      return t("announce.timeout");
     }
     if (isSigningStage) {
-      return `Waiting for transaction signature from ${signingConfig.providerName || "your wallet"}. Please approve the request on your device.`;
+      return t("announce.signing", { provider: signingConfig.providerName || t("yourWallet") });
     }
     if (txState.status === "submitting") {
-      return "Submitting transaction to the network...";
+      return t("announce.submitting");
     }
     if (txState.status === "confirmed") {
-      return "Transaction confirmed";
+      return t("announce.confirmed");
     }
     if (txState.status === "failed") {
-      return "Transaction failed";
+      return t("announce.failed");
     }
     if (txState.status && txState.status !== "idle") {
-      return `Transaction status: ${txState.status}`;
+      return t("announce.status", { status: txState.status });
     }
     return "";
   };
@@ -139,12 +143,13 @@ export function InProgressOverlay() {
       ? txState.tips
       : signingConfig.tips;
 
+  // ── Escrow step list ───────────────────────────────────────────────
   const renderEscrowSteps = () => {
     const steps = [
       {
         id: "buyer_funding",
-        label: "Buyer Deposit",
-        desc: "Escrow funds locked in smart contract",
+        label: t("escrowStep.buyerDeposit"),
+        desc: t("escrowStep.buyerDepositDesc"),
         active: escrowState.step === "buyer_funding",
         success:
           escrowState.step !== "idle" &&
@@ -154,8 +159,8 @@ export function InProgressOverlay() {
       },
       {
         id: "seller_transferring",
-        label: "Seller Position Transfer",
-        desc: "Seller signs over yield rights",
+        label: t("escrowStep.sellerTransfer"),
+        desc: t("escrowStep.sellerTransferDesc"),
         active: escrowState.step === "seller_transferring",
         success:
           escrowState.step === "seller_transferred" || escrowState.step === "settled",
@@ -163,8 +168,8 @@ export function InProgressOverlay() {
       },
       {
         id: "settled",
-        label: "Escrow Settlement Complete",
-        desc: "Yield rights transferred to Buyer",
+        label: t("escrowStep.settled"),
+        desc: t("escrowStep.settledDesc"),
         active: false,
         success: escrowState.step === "settled",
         failed: false,
@@ -217,26 +222,25 @@ export function InProgressOverlay() {
     );
   };
 
-  // Retry ledger - shows attempt history for failed steps
+  // ── Retry ledger (attemptHistory hoisted from top-level store read) ─
   const renderRetryLedger = () => {
-    const { escrowState: { attemptHistory } } = useTransactionStore();
     if (!attemptHistory || attemptHistory.length === 0) return null;
 
     return (
       <div className="w-full space-y-2 pt-2 border-t border-border/30">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-            Retry History
+            {t("retryHistory")}
           </p>
           <span className="text-xs text-muted-foreground">
-            {attemptHistory.length} attempt{attemptHistory.length > 1 ? "s" : ""}
+            {t("attempts", { count: attemptHistory.length })}
           </span>
         </div>
         <div className="space-y-1.5 max-h-32 overflow-y-auto">
           {attemptHistory
             .slice()
             .reverse()
-            .map((attempt, index) => (
+            .map((attempt) => (
               <div
                 key={`${attempt.step}-${attempt.attemptNumber}`}
                 className="flex items-center gap-2 p-2 rounded-lg border border-border/30 bg-muted/20"
@@ -244,17 +248,21 @@ export function InProgressOverlay() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 text-xs">
                     <span className="font-medium text-zinc-300">
-                      {attempt.step === "buyer_funding" ? "Buyer Funding" : "Seller Transfer"}
+                      {attempt.step === "buyer_funding"
+                        ? t("escrowStep.buyerDeposit")
+                        : t("escrowStep.sellerTransfer")}
                     </span>
-                    <span className="text-muted-foreground">Attempt #{attempt.attemptNumber}</span>
+                    <span className="text-muted-foreground">
+                      {t("attemptLabel", { number: attempt.attemptNumber })}
+                    </span>
                     {attempt.success ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-success/10 text-success border border-success/20">
                         <span className="h-2.5 w-2.5 rounded-full bg-success" />
-                        Success
+                        {t("successLabel")}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-destructive/10 text-destructive border border-destructive/20">
-                        Failed
+                        {t("failedLabel")}
                       </span>
                     )}
                   </div>
@@ -323,10 +331,10 @@ export function InProgressOverlay() {
                     <ShieldCheck className="h-5 w-5" />
                   </div>
                   <h2 id="overlay-title" className="text-lg font-semibold text-zinc-200">
-                    Escrow Settlement
+                    {t("escrowSettlement")}
                   </h2>
                   <p className="text-xs text-muted-foreground max-w-xs">
-                    Secondary trade transaction in progress
+                    {t("escrowSubtitle")}
                   </p>
                 </div>
 
@@ -335,7 +343,7 @@ export function InProgressOverlay() {
                 {escrowState.errorMessage && (
                   <div className="w-full rounded-lg bg-destructive/10 border border-destructive/20 p-3 space-y-1">
                     <p className="text-xs font-semibold text-destructive flex items-center gap-1.5">
-                      <AlertTriangle className="h-3.5 w-3.5" /> Transaction Failed
+                      <AlertTriangle className="h-3.5 w-3.5" /> {t("escrowTransactionFailed")}
                     </p>
                     <p className="text-[10px] text-muted-foreground break-words leading-relaxed">
                       {escrowState.errorMessage}
@@ -353,7 +361,7 @@ export function InProgressOverlay() {
                       "border border-border/50 hover:border-border"
                     )}
                   >
-                    {escrowState.step === "settled" ? "Close" : "Cancel"}
+                    {escrowState.step === "settled" ? t("close") : t("cancel")}
                   </button>
 
                   {escrowState.errorStep && (
@@ -371,7 +379,7 @@ export function InProgressOverlay() {
                         "flex items-center justify-center gap-1"
                       )}
                     >
-                      Retry Step <ArrowRight className="h-3 w-3" />
+                      {t("retryStep")} <ArrowRight className="h-3 w-3" />
                     </button>
                   )}
                 </div>
@@ -393,15 +401,15 @@ export function InProgressOverlay() {
                     {signingConfig.providerName}
                   </Badge>
                   <h2 id="overlay-title" className="text-lg font-semibold text-foreground">
-                    Signing Request Timed Out
+                    {t("signingRequestTimedOut")}
                   </h2>
                   <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
-                    The wallet did not respond in time. Hardware devices or mobile wallets often require unlocking the app or confirming settings.
+                    {t("signingTimedOutDesc")}
                   </p>
                 </div>
 
                 <div className="w-full rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 space-y-1.5 text-xs text-muted-foreground">
-                  <p className="font-medium text-foreground text-xs">Troubleshooting tips:</p>
+                  <p className="font-medium text-foreground text-xs">{t("troubleshootingTips")}</p>
                   <ul className="space-y-1 list-disc list-inside text-[11px]">
                     {tips.map((tip, idx) => (
                       <li key={idx}>{tip}</li>
@@ -420,7 +428,7 @@ export function InProgressOverlay() {
                     )}
                   >
                     <PlusCircle className="h-3.5 w-3.5" />
-                    Extend Time (+60s) & Keep Waiting
+                    {t("extendTime")}
                   </button>
 
                   <button
@@ -433,7 +441,7 @@ export function InProgressOverlay() {
                       "border border-border/50"
                     )}
                   >
-                    Cancel Safely
+                    {t("cancelSafely")}
                   </button>
                 </div>
               </>
@@ -464,10 +472,10 @@ export function InProgressOverlay() {
                   </div>
 
                   <h2 id="overlay-title" className="text-lg font-semibold text-foreground">
-                    Waiting for Signature
+                    {t("waitingForSignature")}
                   </h2>
                   <p className="text-xs text-muted-foreground max-w-xs">
-                    Complete the signature request on your wallet or device
+                    {t("waitingForSignatureDesc")}
                   </p>
                 </div>
 
@@ -475,7 +483,7 @@ export function InProgressOverlay() {
                 <div className="w-full space-y-1">
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" /> Time remaining
+                      <Clock className="h-3 w-3" /> {t("timeRemaining")}
                     </span>
                     <span className="font-mono font-medium text-foreground">
                       {secondsRemaining}s
@@ -505,10 +513,10 @@ export function InProgressOverlay() {
                 <div className="w-full rounded-lg bg-muted/50 border border-border/50 p-3 space-y-1.5">
                   <p className="text-xs font-medium text-foreground">
                     {signingConfig.category === "hardware"
-                      ? "Hardware Wallet Guidance:"
+                      ? t("hardwareGuidance")
                       : signingConfig.category === "mobile"
-                      ? "Mobile Signer Guidance:"
-                      : "Signing Guidance:"}
+                      ? t("mobileGuidance")
+                      : t("signingGuidance")}
                   </p>
                   <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside text-[11px]">
                     {tips.map((tip, idx) => (
@@ -528,7 +536,7 @@ export function InProgressOverlay() {
                       "border border-border/50 flex items-center justify-center gap-1"
                     )}
                   >
-                    <PlusCircle className="h-3 w-3" /> +60s Time
+                    <PlusCircle className="h-3 w-3" /> {t("extendTimeShort")}
                   </button>
 
                   <button
@@ -542,7 +550,7 @@ export function InProgressOverlay() {
                       "focus:outline-none focus:ring-2 focus:ring-primary/50"
                     )}
                   >
-                    Cancel Safely
+                    {t("cancelSafely")}
                   </button>
                 </div>
               </>

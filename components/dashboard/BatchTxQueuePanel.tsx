@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Loader2,
   CheckCircle2,
@@ -54,27 +55,16 @@ function statusIcon(status: BatchItemStatus) {
     case "skipped":
       return <Clock className="h-4 w-4 text-zinc-500 shrink-0" aria-hidden="true" />;
     default:
-      // pending
       return <Clock className="h-4 w-4 text-zinc-500 shrink-0" aria-hidden="true" />;
-  }
-}
-
-function statusLabel(status: BatchItemStatus): string {
-  switch (status) {
-    case "success":   return "Success";
-    case "failed":    return "Failed";
-    case "processing": return "Processing…";
-    case "skipped":   return "Skipped";
-    default:          return "Pending";
   }
 }
 
 function statusRowClass(status: BatchItemStatus): string {
   switch (status) {
-    case "success":   return "bg-emerald-950/30 border-emerald-800/30";
-    case "failed":    return "bg-destructive/5 border-destructive/20";
+    case "success":    return "bg-emerald-950/30 border-emerald-800/30";
+    case "failed":     return "bg-destructive/5 border-destructive/20";
     case "processing": return "bg-primary/5 border-primary/20";
-    default:          return "bg-zinc-900/40 border-zinc-800/40";
+    default:           return "bg-zinc-900/40 border-zinc-800/40";
   }
 }
 
@@ -86,7 +76,7 @@ function actionIcon(action: BatchQueueItem["action"]) {
 
 // ── Progress bar ──────────────────────────────────────────────────────────────
 
-function ProgressBar({ percent }: { percent: number }) {
+function ProgressBar({ percent, ariaLabel }: { percent: number; ariaLabel: string }) {
   return (
     <div
       className="relative h-1.5 w-full overflow-hidden rounded-full bg-zinc-800"
@@ -94,7 +84,7 @@ function ProgressBar({ percent }: { percent: number }) {
       aria-valuenow={Math.round(percent)}
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-label="Batch transaction progress"
+      aria-label={ariaLabel}
     >
       <motion.div
         className="absolute inset-y-0 left-0 bg-primary"
@@ -114,7 +104,9 @@ export function BatchTxQueuePanel({
   onDismiss,
   className,
 }: BatchTxQueuePanelProps) {
+  const t = useTranslations("smeDashboard.batchPanel");
   const [collapsed, setCollapsed] = useState(false);
+  const liveRef = useRef<HTMLDivElement>(null);
 
   const { items, isRunning, processed, successCount, failedCount } = snapshot;
   const total = items.length;
@@ -124,31 +116,32 @@ export function BatchTxQueuePanel({
   const hasFailures = failedCount > 0;
   const allSuccess = isDone && failedCount === 0;
 
-  // Accessible live-region: announce status changes
+  // Accessible live-region: announce status changes (all copy from catalog)
   const [announcement, setAnnouncement] = useState("");
   const prevProcessed = useRef(processed);
   const prevIsDone = useRef(isDone);
   const prevFailedCount = useRef(failedCount);
+
   useEffect(() => {
     if (isDone && !prevIsDone.current) {
       setAnnouncement(
         failedCount > 0
-          ? `Batch complete. ${successCount} of ${total} succeeded, ${failedCount} failed.`
-          : `Batch complete. All ${total} operations succeeded.`,
+          ? t("announcePartial", { success: successCount, total, failed: failedCount })
+          : t("announceAllSuccess", { total }),
       );
     } else if (failedCount > prevFailedCount.current) {
       setAnnouncement(
-        `Batch operation failed. ${failedCount} of ${total} failed so far.`,
+        t("announceFailed", { failed: failedCount, total }),
       );
     } else if (processed !== prevProcessed.current) {
       setAnnouncement(
-        `Batch progress: ${processed} of ${total} processed.`,
+        t("announceProgress", { processed, total }),
       );
     }
     prevProcessed.current = processed;
     prevIsDone.current = isDone;
     prevFailedCount.current = failedCount;
-  }, [processed, isDone, failedCount, successCount, total]);
+  }, [processed, isDone, failedCount, successCount, total, t]);
 
   // Don't render when there's nothing to show
   if (total === 0) return null;
@@ -171,7 +164,7 @@ export function BatchTxQueuePanel({
         aria-live="polite"
         aria-atomic="true"
         className="sr-only"
-        data-testid="batch-tx-queue-live-region"
+        data-testid="batch-panel-live-region"
       >
         {announcement}
       </div>
@@ -201,16 +194,16 @@ export function BatchTxQueuePanel({
           <div className="min-w-0">
             <p className="text-sm font-semibold text-zinc-100 truncate">
               {isRunning
-                ? "Processing Batch…"
+                ? t("headingRunning")
                 : isDone
                   ? allSuccess
-                    ? "Batch Complete"
-                    : `Batch Done — ${failedCount} failed`
-                  : "Queued Batch Operations"}
+                    ? t("headingComplete")
+                    : t("headingDoneFailed", { count: failedCount })
+                  : t("headingQueued")}
             </p>
             <p className="text-xs text-zinc-500">
-              {successCount} / {total} succeeded
-              {hasFailures ? ` · ${failedCount} failed` : ""}
+              {t("counter", { success: successCount, total })}
+              {hasFailures ? ` · ${t("counterFailed", { count: failedCount })}` : ""}
             </p>
           </div>
         </div>
@@ -225,7 +218,7 @@ export function BatchTxQueuePanel({
               data-testid="batch-panel-retry-btn"
             >
               <RotateCcw className="h-3 w-3" />
-              Retry {failedCount} failed
+              {t("retryFailed", { count: failedCount })}
             </Button>
           )}
           {isDone && onDismiss && (
@@ -236,14 +229,14 @@ export function BatchTxQueuePanel({
               className="h-7 text-xs text-zinc-500 hover:text-zinc-300"
               data-testid="batch-panel-dismiss-btn"
             >
-              Dismiss
+              {t("dismiss")}
             </Button>
           )}
           <button
             type="button"
             onClick={() => setCollapsed((c) => !c)}
             className="flex items-center justify-center h-6 w-6 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors"
-            aria-label={collapsed ? "Expand queue panel" : "Collapse queue panel"}
+            aria-label={collapsed ? t("expandPanel") : t("collapsePanel")}
             data-testid="batch-panel-collapse-btn"
           >
             {collapsed
@@ -253,13 +246,13 @@ export function BatchTxQueuePanel({
         </div>
       </div>
 
-      {/* Progress bar — always visible */}
+      {/* Progress bar — always visible when running or done */}
       {(isRunning || isDone) && (
         <div className="px-4 pt-2 pb-1">
-          <ProgressBar percent={percent} />
+          <ProgressBar percent={percent} ariaLabel={t("progressAriaLabel")} />
           {isRunning && (
             <p className="mt-1 text-[11px] text-zinc-600">
-              {Math.round(percent)}% complete
+              {t("percentComplete", { percent: Math.round(percent) })}
             </p>
           )}
         </div>
@@ -274,7 +267,8 @@ export function BatchTxQueuePanel({
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="divide-y divide-zinc-800/40 overflow-hidden"
-            data-testid="batch-panel-items"
+            aria-label={t("itemListAriaLabel")}
+            data-testid="batch-panel-item-list"
           >
             {items.map((item) => (
               <li
@@ -283,15 +277,28 @@ export function BatchTxQueuePanel({
                   "flex items-center gap-2 px-4 py-2 border-l-2",
                   statusRowClass(item.status),
                 )}
-                data-testid={`batch-panel-item-${item.id}`}
+                data-testid={`batch-item-${item.id}`}
+                data-status={item.status}
               >
                 {statusIcon(item.status)}
                 {actionIcon(item.action)}
                 <span className="text-xs text-zinc-300 truncate flex-1 min-w-0">
                   {item.label}
                 </span>
+                {/* tx hash prefix for completed items */}
+                {item.status === "success" && item.txHash && (
+                  <span className="text-[10px] font-mono text-zinc-600 shrink-0">
+                    {item.txHash.slice(0, 12)}…
+                  </span>
+                )}
+                {/* error message for failed items */}
+                {item.status === "failed" && item.error && (
+                  <span className="text-[10px] text-destructive shrink-0 max-w-[120px] truncate">
+                    {item.error}
+                  </span>
+                )}
                 <span className="text-[11px] text-zinc-500 shrink-0">
-                  {statusLabel(item.status)}
+                  {t(`status.${item.status}`)}
                 </span>
               </li>
             ))}

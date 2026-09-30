@@ -70,6 +70,7 @@ import {
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 import { exportInvoiceCalendarIcs } from "@/lib/export";
 import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
+import { RepaymentTimeline } from "@/components/invoice/RepaymentTimeline";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
@@ -208,11 +209,11 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   let inputError = "";
   if (amountNum > 0) {
     if (amountNum < terms.minInvestment) {
-      inputError = `Minimum investment is ${formatCurrency(terms.minInvestment, metadata.currency)}`;
+      inputError = t("errors.minInvestment", { amount: formatCurrency(terms.minInvestment, metadata.currency) });
     } else if (amountNum > fundingState.remainingCapacity) {
-      inputError = `Amount exceeds remaining capacity of ${formatCurrency(fundingState.remainingCapacity, metadata.currency)}`;
+      inputError = t("errors.exceedsCapacity", { amount: formatCurrency(fundingState.remainingCapacity, metadata.currency) });
     } else if (amountNum > kycThreshold && kycStatus !== "verified") {
-      inputError = `Investments above ${formatCurrency(kycThreshold, "USDC")} require KYC identity verification.`;
+      inputError = t("errors.kycRequired", { amount: formatCurrency(kycThreshold, "USDC") });
     }
   }
   const insufficientBalanceMessage =
@@ -420,7 +421,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                         />
                         {funding && (
                           <span className="rounded-md bg-yellow-600/20 px-2 py-0.5 text-[11px] text-yellow-300">
-                            Pending confirmation
+                            {t("pendingConfirmation")}
                           </span>
                         )}
                       </div>
@@ -787,7 +788,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                 <div className="mb-4 flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-kora-400" />
                   <h2 className="font-semibold text-zinc-100">
-                    Fund This Invoice
+                    {t("fundThisInvoice")}
                   </h2>
                 </div>
 
@@ -795,7 +796,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                 <div className="mb-6 rounded-lg bg-kora-500/5 border border-kora-500/10 p-3 flex items-center justify-between">
                   <div>
                     <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
-                      Expected APR
+                      {t("expectedApr")}
                     </p>
                     <p className="text-2xl font-bold text-kora-400 mt-0.5">
                       {formatApr(terms.apr)}
@@ -803,7 +804,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                   </div>
                   <div className="text-right">
                     <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
-                      Maturity
+                      {t("maturity")}
                     </p>
                     <div
                       className="text-xl font-bold text-zinc-200 mt-0.5 flex justify-end"
@@ -829,8 +830,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                   <div className="space-y-4">
                     <div className="rounded-lg bg-zinc-800/40 border border-zinc-700/30 p-4 text-center">
                       <p className="text-sm text-zinc-400">
-                        Connect your Stellar wallet to view yields and start
-                        investing.
+                        {t("connectToInvest")}
                       </p>
                     </div>
                     <Button
@@ -838,7 +838,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                       size="lg"
                       onClick={() => setWalletModalOpen(true)}
                     >
-                      Connect Wallet to Invest
+                      {t("connectWalletToInvest")}
                     </Button>
                   </div>
                 ) : isSmeOwner ? (
@@ -902,11 +902,10 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                     </div>
                     <div>
                       <p className="font-bold text-emerald-400 text-sm">
-                        Invoice Fully Funded
+                        {t("fullyFundedTitle")}
                       </p>
                       <p className="text-xs text-zinc-400 mt-1">
-                        This invoice has completed its financing target and is
-                        now locked in smart contract escrow.
+                        {t("fullyFundedDesc")}
                       </p>
                     </div>
                     <Button
@@ -914,7 +913,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                       disabled
                       size="lg"
                     >
-                      Fully Funded
+                      {t("fullyFunded")}
                     </Button>
                   </div>
                 ) : (
@@ -922,12 +921,15 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                   <div className="space-y-4">
                     <div>
                       <Input
-                        label="Investment Amount (USDC)"
+                        label={t("investmentAmount")}
                         type="number"
                         placeholder={`Min ${terms.minInvestment}`}
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
-                        hint={`Min: ${formatCurrency(terms.minInvestment, metadata.currency, true)} · Remaining Capacity: ${formatCurrency(fundingState.remainingCapacity, metadata.currency, true)}`}
+                        hint={t("hint.minRemaining", {
+                          min: formatCurrency(terms.minInvestment, metadata.currency, true),
+                          remaining: formatCurrency(fundingState.remainingCapacity, metadata.currency, true),
+                        })}
                         disabled={funding}
                         className={cn(
                           (inputError || insufficientBalanceMessage) &&
@@ -976,19 +978,18 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                         !amountNum
                       }
                     >
-                      {!isOnline ? "Offline — Reconnect to Fund" : "Fund Invoice"}
+                      {!isOnline ? t("offlineFund") : t("fundInvoice")}
                     </Button>
 
                     {!isOnline && (
                       <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-amber-400">
                         <span aria-hidden="true">⚡</span>
-                        You&apos;re offline. Reconnect to fund this invoice.
+                        {t("offlineNote")}
                       </p>
                     )}
 
                     <p className="text-center text-[10px] text-zinc-500 leading-normal">
-                      Liquidity deposits are held securely in Soroban escrow
-                      smart contracts until repayment is confirmed.
+                      {t("escrowNote")}
                     </p>
                   </div>
                 )}
