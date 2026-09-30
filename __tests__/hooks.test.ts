@@ -51,15 +51,47 @@ describe("useDebounce", () => {
   });
 
   it("cancels pending update on unmount", () => {
-    const { result, rerender, unmount } = renderHook(
-      ({ v }) => useDebounce(v, 300),
-      { initialProps: { v: "a" } }
-    );
-    rerender({ v: "b" });
+    const baseline = vi.getTimerCount();
+
+    const { rerender, unmount } = renderHook(({ v }) => useDebounce(v, 300), {
+      initialProps: { v: "a" },
+    });
+
+    rerender({ v: "b" }); // arms a pending update
+
     unmount();
+
+    // The effect cleanup must clear the pending timer, so the timer count
+    // returns to its pre-render baseline.
+    expect(vi.getTimerCount()).toBe(baseline);
+    expect(() => act(() => vi.advanceTimersByTime(300))).not.toThrow();
+  });
+
+  it("re-arms the timer using the new delay when the delay changes", () => {
+    const { result, rerender } = renderHook(({ v, d }) => useDebounce(v, d), {
+      initialProps: { v: "a", d: 300 },
+    });
+
+    rerender({ v: "b", d: 500 });
+
+    // 300ms is the *old* delay; the pending timer now runs for 500ms from the
+    // rerender, so the value must still be pending after 300ms.
     act(() => vi.advanceTimersByTime(300));
-    // No error thrown — timer was cleaned up
     expect(result.current).toBe("a");
+
+    act(() => vi.advanceTimersByTime(200));
+    expect(result.current).toBe("b");
+  });
+
+  it("honours a shortened delay", () => {
+    const { result, rerender } = renderHook(({ v, d }) => useDebounce(v, d), {
+      initialProps: { v: "a", d: 1000 },
+    });
+
+    rerender({ v: "b", d: 100 });
+
+    act(() => vi.advanceTimersByTime(100));
+    expect(result.current).toBe("b");
   });
 });
 
@@ -74,28 +106,113 @@ describe("useThrottle", () => {
     expect(result.current).toBe("hello");
   });
 
-  it("emits updated value after interval elapses", () => {
+  it("defers the first change to the trailing edge, because mounting opens the window", () => {
     const { result, rerender } = renderHook(({ v }) => useThrottle(v, 200), {
       initialProps: { v: "a" },
     });
+
+    // Mount already consumed the leading slot, so this change must wait.
     rerender({ v: "b" });
-    // Advance past the interval to trigger the trailing update
+    expect(result.current).toBe("a");
+
     act(() => vi.advanceTimersByTime(200));
     expect(result.current).toBe("b");
   });
 
-  it("emits only the last value when updated rapidly", () => {
+  it("does not emit before the interval elapses", () => {
     const { result, rerender } = renderHook(({ v }) => useThrottle(v, 200), {
       initialProps: { v: "a" },
     });
+
+    rerender({ v: "b" });
+    act(() => vi.advanceTimersByTime(199));
+    expect(result.current).toBe("a");
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(result.current).toBe("b");
+  });
+
+  it("coalesces rapid changes and emits only the final value", () => {
+    const { result, rerender } = renderHook(({ v }) => useThrottle(v, 200), {
+      initialProps: { v: "a" },
+    });
+
     rerender({ v: "b" });
     act(() => vi.advanceTimersByTime(50));
     rerender({ v: "c" });
     act(() => vi.advanceTimersByTime(50));
     rerender({ v: "d" });
-    // Still within interval — not yet updated
+
+    // Every change inside the window is deferred; nothing has landed yet.
     expect(result.current).toBe("a");
-    // After interval, trailing edge fires with latest value
+
+    act(() => vi.advanceTimersByTime(200));
+    expect(result.current).toBe("d");
+  });
+
+  it("emits immediately once the interval has fully elapsed", () => {
+    const { result, rerender } = renderHook(({ v }) => useThrottle(v, 200), {
+      initialProps: { v: "a" },
+    });
+
+    act(() => vi.advanceTimersByTime(250)); // window is wide open
+
+    rerender({ v: "b" });
+    expect(result.current).toBe("b");
+  });
+
+  it("reopens the window after an immediate emit", () => {
+    const { result, rerender } = renderHook(({ v }) => useThrottle(v, 200), {
+      initialProps: { v: "a" },
+    });
+
+    act(() => vi.advanceTimersByTime(250));
+    rerender({ v: "b" }); // immediate
+    expect(result.current).toBe("b");
+
+    rerender({ v: "c" }); // window reopened, so this is deferred
+    expect(result.current).toBe("b");
+
+    act(() => vi.advanceTimersByTime(200));
+    expect(result.current).toBe("c");
+  });
+
+  it("clears the pending trailing update on unmount", () => {
+    const baseline = vi.getTimerCount();
+
+    const { result, rerender, unmount } = renderHook(({ v }) => useThrottle(v, 200), {
+      initialProps: { v: "a" },
+    });
+
+    rerender({ v: "b" }); // arms a trailing update
+    expect(result.current).toBe("a");
+
+    unmount();
+
+    // Unmounting must clear the trailing timer, returning to the baseline.
+    expect(vi.getTimerCount()).toBe(baseline);
+    expect(() => act(() => vi.advanceTimersByTime(500))).not.toThrow();
+    expect(result.current).toBe("a");
+  });
+
+  it("re-arms the trailing edge when the value changes again", () => {
+    const { result, rerender } = renderHook(({ v }) => useThrottle(v, 200), {
+      initialProps: { v: "a" },
+    });
+
+    // First change at t=0 arms a trailing emit for t=200.
+    rerender({ v: "b" });
+    act(() => vi.advanceTimersByTime(150));
+
+    // At t=150 the pending timer is cleared and re-armed for t=150+50=200.
+    rerender({ v: "c" });
+    act(() => vi.advanceTimersByTime(100)); // now t=250
+    expect(result.current).toBe("c");
+
+    // That emit reopened the window, so "d" is deferred rather than immediate.
+    rerender({ v: "d" });
+    expect(result.current).toBe("c");
+
     act(() => vi.advanceTimersByTime(200));
     expect(result.current).toBe("d");
   });
