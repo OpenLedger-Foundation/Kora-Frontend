@@ -4,6 +4,8 @@ import { useDebounce } from "../hooks/useDebounce";
 import { useThrottle } from "../hooks/useThrottle";
 import { useDebouncedCallback } from "../hooks/useDebouncedCallback";
 import { useResizeObserver } from "../hooks/useResizeObserver";
+import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
+import { useTxSimulation } from "../hooks/useTxSimulation";
 import { createRef } from "react";
 
 // ─── useDebounce ──────────────────────────────────────────────────────────────
@@ -218,5 +220,81 @@ describe("useResizeObserver", () => {
     const { unmount } = renderHook(() => useResizeObserver(ref));
     unmount();
     expect(disconnectMock).toHaveBeenCalled();
+  });
+});
+
+// ─── useTxSimulation ──────────────────────────────────────────────────────────
+
+describe("useTxSimulation", () => {
+  it("resolves the dialog gate with true when the user proceeds", async () => {
+    const { result } = renderHook(() => useTxSimulation());
+
+    let gate: Promise<boolean> | undefined;
+    act(() => {
+      gate = result.current.requestConfirmation();
+    });
+
+    expect(result.current.isDialogOpen).toBe(true);
+
+    act(() => {
+      result.current.proceed();
+    });
+
+    await expect(gate).resolves.toBe(true);
+    expect(result.current.isDialogOpen).toBe(false);
+  });
+
+  it("resolves the dialog gate with false when the user cancels", async () => {
+    const { result } = renderHook(() => useTxSimulation());
+
+    let gate: Promise<boolean> | undefined;
+    act(() => {
+      gate = result.current.requestConfirmation();
+    });
+
+    expect(result.current.isDialogOpen).toBe(true);
+
+    act(() => {
+      result.current.cancel();
+    });
+
+    await expect(gate).resolves.toBe(false);
+    expect(result.current.isDialogOpen).toBe(false);
+  });
+});
+
+// ─── useKeyboardShortcuts ─────────────────────────────────────────────────────
+
+describe("useKeyboardShortcuts", () => {
+  const fireKey = (init: KeyboardEventInit) => {
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, ...init }));
+    });
+  };
+
+  const focusElement = (el: HTMLElement) => {
+    document.body.appendChild(el);
+    el.focus();
+    return el;
+  };
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("invokes the handler for a matching single-key shortcut", () => {
+    const handler = vi.fn();
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    fireKey({ key: "k" });
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("ignores shortcuts when focus is in an input", () => {
+    const handler = vi.fn();
+    const input = focusElement(document.createElement("input"));
+    renderHook(() => useKeyboardShortcuts({ "k": handler }));
+    fireKey({ key: "k" });
+    expect(handler).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(input);
   });
 });
