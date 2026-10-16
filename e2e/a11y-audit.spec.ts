@@ -51,6 +51,44 @@ async function auditPage(
   return violations;
 }
 
+/**
+ * Dismiss tour + changelog modal overlays so they never obscure page landmarks
+ * or generate false-positive accessibility violations in test suites.
+ */
+async function suppressOverlays(page: Parameters<typeof injectAxe>[0]) {
+  await page.addInitScript(() => {
+    localStorage.setItem("kora-tour-done", "true");
+    localStorage.setItem("kora-changelog-seen-version", "0.1.0");
+  });
+}
+
+/**
+ * Configure active locale before navigation via cookie and initScript.
+ * Sets the 'kora-locale' cookie so SSR renders the correct lang and dir attributes,
+ * and sets document.cookie + localStorage state before hydration.
+ */
+async function setLocale(
+  page: Parameters<typeof injectAxe>[0],
+  locale: "ar" | "en" | "es" | "pt-BR"
+) {
+  await suppressOverlays(page);
+
+  // Set the cookie on browser context
+  await page.context().addCookies([
+    {
+      name: "kora-locale",
+      value: locale,
+      domain: "localhost",
+      path: "/",
+    },
+  ]);
+
+  // Set via init script for client-side persistence and early SSR hydration match
+  await page.addInitScript((loc) => {
+    document.cookie = `kora-locale=${loc}; path=/; max-age=2592000; SameSite=Lax`;
+  }, locale);
+}
+
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 test.describe("Accessibility audit — landing page (/)", () => {
@@ -74,6 +112,57 @@ test.describe("Accessibility audit — marketplace (/marketplace)", () => {
     });
   });
 });
+
+// ─── Marketplace RTL (Issue #961) ─────────────────────────────────────────────
+//
+// Arabic (ar) is the primary right-to-left locale. Validates that mirroring
+// in filters, comparison bar, navigation, and tabular/card layouts does not
+// break ARIA landmarks, trigger contrast violations, or corrupt DOM hierarchy.
+
+test.describe("Accessibility audit — marketplace under Arabic RTL locale (/marketplace)", () => {
+  test.beforeEach(async ({ page }) => {
+    await setLocale(page, "ar");
+  });
+
+  test("applies dir=rtl and lang=ar on html element", async ({ page }) => {
+    await page.goto("/marketplace");
+    await page.waitForLoadState("networkidle");
+
+    const html = page.locator("html");
+    await expect(html).toHaveAttribute("dir", "rtl");
+    await expect(html).toHaveAttribute("lang", "ar");
+  });
+
+  test("no critical or serious axe violations in default RTL marketplace view", async ({ page }) => {
+    await page.goto("/marketplace");
+    await page.waitForLoadState("networkidle");
+
+    await auditPage(page, {
+      disableRules: [],
+    });
+  });
+
+  test("no critical or serious axe violations when comparison bar is active in RTL", async ({ page }) => {
+    // Navigate with ?compare query to hydrate comparison list
+    await page.goto("/marketplace?compare=inv-1,inv-2");
+    await page.waitForLoadState("networkidle");
+
+    await auditPage(page, {
+      disableRules: [],
+    });
+  });
+
+  test("no critical or serious axe violations when empty marketplace state rendered in RTL", async ({ page }) => {
+    // Navigate with query parameters that return 0 results
+    await page.goto("/marketplace?search=nonexistent_token_xyz_99999");
+    await page.waitForLoadState("networkidle");
+
+    await auditPage(page, {
+      disableRules: [],
+    });
+  });
+});
+
 
 test.describe("Accessibility audit — invoice detail (/marketplace/:id)", () => {
   test("no critical or serious axe violations on sample invoice", async ({ page }) => {
