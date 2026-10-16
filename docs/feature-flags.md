@@ -30,6 +30,7 @@ compared against the literal string `"true"` — anything else is off.
 | `kyb-mint-gate`             | `NEXT_PUBLIC_ENABLE_KYB_MINT_GATE`             | Gate invoice minting behind KYB/KYC business verification in the mint wizard.                                                                                                                              |
 | `secondary-market`          | `NEXT_PUBLIC_ENABLE_SECONDARY_MARKET`          | Secondary market P2P position-listing route (`/secondary`) — hides the navbar link and shows a maintenance empty state when off.                                                                           |
 | `category-taxonomy-preview` | `NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW` | Developer preview panel for the category taxonomy in the marketplace filters.                                                                                                                              |
+| `test-components`           | `NEXT_PUBLIC_ENABLE_TEST_COMPONENTS`           | Development-only test harness route (`/test-components`) for isolated component testing (`FileInput`, `RangeSlider`, `DatePicker`) and Playwright component specs (#725, #968). Off by default in production builds; requests to `/test-components` are redirected to `/` by middleware unless explicitly enabled. |
 
 ### Defaults
 
@@ -40,8 +41,8 @@ Two layers of default apply:
    env var is literally `"false"`** (`lib/featureFlags.ts:70`).
 2. **`.env.example`.** The checked-in example sets recommended dev values:
    `mock-data`, `devtools`, `comparison`, `batch-actions`, and
-   `secondary-market` are `true`; `onboarding-tour` and `kyb-mint-gate` are
-   `false`; `category-taxonomy-preview` is not listed (off). Copying
+   `secondary-market` are `true`; `onboarding-tour`, `kyb-mint-gate`,
+   `category-taxonomy-preview`, and `test-components` are `false`. Copying
    `.env.example` to `.env.local` reproduces the standard dev setup.
 
 ## Overriding locally
@@ -53,6 +54,7 @@ Add or edit the variable in `.env.local`:
 ```bash
 NEXT_PUBLIC_ENABLE_SECONDARY_MARKET=true
 NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
+NEXT_PUBLIC_ENABLE_TEST_COMPONENTS=true
 ```
 
 Because `NEXT_PUBLIC_*` values are inlined into the client bundle at
@@ -86,6 +88,7 @@ whenever `NODE_ENV === "development"` or `NEXT_PUBLIC_ENABLE_DEVTOOLS === "true"
 | `kyb-mint-gate`             | `app/invoice/create/page.tsx`                                                                                                       |
 | `secondary-market`          | `components/layout/Navbar.tsx`                                                                                                      |
 | `category-taxonomy-preview` | `components/marketplace/CategoryTaxonomyPreview.tsx`                                                                                |
+| `test-components`           | `middleware.ts` (route access gate), `app/test-components/page.tsx` (isolated fixture harness), Playwright component tests (`e2e/components/`) |
 
 ## Adding a new flag
 

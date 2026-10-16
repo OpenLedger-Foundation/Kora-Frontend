@@ -23,6 +23,7 @@ const FLAG_DESCRIPTIONS: Record<FeatureFlag, string> = {
   "kyb-mint-gate": "Gate invoice minting behind KYB verification.",
   "secondary-market": "Enable secondary market P2P trading route.",
   "category-taxonomy-preview": "Preview enhanced category taxonomy filters.",
+  "test-components": "Enable isolated component test fixture harness at /test-components.",
 };
 
 export function FeatureFlagPanel() {
