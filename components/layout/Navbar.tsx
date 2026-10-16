@@ -51,7 +51,8 @@ const MENU_ID = "mobile-nav-menu";
  * modal had been dismissed. The dot marks a release the user has not opened
  * yet and clears itself when the modal opens.
  */
-function ChangelogNavButton() {
+export function ChangelogNavButton() {
+  const t = useTranslations("footer");
   const setChangelogOpen = useUIStore((s) => s.setChangelogOpen);
   const { hasUnread } = useChangelogBadge();
 
@@ -60,8 +61,8 @@ function ChangelogNavButton() {
       type="button"
       onClick={() => setChangelogOpen(true)}
       className="relative hidden rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:flex"
-      aria-label={hasUnread ? "Open changelog (new release available)" : "Open changelog"}
-      title="Changelog"
+      aria-label={hasUnread ? t("openChangelogUnreadLabel") : t("openChangelogLabel")}
+      title={t("changelog")}
     >
       <Sparkles className="h-4 w-4" />
       {hasUnread && (
