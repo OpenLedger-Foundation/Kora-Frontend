@@ -1,9 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import { preloadRecharts } from "@/lib/lazyModules";
 const YieldVarianceChart = dynamic(() => import("@/components/analytics/YieldVarianceChart"), {
   ssr: false,
 });
@@ -136,6 +137,10 @@ function PortfolioAnalyticsInner() {
 
   const { formatCurrency, formatPercentage } = useFormatters();
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
+
+  useEffect(() => {
+    preloadRecharts();
+  }, []);
 
   const handleFiltersChange = useCallback(
     (next: AnalyticsFilters) => {

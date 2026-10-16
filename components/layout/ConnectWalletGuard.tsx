@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { preloadRecharts } from "@/lib/lazyModules";
 
 function IntendedDestinationSetter() {
   const pathname = usePathname();
@@ -17,6 +18,9 @@ function IntendedDestinationSetter() {
     const redirectTo = searchParams.get("redirectTo");
     if (redirectTo) {
       setIntendedDestination(redirectTo);
+      if (redirectTo === "/analytics" || redirectTo.startsWith("/analytics/")) {
+        preloadRecharts();
+      }
       return;
     }
 
@@ -31,6 +35,9 @@ function IntendedDestinationSetter() {
 
       if (isProtectedRoute) {
         setIntendedDestination(pathname);
+        if (pathname === "/analytics" || pathname.startsWith("/analytics/")) {
+          preloadRecharts();
+        }
       }
     }
   }, [pathname, searchParams, setIntendedDestination, intendedDestination]);

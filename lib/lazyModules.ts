@@ -81,11 +81,43 @@ export function loadRecharts(): Promise<RechartsModule> {
   return _rechartsPromise;
 }
 
+let _hasPreloadedRecharts = false;
+
 /**
- * Pre-warm recharts when the user navigates to or hovers the analytics section.
+ * Pre-warm recharts when the user signals intent to view analytics (hover/focus in Navbar,
+ * or when ConnectWalletGuard sets an intended destination towards /analytics).
+ *
+ * Performance guards:
+ *  - Module-level flag (`_hasPreloadedRecharts`) prevents redundant preload invocations per session.
+ *  - Respects reduced-data mode via `navigator.connection.saveData`.
+ *  - Server-side guarded: returns immediately if executed outside a browser environment.
  */
 export function preloadRecharts(): void {
-  loadRecharts().catch(() => undefined);
+  if (typeof window === "undefined") return;
+  if (_hasPreloadedRecharts) return;
+
+  // Respect user preference for reduced-data mode (NetworkInformation API)
+  if (
+    typeof navigator !== "undefined" &&
+    "connection" in navigator &&
+    Boolean((navigator as any).connection?.saveData)
+  ) {
+    return;
+  }
+
+  _hasPreloadedRecharts = true;
+  loadRecharts().catch(() => {
+    // Reset so transient network errors can be retried on subsequent user intent
+    _hasPreloadedRecharts = false;
+  });
+}
+
+/**
+ * Internal testing helper to reset the preload state between unit tests.
+ */
+export function _resetPreloadRechartsForTesting(): void {
+  _hasPreloadedRecharts = false;
+  _rechartsPromise = null;
 }
 
 // ─── 3. PDF export (html2canvas + jsPDF) ─────────────────────────────────────

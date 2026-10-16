@@ -41,6 +41,7 @@ import { useWalletStore } from "@/store/walletStore";
 import { ShortcutBadge } from "@/components/ui/ShortcutBadge";
 import { cn } from "@/lib/utils";
 import { useFeatureFlag } from "@/lib/featureFlags";
+import { preloadRecharts } from "@/lib/lazyModules";
 
 const MENU_ID = "mobile-nav-menu";
 
@@ -171,11 +172,15 @@ export function Navbar() {
             else if (href === "/invoice/create") tourAttr = "data-tour='create-invoice-btn'";
             else if (href === "/analytics") tourAttr = "data-tour='analytics-link'";
 
+            const isAnalytics = href === "/analytics";
+
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
+                onMouseEnter={isAnalytics ? preloadRecharts : undefined}
+                onFocus={isAnalytics ? preloadRecharts : undefined}
                 data-tour={
                   href === "/marketplace"
                     ? "marketplace-link"
@@ -331,11 +336,14 @@ export function Navbar() {
             <div className="px-4 pb-4 pt-2 space-y-1">
               {NAV_LINKS.map(({ href, label, icon: Icon }) => {
                 const active = pathname.startsWith(href);
+                const isAnalytics = href === "/analytics";
                 return (
                   <Link
                     key={href}
                     href={href}
                     aria-current={active ? "page" : undefined}
+                    onMouseEnter={isAnalytics ? preloadRecharts : undefined}
+                    onFocus={isAnalytics ? preloadRecharts : undefined}
                     data-tour={
                       href === "/marketplace"
                         ? "marketplace-link"
