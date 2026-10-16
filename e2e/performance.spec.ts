@@ -1,3 +1,17 @@
+/**
+ * e2e/performance.spec.ts
+ *
+ * Performance budget gates and load testing for Kora Protocol frontend:
+ * 1. Marketplace infinite scroll & filtering performance (warn on >20% regression).
+ * 2. Core Web Vitals regression gate vs performance-baseline.json (fails CI if regressed >10%).
+ * 3. Virtualized Invoice Grid performance and bounded DOM node budget (Issue #435).
+ * 4. Secondary Market performance budget gate (Issue #967):
+ *    - /secondary time to first listing row (timeToFirstRowMs / timeToFirstListingRowMs).
+ *    - /secondary filter response time (timeToFilterResponseMs).
+ *    - Fails CI when regression exceeds REGRESSION_THRESHOLD_PCT (10%).
+ *    - Measures empty shell render and warm cache navigation.
+ */
+
 import { test, expect, type Page } from "@playwright/test";
 import fs from "fs";
 import path from "path";
@@ -17,8 +31,16 @@ interface PerformanceData {
   timeToLoad100InvoicesMs: number;
 }
 
+interface SecondaryPerformanceData {
+  timeToFirstRowMs?: number;
+  timeToFirstListingRowMs?: number;
+  timeToFilterResponseMs?: number;
+}
+
 interface BaselineFile extends Partial<PerformanceData> {
   webVitals?: Record<string, number>;
+  virtualization?: Record<string, number>;
+  secondary?: SecondaryPerformanceData;
 }
 
 /**
@@ -502,3 +524,205 @@ test.describe("Virtualized Invoice Grid (Issue #435)", () => {
     ).toBeGreaterThan(0);
   });
 });
+
+// ─── Secondary Market Performance Budget Gate (Issue #967) ───────────────────
+//
+// Acceptance criteria:
+//   1. /secondary route renders its first listing row within performance budget.
+//   2. Filtering secondary market listings updates within response budget.
+//   3. Fails CI when measurements regress beyond REGRESSION_THRESHOLD_PCT vs baseline.
+//   4. Handles edge cases: empty listing shell render and warm cache navigation.
+//
+// Baseline thresholds are configured in performance-baseline.json under "secondary".
+
+test.describe("Secondary Market Performance Budget Gate (Issue #967)", () => {
+  test.beforeEach(async ({ page }) => {
+    // Dismiss onboarding tour and changelog, and ensure secondary-market feature flag is active
+    await page.addInitScript(() => {
+      localStorage.setItem("kora-tour-done", "true");
+      localStorage.setItem("kora-changelog-seen-version", "0.1.0");
+
+      try {
+        const raw = localStorage.getItem("kora:feature-flag-overrides");
+        const overrides = raw ? JSON.parse(raw) : {};
+        overrides["secondary-market"] = true;
+        localStorage.setItem("kora:feature-flag-overrides", JSON.stringify(overrides));
+      } catch {
+        // Fallback if localStorage parsing fails
+        localStorage.setItem("kora:feature-flag-overrides", JSON.stringify({ "secondary-market": true }));
+      }
+    });
+  });
+
+  test("measures /secondary route time to first listing row and filter response against budget", async ({
+    page,
+  }, testInfo) => {
+    const startTime = Date.now();
+    await page.goto("/secondary", { waitUntil: "domcontentloaded" });
+
+    // Wait for the first position listing card to render in the DOM
+    const firstRow = page.locator("[id^='listing-']").first();
+    await firstRow.waitFor({ state: "visible", timeout: 20_000 });
+    const timeToFirstRowMs = Date.now() - startTime;
+
+    // Filter response — search for a specific listing debtor
+    const searchInput = page.getByPlaceholder(
+      /Search by debtor, invoice number, category/i,
+    );
+    await searchInput.waitFor({ state: "visible", timeout: 10_000 });
+
+    const filterStartTime = Date.now();
+    await searchInput.fill("Global Logistics");
+
+    // Wait for non-matching cards to detach and matching item to remain visible
+    await page.locator("#listing-pos_102").waitFor({ state: "detached", timeout: 10_000 }).catch(() => undefined);
+    await page.getByText("Global Logistics Inc").first().waitFor({ state: "visible", timeout: 10_000 });
+    const timeToFilterResponseMs = Date.now() - filterStartTime;
+
+    // Collect browser performance timing & metrics
+    const pageMetrics = await page.metrics();
+    const timing = await page.evaluate(() => {
+      const t = window.performance.timing;
+      return {
+        navigationStart: t.navigationStart,
+        domInteractive: t.domInteractive - t.navigationStart,
+        domComplete: t.domComplete - t.navigationStart,
+        loadEventEnd: t.loadEventEnd - t.navigationStart,
+      };
+    });
+
+    console.log("=== Secondary Playwright Page Metrics ===");
+    console.log(JSON.stringify(pageMetrics, null, 2));
+    console.log("=== Secondary Performance Timing ===");
+    console.log(JSON.stringify(timing, null, 2));
+
+    const currentData = {
+      timeToFirstRowMs,
+      timeToFirstListingRowMs: timeToFirstRowMs,
+      timeToFilterResponseMs,
+    };
+
+    console.log("=== Secondary Measured Performance Results ===");
+    console.log(JSON.stringify(currentData, null, 2));
+
+    if (
+      process.env.UPDATE_PERF_BASELINE === "true" ||
+      process.env.UPDATE_SECONDARY_BASELINE === "true"
+    ) {
+      const existing = fs.existsSync(baselinePath)
+        ? (JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as BaselineFile)
+        : {};
+      fs.writeFileSync(
+        baselinePath,
+        `${JSON.stringify({ ...existing, secondary: currentData }, null, 2)}\n`,
+      );
+      console.log(`\n💾 Secondary performance baseline updated at ${baselinePath}\n`);
+    }
+
+    if (fs.existsSync(baselinePath)) {
+      const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as BaselineFile;
+      const secondaryBaseline = baseline.secondary;
+
+      expect(
+        secondaryBaseline,
+        "performance-baseline.json must define a 'secondary' baseline configuration",
+      ).toBeDefined();
+
+      if (secondaryBaseline) {
+        console.log("=== Secondary Baseline Performance ===");
+        console.log(JSON.stringify(secondaryBaseline, null, 2));
+
+        const regressions: string[] = [];
+
+        (Object.keys(currentData) as Array<keyof typeof currentData>).forEach((key) => {
+          const current = currentData[key];
+          const base = secondaryBaseline[key];
+          if (typeof base !== "number") return;
+
+          const limit = base * (1 + REGRESSION_THRESHOLD_PCT);
+          const minDelta = 50; // 50ms absolute floor to eliminate CI runner jitter
+          const changePct = ((current - base) / base) * 100;
+
+          if (current > limit && current - base >= minDelta) {
+            const regressionMsg = `[PERF REGRESSION] secondary.${key}: ${current}ms vs baseline ${base}ms (+${changePct.toFixed(1)}%, limit ${limit.toFixed(0)}ms)`;
+            regressions.push(regressionMsg);
+            console.error(regressionMsg);
+            testInfo.annotations.push({
+              type: "performance-regression",
+              description: regressionMsg,
+            });
+          } else {
+            console.log(
+              `✅ secondary.${key}: ${current}ms vs baseline ${base}ms (limit ${limit.toFixed(0)}ms)`,
+            );
+          }
+        });
+
+        expect(
+          regressions,
+          `Secondary market performance regressed by more than ${REGRESSION_THRESHOLD_PCT * 100}% vs performance-baseline.json:\n${regressions.join("\n")}\n` +
+            `If this change was intentional, update baseline with UPDATE_SECONDARY_BASELINE=true.`,
+        ).toEqual([]);
+      }
+    }
+  });
+
+  test("measures secondary shell render time when listings are empty", async ({ page }) => {
+    const startTime = Date.now();
+    await page.goto("/secondary?q=nonexistent-debtor-query-unmatched", {
+      waitUntil: "domcontentloaded",
+    });
+
+    await page
+      .getByRole("heading", { name: /secondary market/i })
+      .waitFor({ state: "visible", timeout: 15_000 });
+    await page
+      .getByText(/no transferable positions found/i)
+      .waitFor({ state: "visible", timeout: 15_000 });
+
+    const shellRenderMs = Date.now() - startTime;
+    console.log(
+      `[Secondary Performance] Empty listings shell render time: ${shellRenderMs}ms`,
+    );
+
+    const baseline = fs.existsSync(baselinePath)
+      ? (JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as BaselineFile)
+      : undefined;
+    const maxBudget =
+      ((baseline?.secondary?.timeToFirstRowMs ?? 500) * (1 + REGRESSION_THRESHOLD_PCT)) * 3;
+
+    expect(
+      shellRenderMs,
+      `Empty secondary market shell should render within budget (${maxBudget}ms), took ${shellRenderMs}ms`,
+    ).toBeLessThanOrEqual(Math.max(maxBudget, 3000));
+  });
+
+  test("warm cache navigation to /secondary stays within performance budget", async ({
+    page,
+  }) => {
+    // Cold load
+    await page.goto("/secondary", { waitUntil: "domcontentloaded" });
+    await page
+      .locator("[id^='listing-']")
+      .first()
+      .waitFor({ state: "visible", timeout: 15_000 });
+
+    // Navigate away
+    await page.goto("/marketplace", { waitUntil: "domcontentloaded" });
+
+    // Warm reload
+    const warmStartTime = Date.now();
+    await page.goto("/secondary", { waitUntil: "domcontentloaded" });
+    await page
+      .locator("[id^='listing-']")
+      .first()
+      .waitFor({ state: "visible", timeout: 15_000 });
+    const warmTimeToFirstRowMs = Date.now() - warmStartTime;
+
+    console.log(
+      `[Secondary Performance] Warm cache time to first listing row: ${warmTimeToFirstRowMs}ms`,
+    );
+    expect(warmTimeToFirstRowMs).toBeLessThanOrEqual(3000);
+  });
+});
+

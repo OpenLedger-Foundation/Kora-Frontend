@@ -13,5 +13,10 @@
     "maxDomCardsBudget": 30,
     "filterResponseThresholdMs": 500,
     "mobileHorizontalOverflowPx": 1
+  },
+  "secondary": {
+    "timeToFirstRowMs": 500,
+    "timeToFirstListingRowMs": 500,
+    "timeToFilterResponseMs": 500
   }
 }
