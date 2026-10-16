@@ -301,6 +301,30 @@
     },
     "hint": {
       "minRemaining": "Mín: ${min} · Capacidad Restante: ${remaining}"
+    },
+    "orderBook": {
+      "title": "Profundidad del libro de órdenes",
+      "askCount": "{count, plural, one {# Orden} other {# Órdenes}}",
+      "description": "Posiciones del mercado secundario disponibles para esta factura, ordenadas por precio de venta.",
+      "empty": {
+        "title": "Aún no hay ofertas",
+        "description": "No se han publicado posiciones a la venta para esta factura."
+      },
+      "tableLabel": "Profundidad del libro de órdenes para esta factura",
+      "columns": {
+        "askPrice": "Precio de venta",
+        "discount": "Descuento",
+        "cumulativeVolume": "Vol. Acumulado",
+        "action": "Acción"
+      },
+      "best": "Mejor",
+      "acquireAria": "Adquirir posición {positionId} a {price}",
+      "acquire": "Adquirir",
+      "footer": {
+        "faceValue": "Valor nominal por posición:",
+        "totalDepth": "Profundidad total de venta:"
+      },
+      "depthBarAria": "Profundidad a {price}: {volume} de volumen acumulado ({percent}%)"
     }
   },
   "createInvoice": {

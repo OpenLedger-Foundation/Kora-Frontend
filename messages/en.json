@@ -301,6 +301,30 @@
     },
     "hint": {
       "minRemaining": "Min: ${min} · Remaining Capacity: ${remaining}"
+    },
+    "orderBook": {
+      "title": "Order Book Depth",
+      "askCount": "{count, plural, one {# Ask} other {# Asks}}",
+      "description": "Secondary-market positions available for this invoice, sorted by ask price.",
+      "empty": {
+        "title": "No listings yet",
+        "description": "No positions have been listed for sale on this invoice."
+      },
+      "tableLabel": "Order book depth for this invoice",
+      "columns": {
+        "askPrice": "Ask Price",
+        "discount": "Discount",
+        "cumulativeVolume": "Cum. Volume",
+        "action": "Action"
+      },
+      "best": "Best",
+      "acquireAria": "Acquire position {positionId} at {price}",
+      "acquire": "Acquire",
+      "footer": {
+        "faceValue": "Face value per position:",
+        "totalDepth": "Total ask depth:"
+      },
+      "depthBarAria": "Depth at {price}: {volume} cumulative volume ({percent}%)"
     }
   },
   "createInvoice": {

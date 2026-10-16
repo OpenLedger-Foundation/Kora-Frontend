@@ -123,7 +123,11 @@ export function InvoiceOrderBookDepth({
 
             {/* Rows */}
             {depthRows.map((row, idx) => {
-              const depthBarWidth = `${Math.round((row.cumulativeVolume / maxCumulative) * 100)}%`;
+              const depthPercent =
+                maxCumulative > 0
+                  ? Math.round((row.cumulativeVolume / maxCumulative) * 100)
+                  : 0;
+              const depthBarWidth = `${depthPercent}%`;
               const isLowest = idx === 0;
 
               return (
@@ -137,9 +141,18 @@ export function InvoiceOrderBookDepth({
                 >
                   {/* Depth visualisation bar */}
                   <span
-                    className="pointer-events-none absolute inset-y-0 left-0 bg-emerald-500/8 transition-[width]"
+                    role="progressbar"
+                    aria-valuenow={depthPercent}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuetext={`${depthPercent}%`}
+                    aria-label={t("depthBarAria", {
+                      price: formatCurrency(row.askPrice, currency),
+                      volume: formatCurrency(row.cumulativeVolume, currency),
+                      percent: depthPercent,
+                    })}
+                    className="pointer-events-none absolute inset-y-0 left-0 rtl:left-auto rtl:right-0 bg-emerald-500/8 transition-[width]"
                     style={{ width: depthBarWidth }}
-                    aria-hidden
                   />
 
                   <span role="cell" className="relative font-semibold text-white">

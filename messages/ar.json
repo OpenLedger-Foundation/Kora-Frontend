@@ -301,6 +301,30 @@
     },
     "hint": {
       "minRemaining": "الحد الأدنى: ${min} · الطاقة المتبقية: ${remaining}"
+    },
+    "orderBook": {
+      "title": "عمق سجل الطلبات",
+      "askCount": "{count, plural, one {عرض واحد} other {# عروض}}",
+      "description": "مراكز السوق الثانوية المتاحة لهذه الفاتورة، مرتبة حسب سعر الطلب.",
+      "empty": {
+        "title": "لا توجد قوائم بعد",
+        "description": "لم يتم إدراج أي مراكز للبيع في هذه الفاتورة."
+      },
+      "tableLabel": "عمق سجل الطلبات لهذه الفاتورة",
+      "columns": {
+        "askPrice": "سعر الطلب",
+        "discount": "الخصم",
+        "cumulativeVolume": "الحجم التراكمي",
+        "action": "إجراء"
+      },
+      "best": "الأفضل",
+      "acquireAria": "الحصول على المركز {positionId} بسعر {price}",
+      "acquire": "الحصول على",
+      "footer": {
+        "faceValue": "القيمة الاسمية لكل مركز:",
+        "totalDepth": "إجمالي عمق الطلب:"
+      },
+      "depthBarAria": "العمق عند {price}: {volume} الحجم التراكمي ({percent}%)"
     }
   },
   "createInvoice": {
