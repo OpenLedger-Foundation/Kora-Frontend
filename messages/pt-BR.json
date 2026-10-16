@@ -1355,5 +1355,10 @@
     "legendItemAria": "Explorar o marketplace filtrado por {name}: {percent}",
     "filteringBy": "Filtrando o marketplace por <strong>{dimension}</strong>: {value}",
     "clearFilter": "Limpar filtro"
+  },
+  "ui": {
+    "select": {
+      "loading": "Carregando opções..."
+    }
   }
 }

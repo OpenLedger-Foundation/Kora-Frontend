@@ -14,6 +14,14 @@ function useSafeCommonTranslations() {
   }
 }
 
+function useSafeUiTranslations() {
+  try {
+    return useTranslations("ui.select");
+  } catch {
+    return null;
+  }
+}
+
 export interface Option {
   value: string;
   label: string;
@@ -36,6 +44,8 @@ export interface SelectProps {
   isMulti?: boolean;
   isSearchable?: boolean;
   loadOptions?: (query: string) => Promise<Option[]>;
+  loading?: boolean;
+  loadingText?: string;
   className?: string;
   disabled?: boolean;
   name?: string;
@@ -94,6 +104,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       isMulti = false,
       isSearchable = false,
       loadOptions,
+      loading = false,
+      loadingText,
       className,
       disabled = false,
       id,
@@ -102,18 +114,23 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
     forwardedRef
   ) => {
     const t = useSafeCommonTranslations();
-    const effectivePlaceholder = placeholder ?? t?.("selectOption");
-    const searchPlaceholder = t?.("searchOptions");
+    const tUi = useSafeUiTranslations();
     const [isOpen, setIsOpen] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState("");
     const [asyncOptions, setAsyncOptions] = React.useState<Option[]>([]);
     const [isLoadingAsync, setIsLoadingAsync] = React.useState(false);
+    const isBusy = Boolean(loading || isLoadingAsync);
+    const effectivePlaceholder = placeholder ?? t?.("selectOption");
+    const searchPlaceholder = t?.("searchOptions");
+    const resolvedLoadingText = loadingText ?? tUi?.("loading") ?? "Loading options...";
 
     const selectId = id || label?.toLowerCase().replace(/\s+/g, "-");
+    const statusId = `${selectId}-status`;
     const errorId = `${selectId}-error`;
     const ariaDescribedBy = [
       error ? errorId : null,
       props["aria-describedby"] ? String(props["aria-describedby"]) : null,
+      statusId,
     ]
       .filter(Boolean)
       .join(" ");
@@ -310,6 +327,8 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           aria-invalid={!!error}
           aria-describedby={ariaDescribedBy || undefined}
           aria-required={props["aria-required"]}
+          aria-hidden="true"
+          tabIndex={-1}
           className="hidden"
           disabled={disabled}
           {...props}
@@ -322,10 +341,25 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           ))}
         </select>
 
+        {/* Live region announcing busy status politely to screen readers */}
+        <div
+          id={statusId}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          {isBusy ? resolvedLoadingText : ""}
+        </div>
+
         <Popover.Root open={isOpen} onOpenChange={setIsOpen}>
           <Popover.Trigger asChild>
             <button
               type="button"
+              role="combobox"
+              aria-expanded={isOpen}
+              aria-haspopup="listbox"
+              aria-busy={isBusy ? true : undefined}
               disabled={disabled}
               aria-describedby={ariaDescribedBy || undefined}
               className={cn(
@@ -348,7 +382,19 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
                   <span className="text-zinc-500">{effectivePlaceholder}</span>
                 )}
               </div>
-              <ChevronDown className={cn("h-4 w-4 text-zinc-500 transition-transform duration-200", isOpen && "rotate-185")} />
+              {isBusy ? (
+                <Loader2
+                  data-testid="select-loading-spinner"
+                  className="h-4 w-4 text-zinc-500 animate-spin shrink-0"
+                />
+              ) : (
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-zinc-500 transition-transform duration-200",
+                    isOpen && "rotate-185"
+                  )}
+                />
+              )}
             </button>
           </Popover.Trigger>
 

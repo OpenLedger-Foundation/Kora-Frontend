@@ -1355,5 +1355,10 @@
     "legendItemAria": "تصفح السوق مع التصفية حسب {name}: {percent}",
     "filteringBy": "تصفية السوق حسب <strong>{dimension}</strong>: {value}",
     "clearFilter": "مسح عامل التصفية"
+  },
+  "ui": {
+    "select": {
+      "loading": "جارٍ تحميل الخيارات..."
+    }
   }
 }
