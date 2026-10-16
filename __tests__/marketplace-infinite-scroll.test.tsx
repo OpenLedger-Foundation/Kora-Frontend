@@ -140,4 +140,95 @@ describe("useInfiniteInvoices", () => {
       expect(result.current.data?.pages).toHaveLength(1);
     });
   });
+
+  it("prefetches the next page with the next pageParam ahead of fetchNextPage", async () => {
+    vi.mocked(fetchInvoices).mockImplementation((_f, _s, page = 1, pageSize = 12) =>
+      Promise.resolve(makePage(page, pageSize, 100))
+    );
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchInvoices).toHaveBeenCalledTimes(1);
+
+    // Call prefetchNextPage
+    await act(async () => {
+      await result.current.prefetchNextPage();
+    });
+
+    // fetchInvoices should be called for page 2
+    expect(fetchInvoices).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetchInvoices).mock.calls[1][2]).toBe(2);
+    expect(vi.mocked(fetchInvoices).mock.calls[1][3]).toBe(12);
+  });
+
+  it("skips prefetch when there is no next page (last page reached)", async () => {
+    // Only 8 items total, so page 1 has hasMore: false
+    vi.mocked(fetchInvoices).mockImplementation((_f, _s, page = 1, pageSize = 12) =>
+      Promise.resolve(makePage(page, pageSize, 8))
+    );
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchInvoices).toHaveBeenCalledTimes(1);
+    expect(result.current.hasNextPage).toBe(false);
+
+    // Call prefetchNextPage
+    await act(async () => {
+      await result.current.prefetchNextPage();
+    });
+
+    // No extra calls should occur
+    expect(fetchInvoices).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips duplicate prefetch when prefetch is already in flight", async () => {
+    let resolvePage2: ((value: any) => void) | undefined;
+    vi.mocked(fetchInvoices).mockImplementation((_f, _s, page = 1, pageSize = 12) => {
+      if (page === 1) return Promise.resolve(makePage(1, pageSize, 100));
+      return new Promise((res) => {
+        resolvePage2 = res;
+      });
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchInvoices).toHaveBeenCalledTimes(1);
+
+    // Trigger concurrent prefetch calls (simulating scroll bounce)
+    await act(async () => {
+      const p1 = result.current.prefetchNextPage();
+      const p2 = result.current.prefetchNextPage();
+      if (resolvePage2) resolvePage2(makePage(2, 12, 100));
+      await Promise.all([p1, p2]);
+    });
+
+    // Only 1 prefetch call should have been initiated for page 2
+    expect(fetchInvoices).toHaveBeenCalledTimes(2);
+  });
+
+  it("gracefully catches prefetch errors without interrupting scroll or throwing", async () => {
+    vi.mocked(fetchInvoices).mockImplementation((_f, _s, page = 1, pageSize = 12) => {
+      if (page === 1) return Promise.resolve(makePage(1, pageSize, 100));
+      return Promise.reject(new Error("Transient network timeout"));
+    });
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Prefetch failure should not throw
+    await expect(
+      act(async () => {
+        await result.current.prefetchNextPage();
+      })
+    ).resolves.not.toThrow();
+
+    // Query state on page 1 remains successful
+    expect(result.current.isSuccess).toBe(true);
+  });
 });

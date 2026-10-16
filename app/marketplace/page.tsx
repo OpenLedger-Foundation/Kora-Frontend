@@ -639,11 +639,25 @@ function MarketplaceContent() {
     </div>
   );
 
-  // Intersection Observer to load next page
+  // Intersection Observer to prefetch next page ahead of viewport and load when reached
   useEffect(() => {
     const el = sentinelRef.current ?? document.getElementById("infinite-sentinel");
     if (!el) return;
-    const obs = new IntersectionObserver(
+
+    // Prefetch next page when sentinel approaches within 200px of viewport
+    const prefetchObs = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+            void infinite.prefetchNextPage();
+          }
+        });
+      },
+      { rootMargin: "200px" }
+    );
+
+    // Fetch next page when sentinel reaches viewport
+    const loadObs = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
@@ -651,10 +665,16 @@ function MarketplaceContent() {
           }
         });
       },
-      { rootMargin: "200px" }
+      { rootMargin: "50px" }
     );
-    obs.observe(el);
-    return () => obs.disconnect();
+
+    prefetchObs.observe(el);
+    loadObs.observe(el);
+
+    return () => {
+      prefetchObs.disconnect();
+      loadObs.disconnect();
+    };
   }, [hasNextPage, isFetchingNextPage, infinite]);
 
   // Return full skeleton block while initializing from URL to avoid flashing default states

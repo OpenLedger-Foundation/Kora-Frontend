@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import {
   useQuery,
   useInfiniteQuery,
@@ -112,11 +112,23 @@ export function useInfiniteInvoices(options?: {
   const filters = useInvoiceStore((s) => s.filters);
   const sortBy = useInvoiceStore((s) => s.sortBy);
   const tuning = useQueryTuning();
+  const queryClient = useQueryClient();
 
-  return useInfiniteQuery({
-    queryKey: queryKeys.invoices.infinite(filters, sortBy, pageSize),
-    queryFn: ({ pageParam }) =>
-      fetchInvoices(
+  const queryKey = queryKeys.invoices.infinite(filters, sortBy, pageSize);
+
+  const query = useInfiniteQuery({
+    queryKey,
+    queryFn: async ({ pageParam = 1 }: { pageParam?: number }) => {
+      // Check if this page was already pre-warmed by prefetchNextPage
+      const prefetched = queryClient.getQueryData<PaginatedResponse<Invoice>>([
+        ...queryKey,
+        pageParam,
+      ]);
+      if (prefetched) {
+        return prefetched;
+      }
+
+      return fetchInvoices(
         {
           categories: filters.categories,
           jurisdictions: filters.jurisdictions,
@@ -127,7 +139,8 @@ export function useInfiniteInvoices(options?: {
         resolveMarketplaceSort(sortBy),
         pageParam,
         pageSize
-      ),
+      );
+    },
     initialPageParam: 1,
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     enabled,
@@ -135,6 +148,76 @@ export function useInfiniteInvoices(options?: {
     gcTime: Math.max(tuning.gcTime, MARKETPLACE_CACHE_GC_TIME_MS),
     meta: { persistOffline: true },
   });
+
+  const isPrefetchingRef = useRef(false);
+
+  /**
+   * Prefetch the next page of invoices ahead of fetchNextPage.
+   * Prime the cache under [...queryKey, nextPageParam].
+   * Skips prefetch if no next page exists, if a fetch is in flight,
+   * or if a prefetch is already active (preventing duplicate fetch storms).
+   */
+  const prefetchNextPage = useCallback(async () => {
+    if (
+      !query.hasNextPage ||
+      query.isFetchingNextPage ||
+      query.isLoading ||
+      isPrefetchingRef.current
+    ) {
+      return;
+    }
+
+    const pages = query.data?.pages;
+    const lastPage = pages ? pages[pages.length - 1] : undefined;
+    if (!lastPage || !lastPage.hasMore) return;
+
+    const nextPageParam = lastPage.page + 1;
+    const pageKey = [...queryKey, nextPageParam];
+
+    // Check if already prefetched or cached
+    if (queryClient.getQueryData(pageKey)) return;
+
+    try {
+      isPrefetchingRef.current = true;
+      await queryClient.prefetchQuery({
+        queryKey: pageKey,
+        queryFn: () =>
+          fetchInvoices(
+            {
+              categories: filters.categories,
+              jurisdictions: filters.jurisdictions,
+              riskTiers: filters.riskTiers,
+              aprRange: filters.aprRange,
+              activeOnly: filters.activeOnly,
+            },
+            resolveMarketplaceSort(sortBy),
+            nextPageParam,
+            pageSize
+          ),
+        staleTime: tuning.staleTime,
+      });
+    } catch {
+      // Gracefully swallow prefetch errors so scrolling is uninterrupted
+    } finally {
+      isPrefetchingRef.current = false;
+    }
+  }, [
+    query.hasNextPage,
+    query.isFetchingNextPage,
+    query.isLoading,
+    query.data?.pages,
+    queryClient,
+    queryKey,
+    filters,
+    sortBy,
+    pageSize,
+    tuning.staleTime,
+  ]);
+
+  return {
+    ...query,
+    prefetchNextPage,
+  };
 }
 
 // ─── Detail ───────────────────────────────────────────────────────────────────
