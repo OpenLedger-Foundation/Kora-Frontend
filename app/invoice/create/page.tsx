@@ -37,6 +37,7 @@ import {
   FINANCING_TERMS_STEP_FIELDS,
   type CreateInvoiceSchema,
 } from "@/lib/validations/invoice";
+import { isValidPdfMagicBytes } from "@/lib/pdfValidation";
 import { createLocalizedErrorMap } from "@/lib/validations/locales";
 import { useLocale } from "@/i18n/LocaleProvider";
 import { cn, isValidStellarAddress } from "@/lib/utils";
@@ -250,9 +251,15 @@ export default function CreateInvoicePage() {
     return (d / (1 - d)) * (365 / daysToMaturity) * 100;
   }, [discountRateVal, daysToMaturity]);
 
-  const onDrop = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
     setFileError(null);
     if (acceptedFiles[0]) {
+      const isValid = await isValidPdfMagicBytes(acceptedFiles[0]);
+      if (!isValid) {
+        setFileError(t("upload.errors.invalidMagicBytes"));
+        setFile(null);
+        return;
+      }
       setFile(acceptedFiles[0]);
     }
     if (fileRejections[0]) {
@@ -358,6 +365,12 @@ export default function CreateInvoicePage() {
     }
     if (!file) {
       setFileError(t("upload.errors.required"));
+      return;
+    }
+
+    const isValidPdf = await isValidPdfMagicBytes(file);
+    if (!isValidPdf) {
+      setFileError(t("upload.errors.invalidMagicBytes"));
       return;
     }
 

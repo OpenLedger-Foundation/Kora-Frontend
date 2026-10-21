@@ -5,6 +5,7 @@ import { type FileRejection, useDropzone } from "react-dropzone";
 import { UploadCloud, FileText, Trash2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { safeExternalUrl } from "@/lib/security";
+import { isValidPdfMagicBytes } from "@/lib/pdfValidation";
 
 export interface FileInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "defaultValue"> {
   label?: string;
@@ -71,7 +72,7 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
     }, [value]);
 
     const onDrop = React.useCallback(
-      (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
+      async (acceptedFiles: File[], rejectedFiles: FileRejection[]) => {
         if (disabled) return;
 
         let errorMsg = "";
@@ -91,6 +92,13 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
 
         if (acceptedFiles.length > 0) {
           const file = acceptedFiles[0];
+          const isValidPdf = await isValidPdfMagicBytes(file);
+          if (!isValidPdf) {
+            setLocalError("Only PDF files are accepted");
+            setSelectedFile(null);
+            return;
+          }
+
           setSelectedFile(file);
           if (onChange) {
             const event = {

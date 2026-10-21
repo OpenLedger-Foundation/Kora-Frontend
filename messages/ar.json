@@ -380,6 +380,7 @@
       "errors": {
         "tooLarge": "حجم الملف كبير جدًا. الحجم الأقصى هو 10 ميغابايت بالضبط.",
         "invalidType": "نوع الملف غير صالح. يُسمح فقط بمستندات PDF.",
+        "invalidMagicBytes": "الملف المحدد ليس مستند PDF صالح (الرأس %PDF- مفقود).",
         "required": "يرجى رفع ملف PDF للفاتورة قبل السك.",
         "virusScanRejected": "تم رفض الملف بواسطة فحص الأمان",
         "virusScanRejectedDescription": "{reason} يرجى تحديد ملف مختلف والمحاولة مرة أخرى.",

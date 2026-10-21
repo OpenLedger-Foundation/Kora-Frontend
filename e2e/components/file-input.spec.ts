@@ -171,6 +171,19 @@ test.describe("FileInput component — browser interactions", () => {
     await expect(page.getByText(/only pdf files are accepted/i)).toBeVisible();
   });
 
+  test("selecting a renamed file with non-PDF magic bytes shows error", async ({
+    page,
+  }) => {
+    await getFileInput(page).setInputFiles({
+      name: "fake-invoice.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]), // JPEG header
+    });
+
+    await expect(page.getByText(/only pdf files are accepted/i)).toBeVisible();
+    await expect(page.getByText("fake-invoice.pdf")).not.toBeVisible();
+  });
+
   test("selecting an oversized PDF shows a size-limit error", async ({
     page,
   }) => {

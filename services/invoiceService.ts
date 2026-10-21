@@ -246,10 +246,14 @@ class MockInvoiceService implements IInvoiceService {
   async createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal
   ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
     try {
       await this.delay();
+      if (signal?.aborted) {
+        return failure("CREATE_ERROR", "Invoice creation was aborted");
+      }
       if (!formData.document) {
         return failure("INVALID_FORM", "Invoice document is required");
       }
@@ -447,9 +451,13 @@ class LiveInvoiceService implements IInvoiceService {
   async createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal
   ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
     try {
+      if (signal?.aborted) {
+        return failure("CREATE_ERROR", "Invoice creation was aborted");
+      }
       if (!formData.document) {
         return failure("INVALID_FORM", "Invoice document is required");
       }
@@ -459,7 +467,9 @@ class LiveInvoiceService implements IInvoiceService {
         formData.document,
         `invoice-${formData.invoiceNumber}.pdf`,
         ownerAddress,
-        onProgress
+        onProgress,
+        undefined,
+        signal
       );
 
       onProgress?.(50);
@@ -500,7 +510,7 @@ class LiveInvoiceService implements IInvoiceService {
       };
 
       onProgress?.(75);
-      const metadataCid = await uploadInvoiceMetadata(metadata, ownerAddress);
+      const metadataCid = await uploadInvoiceMetadata(metadata, ownerAddress, undefined, signal);
 
       onProgress?.(85);
       const dueTimestamp = BigInt(
@@ -868,9 +878,10 @@ export async function fetchPositions(investorAddress: string) {
 export async function prepareCreateInvoice(
   formData: CreateInvoiceFormData,
   ownerAddress: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
 ): Promise<{ unsignedXdr: string; metadataCid: string }> {
-  const result = await service.createInvoice(formData, ownerAddress, onProgress);
+  const result = await service.createInvoice(formData, ownerAddress, onProgress, signal);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }
