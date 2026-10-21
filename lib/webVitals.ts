@@ -256,7 +256,6 @@ export function flushVitals(): void {
     })),
   });
 
-  // Use sendBeacon when available (non-blocking, survives page unload)
   if (typeof navigator !== "undefined" && navigator.sendBeacon) {
     navigator.sendBeacon("/api/vitals", new Blob([body], { type: "application/json" }));
   } else {

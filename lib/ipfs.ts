@@ -19,6 +19,7 @@ import {
 import { generateInvoiceSvg, svgToFile, rasterizeSvgToThumbnail } from "@/lib/invoiceSvg";
 import { createMockUploadToken } from "@/lib/security";
 import { parseUploadRejection } from "@/lib/uploadScanResult";
+import { MAX_INVOICE_PDF_BYTES } from "@/lib/validations/upload";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
@@ -119,11 +120,11 @@ export function validateCid(cid: string): void {
   }
 }
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+export const MAX_FILE_SIZE = MAX_INVOICE_PDF_BYTES;
 
 export class FileSizeError extends Error {
   constructor(size: number) {
-    super(`File size ${size} bytes exceeds the 10MB limit.`);
+    super(`File size ${size} bytes exceeds the ${MAX_FILE_SIZE / (1024 * 1024)}MB limit.`);
     this.name = "FileSizeError";
   }
 }

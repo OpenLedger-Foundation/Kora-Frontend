@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { MAX_INVOICE_PDF_BYTES } from "@/lib/validations/upload";
 import {
   checkPinataHealth,
   invalidatePinataHealthCache,
@@ -54,6 +55,7 @@ describe("IPFS Upload Service", () => {
     // Set up XMLHttpRequest mock
     mockXhr = {
       open: vi.fn(),
+      setRequestHeader: vi.fn(),
       send: vi.fn(function (this: any) {
         // Default to immediate success
         this.onload();
@@ -105,6 +107,10 @@ describe("IPFS Upload Service", () => {
   // ─── 2. File Size Validation Tests ─────────────────────────────────────────
 
   describe("File Size Validation", () => {
+    it("uses the shared invoice PDF size limit", () => {
+      expect(MAX_FILE_SIZE).toBe(MAX_INVOICE_PDF_BYTES);
+    });
+
     it("should reject files larger than 10MB before any network call", async () => {
       const largeFile = new File([new ArrayBuffer(MAX_FILE_SIZE + 1)], "large.pdf", {
         type: "application/pdf",
@@ -119,9 +125,11 @@ describe("IPFS Upload Service", () => {
       const validFile = new File([new ArrayBuffer(MAX_FILE_SIZE)], "valid.pdf", {
         type: "application/pdf",
       });
+      const validCid = "QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco";
+      mockXhr.responseText = JSON.stringify({ IpfsHash: validCid });
 
       const cid = await uploadInvoicePDF(validFile, "GADDRESS");
-      expect(cid).toBe("QmPDFCid1234567890");
+      expect(cid).toBe(validCid);
       expect(mockXhr.open).toHaveBeenCalled();
     });
   });
