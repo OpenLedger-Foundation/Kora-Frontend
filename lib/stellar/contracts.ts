@@ -188,6 +188,40 @@ async function buildCall(
   return assembled.toXDR();
 }
 
+async function buildCallWithSimulation(
+  contractId: string,
+  method: string,
+  args: StellarSdk.xdr.ScVal[],
+  sourcePublicKey: string
+): Promise<{ unsignedXdr: string; simulatedTokenId?: string }> {
+  if (!isValidStellarAddress(sourcePublicKey)) {
+    throw new Error("Invalid Stellar address format");
+  }
+  const account = await sequenceManager.nextAccount(sourcePublicKey);
+  const contract = new StellarSdk.Contract(contractId);
+
+  const tx = new StellarSdk.TransactionBuilder(account, {
+    fee: StellarSdk.BASE_FEE,
+    networkPassphrase: networkConfig.networkPassphrase,
+  })
+    .addOperation(contract.call(method, ...args))
+    .setTimeout(30)
+    .build();
+
+  const simResult = await rpc.simulateTransaction(tx);
+  if (StellarSdk.rpc.Api.isSimulationError(simResult)) {
+    throw new Error(parseSorobanError(simResult.error));
+  }
+  const assembled = StellarSdk.rpc.assembleTransaction(tx, simResult).build();
+  let simulatedTokenId: string | undefined = undefined;
+  if (simResult.result?.retval) {
+    const { parseTokenIdFromScVal } = await import("./client");
+    const parsed = parseTokenIdFromScVal(simResult.result.retval);
+    if (parsed) simulatedTokenId = parsed;
+  }
+  return { unsignedXdr: assembled.toXDR(), simulatedTokenId };
+}
+
 /**
  * Simulate a read-only call and parse the return value.
  */
@@ -237,7 +271,18 @@ class InvoiceContractClient {
     params: MintInvoiceParams,
     sourcePublicKey: string
   ): Promise<string> {
-    return buildCall(
+    const res = await this.mintInvoiceWithSimulation(params, sourcePublicKey);
+    return res.unsignedXdr;
+  }
+
+  /**
+   * Mint a new invoice NFT and extract simulated token ID pre-submit if available.
+   */
+  async mintInvoiceWithSimulation(
+    params: MintInvoiceParams,
+    sourcePublicKey: string
+  ): Promise<{ unsignedXdr: string; simulatedTokenId?: string }> {
+    return buildCallWithSimulation(
       this.contractId,
       "mint_invoice",
       [

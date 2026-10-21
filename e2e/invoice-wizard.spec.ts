@@ -158,6 +158,8 @@ async function mockSorobanRpc(page: import("@playwright/test").Page) {
           txHash: "0xmocktxhash123",
           envelopeXdr: "mockenvelopexdr",
           resultXdr: "mockresultxdr",
+          resultMetaXdr: "AAAAAwAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAFAAAAAAAAA+kAAAAA",
+          tokenId: "1001",
         },
       }),
     })
@@ -167,7 +169,7 @@ async function mockSorobanRpc(page: import("@playwright/test").Page) {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ success: true, invoiceId: "mock-invoice-id-001", txHash: "0xmocktxhash123" }),
+      body: JSON.stringify({ success: true, invoiceId: "mock-invoice-id-001", tokenId: "1001", txHash: "0xmocktxhash123" }),
     })
   );
 }
@@ -451,6 +453,14 @@ test.describe("Invoice creation wizard", () => {
       await expect(
         page.getByText(/success|invoice.*created|invoice.*minted|listed successfully/i)
       ).toBeVisible({ timeout: 10_000 });
+
+      // Verify success screen shows the parsed on-chain token ID
+      await expect(page.getByText("#1001")).toBeVisible({ timeout: 10_000 });
+
+      // Verify marketplace link resolves to the new listing token ID
+      const marketplaceLink = page.getByRole("link", { name: /view on marketplace/i });
+      await expect(marketplaceLink).toBeVisible();
+      await expect(marketplaceLink).toHaveAttribute("href", "/marketplace/1001");
     });
 
     test("PDF upload accepted — file name appears in the UI", async ({ page }) => {

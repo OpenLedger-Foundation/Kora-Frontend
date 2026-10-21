@@ -258,9 +258,12 @@ class MockInvoiceService implements IInvoiceService {
       onProgress?.(66);
       const mockMetadataCid = `mock_metadata_${Date.now()}`;
       onProgress?.(100);
+      const mockTokenId = "1001";
       return success({
         unsignedXdr: `mock_unsigned_xdr_create_${Date.now()}`,
         metadataCid: mockMetadataCid,
+        simulatedTokenId: mockTokenId,
+        tokenId: mockTokenId,
       });
     } catch (error) {
       return failure("CREATE_ERROR", "Failed to prepare invoice creation", { cause: String(error) });
@@ -510,19 +513,37 @@ class LiveInvoiceService implements IInvoiceService {
         Math.round(formData.amount * (1 - formData.discountRate) * 1_000_000)
       );
 
-      const unsignedXdr = await invoiceContract.mintInvoice(
-        {
-          ipfsCid: metadataCid,
-          amount: BigInt(Math.round(formData.amount * 1_000_000)),
-          financingAmount,
-          discountRate: Math.round(formData.discountRate * 10_000),
-          dueDate: dueTimestamp,
-        },
-        ownerAddress
-      );
+      let unsignedXdr: string;
+      let simulatedTokenId: string | undefined;
+
+      if (typeof (invoiceContract as any).mintInvoiceWithSimulation === "function") {
+        const sim = await (invoiceContract as any).mintInvoiceWithSimulation(
+          {
+            ipfsCid: metadataCid,
+            amount: BigInt(Math.round(formData.amount * 1_000_000)),
+            financingAmount,
+            discountRate: Math.round(formData.discountRate * 10_000),
+            dueDate: dueTimestamp,
+          },
+          ownerAddress
+        );
+        unsignedXdr = sim.unsignedXdr;
+        simulatedTokenId = sim.simulatedTokenId;
+      } else {
+        unsignedXdr = await invoiceContract.mintInvoice(
+          {
+            ipfsCid: metadataCid,
+            amount: BigInt(Math.round(formData.amount * 1_000_000)),
+            financingAmount,
+            discountRate: Math.round(formData.discountRate * 10_000),
+            dueDate: dueTimestamp,
+          },
+          ownerAddress
+        );
+      }
 
       onProgress?.(100);
-      return success({ unsignedXdr, metadataCid });
+      return success({ unsignedXdr, metadataCid, simulatedTokenId, tokenId: simulatedTokenId });
     } catch (error) {
       const err = mapContractError(error);
       return failure(err.code, err.message, err.details);
@@ -869,11 +890,13 @@ export async function prepareCreateInvoice(
   formData: CreateInvoiceFormData,
   ownerAddress: string,
   onProgress?: (progress: number) => void
-): Promise<{ unsignedXdr: string; metadataCid: string }> {
+): Promise<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }> {
   const result = await service.createInvoice(formData, ownerAddress, onProgress);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }
+
+export { extractMintedTokenId } from "@/lib/stellar/client";
 
 export async function prepareFundInvoice(
   tokenId: string,
