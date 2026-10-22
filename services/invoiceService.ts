@@ -19,15 +19,19 @@ import { MOCK_INVOICES } from "./mockData";
 import {
   uploadFileToPinata,
   uploadInvoiceMetadata,
+  uploadValidatedInvoiceMetadata,
+  unpinMultipleFromPinata,
   isValidCID,
   fetchIpfsJsonWithFallback,
   IpfsTamperError,
   IpfsUnavailableError,
 } from "@/lib/ipfs";
+import { formDataToMetadataV1Input } from "@/lib/invoiceMetadata";
 import { invoiceContract, marketplaceContract } from "@/lib/stellar/contracts";
 import { indexerClient, RpcNetworkError } from "@/lib/stellar/indexerClient";
 import { BadSequenceError, submitTransaction, waitForTransaction } from "@/lib/stellar/client";
 import { sanitizeIpfsMetadata } from "@/lib/security";
+import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
 
@@ -249,6 +253,16 @@ class MockInvoiceService implements IInvoiceService {
     onProgress?: (progress: number) => void,
     signal?: AbortSignal
   ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
+    if (!formData.document) {
+      return failure("INVALID_FORM", "Invoice document is required");
+    }
+
+    // Mirror the live-service CID tracking pattern for test parity.
+    // In mock mode we don't actually call Pinata, so pinnedCids holds
+    // synthetic IDs.  The compensating unpin path is exercised the same
+    // way as in the live service when simulateContractError is injected.
+    const pinnedCids: string[] = [];
+
     try {
       await this.delay();
       if (signal?.aborted) {
@@ -257,16 +271,42 @@ class MockInvoiceService implements IInvoiceService {
       if (!formData.document) {
         return failure("INVALID_FORM", "Invoice document is required");
       }
-      onProgress?.(33);
+      onProgress?.(15);
       const mockDocCid = `mock_doc_${Date.now()}`;
-      onProgress?.(66);
+      pinnedCids.push(mockDocCid);
+
+      onProgress?.(55);
+      const mockImageCid = `mock_image_${Date.now()}`;
       const mockMetadataCid = `mock_metadata_${Date.now()}`;
+      pinnedCids.push(mockImageCid, mockMetadataCid);
+
+      onProgress?.(75);
+
+      // Allow test injection of a contract-level failure after successful pins
+      if ((formData as any).__simulateContractError) {
+        throw new Error((formData as any).__simulateContractError);
+      }
+
       onProgress?.(100);
+      const mockTokenId = "1001";
       return success({
         unsignedXdr: `mock_unsigned_xdr_create_${Date.now()}`,
         metadataCid: mockMetadataCid,
+        simulatedTokenId: mockTokenId,
+        tokenId: mockTokenId,
       });
     } catch (error) {
+      // Best-effort compensating unpin — mirrors live service behaviour
+      if (pinnedCids.length > 0) {
+        logger.warn("[mock createInvoice] mint failed after IPFS pin; unpin attempted", {
+          cidCount: pinnedCids.length,
+        });
+        // In mock mode unpinMultipleFromPinata is also mocked in tests,
+        // so this call exercising the same code path is intentional.
+        await unpinMultipleFromPinata(pinnedCids).catch(() => {
+          // suppress — never mask the original error
+        });
+      }
       return failure("CREATE_ERROR", "Failed to prepare invoice creation", { cause: String(error) });
     }
   }
@@ -453,7 +493,13 @@ class LiveInvoiceService implements IInvoiceService {
     ownerAddress: string,
     onProgress?: (progress: number) => void,
     signal?: AbortSignal
-  ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
+  ): Promise<Result<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }>> {
+    // Track every CID pinned during this pipeline so we can roll back if
+    // the on-chain step fails.  Best-effort: we never let unpin failures
+    // mask the original mint error.
+    const pinnedCids: string[] = [];
+    const requestId = crypto.randomUUID();
+
     try {
       if (signal?.aborted) {
         return failure("CREATE_ERROR", "Invoice creation was aborted");
@@ -462,57 +508,37 @@ class LiveInvoiceService implements IInvoiceService {
         return failure("INVALID_FORM", "Invoice document is required");
       }
 
-      onProgress?.(25);
+      // ── Stage 1: upload PDF document (0 → 15 %) ────────────────────────
+      onProgress?.(5);
       const docCid = await uploadFileToPinata(
         formData.document,
         `invoice-${formData.invoiceNumber}.pdf`,
         ownerAddress,
-        onProgress,
-        undefined,
-        signal
+        (p) => onProgress?.(Math.round(p * 0.15))
       );
+      pinnedCids.push(docCid);
 
-      onProgress?.(50);
-      const daysToMaturity = Math.ceil(
-        (new Date(formData.dueDate).getTime() -
-          new Date(formData.listingExpiryDate).getTime()) /
-        (1000 * 60 * 60 * 24)
-      );
-      const effectiveAPR =
-        daysToMaturity > 0 && formData.discountRate > 0 && formData.discountRate < 1
-          ? (formData.discountRate / (1 - formData.discountRate)) * (365 / daysToMaturity) * 100
-          : 0;
+      onProgress?.(15);
 
-      const metadata = {
-        name: "Invoice Asset",
-        description: formData.description || "Tokenized Invoice Factoring Asset",
-        image: `ipfs://${docCid}`,
-        properties: {
-          debtor: formData.debtorName,
-          amount: formData.amount,
-          apr: Number(effectiveAPR.toFixed(2)),
-          dueDate: formData.dueDate,
-          jurisdiction: formData.jurisdiction,
-        },
-        invoiceNumber: formData.invoiceNumber,
-        issuerName: ownerAddress,
-        issuerAddress: ownerAddress,
-        debtorName: formData.debtorName,
-        debtorAddress: formData.debtorAddress,
-        amount: formData.amount,
-        currency: formData.currency,
-        issueDate: formData.issueDate,
-        dueDate: formData.dueDate,
-        jurisdiction: formData.jurisdiction,
-        category: formData.category,
-        documentHash: docCid,
-        documentUrl: `${env.NEXT_PUBLIC_IPFS_GATEWAY}/${docCid}`,
-      };
+      // ── Stage 2: build V1 metadata input ───────────────────────────────
+      const metadataInput = formDataToMetadataV1Input(formData, ownerAddress, docCid);
+
+      // ── Stage 3: upload SVG preview + optional thumbnail + metadata JSON
+      //    (15 → 75 %)  via the validated V1 pipeline ─────────────────────
+      const { metadataCid, imageCid, thumbnailCid } =
+        await uploadValidatedInvoiceMetadata(
+          metadataInput,
+          ownerAddress,
+          (p) => onProgress?.(15 + Math.round(p * 0.6))
+        );
+
+      pinnedCids.push(imageCid);
+      if (thumbnailCid) pinnedCids.push(thumbnailCid);
+      pinnedCids.push(metadataCid);
 
       onProgress?.(75);
-      const metadataCid = await uploadInvoiceMetadata(metadata, ownerAddress, undefined, signal);
 
-      onProgress?.(85);
+      // ── Stage 4: build Soroban mint XDR (75 → 85 %) ───────────────────
       const dueTimestamp = BigInt(
         Math.floor(new Date(formData.dueDate).getTime() / 1000)
       );
@@ -520,20 +546,65 @@ class LiveInvoiceService implements IInvoiceService {
         Math.round(formData.amount * (1 - formData.discountRate) * 1_000_000)
       );
 
-      const unsignedXdr = await invoiceContract.mintInvoice(
-        {
-          ipfsCid: metadataCid,
-          amount: BigInt(Math.round(formData.amount * 1_000_000)),
-          financingAmount,
-          discountRate: Math.round(formData.discountRate * 10_000),
-          dueDate: dueTimestamp,
-        },
-        ownerAddress
-      );
+      onProgress?.(80);
+
+      let unsignedXdr: string;
+      let simulatedTokenId: string | undefined;
+
+      if (typeof (invoiceContract as any).mintInvoiceWithSimulation === "function") {
+        const sim = await (invoiceContract as any).mintInvoiceWithSimulation(
+          {
+            ipfsCid: metadataCid,
+            amount: BigInt(Math.round(formData.amount * 1_000_000)),
+            financingAmount,
+            discountRate: Math.round(formData.discountRate * 10_000),
+            dueDate: dueTimestamp,
+          },
+          ownerAddress
+        );
+        unsignedXdr = sim.unsignedXdr;
+        simulatedTokenId = sim.simulatedTokenId;
+      } else {
+        unsignedXdr = await invoiceContract.mintInvoice(
+          {
+            ipfsCid: metadataCid,
+            amount: BigInt(Math.round(formData.amount * 1_000_000)),
+            financingAmount,
+            discountRate: Math.round(formData.discountRate * 10_000),
+            dueDate: dueTimestamp,
+          },
+          ownerAddress
+        );
+      }
 
       onProgress?.(100);
-      return success({ unsignedXdr, metadataCid });
+
+      // ── Mint succeeded — do NOT unpin anything ──────────────────────────
+      return success({ unsignedXdr, metadataCid, simulatedTokenId, tokenId: simulatedTokenId });
     } catch (error) {
+      // ── Compensating unpin for all CIDs pinned before the failure ──────
+      // Runs best-effort in the background; we await it so unpin attempts
+      // complete before the caller receives the error, but failures here
+      // never replace the original error.
+      if (pinnedCids.length > 0) {
+        try {
+          await unpinMultipleFromPinata(pinnedCids);
+        } catch (unpinError) {
+          // unpinMultipleFromPinata itself never throws (Promise.allSettled),
+          // but guard here anyway so we never mask the mint error.
+          logger.warn("[createInvoice] compensating unpin threw unexpectedly", {
+            requestId,
+            cidCount: pinnedCids.length,
+            error: unpinError instanceof Error ? unpinError.message : String(unpinError),
+          });
+        }
+
+        logger.warn("[createInvoice] mint failed after IPFS pin; unpin attempted", {
+          requestId,
+          cidCount: pinnedCids.length,
+        });
+      }
+
       const err = mapContractError(error);
       return failure(err.code, err.message, err.details);
     }
@@ -880,11 +951,13 @@ export async function prepareCreateInvoice(
   ownerAddress: string,
   onProgress?: (progress: number) => void,
   signal?: AbortSignal
-): Promise<{ unsignedXdr: string; metadataCid: string }> {
+): Promise<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }> {
   const result = await service.createInvoice(formData, ownerAddress, onProgress, signal);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }
+
+export { extractMintedTokenId } from "@/lib/stellar/client";
 
 export async function prepareFundInvoice(
   tokenId: string,

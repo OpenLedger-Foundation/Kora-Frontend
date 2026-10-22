@@ -41,7 +41,7 @@ export interface IInvoiceService {
     ownerAddress: string,
     onProgress?: (progress: number) => void,
     signal?: AbortSignal
-  ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>>;
+  ): Promise<Result<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }>>;
 
   fundInvoice(
     tokenId: string,

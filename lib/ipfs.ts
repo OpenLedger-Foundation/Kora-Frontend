@@ -19,6 +19,8 @@ import {
 import { generateInvoiceSvg, svgToFile, rasterizeSvgToThumbnail } from "@/lib/invoiceSvg";
 import { createMockUploadToken } from "@/lib/security";
 import { parseUploadRejection } from "@/lib/uploadScanResult";
+import { MAX_INVOICE_PDF_BYTES } from "@/lib/validations/upload";
+import { getCsrfToken } from "@/lib/csrfClient";
 
 const IPFS_GATEWAY = env.NEXT_PUBLIC_IPFS_GATEWAY;
 
@@ -119,11 +121,11 @@ export function validateCid(cid: string): void {
   }
 }
 
-export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+export const MAX_FILE_SIZE = MAX_INVOICE_PDF_BYTES;
 
 export class FileSizeError extends Error {
   constructor(size: number) {
-    super(`File size ${size} bytes exceeds the 10MB limit.`);
+    super(`File size ${size} bytes exceeds the ${MAX_FILE_SIZE / (1024 * 1024)}MB limit.`);
     this.name = "FileSizeError";
   }
 }
@@ -149,67 +151,34 @@ export class UploadError extends Error {
   }
 }
 
-/** Thrown when an IPFS upload is explicitly aborted via AbortSignal. */
+/**
+ * Thrown when an in-flight upload is cancelled via an `AbortSignal`
+ * (wizard unmount, file replace, or explicit cancel). Callers must treat
+ * this as "cancelled", not "failed": an aborted upload must never write
+ * CID / progress state into the active draft.
+ */
 export class UploadAbortedError extends Error {
-  constructor(message = "Upload aborted") {
-    super(message);
+  constructor() {
+    super("Upload aborted");
     this.name = "UploadAbortedError";
   }
 }
 
-export function isAbortError(error: unknown): boolean {
-  if (!error) return false;
-  if (error instanceof UploadAbortedError) return true;
-  if (error instanceof Error) {
-    return error.name === "UploadAbortedError" || error.name === "AbortError" || error.message.includes("aborted");
-  }
-  return false;
+/** True for abort-driven failures (vs genuine network/server failures). */
+export function isUploadAborted(err: unknown): boolean {
+  return (
+    err instanceof UploadAbortedError ||
+    (err instanceof Error && err.name === "AbortError")
+  );
 }
 
-/** Retry helper that aborts cleanly without retrying aborted requests. */
-async function withAbortRetry<T>(
-  fn: () => Promise<T>,
-  attempts = 3,
-  signal?: AbortSignal
-): Promise<T> {
-  if (signal?.aborted) {
-    throw new UploadAbortedError();
-  }
-  let lastError: unknown;
-  for (let i = 0; i < attempts; i++) {
-    if (signal?.aborted) {
-      throw new UploadAbortedError();
-    }
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (isAbortError(err) || signal?.aborted) {
-        throw (err instanceof UploadAbortedError ? err : new UploadAbortedError());
-      }
-      const is5xx = err instanceof Error && /5\d{2}/.test(err.message);
-      if (!is5xx || i === attempts - 1) throw err;
-
-      await new Promise<void>((resolve, reject) => {
-        if (signal?.aborted) {
-          return reject(new UploadAbortedError());
-        }
-        const timer = setTimeout(() => {
-          signal?.removeEventListener("abort", onAbort);
-          resolve();
-        }, 500 * 2 ** i);
-
-        const onAbort = () => {
-          clearTimeout(timer);
-          signal?.removeEventListener("abort", onAbort);
-          reject(new UploadAbortedError());
-        };
-
-        signal?.addEventListener("abort", onAbort, { once: true });
-      });
-    }
-  }
-  throw lastError;
+/**
+ * Create a controller for one upload attempt. Hand its `signal` to the
+ * upload helpers and call `abort()` on wizard unmount, file replace, or
+ * explicit cancel. One controller per attempt — do not reuse after abort.
+ */
+export function createUploadAbortController(): AbortController {
+  return new AbortController();
 }
 
 /** Upload a file via XHR so we get real progress events. */
@@ -222,9 +191,9 @@ export function xhrUpload(
 ): Promise<{ IpfsHash: string }> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
-      return reject(new UploadAbortedError(signal.reason ? String(signal.reason) : "Upload aborted"));
+      reject(new UploadAbortedError());
+      return;
     }
-
     const xhr = new XMLHttpRequest();
     let aborted = false;
 
@@ -247,6 +216,17 @@ export function xhrUpload(
     const token = authToken || createMockUploadToken();
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
 
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const onAbort = () => {
+      cleanup();
+      try {
+        xhr.abort();
+      } finally {
+        reject(new UploadAbortedError());
+      }
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
     if (onProgress) {
       xhr.upload.onprogress = (e) => {
         if (signal?.aborted) return;
@@ -257,9 +237,11 @@ export function xhrUpload(
     }
 
     xhr.onload = () => {
-      if (signal) signal.removeEventListener("abort", onAbort);
-      if (aborted || signal?.aborted) return;
-
+      cleanup();
+      if (signal?.aborted) {
+        reject(new UploadAbortedError());
+        return;
+      }
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           const parsed = JSON.parse(xhr.responseText);
@@ -287,27 +269,41 @@ export function xhrUpload(
       }
     };
 
-    xhr.onabort = () => {
-      if (signal) signal.removeEventListener("abort", onAbort);
-      if (!aborted) {
-        aborted = true;
-        reject(new UploadAbortedError("Upload aborted"));
-      }
-    };
-
     xhr.onerror = () => {
-      if (signal) signal.removeEventListener("abort", onAbort);
-      if (aborted || signal?.aborted) return;
-      reject(new UploadError("Network error during IPFS upload"));
+      cleanup();
+      reject(
+        signal?.aborted
+          ? new UploadAbortedError()
+          : new UploadError("Network error during IPFS upload")
+      );
     };
-
-    xhr.send(form);
+    xhr.onabort = () => {
+      cleanup();
+      reject(new UploadAbortedError());
+    };
+    void getCsrfToken().then((csrfToken) => {
+      if (signal?.aborted) {
+        cleanup();
+        reject(new UploadAbortedError());
+        return;
+      }
+      if (csrfToken) xhr.setRequestHeader("x-kora-csrf", csrfToken);
+      xhr.send(form);
+    }).catch((err) => {
+      cleanup();
+      reject(err);
+    });
   });
 }
 
 /**
  * Upload an invoice PDF to IPFS via Pinata with progress tracking.
  * Returns the validated CID.
+ *
+ * Pass an `AbortSignal` (from `createUploadAbortController()`) to cancel:
+ * the XHR is aborted and the promise rejects with `UploadAbortedError`
+ * instead of resolving — aborted uploads must not write CID state.
+ * `withRetry` only retries 5xx failures, so aborts are never retried.
  */
 export async function uploadInvoicePDF(
   file: File,
@@ -327,11 +323,7 @@ export async function uploadInvoicePDF(
   form.append("file", file);
   form.append("walletAddress", walletAddress || "GABC1234567890TESTADDRESS");
 
-  const data = await withAbortRetry(
-    () => xhrUpload(`/api/upload`, form, onProgress, authToken, signal),
-    3,
-    signal
-  );
+  const data = await withRetry(() => xhrUpload(`/api/upload`, form, onProgress, authToken, signal), 3);
 
   const cid = data.IpfsHash;
   validateCid(cid);
@@ -352,33 +344,28 @@ export async function uploadInvoiceMetadata(
     throw new UploadAbortedError();
   }
   const token = authToken || createMockUploadToken(walletAddress);
-  const res = await withAbortRetry(
+  const res = await withRetry(
     async () => {
-      try {
-        const r = await fetch(`/api/upload`, {
-          method: "POST",
-          signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            walletAddress: walletAddress || "GABC1234567890TESTADDRESS",
-            metadata,
-            name: `invoice-metadata-${metadata.invoiceNumber}`,
-          }),
-        });
+      const csrfToken = await getCsrfToken();
+      return fetch(`/api/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(csrfToken ? { "x-kora-csrf": csrfToken } : {}),
+        },
+        body: JSON.stringify({
+          walletAddress: walletAddress || "GABC1234567890TESTADDRESS",
+          metadata,
+          name: `invoice-metadata-${metadata.invoiceNumber}`,
+        }),
+        signal,
+      }).then(async (r) => {
         if (!r.ok) throw new Error(`Metadata upload failed: ${r.status}`);
-        return (await r.json()) as { cid: string };
-      } catch (err) {
-        if (isAbortError(err) || signal?.aborted) {
-          throw new UploadAbortedError();
-        }
-        throw err;
-      }
+        return r.json() as Promise<{ cid: string }>;
+      });
     },
-    3,
-    signal
+    3
   );
 
   validateCid(res.cid);
@@ -397,24 +384,11 @@ export async function uploadInvoiceToIPFS(
   signal?: AbortSignal
 ): Promise<{ pdfCid: string; metadataCid: string }> {
   const pdfCid = await uploadInvoicePDF(file, walletAddress, onProgress, authToken, signal);
-  const metadataCid = await uploadInvoiceMetadata(
-    {
-      ...metadata,
-      documentHash: pdfCid,
-      documentUrl: ipfsUrl(pdfCid),
-    },
-    walletAddress,
-    authToken,
-    signal
-  );
-  return { pdfCid, metadataCid };
-}
-  const pdfCid = await uploadInvoicePDF(file, walletAddress, onProgress, authToken);
   const metadataCid = await uploadInvoiceMetadata({
     ...metadata,
     documentHash: pdfCid,
     documentUrl: ipfsUrl(pdfCid),
-  }, walletAddress, authToken);
+  }, walletAddress, authToken, signal);
   return { pdfCid, metadataCid };
 }
 
@@ -817,34 +791,28 @@ export async function uploadValidatedInvoiceMetadata(
 
   // Step 5: Upload metadata JSON to IPFS
   const token = createMockUploadToken(walletAddress);
-  const metadataCid = await withAbortRetry(
+  const metadataCid = await withRetry(
     async () => {
-      try {
-        const r = await fetch(`/api/upload`, {
-          method: "POST",
-          signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            walletAddress: walletAddress || "GABC1234567890TESTADDRESS",
-            metadata: finalMetadata,
-            name: `invoice-metadata-v${METADATA_VERSION}-${input.invoice_number}`,
-          }),
-        });
+      const csrfToken = await getCsrfToken();
+      return fetch(`/api/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(csrfToken ? { "x-kora-csrf": csrfToken } : {}),
+        },
+        body: JSON.stringify({
+          walletAddress: walletAddress || "GABC1234567890TESTADDRESS",
+          metadata: finalMetadata,
+          name: `invoice-metadata-v${METADATA_VERSION}-${input.invoice_number}`,
+        }),
+      }).then(async (r) => {
         if (!r.ok) throw new Error(`Metadata upload failed: ${r.status}`);
         const json = (await r.json()) as { cid: string };
         return json.cid;
-      } catch (err) {
-        if (isAbortError(err) || signal?.aborted) {
-          throw new UploadAbortedError();
-        }
-        throw err;
-      }
+      });
     },
-    3,
-    signal
+    3
   );
 
   validateCid(metadataCid);
@@ -863,11 +831,13 @@ export async function unpinFromPinata(cid: string): Promise<boolean> {
   try {
     validateCid(cid);
     const token = createMockUploadToken();
+    const csrfToken = await getCsrfToken();
     const response = await fetch(`/api/upload`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
+        ...(csrfToken ? { "x-kora-csrf": csrfToken } : {}),
       },
       body: JSON.stringify({ cid }),
     });
@@ -918,38 +888,22 @@ export async function uploadJsonToPinata(
   }
   const addr = walletAddress || "GABC1234567890TESTADDRESS";
   const token = authToken || createMockUploadToken(addr);
-  const res = await withAbortRetry(
+  const res = await withRetry(
     async () => {
-      try {
-        const r = await fetch(`/api/upload`, {
-          method: "POST",
-          signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ walletAddress: addr, metadata, name: _name }),
-        });
-        if (!r.ok) throw new Error(`JSON upload failed: ${r.status}`);
-        return (await r.json()) as { cid: string };
-      } catch (err) {
-        if (isAbortError(err) || signal?.aborted) {
-          throw new UploadAbortedError();
-        }
-        throw err;
-      }
-    },
-    3,
-    signal
-  );
-
-  validateCid(res.cid);
-  return res.cid;
-}
+      const csrfToken = await getCsrfToken();
+      return fetch(`/api/upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(csrfToken ? { "x-kora-csrf": csrfToken } : {}),
+        },
+        body: JSON.stringify({ walletAddress: addr, metadata, name: _name }),
       }).then(async (r) => {
         if (!r.ok) throw new Error(`Metadata upload failed: ${r.status}`);
         return r.json() as Promise<{ cid: string }>;
-      }),
+      });
+    },
     3
   );
   validateCid(res.cid);

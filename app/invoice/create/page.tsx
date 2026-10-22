@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,7 +31,8 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUIStore, useInvoiceStore } from "@/store";
-import { prepareCreateInvoice } from "@/services/invoiceService";
+import { prepareCreateInvoice, fetchInvoiceById, extractMintedTokenId } from "@/services/invoiceService";
+import { waitForTransaction } from "@/lib/stellar/client";
 import {
   buildLocalizedInvoiceSchemas,
   INVOICE_DETAILS_STEP_FIELDS,
@@ -44,6 +46,7 @@ import { cn, isValidStellarAddress } from "@/lib/utils";
 import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { usePinataHealth } from "@/hooks/usePinataHealth";
+import { MAX_INVOICE_PDF_BYTES } from "@/lib/validations/upload";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 import { useFeatureFlag } from "@/lib/featureFlags";
 import { useWalletKycStatus } from "@/store/walletStore";
@@ -51,10 +54,15 @@ import { KybGateScreen } from "@/components/invoice/KybGateScreen";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
+/** sessionStorage key for wizard step persistence (Issue #XXX). */
+const WIZARD_STEP_KEY = "kora-invoice-create-step";
+
 export default function CreateInvoicePage() {
   const t = useTranslations("createInvoice");
   const tMarketplace = useTranslations("marketplace");
   const tCommon = useTranslations("common");
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const STEPS = [t("steps.details"), t("steps.terms"), t("steps.review")];
 
@@ -89,6 +97,10 @@ export default function CreateInvoicePage() {
   ];
 
   const [step, setStep] = useState(0);
+  // ── Step persistence (Issue #XXX): restore from ?step= query param or
+  // sessionStorage on mount. Actual validation happens after isDraftResolved.
+  const [stepRestoredFromStorage, setStepRestoredFromStorage] = useState(false);
+
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   // ── KYB gate state (Issue #489) ───────────────────────────────────────────
@@ -117,10 +129,32 @@ export default function CreateInvoicePage() {
   const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
   const [mintedInfo, setMintedInfo] = useState<{
-    tokenId: string;
+    tokenId?: string;
     txHash: string;
     metadataCid: string;
   } | null>(null);
+  const [isIndexed, setIsIndexed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!mintedInfo?.tokenId) return;
+    let active = true;
+    async function checkIndex() {
+      try {
+        const inv = await fetchInvoiceById(mintedInfo!.tokenId!);
+        if (active) {
+          setIsIndexed(Boolean(inv));
+        }
+      } catch {
+        if (active) {
+          setIsIndexed(false);
+        }
+      }
+    }
+    checkIndex();
+    return () => {
+      active = false;
+    };
+  }, [mintedInfo?.tokenId]);
 
   // Pinata health — checked when the user reaches the Upload step.
   // Auto-retries with exponential backoff so the wizard self-heals on recovery.
@@ -197,6 +231,76 @@ export default function CreateInvoicePage() {
     });
     return () => subscription.unsubscribe();
   }, [watch, setCreateDraft, isDraftResolved]);
+
+  // ── Step persistence: restore persisted step once draft is resolved ───────
+  // Priority: ?step= query param > sessionStorage > default (0).
+  // We validate the restored step against form completeness so the user can't
+  // skip ahead to a step their partial form doesn't satisfy.
+  useEffect(() => {
+    if (!isDraftResolved || stepRestoredFromStorage) return;
+
+    const formSnapshot = watch();
+    const { invoiceDetailsStepSchema: dts, financingTermsSchema: fts } = {
+      invoiceDetailsStepSchema,
+      financingTermsSchema,
+    };
+
+    const step0OK = dts.safeParse(formSnapshot).success;
+    const step1OK = fts.safeParse(formSnapshot).success;
+
+    // Max step the form data can actually support
+    const maxAllowedStep = step1OK ? 2 : step0OK ? 1 : 0;
+
+    // 1. ?step= query param takes precedence (support-link sharing)
+    const qpStep = searchParams.get("step");
+    if (qpStep !== null) {
+      const parsed = parseInt(qpStep, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 2) {
+        setStep(Math.min(parsed, maxAllowedStep));
+        setStepRestoredFromStorage(true);
+        return;
+      }
+    }
+
+    // 2. sessionStorage fallback
+    try {
+      const stored = sessionStorage.getItem(WIZARD_STEP_KEY);
+      if (stored !== null) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 2) {
+          setStep(Math.min(parsed, maxAllowedStep));
+        }
+      }
+    } catch {
+      // sessionStorage unavailable (private mode, etc.) — silently ignore
+    }
+
+    setStepRestoredFromStorage(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDraftResolved]);
+
+  // ── Step persistence: write step to sessionStorage on change ─────────────
+  useEffect(() => {
+    if (!stepRestoredFromStorage) return;
+    try {
+      sessionStorage.setItem(WIZARD_STEP_KEY, String(step));
+    } catch {
+      // ignore
+    }
+    // Sync ?step= query param for shareable support links
+    const params = new URLSearchParams(searchParams.toString());
+    if (step === 0) {
+      params.delete("step");
+    } else {
+      params.set("step", String(step));
+    }
+    const newSearch = params.toString();
+    const currentSearch = searchParams.toString();
+    if (newSearch !== currentSearch) {
+      router.replace(`?${newSearch}`, { scroll: false });
+    }
+  }, [step, stepRestoredFromStorage, searchParams, router]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const formValues = watch();
   const step0Valid = useMemo(
@@ -279,7 +383,7 @@ export default function CreateInvoicePage() {
     onDrop,
     accept: { "application/pdf": [".pdf"] },
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: MAX_INVOICE_PDF_BYTES,
   });
 
   const nextStep = async () => {
@@ -353,6 +457,7 @@ export default function CreateInvoicePage() {
 
   const handleDiscardDraft = () => {
     clearCreateDraft();
+    try { sessionStorage.removeItem(WIZARD_STEP_KEY); } catch { /* ignore */ }
     setShowDraftBanner(false);
     setIsDraftResolved(true);
   };
@@ -380,6 +485,7 @@ export default function CreateInvoicePage() {
     setUploadStage("ipfs");
 
     let tempMetadataCid = "";
+    let preSubmitTokenId: string | undefined = undefined;
 
     await execute(
       async () => {
@@ -399,17 +505,33 @@ export default function CreateInvoicePage() {
         );
 
         tempMetadataCid = result.metadataCid;
+        preSubmitTokenId = result.simulatedTokenId ?? result.tokenId;
         setIsUploading(false);
         return result.unsignedXdr;
       },
       {
         successMessage: "Invoice minted on Soroban!",
         onSimulationPreview,
-        onSuccess: (hash) => {
+        onSuccess: async (hash, txResult) => {
           setUploadStage("done");
-          const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
+
+          // Parse token ID from submitted transaction via stellar client helpers
+          let parsedTokenId: string | null = extractMintedTokenId(txResult);
+
+          if (!parsedTokenId && hash && !hash.startsWith("mock_") && !txResult?.mock) {
+            try {
+              const confirmedTx = await waitForTransaction(hash, 5, 1000);
+              parsedTokenId = extractMintedTokenId(confirmedTx);
+            } catch {
+              // Best-effort confirmation check
+            }
+          }
+
+          // Use pre-submit simulation token ID as fallback (especially in mock mode)
+          const finalTokenId = parsedTokenId ?? preSubmitTokenId ?? undefined;
+
           setMintedInfo({
-            tokenId: mockTokenId,
+            tokenId: finalTokenId,
             txHash: hash,
             metadataCid: tempMetadataCid,
           });
@@ -418,6 +540,8 @@ export default function CreateInvoicePage() {
           queryClient.invalidateQueries({ queryKey: ["invoices", "infinite"] });
           queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
           clearCreateDraft();
+          // Clear persisted step on successful mint
+          try { sessionStorage.removeItem(WIZARD_STEP_KEY); } catch { /* ignore */ }
           setSubmitted(true);
         },
       }
@@ -461,12 +585,31 @@ export default function CreateInvoicePage() {
           </p>
 
           <div className="mt-8 space-y-4 rounded-xl border border-zinc-800/85 bg-zinc-900/40 p-5 text-left text-sm backdrop-blur-sm">
-            <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
-              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
-              <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
-                #{mintedInfo.tokenId}
-              </span>
-            </div>
+            {mintedInfo.tokenId ? (
+              <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
+                    {t("success.tokenIdFormatted", { id: mintedInfo.tokenId })}
+                  </span>
+                  {isIndexed === false && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400 border border-amber-500/20"
+                      title={t("success.indexerLag")}
+                    >
+                      {t("success.syncingBadge")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
+                <span className="text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-medium">
+                  {t("success.tokenPending")}
+                </span>
+              </div>
+            )}
 
             <div className="flex justify-between items-start pt-1">
               <div className="space-y-1 w-full">
@@ -485,24 +628,26 @@ export default function CreateInvoicePage() {
             </div>
           </div>
 
-          <div className="mt-8 rounded-xl border border-kora-500/20 bg-kora-500/5 p-5 text-left">
-            <p className="text-sm font-semibold text-zinc-100" data-testid="post-mint-share-cta">
-              Share your invoice
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">
-              Send a deep link with the on-chain token ID so funders open the correct listing.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <ShareInvoiceButton
-                id={mintedInfo.tokenId}
-                tokenId={mintedInfo.tokenId}
-                invoiceTitle={`Invoice #${mintedInfo.tokenId}`}
-                summary="Newly minted invoice on Kora — ready for funding."
-                variant="default"
-                size="default"
-              />
+          {mintedInfo.tokenId && (
+            <div className="mt-8 rounded-xl border border-kora-500/20 bg-kora-500/5 p-5 text-left">
+              <p className="text-sm font-semibold text-zinc-100" data-testid="post-mint-share-cta">
+                Share your invoice
+              </p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Send a deep link with the on-chain token ID so funders open the correct listing.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <ShareInvoiceButton
+                  id={mintedInfo.tokenId}
+                  tokenId={mintedInfo.tokenId}
+                  invoiceTitle={`Invoice #${mintedInfo.tokenId}`}
+                  summary="Newly minted invoice on Kora — ready for funding."
+                  variant="default"
+                  size="default"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <a
@@ -515,7 +660,7 @@ export default function CreateInvoicePage() {
               <ArrowRight className="h-3.5 w-3.5" />
             </a>
 
-            <Link href={`/marketplace/${mintedInfo.tokenId}`}>
+            <Link href={mintedInfo.tokenId ? `/marketplace/${mintedInfo.tokenId}` : "/marketplace"}>
               <Button className="w-full sm:w-auto bg-gradient-to-r from-kora-500 to-kora-600 hover:from-kora-600 hover:to-kora-700 text-white shadow-lg shadow-kora-500/15">
                 {t("success.viewMarketplace")}
               </Button>
