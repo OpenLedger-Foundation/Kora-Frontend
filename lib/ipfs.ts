@@ -182,7 +182,7 @@ export function createUploadAbortController(): AbortController {
 }
 
 /** Upload a file via XHR so we get real progress events. */
-function xhrUpload(
+export function xhrUpload(
   url: string,
   form: FormData,
   onProgress?: (percent: number) => void,
@@ -195,6 +195,22 @@ function xhrUpload(
       return;
     }
     const xhr = new XMLHttpRequest();
+    let aborted = false;
+
+    const onAbort = () => {
+      aborted = true;
+      try {
+        xhr.abort();
+      } catch {
+        // ignore
+      }
+      reject(new UploadAbortedError(signal?.reason ? String(signal.reason) : "Upload aborted"));
+    };
+
+    if (signal) {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+
     xhr.open("POST", url);
 
     const token = authToken || createMockUploadToken();
@@ -213,6 +229,7 @@ function xhrUpload(
 
     if (onProgress) {
       xhr.upload.onprogress = (e) => {
+        if (signal?.aborted) return;
         if (e.lengthComputable) {
           onProgress(Math.round((e.loaded / e.total) * 100));
         }
@@ -226,9 +243,13 @@ function xhrUpload(
         return;
       }
       if (xhr.status >= 200 && xhr.status < 300) {
-        const parsed = JSON.parse(xhr.responseText);
-        const cid = parsed.cid || parsed.IpfsHash;
-        resolve({ IpfsHash: cid });
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          const cid = parsed.cid || parsed.IpfsHash;
+          resolve({ IpfsHash: cid });
+        } catch {
+          reject(new UploadError("Invalid JSON response from server"));
+        }
       } else {
         // Parse error response to check if it's a virus scan rejection
         try {
@@ -679,12 +700,16 @@ export async function fetchIpfsJsonWithFallback<T = unknown>(
 export async function uploadValidatedInvoiceMetadata(
   input: InvoiceMetadataV1Input,
   walletAddress: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  signal?: AbortSignal
 ): Promise<{
   metadataCid: string;
   imageCid: string;
   thumbnailCid: string | undefined;
 }> {
+  if (signal?.aborted) {
+    throw new UploadAbortedError();
+  }
   // Step 1: Pre-validate input (without image — we'll add it after upload)
   const preCheck = validateInvoiceMetadata({
     metadata_version: METADATA_VERSION,
@@ -715,10 +740,16 @@ export async function uploadValidatedInvoiceMetadata(
   onProgress?.(15);
 
   // Step 3: Upload SVG to IPFS
-  const imageCid = await uploadInvoicePDF(svgFile, walletAddress, (p) => {
-    // Map SVG upload progress to 15–55% of total
-    onProgress?.(15 + Math.round(p * 0.4));
-  });
+  const imageCid = await uploadInvoicePDF(
+    svgFile,
+    walletAddress,
+    (p) => {
+      // Map SVG upload progress to 15–55% of total
+      onProgress?.(15 + Math.round(p * 0.4));
+    },
+    undefined,
+    signal
+  );
 
   onProgress?.(55);
 
@@ -741,7 +772,7 @@ export async function uploadValidatedInvoiceMetadata(
         `invoice-thumbnail-${input.invoice_number}.png`,
         { type: "image/png" }
       );
-      thumbnailCid = await uploadInvoicePDF(thumbnailFile, walletAddress);
+      thumbnailCid = await uploadInvoicePDF(thumbnailFile, walletAddress, undefined, undefined, signal);
     } catch {
       // Pinning the thumbnail is not worth failing a mint over.
       thumbnailCid = undefined;
@@ -849,8 +880,12 @@ export async function uploadJsonToPinata(
   metadata: Record<string, unknown>,
   _name: string,
   walletAddress?: string,
-  authToken?: string
+  authToken?: string,
+  signal?: AbortSignal
 ): Promise<string> {
+  if (signal?.aborted) {
+    throw new UploadAbortedError();
+  }
   const addr = walletAddress || "GABC1234567890TESTADDRESS";
   const token = authToken || createMockUploadToken(addr);
   const res = await withRetry(

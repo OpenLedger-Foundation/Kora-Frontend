@@ -135,6 +135,7 @@ export interface ValidationMessages {
   fileRequired: string;
   fileType: string;
   fileSize: string;
+  fileMagicBytesInvalid: string;
   // Funding / repayment
   fundingAmountMinInvestment: string;
   fundingAmountExceedsCapacity: string;
@@ -173,6 +174,7 @@ const enMessages: ValidationMessages = {
   fileRequired: "File is required",
   fileType: "Only PDF files are allowed",
   fileSize: "File size must not exceed 10MB",
+  fileMagicBytesInvalid: "Selected file is not a valid PDF document (missing %PDF- header)",
   fundingAmountMinInvestment:
     "Funding amount must be at least the minimum investment amount",
   fundingAmountExceedsCapacity:
@@ -215,6 +217,7 @@ const esMessages: ValidationMessages = {
   fileRequired: "El archivo es requerido",
   fileType: "Solo se permiten archivos PDF",
   fileSize: "El tamaño del archivo no debe exceder 10MB",
+  fileMagicBytesInvalid: "El archivo seleccionado no es un documento PDF válido (falta el encabezado %PDF-)",
   fundingAmountMinInvestment:
     "El monto de financiamiento debe ser al menos el monto de inversión mínima",
   fundingAmountExceedsCapacity:
@@ -250,6 +253,7 @@ const arMessages: ValidationMessages = {
   fileRequired: "الملف مطلوب",
   fileType: "يُسمح فقط بملفات PDF",
   fileSize: "يجب ألا يتجاوز حجم الملف 10 ميجابايت",
+  fileMagicBytesInvalid: "الملف المحدد ليس مستند PDF صالح (الرأس %PDF- مفقود)",
   fundingAmountMinInvestment: "يجب أن يكون مبلغ التمويل على الأقل الحد الأدنى لمبلغ الاستثمار",
   fundingAmountExceedsCapacity: "لا يمكن أن يتجاوز مبلغ التمويل الطاقة المتبقية",
   repaymentExactMatch: "يجب أن يتطابق مبلغ السداد تمامًا مع الرصيد المستحق",
@@ -281,6 +285,7 @@ const ptBrMessages: ValidationMessages = {
   fileRequired: "O arquivo é obrigatório",
   fileType: "Apenas arquivos PDF são permitidos",
   fileSize: "O tamanho do arquivo não deve exceder 10MB",
+  fileMagicBytesInvalid: "O arquivo selecionado não é um documento PDF válido (cabeçalho %PDF- ausente)",
   fundingAmountMinInvestment: "O valor do financiamento deve ser pelo menos o valor do investimento mínimo",
   fundingAmountExceedsCapacity: "O valor do financiamento não pode exceder a capacidade restante",
   repaymentExactMatch: "O valor do reembolso deve corresponder exatamente ao saldo pendente",

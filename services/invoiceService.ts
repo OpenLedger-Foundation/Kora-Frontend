@@ -250,7 +250,8 @@ class MockInvoiceService implements IInvoiceService {
   async createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal
   ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
     if (!formData.document) {
       return failure("INVALID_FORM", "Invoice document is required");
@@ -264,7 +265,12 @@ class MockInvoiceService implements IInvoiceService {
 
     try {
       await this.delay();
-
+      if (signal?.aborted) {
+        return failure("CREATE_ERROR", "Invoice creation was aborted");
+      }
+      if (!formData.document) {
+        return failure("INVALID_FORM", "Invoice document is required");
+      }
       onProgress?.(15);
       const mockDocCid = `mock_doc_${Date.now()}`;
       pinnedCids.push(mockDocCid);
@@ -485,12 +491,9 @@ class LiveInvoiceService implements IInvoiceService {
   async createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
-  ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>> {
-    if (!formData.document) {
-      return failure("INVALID_FORM", "Invoice document is required");
-    }
-
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal
+  ): Promise<Result<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }>> {
     // Track every CID pinned during this pipeline so we can roll back if
     // the on-chain step fails.  Best-effort: we never let unpin failures
     // mask the original mint error.
@@ -498,6 +501,13 @@ class LiveInvoiceService implements IInvoiceService {
     const requestId = crypto.randomUUID();
 
     try {
+      if (signal?.aborted) {
+        return failure("CREATE_ERROR", "Invoice creation was aborted");
+      }
+      if (!formData.document) {
+        return failure("INVALID_FORM", "Invoice document is required");
+      }
+
       // ── Stage 1: upload PDF document (0 → 15 %) ────────────────────────
       onProgress?.(5);
       const docCid = await uploadFileToPinata(
@@ -939,9 +949,10 @@ export async function fetchPositions(investorAddress: string) {
 export async function prepareCreateInvoice(
   formData: CreateInvoiceFormData,
   ownerAddress: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  signal?: AbortSignal
 ): Promise<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }> {
-  const result = await service.createInvoice(formData, ownerAddress, onProgress);
+  const result = await service.createInvoice(formData, ownerAddress, onProgress, signal);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }

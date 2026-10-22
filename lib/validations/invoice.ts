@@ -4,6 +4,21 @@ import {
   type ValidationMessages,
 } from "./locales";
 import type { Locale } from "@/i18n/config";
+import {
+  assertPdfMagicBytes,
+  isValidPdfMagicBytes,
+  InvalidPdfError,
+  PDF_MAGIC_BYTES,
+  PDF_MAGIC_STRING,
+} from "@/lib/pdfValidation";
+
+export {
+  assertPdfMagicBytes,
+  isValidPdfMagicBytes,
+  InvalidPdfError,
+  PDF_MAGIC_BYTES,
+  PDF_MAGIC_STRING,
+};
 import { MAX_INVOICE_PDF_BYTES } from "./upload";
 
 // ─── Schema factories ─────────────────────────────────────────────────────────
@@ -91,7 +106,7 @@ export function buildFinancingTermsSchema(msgs: ValidationMessages) {
 
 /** Step 3 — file upload */
 export function buildUploadSchema(msgs: ValidationMessages) {
-  return z.object({
+  const syncSchema = z.object({
     file: z
       .custom<File | null | undefined>()
       .refine(
@@ -115,6 +130,31 @@ export function buildUploadSchema(msgs: ValidationMessages) {
         },
         msgs.fileSize
       ),
+  });
+
+  const asyncSchema = syncSchema.superRefine(async (data, ctx) => {
+    if (data.file && typeof (data.file as any).slice === "function") {
+      const isValid = await isValidPdfMagicBytes(data.file);
+      if (!isValid) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: msgs.fileMagicBytesInvalid || msgs.fileType,
+          path: ["file"],
+        });
+      }
+    }
+  });
+
+  return new Proxy(asyncSchema, {
+    get(target, prop, receiver) {
+      if (prop === "safeParse") {
+        return (data: unknown) => syncSchema.safeParse(data);
+      }
+      if (prop === "parse") {
+        return (data: unknown) => syncSchema.parse(data);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
   });
 }
 

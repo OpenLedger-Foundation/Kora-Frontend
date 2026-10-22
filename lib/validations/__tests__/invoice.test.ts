@@ -13,6 +13,9 @@ import {
   fundingAmountSchema,
   repaymentSchema,
   userProfileSchema,
+  assertPdfMagicBytes,
+  isValidPdfMagicBytes,
+  InvalidPdfError,
 } from "../invoice";
 import { MAX_INVOICE_PDF_BYTES } from "../upload";
 import { MAX_FILE_SIZE } from "@/lib/ipfs";
@@ -184,6 +187,76 @@ describe("uploadSchema", () => {
 
   it("rejects undefined file", () => {
     fail(uploadSchema, { file: undefined }, "file");
+  });
+
+  it("async safeParseAsync accepts valid PDF with %PDF- header", async () => {
+    const validFile = new Blob([Buffer.from("%PDF-1.4 minimal test PDF content")], {
+      type: "application/pdf",
+    }) as File;
+    Object.defineProperty(validFile, "name", { value: "valid.pdf" });
+    const res = await uploadSchema.safeParseAsync({ file: validFile });
+    assert.equal(res.success, true);
+  });
+
+  it("async safeParseAsync rejects .pdf renamed JPEG", async () => {
+    const fakeJpeg = new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10])], {
+      type: "application/pdf",
+    }) as File;
+    Object.defineProperty(fakeJpeg, "name", { value: "renamed.pdf" });
+    const res = await uploadSchema.safeParseAsync({ file: fakeJpeg });
+    assert.equal(res.success, false);
+    if (!res.success) {
+      assert.ok(res.error.issues.some((i) => i.path.includes("file")));
+    }
+  });
+
+  it("async safeParseAsync rejects empty file", async () => {
+    const emptyFile = new Blob([], { type: "application/pdf" }) as File;
+    Object.defineProperty(emptyFile, "name", { value: "empty.pdf" });
+    const res = await uploadSchema.safeParseAsync({ file: emptyFile });
+    assert.equal(res.success, false);
+  });
+});
+
+describe("assertPdfMagicBytes & isValidPdfMagicBytes", () => {
+  it("validates a minimal %PDF- file buffer successfully", async () => {
+    const pdfBlob = new Blob([Buffer.from("%PDF-1.7 header")], { type: "application/pdf" }) as File;
+    const isValid = await isValidPdfMagicBytes(pdfBlob);
+    assert.equal(isValid, true);
+    await assert.doesNotReject(() => assertPdfMagicBytes(pdfBlob));
+  });
+
+  it("rejects an empty file", async () => {
+    const emptyBlob = new Blob([], { type: "application/pdf" }) as File;
+    const isValid = await isValidPdfMagicBytes(emptyBlob);
+    assert.equal(isValid, false);
+    await assert.rejects(() => assertPdfMagicBytes(emptyBlob), InvalidPdfError);
+  });
+
+  it("rejects a file shorter than 5 bytes", async () => {
+    const shortBlob = new Blob([Buffer.from("%PDF")], { type: "application/pdf" }) as File;
+    const isValid = await isValidPdfMagicBytes(shortBlob);
+    assert.equal(isValid, false);
+    await assert.rejects(() => assertPdfMagicBytes(shortBlob), InvalidPdfError);
+  });
+
+  it("rejects a .pdf renamed JPEG binary", async () => {
+    const jpegBlob = new Blob([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46])], {
+      type: "application/pdf",
+    }) as File;
+    const isValid = await isValidPdfMagicBytes(jpegBlob);
+    assert.equal(isValid, false);
+    await assert.rejects(() => assertPdfMagicBytes(jpegBlob), InvalidPdfError);
+  });
+
+  it("handles large files via slice without reading the full buffer", async () => {
+    const largeBlob = new Blob([
+      Buffer.from("%PDF-"),
+      Buffer.alloc(1024 * 1024, 0x41), // 1MB padding
+    ]) as File;
+    const isValid = await isValidPdfMagicBytes(largeBlob);
+    assert.equal(isValid, true);
+    await assert.doesNotReject(() => assertPdfMagicBytes(largeBlob));
   });
 });
 
