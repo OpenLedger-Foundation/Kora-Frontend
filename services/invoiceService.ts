@@ -282,9 +282,12 @@ class MockInvoiceService implements IInvoiceService {
       }
 
       onProgress?.(100);
+      const mockTokenId = "1001";
       return success({
         unsignedXdr: `mock_unsigned_xdr_create_${Date.now()}`,
         metadataCid: mockMetadataCid,
+        simulatedTokenId: mockTokenId,
+        tokenId: mockTokenId,
       });
     } catch (error) {
       // Best-effort compensating unpin — mirrors live service behaviour
@@ -535,21 +538,39 @@ class LiveInvoiceService implements IInvoiceService {
 
       onProgress?.(80);
 
-      const unsignedXdr = await invoiceContract.mintInvoice(
-        {
-          ipfsCid: metadataCid,
-          amount: BigInt(Math.round(formData.amount * 1_000_000)),
-          financingAmount,
-          discountRate: Math.round(formData.discountRate * 10_000),
-          dueDate: dueTimestamp,
-        },
-        ownerAddress
-      );
+      let unsignedXdr: string;
+      let simulatedTokenId: string | undefined;
+
+      if (typeof (invoiceContract as any).mintInvoiceWithSimulation === "function") {
+        const sim = await (invoiceContract as any).mintInvoiceWithSimulation(
+          {
+            ipfsCid: metadataCid,
+            amount: BigInt(Math.round(formData.amount * 1_000_000)),
+            financingAmount,
+            discountRate: Math.round(formData.discountRate * 10_000),
+            dueDate: dueTimestamp,
+          },
+          ownerAddress
+        );
+        unsignedXdr = sim.unsignedXdr;
+        simulatedTokenId = sim.simulatedTokenId;
+      } else {
+        unsignedXdr = await invoiceContract.mintInvoice(
+          {
+            ipfsCid: metadataCid,
+            amount: BigInt(Math.round(formData.amount * 1_000_000)),
+            financingAmount,
+            discountRate: Math.round(formData.discountRate * 10_000),
+            dueDate: dueTimestamp,
+          },
+          ownerAddress
+        );
+      }
 
       onProgress?.(100);
 
       // ── Mint succeeded — do NOT unpin anything ──────────────────────────
-      return success({ unsignedXdr, metadataCid });
+      return success({ unsignedXdr, metadataCid, simulatedTokenId, tokenId: simulatedTokenId });
     } catch (error) {
       // ── Compensating unpin for all CIDs pinned before the failure ──────
       // Runs best-effort in the background; we await it so unpin attempts
@@ -919,11 +940,13 @@ export async function prepareCreateInvoice(
   formData: CreateInvoiceFormData,
   ownerAddress: string,
   onProgress?: (progress: number) => void
-): Promise<{ unsignedXdr: string; metadataCid: string }> {
+): Promise<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }> {
   const result = await service.createInvoice(formData, ownerAddress, onProgress);
   if (!result.ok) throw new Error(result.error.message);
   return result.value;
 }
+
+export { extractMintedTokenId } from "@/lib/stellar/client";
 
 export async function prepareFundInvoice(
   tokenId: string,

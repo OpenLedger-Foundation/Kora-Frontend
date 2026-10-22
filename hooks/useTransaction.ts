@@ -108,14 +108,16 @@ const MAX_POLL_ATTEMPTS = 30;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 const SIMULATION_TIMEOUT_MS = 10_000;
 
-async function pollWithBackoff(hash: string): Promise<string> {
+async function pollWithBackoff(
+  hash: string
+): Promise<{ hash: string; txResult?: StellarSdk.rpc.Api.GetTransactionResponse }> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
 
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
     if (Date.now() > deadline) throw new Error("Transaction timed out after 5 minutes");
 
     const result = await rpc.getTransaction(hash);
-    if (result.status === "SUCCESS") return hash;
+    if (result.status === "SUCCESS") return { hash, txResult: result };
     if (result.status === "FAILED") throw new Error("Transaction failed on-chain");
 
     const delay = Math.min(1000 * 2 ** attempt, 16_000);
@@ -339,7 +341,7 @@ export function useTransaction() {
     async (
       buildFn: () => Promise<string>,
       options?: {
-        onSuccess?: (hash: string) => void;
+        onSuccess?: (hash: string, txResult?: any) => void;
         successMessage?: string;
         successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
@@ -539,10 +541,13 @@ export function useTransaction() {
 
         // 5. Poll
         setStage("polling", { txHash: hash });
+        let txResult: any = null;
         if (!signedXdr.startsWith("mock_")) {
-          await pollWithBackoff(hash);
+          const pollRes = await pollWithBackoff(hash);
+          txResult = pollRes.txResult;
         } else {
           await new Promise((r) => setTimeout(r, 1000));
+          txResult = { status: "SUCCESS", txHash: hash, mock: true };
         }
 
         // Phase 5: confirmed
@@ -556,7 +561,7 @@ export function useTransaction() {
           options?.successNotificationType ?? "txConfirmed"
         );
 
-        options?.onSuccess?.(hash);
+        options?.onSuccess?.(hash, txResult);
         return hash;
       } catch (err: unknown) {
         clearSigningTimer();

@@ -31,7 +31,8 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUIStore, useInvoiceStore } from "@/store";
-import { prepareCreateInvoice } from "@/services/invoiceService";
+import { prepareCreateInvoice, fetchInvoiceById, extractMintedTokenId } from "@/services/invoiceService";
+import { waitForTransaction } from "@/lib/stellar/client";
 import {
   buildLocalizedInvoiceSchemas,
   INVOICE_DETAILS_STEP_FIELDS,
@@ -127,10 +128,32 @@ export default function CreateInvoicePage() {
   const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
   const [mintedInfo, setMintedInfo] = useState<{
-    tokenId: string;
+    tokenId?: string;
     txHash: string;
     metadataCid: string;
   } | null>(null);
+  const [isIndexed, setIsIndexed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!mintedInfo?.tokenId) return;
+    let active = true;
+    async function checkIndex() {
+      try {
+        const inv = await fetchInvoiceById(mintedInfo!.tokenId!);
+        if (active) {
+          setIsIndexed(Boolean(inv));
+        }
+      } catch {
+        if (active) {
+          setIsIndexed(false);
+        }
+      }
+    }
+    checkIndex();
+    return () => {
+      active = false;
+    };
+  }, [mintedInfo?.tokenId]);
 
   // Pinata health — checked when the user reaches the Upload step.
   // Auto-retries with exponential backoff so the wizard self-heals on recovery.
@@ -449,6 +472,7 @@ export default function CreateInvoicePage() {
     setUploadStage("ipfs");
 
     let tempMetadataCid = "";
+    let preSubmitTokenId: string | undefined = undefined;
 
     await execute(
       async () => {
@@ -468,17 +492,33 @@ export default function CreateInvoicePage() {
         );
 
         tempMetadataCid = result.metadataCid;
+        preSubmitTokenId = result.simulatedTokenId ?? result.tokenId;
         setIsUploading(false);
         return result.unsignedXdr;
       },
       {
         successMessage: "Invoice minted on Soroban!",
         onSimulationPreview,
-        onSuccess: (hash) => {
+        onSuccess: async (hash, txResult) => {
           setUploadStage("done");
-          const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
+
+          // Parse token ID from submitted transaction via stellar client helpers
+          let parsedTokenId: string | null = extractMintedTokenId(txResult);
+
+          if (!parsedTokenId && hash && !hash.startsWith("mock_") && !txResult?.mock) {
+            try {
+              const confirmedTx = await waitForTransaction(hash, 5, 1000);
+              parsedTokenId = extractMintedTokenId(confirmedTx);
+            } catch {
+              // Best-effort confirmation check
+            }
+          }
+
+          // Use pre-submit simulation token ID as fallback (especially in mock mode)
+          const finalTokenId = parsedTokenId ?? preSubmitTokenId ?? undefined;
+
           setMintedInfo({
-            tokenId: mockTokenId,
+            tokenId: finalTokenId,
             txHash: hash,
             metadataCid: tempMetadataCid,
           });
@@ -532,12 +572,31 @@ export default function CreateInvoicePage() {
           </p>
 
           <div className="mt-8 space-y-4 rounded-xl border border-zinc-800/85 bg-zinc-900/40 p-5 text-left text-sm backdrop-blur-sm">
-            <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
-              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
-              <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
-                #{mintedInfo.tokenId}
-              </span>
-            </div>
+            {mintedInfo.tokenId ? (
+              <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
+                    {t("success.tokenIdFormatted", { id: mintedInfo.tokenId })}
+                  </span>
+                  {isIndexed === false && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400 border border-amber-500/20"
+                      title={t("success.indexerLag")}
+                    >
+                      {t("success.syncingBadge")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
+                <span className="text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-medium">
+                  {t("success.tokenPending")}
+                </span>
+              </div>
+            )}
 
             <div className="flex justify-between items-start pt-1">
               <div className="space-y-1 w-full">
@@ -556,24 +615,26 @@ export default function CreateInvoicePage() {
             </div>
           </div>
 
-          <div className="mt-8 rounded-xl border border-kora-500/20 bg-kora-500/5 p-5 text-left">
-            <p className="text-sm font-semibold text-zinc-100" data-testid="post-mint-share-cta">
-              Share your invoice
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">
-              Send a deep link with the on-chain token ID so funders open the correct listing.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <ShareInvoiceButton
-                id={mintedInfo.tokenId}
-                tokenId={mintedInfo.tokenId}
-                invoiceTitle={`Invoice #${mintedInfo.tokenId}`}
-                summary="Newly minted invoice on Kora — ready for funding."
-                variant="default"
-                size="default"
-              />
+          {mintedInfo.tokenId && (
+            <div className="mt-8 rounded-xl border border-kora-500/20 bg-kora-500/5 p-5 text-left">
+              <p className="text-sm font-semibold text-zinc-100" data-testid="post-mint-share-cta">
+                Share your invoice
+              </p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Send a deep link with the on-chain token ID so funders open the correct listing.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <ShareInvoiceButton
+                  id={mintedInfo.tokenId}
+                  tokenId={mintedInfo.tokenId}
+                  invoiceTitle={`Invoice #${mintedInfo.tokenId}`}
+                  summary="Newly minted invoice on Kora — ready for funding."
+                  variant="default"
+                  size="default"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <a
@@ -586,7 +647,7 @@ export default function CreateInvoicePage() {
               <ArrowRight className="h-3.5 w-3.5" />
             </a>
 
-            <Link href={`/marketplace/${mintedInfo.tokenId}`}>
+            <Link href={mintedInfo.tokenId ? `/marketplace/${mintedInfo.tokenId}` : "/marketplace"}>
               <Button className="w-full sm:w-auto bg-gradient-to-r from-kora-500 to-kora-600 hover:from-kora-600 hover:to-kora-700 text-white shadow-lg shadow-kora-500/15">
                 {t("success.viewMarketplace")}
               </Button>
