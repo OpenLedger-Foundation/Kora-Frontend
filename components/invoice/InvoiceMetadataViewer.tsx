@@ -29,6 +29,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { Invoice } from "@/types/invoice";
 import { safeStellarTxUrl, safeIpfsUrl } from "@/lib/security";
+import { getEffectiveDebtorPrivacy, getMaskedDebtorName, getMaskedDebtorAddress } from "@/lib/debtorPrivacy";
 
 interface InvoiceMetadataViewerProps {
   invoice: Invoice;
@@ -38,12 +39,18 @@ interface InvoiceMetadataViewerProps {
 export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMetadataViewerProps) {
   const [showRaw, setShowRaw] = useState(false);
   const [verificationState, setVerificationState] = useState<"pending" | "verified" | "failed">("pending");
-  const { metadata, tokenId, contractAddress, txHash, createdAt, ipfsCid, debtorPrivacy } = invoice;
+  const { metadata, tokenId, contractAddress, txHash, createdAt, ipfsCid } = invoice;
   
   // Post-fund reveal logic
-  const effectivePrivacy = isFunded ? "full" : debtorPrivacy;
+  const effectivePrivacy = getEffectiveDebtorPrivacy(invoice, isFunded);
   const isAnonymized = effectivePrivacy === "anonymized";
   const isPartial = effectivePrivacy === "partial";
+  const debtorName = getMaskedDebtorName(invoice, isFunded);
+  const debtorAddress = getMaskedDebtorAddress(invoice, isFunded);
+  const privacySafeInvoice = {
+    ...invoice,
+    metadata: { ...metadata, debtorName, debtorAddress },
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -248,8 +255,8 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
             <MetadataField label="Issuer" value={metadata.issuerName} copyText={metadata.issuerName} />
             <MetadataField 
               label="Debtor" 
-              value={metadata.debtorName} 
-              copyText={metadata.debtorName} 
+              value={debtorName}
+              copyText={debtorName}
               isSensitive={isAnonymized}
             />
             <div className="grid grid-cols-2 gap-2">
@@ -286,13 +293,7 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
                <div className="flex flex-col gap-0.5 overflow-hidden">
                  <span className="text-[10px] font-medium uppercase text-muted-foreground">Debtor Address</span>
-                 {isAnonymized || isPartial ? (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground italic">
-                      <Lock className="h-3 w-3" /> Address hidden
-                    </span>
-                 ) : (
-                    <span className="truncate text-xs text-foreground" title={metadata.debtorAddress}>{metadata.debtorAddress}</span>
-                 )}
+                 <span className="truncate text-xs text-foreground" title={debtorAddress}>{debtorAddress}</span>
                </div>
              </div>
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
@@ -340,7 +341,7 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
           <div id="raw-metadata-json" className="border-t p-4">
             <div className="relative">
               <CopyButton 
-                text={JSON.stringify(invoice, null, 2)} 
+                text={JSON.stringify(privacySafeInvoice, null, 2)}
                 className="absolute right-2 top-2 z-10 bg-background/80 backdrop-blur-sm" 
               />
               <pre

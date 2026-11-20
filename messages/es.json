@@ -324,7 +324,13 @@
       "fundingProgress": "Progreso de financiamiento",
       "statusChanges": "Cambios de estado",
       "aprChanges": "Cambios de TAE",
-      "alertsPaused": "Las alertas están pausadas."
+      "alertsPaused": "Las alertas están pausadas.",
+      "alerts": {
+        "statusChanged": "El estado de {invoiceNumber} cambió a {status}.",
+        "fundingProgress": "La financiación de {invoiceNumber} alcanzó el {percent}.",
+        "aprChanged": "La TAE de {invoiceNumber} cambió al {apr}.",
+        "statuses": { "draft": "Borrador", "pending_mint": "Mint pendiente", "listed": "Publicada", "partially_funded": "Financiada parcialmente", "active": "Activa", "fully_funded": "Financiada por completo", "repaid": "Pagada", "defaulted": "Incumplida", "cancelled": "Cancelada" }
+      }
     },
     "searchAria": "Buscar en el mercado",
     "loadMoreFailed": "No se pudieron cargar más facturas.",
@@ -815,13 +821,49 @@
     "connectTitle": "Conecta tu billetera",
     "connectDesc": "Conéctate para ver el análisis de tu portafolio",
     "range": "Rango:",
+  "filters": {
+    "all": "Todos",
+    "allRegions": "Todas las regiones",
+    "allCategories": "Todas las categorías",
+    "riskLabel": "Riesgo:",
+    "regionLabel": "Región:",
+    "categoryLabel": "Categoría:",
+    "periodLabel": "Periodo:",
+    "clear": "Limpiar",
+    "riskTiers": { "AAA": "AAA", "AA": "AA", "A": "A", "BBB": "BBB", "BB": "BB", "B": "B" },
+    "jurisdictions": { "NG": "Nigeria", "KE": "Kenia", "GH": "Ghana", "ZA": "Sudáfrica", "IN": "India", "BR": "Brasil" },
+    "categories": { "trade": "Comercio", "services": "Servicios", "manufacturing": "Manufactura", "retail": "Venta minorista" }
+  },
+  "filterSummary": {
+    "riskTier": "Riesgo {tier}",
+    "customRange": "rango personalizado",
+    "ytd": "año hasta la fecha",
+    "allTime": "todo el periodo",
+    "lastDays": "últimos {days, plural, one {# día} other {# días}}",
+    "allData": "tu portafolio",
+    "separator": ", ",
+    "summary": "Datos de {filters} ({period})"
+  },
+  "presets": { "days7": "7 días", "days30": "30 días", "days90": "90 días", "year": "1 año", "ytd": "Año hasta la fecha", "all": "Todo el periodo", "custom": "Personalizado", "apply": "Aplicar" },
+  "validation": { "invalidRange": "La fecha inicial debe ser anterior a la fecha final" },
+  "chartA11y": { "empty": "{title}. No hay datos disponibles.", "series": "{title}. {count, plural, one {# punto de datos} other {# puntos de datos}}: {points}.", "distribution": "{title}. {count, plural, one {# segmento} other {# segmentos}}: {segments}.", "segment": "{name}: {value}", "separator": "; ", "variancePoint": "{month}: esperado {expected}, realizado {realized}", "treemapSummary": "{title}. Total: {total} en {count, plural, one {# nivel de riesgo} other {# niveles de riesgo}}. {groups}.", "treemapGroup": "{group}: {value}, {percent} de la cartera, incluidos {children}", "treemapLeaf": "{name} {value} ({percent} del grupo)" },
+  "charts": {
+    "titles": { "portfolio": "Crecimiento de la cartera", "yield": "Rendimiento a lo largo del tiempo", "risk": "Distribución del riesgo", "monthly": "Rendimientos mensuales", "allocation": "Mapa de asignación", "benchmark": "Comparación con referencia" },
+    "series": { "value": "Valor", "yield": "Rendimiento", "allocation": "Asignación", "return": "Retorno", "portfolio": "Cartera" },
+    "empty": { "portfolio": "No hay datos de cartera", "yield": "No hay datos de rendimiento", "risk": "No hay datos de riesgo", "monthly": "No hay datos de rendimiento mensual", "allocation": "No hay datos de asignación", "benchmark": "No hay datos de referencia" }
+  },
     "exportPortfolio": "Exportar CSV de Portafolio",
     "exportYield": "Exportar CSV de Rendimiento",
     "stats": {
       "totalDeployed": "Total Desplegado",
       "totalYield": "Rendimiento Total Ganado",
       "annualisedReturn": "Retorno Anualizado",
-      "defaultRate": "Tasa de Mora"
+      "defaultRate": "Tasa de Mora",
+      "activePositions": "Posiciones activas",
+      "averageApr": "TAE promedio",
+      "acrossFilteredPositions": "En las posiciones filtradas",
+      "positionsCount": "{count, plural, one {# posición} other {# posiciones}}",
+      "return": "retorno del {percent}"
     },
     "treemap": {
       "title": "Asignación por riesgo y jurisdicción",
@@ -855,6 +897,7 @@
       "exportYield": "Exportar datos de rendimiento",
       "exportRisk": "Exportar datos de riesgo",
       "exportReturn": "Exportar datos de retorno",
+      "exportMonthly": "Exportar datos de rendimiento mensual",
       "exportVariance": "Exportar CSV de variación",
       "exportSellerMetrics": "Exportar métricas de vendedor como CSV",
       "sellerMetricsTable": "Tabla de métricas de vendedor",

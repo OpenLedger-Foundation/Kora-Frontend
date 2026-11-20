@@ -30,6 +30,7 @@ import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
 import { AcceptTransferDialog } from "@/components/invoice/AcceptTransferDialog";
 import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
+import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import { useAcquirePositionFlow, useTransferPositionFlow } from "@/hooks/useTransaction";
 import { useWallet } from "@/hooks/useWallet";
 import { useVerifiedAction } from "@/hooks/useVerifiedAction";
@@ -502,7 +503,7 @@ function SecondaryMarketplaceContent() {
                             </Badge>
                           </div>
                           <CardTitle className="mt-1 text-base font-semibold text-white">
-                            {item.invoice.metadata.debtorName || "Debtor Account"}
+                            <DebtorDisplay invoice={item.invoice} variant="compact" />
                           </CardTitle>
                         </div>
                         <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-semibold">

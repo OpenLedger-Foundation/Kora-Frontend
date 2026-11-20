@@ -76,6 +76,13 @@ export function useFormatters() {
       });
     };
 
+    const formatMonth = (dateStr: string | null | undefined): string => {
+      if (!dateStr) return "—";
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return intl.dateTime(date, { year: "numeric", month: "short" });
+    };
+
     const formatRelativeTime = (
       date: string | Date | null | undefined,
     ): string => formatRelativeTimeUtil(date, locale);
@@ -100,6 +107,7 @@ export function useFormatters() {
       formatPercentage,
       formatApr,
       formatDate,
+      formatMonth,
       formatRelativeTime,
       formatNumber,
       formatCompactNumber,

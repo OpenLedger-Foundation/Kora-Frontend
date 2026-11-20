@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useInvoiceStore } from "@/store";
 import { useSettingsStore } from "@/store/settingsStore";
 import { formatCurrency, formatApr } from "@/lib/utils";
+import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 
 interface WatchlistDrawerProps {
   open: boolean;
@@ -48,7 +49,7 @@ export function WatchlistDrawer({ open, onClose }: WatchlistDrawerProps) {
           {watched.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">{t("emptyState")}</p> : watched.map((invoice) => (
             <div key={invoice.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
               <Link href={`/marketplace/${invoice.id}`} onClick={onClose} className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{invoice.metadata.debtorName}</p>
+                <DebtorDisplay invoice={invoice} variant="compact" className="text-sm" />
                 <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(invoice.funding.totalRaised, invoice.metadata.currency, true)} {t("raised")} · {formatApr(invoice.terms.apr)}</p>
               </Link>
               <button onClick={() => toggleWatched(invoice.id)} className="rounded-md p-2 text-primary hover:bg-muted" aria-label={t("unstar", { invoiceNumber: invoice.metadata.invoiceNumber })}><Star className="h-4 w-4 fill-current" /></button>

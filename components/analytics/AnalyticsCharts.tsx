@@ -23,12 +23,10 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Download, TrendingUp, TrendingDown } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useFormatters } from "@/hooks/useFormatters";
-import { useLocale } from "@/i18n/LocaleProvider";
-import { isRTL } from "@/i18n/config";
 import {
   buildTreemapModel,
   describeTreemap,
@@ -105,23 +103,27 @@ function describeSeries<T extends object>(
   rows: T[],
   labelKey: keyof T,
   valueKey: keyof T,
-  format: (value: number) => string
+  format: (value: number) => string,
+  t: ReturnType<typeof useTranslations<"analytics">>,
+  formatLabel: (value: string) => string = (value) => value
 ): string {
-  if (rows.length === 0) return `${title}. No data available.`;
+  if (rows.length === 0) return t("chartA11y.empty", { title });
   const points = rows
-    .map((row) => `${String(row[labelKey])}: ${format(Number(row[valueKey]))}`)
-    .join("; ");
-  return `${title}. ${rows.length} data points — ${points}.`;
+    .map((row) => `${formatLabel(String(row[labelKey]))}: ${format(Number(row[valueKey]))}`)
+    .join(t("chartA11y.separator"));
+  return t("chartA11y.series", { title, count: rows.length, points });
 }
 
 /** Render a proportional breakdown as a sentence. */
 function describeDistribution(
   title: string,
-  slices: Array<{ name: string; value: number }>
+  slices: Array<{ name: string; value: number }>,
+  format: (value: number) => string,
+  t: ReturnType<typeof useTranslations<"analytics">>
 ): string {
-  if (slices.length === 0) return `${title}. No data available.`;
-  const segments = slices.map((s) => `${s.name}: ${s.value}%`).join("; ");
-  return `${title}. ${slices.length} segments — ${segments}.`;
+  if (slices.length === 0) return t("chartA11y.empty", { title });
+  const segments = slices.map((s) => t("chartA11y.segment", { name: s.name, value: format(s.value) })).join(t("chartA11y.separator"));
+  return t("chartA11y.distribution", { title, count: slices.length, segments });
 }
 
 /**
@@ -158,10 +160,13 @@ export default function AnalyticsCharts({
   benchmarkConfig,
 }: AnalyticsChartsProps) {
   const chartHeight = compact ? 180 : 240;
+  const reducedMotion = useReducedMotion();
   const t = useTranslations("analytics");
-  const locale = useLocale();
-  const rtl = isRTL(locale);
-  const { formatCurrency, formatNumber, formatPercentage } = useFormatters();
+  const { formatCurrency, formatPercentage, formatMonth: formatMonthValue } = useFormatters();
+  const formatMonth = (month: string) => {
+    const parsed = new Date(`${month} 1`);
+    return Number.isNaN(parsed.getTime()) ? month : formatMonthValue(parsed.toISOString());
+  };
 
   // Recomputed only when the positions change: the nesting walks every
   // position twice and the analytics page re-renders on every filter tick.
@@ -175,13 +180,17 @@ export default function AnalyticsCharts({
   );
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+    <motion.div
+      initial={reducedMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: reducedMotion ? 0 : 0.3 }}
+    >
       {/* Portfolio Growth & Yield Row */}
       <div className="mb-6 grid gap-6 lg:grid-cols-2">
         {/* Portfolio Growth */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Portfolio Growth</CardTitle>
+            <CardTitle className="text-base">{t("charts.titles.portfolio")}</CardTitle>
             {onExport && (
               <button
                 type="button"
@@ -201,11 +210,11 @@ export default function AnalyticsCharts({
             ) : (
               <ChartFigure
                 label={describeSeries(
-                  "Portfolio growth over time",
+                  t("charts.titles.portfolio"),
                   portfolio,
                   "month",
                   "value",
-                  (v) => formatCurrency(v, "USDC")
+                  (v) => formatCurrency(v, "USDC"), t, formatMonth
                 )}
               >
                 <ResponsiveContainer width="100%" height={chartHeight}>
@@ -223,6 +232,7 @@ export default function AnalyticsCharts({
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis
                       dataKey="month"
+                      tickFormatter={formatMonth}
                       tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                       axisLine={false}
                       tickLine={false}
@@ -235,7 +245,7 @@ export default function AnalyticsCharts({
                     />
                     <Tooltip
                       {...TOOLTIP_STYLE}
-                      formatter={(v: number) => [formatCurrency(v, "USDC"), "Value"]}
+                      formatter={(v: number) => [formatCurrency(v, "USDC"), t("charts.series.value")]}
                     />
                     <Area
                       type="monotone"
@@ -243,6 +253,7 @@ export default function AnalyticsCharts({
                       stroke="hsl(var(--primary))"
                       fill="url(#portfolioGrad)"
                       strokeWidth={2}
+                      isAnimationActive={!reducedMotion}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -254,7 +265,7 @@ export default function AnalyticsCharts({
         {/* Yield */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Yield Over Time</CardTitle>
+            <CardTitle className="text-base">{t("charts.titles.yield")}</CardTitle>
             {onExport && (
               <button
                 type="button"
@@ -274,11 +285,11 @@ export default function AnalyticsCharts({
             ) : (
               <ChartFigure
                 label={describeSeries(
-                  "Yield over time",
+                  t("charts.titles.yield"),
                   yieldData,
                   "month",
                   "yield",
-                  (v) => formatPercentage(v)
+                  (v) => formatPercentage(v), t, formatMonth
                 )}
               >
                 <ResponsiveContainer width="100%" height={chartHeight}>
@@ -302,7 +313,7 @@ export default function AnalyticsCharts({
                     />
                     <Tooltip
                       {...TOOLTIP_STYLE}
-                      formatter={(v: number) => [formatPercentage(v), "Yield"]}
+                      formatter={(v: number) => [formatPercentage(v), t("charts.series.yield")]}
                     />
                     <Line
                       type="monotone"
@@ -310,6 +321,7 @@ export default function AnalyticsCharts({
                       stroke="hsl(var(--primary))"
                       strokeWidth={2}
                       dot={false}
+                      isAnimationActive={!reducedMotion}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -324,7 +336,7 @@ export default function AnalyticsCharts({
         {/* Risk Distribution */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Risk Distribution</CardTitle>
+            <CardTitle className="text-base">{t("charts.titles.risk")}</CardTitle>
             {onExport && (
               <button
                 type="button"
@@ -342,7 +354,7 @@ export default function AnalyticsCharts({
             ) : risk.length === 0 ? (
               <EmptyState message={t("charts.empty.risk")} />
             ) : (
-              <ChartFigure label={describeDistribution("Risk distribution", risk)}>
+              <ChartFigure label={describeDistribution(t("charts.titles.risk"), risk, formatPercentage, t)}>
                 <ResponsiveContainer width="100%" height={chartHeight}>
                   <PieChart accessibilityLayer>
                     <Pie
@@ -352,15 +364,16 @@ export default function AnalyticsCharts({
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
-                      label={({ name, value }) => `${name}: ${value}%`}
+                      label={({ name, value }) => t("chartA11y.segment", { name, value: formatPercentage(value) })}
                       onClick={(entry) => onRiskSegmentClick?.(entry.name)}
                       style={{ cursor: onRiskSegmentClick ? "pointer" : "default" }}
+                      isAnimationActive={!reducedMotion}
                     >
                       {risk.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [`${v}%`, "Allocation"]} />
+                    <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatPercentage(v), t("charts.series.allocation")]} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -372,7 +385,7 @@ export default function AnalyticsCharts({
         {/* Monthly Returns */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Monthly Returns</CardTitle>
+            <CardTitle className="text-base">{t("charts.titles.monthly")}</CardTitle>
             {onExport && (
               <button
                 type="button"
@@ -392,11 +405,11 @@ export default function AnalyticsCharts({
             ) : (
               <ChartFigure
                 label={describeSeries(
-                  "Monthly returns",
+                  t("charts.titles.monthly"),
                   monthly,
                   "month",
                   "return",
-                  (v) => formatPercentage(v)
+                  (v) => formatPercentage(v), t, formatMonth
                 )}
               >
                 <ResponsiveContainer width="100%" height={chartHeight}>
@@ -420,10 +433,10 @@ export default function AnalyticsCharts({
                     />
                     <Tooltip
                       {...TOOLTIP_STYLE}
-                      formatter={(v: number) => [formatPercentage(v), "Return"]}
+                      formatter={(v: number) => [formatPercentage(v), t("charts.series.return")]}
                     />
                     <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                    <Bar dataKey="return" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="return" radius={[4, 4, 0, 0]} isAnimationActive={!reducedMotion}>
                       {monthly.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
@@ -447,7 +460,7 @@ export default function AnalyticsCharts({
       {positions && positions.length > 0 && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-base">Allocation Treemap</CardTitle>
+            <CardTitle className="text-base">{t("charts.titles.allocation")}</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -455,7 +468,12 @@ export default function AnalyticsCharts({
             ) : treemapSeries.length === 0 ? (
               <EmptyState message={t("charts.empty.allocation")} />
             ) : (
-              <ChartFigure label={describeTreemap(treemap)}>
+              <ChartFigure label={describeTreemap(
+                treemap,
+                (value) => formatCurrency(value, "USDC"),
+                formatPercentage,
+                (key, values) => (t as unknown as (key: string, values?: Record<string, string | number>) => string)(key, values)
+              )}>
                 <ResponsiveContainer width="100%" height={chartHeight}>
                   <Treemap
                     data={treemapSeries}
@@ -493,11 +511,11 @@ export default function AnalyticsCharts({
           ) : (
             <ChartFigure
               label={describeSeries(
-                "Benchmark comparison",
+                t("charts.titles.benchmark"),
                 portfolio,
                 "month",
                 "value",
-                (v) => formatCurrency(v, "USDC")
+                (v) => formatCurrency(v, "USDC"), t, formatMonth
               )}
             >
               <ResponsiveContainer width="100%" height={chartHeight}>
@@ -521,17 +539,18 @@ export default function AnalyticsCharts({
                   />
                   <Tooltip
                     {...TOOLTIP_STYLE}
-                    formatter={(v: number) => [formatCurrency(v, "USDC"), "Value"]}
+                    formatter={(v: number) => [formatCurrency(v, "USDC"), t("charts.series.value")]}
                   />
                   <Legend />
                   <Area
                     type="monotone"
                     dataKey="value"
-                    name="Portfolio"
+                    name={t("charts.series.portfolio")}
                     stroke="hsl(var(--primary))"
                     fill="hsl(var(--primary))"
                     fillOpacity={0.15}
                     strokeWidth={2}
+                    isAnimationActive={!reducedMotion}
                   />
                   <Line
                     type="monotone"
@@ -539,6 +558,7 @@ export default function AnalyticsCharts({
                     name={benchmarks.primary.label}
                     stroke={benchmarks.primary.color}
                     strokeWidth={2}
+                    isAnimationActive={!reducedMotion}
                     dot={false}
                   />
                 </ComposedChart>
