@@ -176,23 +176,31 @@ export function toTreemapSeries(model: TreemapModel): TreemapSeriesNode[] {
 export function describeTreemap(
   model: TreemapModel,
   formatCurrency: (value: number) => string,
+  formatPercentage: (value: number) => string = (value) => `${value.toFixed(1)}%`,
+  translate?: (key: string, values?: Record<string, string | number>) => string,
   outerLabel = "risk tier",
   innerLabel = "jurisdiction"
 ): string {
   const title = `Portfolio allocation by ${outerLabel} and ${innerLabel}`;
-  if (model.groups.length === 0) return `${title}. No data available.`;
+  if (model.groups.length === 0) return translate?.("chartA11y.empty", { title }) ?? `${title}. No data available.`;
 
   const parts = model.groups.map((group) => {
     const children = group.children
       .map(
         (leaf) =>
-          `${leaf.name} ${formatCurrency(leaf.value)} (${leaf.percentOfGroup.toFixed(1)}% of tier)`
+          translate
+            ? translate("chartA11y.treemapLeaf", { name: leaf.name, value: formatCurrency(leaf.value), percent: formatPercentage(leaf.percentOfGroup) })
+            : `${leaf.name} ${formatCurrency(leaf.value)} (${leaf.percentOfGroup.toFixed(1)}% of tier)`
       )
       .join(", ");
-    return `${group.name}: ${formatCurrency(group.value)}, ${group.percentOfTotal.toFixed(1)}% of portfolio — ${children}`;
+    return translate
+      ? translate("chartA11y.treemapGroup", { group: group.name, value: formatCurrency(group.value), percent: formatPercentage(group.percentOfTotal), children })
+      : `${group.name}: ${formatCurrency(group.value)}, ${group.percentOfTotal.toFixed(1)}% of portfolio — ${children}`;
   });
 
-  return `${title}. Total ${formatCurrency(model.total)} across ${model.groups.length} ${outerLabel} groups. ${parts.join(". ")}.`;
+  return translate
+    ? translate("chartA11y.treemapSummary", { title: translate("charts.titles.allocation"), total: formatCurrency(model.total), count: model.groups.length, groups: parts.join(". ") })
+    : `${title}. Total ${formatCurrency(model.total)} across ${model.groups.length} ${outerLabel} groups. ${parts.join(". ")}.`;
 }
 
 /**

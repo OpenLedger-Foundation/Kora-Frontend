@@ -286,6 +286,21 @@ Detail on each of these follows.
    e.g. Stellar, Soroban, Kora Protocol, USDC, XLM, IPFS, NFT, APR are generally left in Latin script
    across all four locales, matching the existing convention in each file.
 
+#### Notification copy
+
+Watchlist alerts are announced by the toast system, so keep their urgency and meaning consistent in
+every locale. Put alert text under `marketplace.watchlist.alerts.*`, use ICU placeholders for invoice
+numbers and formatted values, and resolve invoice status codes through the alert status labels. Keep
+preference checks in the hook so paused or disabled alerts never produce a toast.
+
+#### Debtor privacy in rendered views
+
+Use `DebtorDisplay` or the `getMaskedDebtorName` / `getMaskedDebtorAddress` helpers for debtor data in
+cards, drawers, metadata panels, accessible labels, and exported position summaries. Public views must
+respect the invoice privacy level. Pass `isFunded` only when the current viewer owns a funded position;
+do not include raw debtor fields in titles, tooltips, copy controls, or raw metadata previews when the
+effective privacy level masks them.
+
 ### Checking parity
 
 Run the same check CI runs before opening a PR:

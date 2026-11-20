@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useTranslations } from "next-intl";
+import { useFormatters } from "@/hooks/useFormatters";
 import type { Invoice } from "@/types";
 import { useInvoiceStore } from "@/store";
 import { useSettingsStore, type NotificationPrefs } from "@/store/settingsStore";
@@ -14,17 +16,29 @@ type Snapshot = Pick<Invoice, "status"> & {
 export function getAlertMessage(
   invoice: Invoice,
   previous: Snapshot | undefined,
-  preferences: NotificationPrefs
+  preferences: NotificationPrefs,
+  t: (key: string, values?: Record<string, string | number>) => string,
+  formatPercentage: (value: number, decimals?: number) => string
 ): string | null {
   if (!previous) return null;
+  const invoiceNumber = invoice.metadata.invoiceNumber || invoice.id;
   if (preferences.status && previous.status !== invoice.status) {
-    return `${invoice.metadata.invoiceNumber} is now ${invoice.status.replace(/_/g, " ")}.`;
+    return t("alerts.statusChanged", {
+      invoiceNumber,
+      status: t(`alerts.statuses.${invoice.status}`),
+    });
   }
   if (preferences.fundingProgress && previous.fundingProgress !== invoice.funding.fundingProgress) {
-    return `${invoice.metadata.invoiceNumber} funding reached ${Math.round(invoice.funding.fundingProgress * 100)}%.`;
+    return t("alerts.fundingProgress", {
+      invoiceNumber,
+      percent: formatPercentage(invoice.funding.fundingProgress * 100, 0),
+    });
   }
   if (preferences.apr && previous.apr !== invoice.terms.apr) {
-    return `${invoice.metadata.invoiceNumber} APR changed to ${invoice.terms.apr}%.`;
+    return t("alerts.aprChanged", {
+      invoiceNumber,
+      apr: formatPercentage(invoice.terms.apr, 0),
+    });
   }
   return null;
 }
@@ -86,6 +100,8 @@ function snapshot(invoice: Invoice): Snapshot {
 }
 
 export function useWatchlistAlerts() {
+  const t = useTranslations("marketplace.watchlist");
+  const { formatPercentage } = useFormatters();
   const invoices = useInvoiceStore((state) => state.invoices);
   const watchedInvoiceIds = useInvoiceStore((state) => state.watchedInvoiceIds);
   const preferences = useSettingsStore((state) => state.notifications);
@@ -105,10 +121,11 @@ export function useWatchlistAlerts() {
       next[invoice.id] = current;
       if (!old) return;
 
-      const message = getAlertMessage(invoice, old, preferences);
+      const translate = t as unknown as (key: string, values?: Record<string, string | number>) => string;
+      const message = getAlertMessage(invoice, old, preferences, translate, formatPercentage);
       if (message && gate.current?.shouldEmit(`${invoice.id}:${message}`)) info(message);
     });
 
     previous.current = next;
-  }, [invoices, watchedInvoiceIds, preferences, info]);
+  }, [invoices, watchedInvoiceIds, preferences, info, t, formatPercentage]);
 }

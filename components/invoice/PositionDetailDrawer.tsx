@@ -16,6 +16,7 @@ import { useFormatters } from "@/hooks/useFormatters";
 import CountdownTimer from "@/components/ui/CountdownTimer";
 import { RepaymentTimeline } from "@/components/invoice/RepaymentTimeline";
 import type { InvoicePosition, InvestorPosition, Invoice } from "@/types";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 
 const HTML_ESCAPES: Record<string, string> = {
   "&": "&amp;",
@@ -75,6 +76,7 @@ export function PositionDetailDrawer({
     ? ((position.expectedReturn / position.investedAmount) * 100)
     : 0;
   const roiStr = formatPercentage(roi, 2);
+  const debtorName = getMaskedDebtorName(invoice, true);
 
   const handleExportPDF = () => {
     const invoiceAmountStr = formatCurrency(invoice.metadata.amount, invoice.metadata.currency);
@@ -114,7 +116,7 @@ export function PositionDetailDrawer({
                 </tr>
                 <tr>
                   <td>Debtor</td>
-                  <td>${escapeHtml(invoice.metadata.debtorName)}</td>
+                  <td>${escapeHtml(debtorName)}</td>
                 </tr>
                 <tr>
                   <td>Invoice Amount</td>
@@ -269,7 +271,7 @@ export function PositionDetailDrawer({
           <div className="mt-3 rounded-lg border border-border p-3 bg-muted/30 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Debtor</span>
-              <span className="font-medium">{invoice.metadata.debtorName}</span>
+              <span className="font-medium">{debtorName}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Amount</span>

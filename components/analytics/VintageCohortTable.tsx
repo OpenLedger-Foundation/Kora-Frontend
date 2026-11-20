@@ -15,7 +15,7 @@ import {
   cohortsToExportRows,
   type CohortPosition,
 } from "@/lib/vintageCohorts";
-import { formatCurrency } from "@/lib/utils";
+import { useFormatters } from "@/hooks/useFormatters";
 import { Button } from "@/components/ui/button";
 
 interface VintageCohortTableProps {
@@ -31,6 +31,7 @@ export function VintageCohortTable({
   className,
 }: VintageCohortTableProps) {
   const t = useTranslations("vintageCohorts");
+  const { formatCurrency, formatPercentage, formatNumber, formatMonth } = useFormatters();
 
   const cohorts = useMemo(() => buildVintageCohorts(positions), [positions]);
 
@@ -86,7 +87,7 @@ export function VintageCohortTable({
                 }
               >
                 <th scope="row" className="py-2 pr-3 text-left font-normal">
-                  {cohort.label}
+                  {formatMonth(`${cohort.month}-01`)}
                 </th>
                 {cohort.isEmpty ? (
                   <td className="py-2 text-zinc-600" colSpan={4}>
@@ -94,15 +95,15 @@ export function VintageCohortTable({
                   </td>
                 ) : (
                   <>
-                    <td className="py-2 pr-3 text-right font-mono">{cohort.positionCount}</td>
+                    <td className="py-2 pr-3 text-right font-mono">{formatNumber(cohort.positionCount)}</td>
                     <td className="py-2 pr-3 text-right font-mono">
                       {formatCurrency(cohort.totalInvested)}
                     </td>
                     <td className="py-2 pr-3 text-right font-mono">
-                      {cohort.weightedApr === null ? "—" : `${cohort.weightedApr.toFixed(2)}%`}
+                      {cohort.weightedApr === null ? "—" : formatPercentage(cohort.weightedApr, 2)}
                     </td>
                     <td className="py-2 text-right font-mono">
-                      {cohort.defaultRate.toFixed(1)}%
+                      {formatPercentage(cohort.defaultRate, 1)}
                     </td>
                   </>
                 )}
