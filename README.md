@@ -582,3 +582,6 @@ the identical flow above using `buildAddTrustlineTx(address, "eurc")`.
 
 <!-- handsoff-issue-1168 -->
 - #1168: Upload API client progress and cancel for large invoice docs
+
+<!-- handsoff-issue-1169 -->
+- #1169: Feedback widget attach context (route, locale, wallet truncated)
