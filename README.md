@@ -579,3 +579,6 @@ the identical flow above using `buildAddTrustlineTx(address, "eurc")`.
 
 <!-- handsoff-issue-1167 -->
 - #1167: Auth challenge/verify flow error localization and rate-limit UX
+
+<!-- handsoff-issue-1168 -->
+- #1168: Upload API client progress and cancel for large invoice docs
