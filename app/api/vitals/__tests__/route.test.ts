@@ -22,6 +22,21 @@ function makeRequest(body: any, hasCsrf = true): NextRequest {
   });
 }
 
+function makeMetric(overrides: Record<string, any> = {}) {
+  return {
+    name: "FCP",
+    value: 120,
+    id: "v4-123",
+    label: "web-vital",
+    startTime: 0,
+    rating: "good",
+    url: "/dashboard",
+    userAgent: "Mozilla",
+    timestamp: Date.now(),
+    ...overrides,
+  };
+}
+
 describe("POST /api/vitals", () => {
   const originalEnv = process.env;
 
@@ -44,21 +59,7 @@ describe("POST /api/vitals", () => {
 
   it("returns 204 and does not forward if ANALYTICS_INGEST_URL is not set", async () => {
     delete process.env.ANALYTICS_INGEST_URL;
-    const req = makeRequest({
-      metrics: [
-        {
-          name: "FCP",
-          value: 120,
-          id: "v4-123",
-          label: "web-vital",
-          startTime: 0,
-          rating: "good",
-          url: "/dashboard",
-          userAgent: "Mozilla",
-          timestamp: Date.now(),
-        },
-      ],
-    });
+    const req = makeRequest({ metrics: [makeMetric()] });
     const res = await POST(req);
     expect(res.status).toBe(204);
     expect(mockFetch).not.toHaveBeenCalled();
@@ -68,21 +69,7 @@ describe("POST /api/vitals", () => {
     process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
     mockFetch.mockResolvedValueOnce({ ok: true });
 
-    const req = makeRequest({
-      metrics: [
-        {
-          name: "FCP",
-          value: 120,
-          id: "v4-123",
-          label: "web-vital",
-          startTime: 0,
-          rating: "good",
-          url: "/dashboard",
-          userAgent: "Mozilla",
-          timestamp: Date.now(),
-        },
-      ],
-    });
+    const req = makeRequest({ metrics: [makeMetric()] });
     const res = await POST(req);
     expect(res.status).toBe(204);
     expect(mockFetch).toHaveBeenCalledWith(
@@ -101,21 +88,7 @@ describe("POST /api/vitals", () => {
     process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
     mockFetch.mockRejectedValueOnce(new Error("Network Error"));
 
-    const req = makeRequest({
-      metrics: [
-        {
-          name: "FCP",
-          value: 120,
-          id: "v4-123",
-          label: "web-vital",
-          startTime: 0,
-          rating: "good",
-          url: "/dashboard",
-          userAgent: "Mozilla",
-          timestamp: Date.now(),
-        },
-      ],
-    });
+    const req = makeRequest({ metrics: [makeMetric()] });
     const res = await POST(req);
     expect(res.status).toBe(204);
   });
@@ -127,18 +100,10 @@ describe("POST /api/vitals", () => {
     const walletAddress = "GBXW67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ67SZ"; // exactly 56 chars G...
     const req = makeRequest({
       metrics: [
-        {
-          name: "FCP",
-          value: 120,
-          id: "v4-123",
-          label: "web-vital",
-          startTime: 0,
-          rating: "good",
+        makeMetric({
           url: `/dashboard/sme/${walletAddress}`,
-          userAgent: "Mozilla",
-          timestamp: Date.now(),
-          context: { wallet: walletAddress }
-        },
+          context: { wallet: walletAddress },
+        }),
       ],
     });
     const res = await POST(req);
@@ -149,5 +114,68 @@ describe("POST /api/vitals", () => {
     expect(bodySent[0].url).not.toContain(walletAddress);
     expect(bodySent[0].url).toContain("[REDACTED_WALLET]");
     expect(bodySent[0].context.wallet).toBe("[REDACTED_WALLET]");
+  });
+
+  it("redacts invoice ids and query params from the URL", async () => {
+    process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const req = makeRequest({
+      metrics: [
+        makeMetric({
+          url: "/invoices/INV-2024-000123?email=user%40example.com&token=abc123",
+        }),
+      ],
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    const bodySent = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(bodySent[0].url).not.toContain("INV-2024-000123");
+    expect(bodySent[0].url).not.toContain("user%40example.com");
+    expect(bodySent[0].url).not.toContain("abc123");
+    expect(bodySent[0].url).toContain("[REDACTED_INVOICE]");
+    expect(bodySent[0].url).toContain("[REDACTED_QUERY]");
+  });
+
+  it("redacts PII from custom attributes in the forwarded payload", async () => {
+    process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const req = makeRequest({
+      metrics: [
+        makeMetric({
+          context: {
+            email: "user@example.com",
+            invoiceId: "INV-2024-000123",
+            address: "123 Main Street, Springfield",
+            nested: { phone: "+1-555-123-4567" },
+            safe: "dashboard",
+          },
+        }),
+      ],
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    const bodySent = JSON.parse(mockFetch.mock.calls[0][1].body);
+    const ctx = bodySent[0].context;
+    expect(ctx.email).toBe("[REDACTED]");
+    expect(ctx.invoiceId).toBe("[REDACTED]");
+    expect(ctx.address).toBe("[REDACTED]");
+    expect(ctx.nested.phone).toBe("[REDACTED]");
+    expect(ctx.safe).toBe("dashboard");
+  });
+
+  it("handles metrics without a url or context without throwing", async () => {
+    process.env.ANALYTICS_INGEST_URL = "https://analytics.example.com/ingest";
+    mockFetch.mockResolvedValueOnce({ ok: true });
+
+    const req = makeRequest({
+      metrics: [makeMetric({ url: undefined, context: undefined })],
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(204);
+    const bodySent = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(bodySent[0].url).toBeUndefined();
+    expect(bodySent[0].context).toBeUndefined();
   });
 });
