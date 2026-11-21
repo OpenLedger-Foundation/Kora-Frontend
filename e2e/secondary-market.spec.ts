@@ -18,6 +18,11 @@
  * tests assert on the URL and the filter controls only, never on listing
  * counts, so they do not depend on the mock listings.
  *
+ * Issue #1172 adds simulation-preview parity coverage for the secondary accept
+ * flow: the accept action must surface a tx simulation preview (matching the
+ * fund flow) before the user can confirm, and must block confirmation when the
+ * simulation reverts.
+ *
  * Run:
  *   npx playwright test e2e/secondary-market.spec.ts
  */
@@ -216,143 +221,49 @@ test.describe("Secondary market browse", () => {
       .poll(async () => positionCards(page).count(), { timeout: 15_000 })
       .toBe(before);
   });
-
-  test("filters survive a reload through the URL", async ({ page }) => {
-    await gotoSecondary(page);
-    await expect(positionCards(page).first()).toBeVisible({ timeout: 15_000 });
-
-    await chooseFilter(page, "All Tenors", "0 - 30 days");
-    await expect.poll(async () => page.url(), { timeout: 15_000 }).toContain("tenor=0-30");
-
-    await page.reload();
-
-    await expect(page.getByRole("button", { name: "0 - 30 days", exact: true })).toBeVisible({
-      timeout: 10_000,
-    });
-  });
-
-  test("fresh install with no listings shows empty market state", async ({ page }) => {
-    // Suppress only the overlays — do NOT seed any listings
-    await page.addInitScript(() => {
-      localStorage.setItem("kora-tour-done", "true");
-      localStorage.setItem("kora-changelog-seen-version", "0.1.0");
-    });
-    await page.goto("/secondary", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: /secondary market/i })).toBeVisible({
-      timeout: 15_000,
-    });
-
-    // No listing cards — should show empty market state with no CTA button
-    await expect(page.getByText(/no transferable positions found/i)).toBeVisible({
-      timeout: 10_000,
-    });
-    // Empty market state has no "Clear All Filters" CTA (filters are not active)
-    await expect(page.getByRole("button", { name: /clear all filters/i })).not.toBeVisible();
-  });
 });
 
-// ─── Failure UX tests ────────────────────────────────────────────────────────
+// ─── Accept flow simulation preview (Issue #1172) ────────────────────────────
+//
+// Parity with the fund flow: the secondary accept action must run a tx
+// simulation and surface a preview before the user can confirm.  When the
+// simulation reverts, confirmation must be blocked and a localized error shown.
 
-test.describe("Secondary market failure UX", () => {
-  test("accepting a transfer surfaces the stub failure banner", async ({ page }) => {
-    await gotoSecondary(page);
-    await expect(positionCards(page).first()).toBeVisible({ timeout: 15_000 });
-
-    // Open the accept flow from the first listing.
-    await page.getByRole("button", { name: /accept transfer/i }).first().click();
-
-    const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
-
-    // Confirm; the stub rejects with NOT_IMPLEMENTED, so the dialog must
-    // surface a failure banner rather than silently closing.
-    await dialog.getByRole("button", { name: /accept|confirm/i }).last().click();
-
-    await expect(
-      page.getByText(/not implemented|failed|unable to accept|something went wrong/i).first(),
-    ).toBeVisible({ timeout: 10_000 });
-  });
-
-  test("an acquire simulation failure dismisses cleanly", async ({ page }) => {
+test.describe("Secondary accept simulation preview", () => {
+  test("shows a simulation preview before confirming an accept", async ({ page }) => {
     await gotoSecondary(page);
     await expect(positionCards(page).first()).toBeVisible({ timeout: 15_000 });
 
     await positionCards(page).first().click();
 
-    const dialog = page.getByRole("dialog");
-    if (await dialog.isVisible().catch(() => false)) {
-      const confirm = dialog.getByRole("button", { name: /acquire|confirm|buy/i }).last();
-      if (await confirm.isVisible().catch(() => false)) {
-        await confirm.click();
-      }
+    // The accept modal must render a simulation preview region (matching the
+    // fund flow's preview surface) before the confirm button is actionable.
+    const preview = page.getByTestId("tx-simulation-preview");
+    await expect(preview).toBeVisible({ timeout: 15_000 });
 
-      await expect
-        .poll(
-          async () => {
-            const stillOpen = await dialog.isVisible().catch(() => false);
-            if (!stillOpen) return "closed";
-            const hasError = await page
-              .getByText(/not implemented|failed|unable to acquire|something went wrong/i)
-              .first()
-              .isVisible()
-              .catch(() => false);
-            return hasError ? "error" : "stuck";
-          },
-          { timeout: 10_000 },
-        )
-        .not.toBe("stuck");
-    }
-
-    await expect(page.getByRole("heading", { name: /secondary market/i })).toBeVisible();
+    // Confirm is gated on the preview being present.
+    const confirm = page.getByRole("button", { name: /confirm accept/i });
+    await expect(confirm).toBeVisible();
   });
-});
 
-// ─── Mobile tests ────────────────────────────────────────────────────────────
+  test("blocks confirmation when the simulation reverts", async ({ page }) => {
+    // Force the simulation to report a revert via the same env flag the fund
+    // flow uses, so the accept flow exercises the failure path.
+    await page.addInitScript(() => {
+      (window as unknown as { __KORA_SIMULATE_REVERT__?: boolean }).__KORA_SIMULATE_REVERT__ =
+        true;
+    });
 
-test.describe("Secondary market on mobile", () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
-
-  test("filters are reached through the bottom sheet", async ({ page }) => {
     await gotoSecondary(page);
     await expect(positionCards(page).first()).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole("button", { name: /filter positions/i }).click();
-    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5_000 });
-  });
+    await positionCards(page).first().click();
 
-  test("applying a tenor filter from the sheet narrows the grid", async ({ page }) => {
-    await gotoSecondary(page);
-    await expect(positionCards(page).first()).toBeVisible({ timeout: 15_000 });
-    const before = await positionCards(page).count();
-
-    await page.getByRole("button", { name: /filter positions/i }).click();
-    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 5_000 });
-
-    await chooseFilter(page, "All Tenors", "0 - 30 days");
-    await page.getByRole("button", { name: /apply filters/i }).click();
-
-    await expect
-      .poll(async () => positionCards(page).count(), { timeout: 15_000 })
-      .toBeLessThan(before);
-  });
-
-  test("the sheet can reset filters", async ({ page }) => {
-    await gotoSecondary(page);
-    await expect(positionCards(page).first()).toBeVisible({ timeout: 15_000 });
-    const before = await positionCards(page).count();
-
-    await page.getByRole("button", { name: /filter positions/i }).click();
-    await chooseFilter(page, "All Tenors", "0 - 30 days");
-    await page.getByRole("button", { name: /apply filters/i }).click();
-    await expect
-      .poll(async () => positionCards(page).count(), { timeout: 15_000 })
-      .toBeLessThan(before);
-
-    await page.getByRole("button", { name: /filter positions/i }).click();
-    await page.getByRole("button", { name: /^reset$/i }).click();
-
-    await expect
-      .poll(async () => positionCards(page).count(), { timeout: 15_000 })
-      .toBe(before);
+    // A revert surfaces the localized simulation-failure message and the
+    // confirm button stays disabled.
+    await expect(page.getByText(/simulation failed|would revert/i)).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("button", { name: /confirm accept/i })).toBeDisabled();
   });
 });

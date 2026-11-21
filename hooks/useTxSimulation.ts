@@ -40,6 +40,11 @@ export function useTxSimulation() {
    */
   const onSimulationPreview = useCallback(
     (incoming: SimulationPreview): Promise<boolean> => {
+      // If a previous preview is still pending (e.g. a rapid re-trigger),
+      // resolve it as cancelled so its awaiting caller never hangs.
+      resolveRef.current?.(false);
+      resolveRef.current = null;
+
       setPreview(incoming);
       setOpen(true);
 
