@@ -159,13 +159,22 @@ export function useToast() {
    * Plain informational toast — no transaction chrome, no retry affordance.
    * Carried over from the module this one absorbed; used for passive notices
    * such as watchlist alerts.
+   *
+   * Accepts an optional `id` so callers (e.g. `useHorizonHealthToast`) can
+   * dedupe/coalesce repeated notices by reusing a stable toast id — Sonner
+   * updates the existing toast in place instead of stacking a new one.
    */
-  const showInfo = (message: string, type?: NotificationPreferenceType) => {
+  const showInfo = (
+    message: string,
+    type?: NotificationPreferenceType,
+    id?: string | number
+  ) => {
     if (!shouldNotify(type)) return;
     return toast.info(
       <div role="status" aria-live="polite" className="font-medium text-foreground">
         {message}
-      </div>
+      </div>,
+      id !== undefined ? { id } : undefined
     );
   };
 
