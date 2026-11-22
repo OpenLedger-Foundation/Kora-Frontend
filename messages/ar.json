@@ -324,7 +324,13 @@
       "fundingProgress": "تقدم التمويل",
       "statusChanges": "تغييرات الحالة",
       "aprChanges": "تغييرات العائد السنوي",
-      "alertsPaused": "التنبيهات متوقفة مؤقتًا."
+      "alertsPaused": "التنبيهات متوقفة مؤقتًا.",
+      "alerts": {
+        "statusChanged": "تغيرت حالة {invoiceNumber} إلى {status}.",
+        "fundingProgress": "وصل تمويل {invoiceNumber} إلى {percent}.",
+        "aprChanged": "تغير معدل العائد السنوي لـ {invoiceNumber} إلى {apr}.",
+        "statuses": { "draft": "مسودة", "pending_mint": "السك قيد الانتظار", "listed": "مدرجة", "partially_funded": "مموّلة جزئيًا", "active": "نشطة", "fully_funded": "مموّلة بالكامل", "repaid": "مسددة", "defaulted": "متعثر عليها", "cancelled": "ملغاة" }
+      }
     },
     "searchAria": "البحث في السوق",
     "loadMoreFailed": "تعذر تحميل المزيد من الفواتير.",
@@ -815,13 +821,49 @@
     "connectTitle": "ربط محفظتك",
     "connectDesc": "ربط المحفظة لعرض تحليلات محفظتك",
     "range": "النطاق:",
+  "filters": {
+    "all": "الكل",
+    "allRegions": "جميع المناطق",
+    "allCategories": "جميع الفئات",
+    "riskLabel": "المخاطر:",
+    "regionLabel": "المنطقة:",
+    "categoryLabel": "الفئة:",
+    "periodLabel": "الفترة:",
+    "clear": "مسح",
+    "riskTiers": { "AAA": "AAA", "AA": "AA", "A": "A", "BBB": "BBB", "BB": "BB", "B": "B" },
+    "jurisdictions": { "NG": "نيجيريا", "KE": "كينيا", "GH": "غانا", "ZA": "جنوب أفريقيا", "IN": "الهند", "BR": "البرازيل" },
+    "categories": { "trade": "التجارة", "services": "الخدمات", "manufacturing": "التصنيع", "retail": "البيع بالتجزئة" }
+  },
+  "filterSummary": {
+    "riskTier": "المخاطر {tier}",
+    "customRange": "نطاق مخصص",
+    "ytd": "من بداية العام حتى الآن",
+    "allTime": "كل الوقت",
+    "lastDays": "آخر {days, plural, one {يوم واحد} other {# أيام}}",
+    "allData": "محفظتك",
+    "separator": "، ",
+    "summary": "البيانات: {filters} ({period})"
+  },
+  "presets": { "days7": "٧ أيام", "days30": "٣٠ يومًا", "days90": "٩٠ يومًا", "year": "سنة واحدة", "ytd": "من بداية العام", "all": "كل الوقت", "custom": "مخصص", "apply": "تطبيق" },
+  "validation": { "invalidRange": "يجب أن يكون تاريخ البدء قبل تاريخ الانتهاء" },
+  "chartA11y": { "empty": "{title}. لا تتوفر بيانات.", "series": "{title}. {count, plural, zero {لا توجد نقاط بيانات} one {نقطة بيانات واحدة} two {نقطتا بيانات} few {# نقاط بيانات} many {# نقطة بيانات} other {# نقطة بيانات}}: {points}.", "distribution": "{title}. {count, plural, zero {لا توجد شرائح} one {شريحة واحدة} two {شريحتان} few {# شرائح} many {# شريحة} other {# شريحة}}: {segments}.", "segment": "{name}: {value}", "separator": "؛ ", "variancePoint": "{month}: المتوقع {expected}، المحقق {realized}", "treemapSummary": "{title}. الإجمالي {total} عبر {count, plural, zero {لا توجد فئات مخاطر} one {فئة مخاطر واحدة} two {فئتا مخاطر} few {# فئات مخاطر} many {# فئة مخاطر} other {# فئة مخاطر}}. {groups}.", "treemapGroup": "{group}: {value}، {percent} من المحفظة، وتشمل {children}", "treemapLeaf": "{name} {value} ({percent} من الفئة)" },
+  "charts": {
+    "titles": { "portfolio": "نمو المحفظة", "yield": "العائد بمرور الوقت", "risk": "توزيع المخاطر", "monthly": "العوائد الشهرية", "allocation": "خريطة توزيع المحفظة", "benchmark": "مقارنة المؤشرات المرجعية" },
+    "series": { "value": "القيمة", "yield": "العائد", "allocation": "التوزيع", "return": "العائد", "portfolio": "المحفظة" },
+    "empty": { "portfolio": "لا تتوفر بيانات للمحفظة", "yield": "لا تتوفر بيانات للعائد", "risk": "لا تتوفر بيانات للمخاطر", "monthly": "لا تتوفر بيانات للعوائد الشهرية", "allocation": "لا تتوفر بيانات للتوزيع", "benchmark": "لا تتوفر بيانات للمؤشرات المرجعية" }
+  },
     "exportPortfolio": "تصدير CSV للمحفظة",
     "exportYield": "تصدير CSV للعوائد",
     "stats": {
       "totalDeployed": "إجمالي المنشور",
       "totalYield": "إجمالي العوائد المكتسبة",
       "annualisedReturn": "العائد السنوي",
-      "defaultRate": "معدل التعثر"
+      "defaultRate": "معدل التعثر",
+      "activePositions": "المراكز النشطة",
+      "averageApr": "متوسط معدل العائد السنوي",
+      "acrossFilteredPositions": "عبر المراكز المحددة",
+      "positionsCount": "{count, plural, zero {لا توجد مراكز} one {مركز واحد} two {مركزان} few {# مراكز} many {# مركزًا} other {# مركز}}",
+      "return": "عائد بنسبة {percent}"
     },
     "treemap": {
       "title": "التوزيع حسب المخاطر والاختصاص القضائي",
@@ -855,6 +897,7 @@
       "exportYield": "تصدير بيانات العائد",
       "exportRisk": "تصدير بيانات المخاطر",
       "exportReturn": "تصدير بيانات العوائد",
+      "exportMonthly": "تصدير بيانات العوائد الشهرية",
       "exportVariance": "تصدير تباين العائد كملف CSV",
       "exportSellerMetrics": "تصدير مقاييس البائع كملف CSV",
       "sellerMetricsTable": "جدول مقاييس قوائم البائع",

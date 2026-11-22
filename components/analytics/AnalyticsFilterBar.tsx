@@ -33,58 +33,61 @@ interface AnalyticsFilterBarProps {
   className?: string;
 }
 
-const RISK_TIERS: { label: string; value: RiskTierFilter }[] = [
-  { label: "All", value: "all" },
-  { label: "AAA", value: "AAA" },
-  { label: "AA", value: "AA" },
-  { label: "A", value: "A" },
-  { label: "BBB", value: "BBB" },
-  { label: "BB", value: "BB" },
-  { label: "B", value: "B" },
+const RISK_TIERS: { labelKey: string; value: RiskTierFilter }[] = [
+  { labelKey: "filters.all", value: "all" },
+  { labelKey: "filters.riskTiers.AAA", value: "AAA" },
+  { labelKey: "filters.riskTiers.AA", value: "AA" },
+  { labelKey: "filters.riskTiers.A", value: "A" },
+  { labelKey: "filters.riskTiers.BBB", value: "BBB" },
+  { labelKey: "filters.riskTiers.BB", value: "BB" },
+  { labelKey: "filters.riskTiers.B", value: "B" },
 ];
 
-const JURISDICTIONS: { label: string; value: JurisdictionFilter }[] = [
-  { label: "All Regions", value: "all" },
-  { label: "Nigeria", value: "NG" },
-  { label: "Kenya", value: "KE" },
-  { label: "Ghana", value: "GH" },
-  { label: "South Africa", value: "ZA" },
-  { label: "India", value: "IN" },
-  { label: "Brazil", value: "BR" },
+const JURISDICTIONS: { labelKey: string; value: JurisdictionFilter }[] = [
+  { labelKey: "filters.allRegions", value: "all" },
+  { labelKey: "filters.jurisdictions.NG", value: "NG" },
+  { labelKey: "filters.jurisdictions.KE", value: "KE" },
+  { labelKey: "filters.jurisdictions.GH", value: "GH" },
+  { labelKey: "filters.jurisdictions.ZA", value: "ZA" },
+  { labelKey: "filters.jurisdictions.IN", value: "IN" },
+  { labelKey: "filters.jurisdictions.BR", value: "BR" },
 ];
 
-const CATEGORIES: { label: string; value: CategoryFilter }[] = [
-  { label: "All Categories", value: "all" },
-  { label: "Trade", value: "trade" },
-  { label: "Services", value: "services" },
-  { label: "Manufacturing", value: "manufacturing" },
-  { label: "Retail", value: "retail" },
+const CATEGORIES: { labelKey: string; value: CategoryFilter }[] = [
+  { labelKey: "filters.allCategories", value: "all" },
+  { labelKey: "filters.categories.trade", value: "trade" },
+  { labelKey: "filters.categories.services", value: "services" },
+  { labelKey: "filters.categories.manufacturing", value: "manufacturing" },
+  { labelKey: "filters.categories.retail", value: "retail" },
 ];
 
 // ─── Active filter summary ────────────────────────────────────────────────────
 
-function buildSummary(filters: AnalyticsFilters): string {
+type AnalyticsTranslator = (key: string, values?: Record<string, string | number>) => string;
+
+function buildSummary(filters: AnalyticsFilters, t: AnalyticsTranslator): string {
   const parts: string[] = [];
 
-  if (filters.riskTier !== "all") parts.push(`Risk ${filters.riskTier}`);
+  if (filters.riskTier !== "all") parts.push(t("filterSummary.riskTier", { tier: filters.riskTier }));
   if (filters.jurisdiction !== "all") {
     const j = JURISDICTIONS.find((j) => j.value === filters.jurisdiction);
-    if (j) parts.push(j.label);
+    if (j) parts.push(t(j.labelKey));
   }
   if (filters.category !== "all") {
     const c = CATEGORIES.find((c) => c.value === filters.category);
-    if (c) parts.push(c.label);
+    if (c) parts.push(t(c.labelKey));
   }
 
-  const rangeLabel =
-    filters.dateRange === "custom"
-      ? "custom range"
-      : filters.dateRange === "ytd"
-        ? "year to date"
-        : `last ${filters.dateRange}`;
-  parts.push(rangeLabel);
+  const period = filters.dateRange === "custom"
+    ? t("filterSummary.customRange")
+    : filters.dateRange === "ytd"
+      ? t("filterSummary.ytd")
+      : filters.dateRange === "all"
+        ? t("filterSummary.allTime")
+        : t("filterSummary.lastDays", { days: Number.parseInt(filters.dateRange, 10) });
 
-  return `Showing data for: ${parts.join(", ")}`;
+  const activeFilters = parts.length > 0 ? parts.join(t("filterSummary.separator")) : t("filterSummary.allData");
+  return t("filterSummary.summary", { filters: activeFilters, period });
 }
 
 function hasActiveFilters(filters: AnalyticsFilters): boolean {
@@ -105,6 +108,7 @@ function hasActiveFilters(filters: AnalyticsFilters): boolean {
  */
 export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFilterBarProps) {
   const t = useTranslations("analytics");
+  const translate = t as unknown as AnalyticsTranslator;
   const update = (patch: Partial<AnalyticsFilters>) => onChange({ ...filters, ...patch });
 
   return (
@@ -113,36 +117,36 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
       <div className="flex flex-wrap items-center gap-3">
         {/* Risk tier chips */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-zinc-500 mr-1">Risk:</span>
-          {RISK_TIERS.map((t) => (
+          <span className="text-xs text-zinc-500 mr-1">{t("filters.riskLabel")}</span>
+          {RISK_TIERS.map((tier) => (
             <button
-              key={t.value}
+              key={tier.value}
               type="button"
-              onClick={() => update({ riskTier: t.value })}
+              onClick={() => update({ riskTier: tier.value })}
               className={cn(
                 "rounded-md px-2 py-0.5 text-xs font-medium transition-colors",
-                filters.riskTier === t.value
+                filters.riskTier === tier.value
                   ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
                   : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
               )}
             >
-              {t.label}
+              {translate(tier.labelKey)}
             </button>
           ))}
         </div>
 
         {/* Jurisdiction dropdown */}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500">Region:</span>
+          <span className="text-xs text-zinc-500">{t("filters.regionLabel")}</span>
           <select
             value={filters.jurisdiction}
             onChange={(e) => update({ jurisdiction: e.target.value as JurisdictionFilter })}
-            className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="max-w-[60vw] truncate rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-primary"
             aria-label={t("a11y.filterJurisdiction")}
           >
             {JURISDICTIONS.map((j) => (
               <option key={j.value} value={j.value}>
-                {j.label}
+                {translate(j.labelKey)}
               </option>
             ))}
           </select>
@@ -150,16 +154,16 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
 
         {/* Category dropdown */}
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-zinc-500">Category:</span>
+          <span className="text-xs text-zinc-500">{t("filters.categoryLabel")}</span>
           <select
             value={filters.category}
             onChange={(e) => update({ category: e.target.value as CategoryFilter })}
-            className="rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-primary"
+            className="max-w-[60vw] truncate rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:ring-1 focus:ring-primary"
             aria-label={t("a11y.filterCategory")}
           >
             {CATEGORIES.map((c) => (
               <option key={c.value} value={c.value}>
-                {c.label}
+                {translate(c.labelKey)}
               </option>
             ))}
           </select>
@@ -168,7 +172,7 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
 
       {/* Row 2: Date range picker */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-zinc-500">Period:</span>
+        <span className="text-xs text-zinc-500">{t("filters.periodLabel")}</span>
         <DateRangePicker
           value={filters.dateRange}
           customRange={filters.customDateRange}
@@ -181,7 +185,7 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
       {/* Active filter summary + clear */}
       {hasActiveFilters(filters) && (
         <div className="flex items-center justify-between gap-2 rounded-md bg-zinc-800/60 px-3 py-1.5">
-          <p className="text-xs text-zinc-400">{buildSummary(filters)}</p>
+          <p className="text-xs text-zinc-400" aria-live="polite">{buildSummary(filters, translate)}</p>
           <button
             type="button"
             onClick={() => onChange(DEFAULT_FILTERS)}
@@ -189,7 +193,7 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
             aria-label={t("a11y.clearFilters")}
           >
             <X className="h-3 w-3" />
-            Clear
+            {t("filters.clear")}
           </button>
         </div>
       )}

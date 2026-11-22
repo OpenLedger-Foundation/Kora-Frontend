@@ -134,7 +134,7 @@ function PortfolioAnalyticsInner() {
   // Single positionsQuery — refetch every 30 s while tab is visible
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
 
-  const { formatCurrency, formatPercentage } = useFormatters();
+  const { formatCurrency, formatPercentage, formatNumber } = useFormatters();
   const filters = useMemo(() => filtersFromParams(searchParams), [searchParams]);
 
   const handleFiltersChange = useCallback(
@@ -261,31 +261,31 @@ function PortfolioAnalyticsInner() {
 
   const stats = [
     {
-      label: "Portfolio Value",
+      label: t("stats.totalDeployed"),
       value: formatCurrency(totalInvested, "USDC", true),
-      change: `${filteredPositions.length} ${filteredPositions.length === 1 ? "position" : "positions"}`,
+      change: t("stats.positionsCount", { count: filteredPositions.length }),
       changePositive: true,
       icon: <DollarSign className="h-4 w-4" />,
     },
     {
-      label: "Expected Yield",
+      label: t("stats.totalYield"),
       value: formatCurrency(totalYield, "USDC", true),
       change:
         totalInvested > 0
-          ? `${formatPercentage((totalYield / totalInvested) * 100, 1)} return`
-          : "0.0% return",
+          ? t("stats.return", { percent: formatPercentage((totalYield / totalInvested) * 100, 1) })
+          : t("stats.return", { percent: formatPercentage(0, 1) }),
       changePositive: true,
       icon: <TrendingUp className="h-4 w-4" />,
     },
     {
-      label: "Active Positions",
-      value: filteredPositions.length.toString(),
+      label: t("stats.activePositions"),
+      value: formatNumber(filteredPositions.length),
       icon: <BarChart3 className="h-4 w-4" />,
     },
     {
-      label: "Avg. APR",
-      value: `${averageApr.toFixed(1)}%`,
-      change: "Across filtered positions",
+      label: t("stats.averageApr"),
+      value: formatPercentage(averageApr, 1),
+      change: t("stats.acrossFilteredPositions"),
       changePositive: true,
       icon: <Shield className="h-4 w-4" />,
     },

@@ -263,7 +263,13 @@
       "fundingProgress": "Funding progress",
       "statusChanges": "Status changes",
       "aprChanges": "APR changes",
-      "alertsPaused": "Alerts are paused."
+      "alertsPaused": "Alerts are paused.",
+      "alerts": {
+        "statusChanged": "{invoiceNumber} status changed to {status}.",
+        "fundingProgress": "{invoiceNumber} funding reached {percent}.",
+        "aprChanged": "{invoiceNumber} APR changed to {apr}.",
+        "statuses": { "draft": "Draft", "pending_mint": "Pending mint", "listed": "Listed", "partially_funded": "Partially funded", "active": "Active", "fully_funded": "Fully funded", "repaid": "Repaid", "defaulted": "Defaulted", "cancelled": "Cancelled" }
+      }
     },
     "searchAria": "Search marketplace",
     "recovery": {
@@ -815,13 +821,49 @@
     "connectTitle": "Connect your wallet",
     "connectDesc": "Connect to view your portfolio analytics",
     "range": "Range:",
+  "filters": {
+    "all": "All",
+    "allRegions": "All regions",
+    "allCategories": "All categories",
+    "riskLabel": "Risk:",
+    "regionLabel": "Region:",
+    "categoryLabel": "Category:",
+    "periodLabel": "Period:",
+    "clear": "Clear",
+    "riskTiers": { "AAA": "AAA", "AA": "AA", "A": "A", "BBB": "BBB", "BB": "BB", "B": "B" },
+    "jurisdictions": { "NG": "Nigeria", "KE": "Kenya", "GH": "Ghana", "ZA": "South Africa", "IN": "India", "BR": "Brazil" },
+    "categories": { "trade": "Trade", "services": "Services", "manufacturing": "Manufacturing", "retail": "Retail" }
+  },
+  "filterSummary": {
+    "riskTier": "Risk {tier}",
+    "customRange": "custom range",
+    "ytd": "year to date",
+    "allTime": "all time",
+    "lastDays": "last {days, plural, one {# day} other {# days}}",
+    "allData": "your portfolio",
+    "separator": ", ",
+    "summary": "Showing data for {filters} ({period})"
+  },
+  "presets": { "days7": "7 days", "days30": "30 days", "days90": "90 days", "year": "1 year", "ytd": "Year to date", "all": "All time", "custom": "Custom", "apply": "Apply" },
+  "validation": { "invalidRange": "Start date must be before end date" },
+  "chartA11y": { "empty": "{title}. No data available.", "series": "{title}. {count, plural, one {# data point} other {# data points}}: {points}.", "distribution": "{title}. {count, plural, one {# segment} other {# segments}}: {segments}.", "segment": "{name}: {value}", "separator": "; ", "variancePoint": "{month}: expected {expected}, realized {realized}", "treemapSummary": "{title}. Total {total} across {count, plural, one {# risk tier} other {# risk tiers}}. {groups}.", "treemapGroup": "{group}: {value}, {percent} of portfolio, including {children}", "treemapLeaf": "{name} {value} ({percent} of group)" },
+  "charts": {
+    "titles": { "portfolio": "Portfolio growth", "yield": "Yield over time", "risk": "Risk distribution", "monthly": "Monthly returns", "allocation": "Allocation treemap", "benchmark": "Benchmark comparison" },
+    "series": { "value": "Value", "yield": "Yield", "allocation": "Allocation", "return": "Return", "portfolio": "Portfolio" },
+    "empty": { "portfolio": "No portfolio data available", "yield": "No yield data available", "risk": "No risk data available", "monthly": "No monthly return data available", "allocation": "No allocation data available", "benchmark": "No benchmark data available" }
+  },
     "exportPortfolio": "Export Portfolio CSV",
     "exportYield": "Export Yield CSV",
     "stats": {
       "totalDeployed": "Total Deployed",
       "totalYield": "Total Yield Earned",
       "annualisedReturn": "Annualised Return",
-      "defaultRate": "Default Rate"
+      "defaultRate": "Default Rate",
+      "activePositions": "Active positions",
+      "averageApr": "Average APR",
+      "acrossFilteredPositions": "Across filtered positions",
+      "positionsCount": "{count, plural, one {# position} other {# positions}}",
+      "return": "{percent} return"
     },
     "a11y": {
       "filterJurisdiction": "Filter by jurisdiction",
@@ -831,6 +873,7 @@
       "exportYield": "Export yield data",
       "exportRisk": "Export risk data",
       "exportReturn": "Export return data",
+      "exportMonthly": "Export monthly return data",
       "exportVariance": "Export variance CSV",
       "exportSellerMetrics": "Export seller listing metrics as CSV",
       "sellerMetricsTable": "Seller listing metrics table",

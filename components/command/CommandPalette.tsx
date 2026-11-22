@@ -28,6 +28,7 @@ import { useUIStore } from "@/store/uiStore";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useWalletStore } from "@/store";
 import { useTranslations } from "next-intl";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -265,7 +266,7 @@ export function CommandPalette() {
                       key={inv.id}
                       icon={<FileText className="h-4 w-4" />}
                       label={inv.metadata.invoiceNumber}
-                      sublabel={`${inv.metadata.debtorName} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)} · ${formatPercentage(inv.funding.fundingProgress * 100, 0)} funded`}
+                      sublabel={`${getMaskedDebtorName(inv)} · ${formatCurrency(inv.metadata.amount, inv.metadata.currency, true)} · ${formatPercentage(inv.funding.fundingProgress * 100, 0)} funded`}
                       query={query}
                       badge={inv.status}
                       onSelect={() =>

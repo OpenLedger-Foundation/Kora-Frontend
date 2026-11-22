@@ -18,13 +18,13 @@ interface DateRangePickerProps {
   className?: string;
 }
 
-const PRESETS: { label: string; value: PresetRange }[] = [
-  { label: "7d", value: "7d" },
-  { label: "30d", value: "30d" },
-  { label: "90d", value: "90d" },
-  { label: "1y", value: "1y" },
-  { label: "YTD", value: "ytd" },
-  { label: "All", value: "all" },
+const PRESETS: { labelKey: string; value: PresetRange }[] = [
+  { labelKey: "presets.days7", value: "7d" },
+  { labelKey: "presets.days30", value: "30d" },
+  { labelKey: "presets.days90", value: "90d" },
+  { labelKey: "presets.year", value: "1y" },
+  { labelKey: "presets.ytd", value: "ytd" },
+  { labelKey: "presets.all", value: "all" },
 ];
 
 /**
@@ -33,13 +33,14 @@ const PRESETS: { label: string; value: PresetRange }[] = [
  */
 export function DateRangePicker({ value, customRange, onChange, className }: DateRangePickerProps) {
   const t = useTranslations("analytics");
+  const translate = t as unknown as (key: string) => string;
   const [showCustom, setShowCustom] = React.useState(value === "custom");
   const [from, setFrom] = React.useState(customRange?.from ?? null);
   const [to, setTo] = React.useState(customRange?.to ?? null);
 
   const rangeError =
     showCustom && from && to && from > to
-      ? "Start date must be before end date"
+      ? t("validation.invalidRange")
       : null;
 
   const handlePreset = (preset: PresetRange) => {
@@ -67,7 +68,7 @@ export function DateRangePicker({ value, customRange, onChange, className }: Dat
               : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
           )}
         >
-          {p.label}
+          {translate(p.labelKey)}
         </button>
       ))}
 
@@ -81,7 +82,7 @@ export function DateRangePicker({ value, customRange, onChange, className }: Dat
             : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
         )}
       >
-        Custom
+        {t("presets.custom")}
       </button>
 
       {showCustom && (
@@ -108,7 +109,7 @@ export function DateRangePicker({ value, customRange, onChange, className }: Dat
               disabled={!from || !to || !!rangeError}
               className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground disabled:opacity-40"
             >
-              Apply
+              {t("presets.apply")}
             </button>
           </div>
           {rangeError && (

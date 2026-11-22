@@ -140,4 +140,50 @@ describe("useInfiniteInvoices", () => {
       expect(result.current.data?.pages).toHaveLength(1);
     });
   });
+
+  it("flattens pages into a stable ordered list for windowing", async () => {
+    vi.mocked(fetchInvoices).mockImplementation((_f, _s, page = 1, pageSize = 12) =>
+      Promise.resolve(makePage(page, pageSize, 100))
+    );
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    await act(async () => result.current.fetchNextPage());
+
+    const pages = result.current.data?.pages ?? [];
+    const flattened = pages.flatMap((p) => p.data);
+
+    expect(flattened).toHaveLength(24);
+    expect(flattened[0].id).toBe("inv_1");
+    expect(flattened[23].id).toBe("inv_24");
+    // Stable unique keys are required for virtualized windowing.
+    const ids = flattened.map((inv) => inv.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("surfaces an error state when the API fails (degraded/offline)", async () => {
+    vi.mocked(fetchInvoices).mockRejectedValue(new Error("network down"));
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.data).toBeUndefined();
+    expect(result.current.hasNextPage).toBe(false);
+  });
+
+  it("handles an empty result set without a next page", async () => {
+    vi.mocked(fetchInvoices).mockImplementation((_f, _s, page = 1, pageSize = 12) =>
+      Promise.resolve(makePage(page, pageSize, 0))
+    );
+
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.pages[0].data).toHaveLength(0);
+    expect(result.current.hasNextPage).toBe(false);
+  });
 });

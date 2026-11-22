@@ -577,5 +577,14 @@ the identical flow above using `buildAddTrustlineTx(address, "eurc")`.
 <!-- handsoff-issue-1117 -->
 - #1117: Dashboard investor and SME role chrome localization
 
+<!-- handsoff-issue-1167 -->
+- #1167: Auth challenge/verify flow error localization and rate-limit UX
+
+<!-- handsoff-issue-1168 -->
+- #1168: Upload API client progress and cancel for large invoice docs
+
+<!-- handsoff-issue-1169 -->
+- #1169: Feedback widget attach context (route, locale, wallet truncated)
+
 <!-- handsoff-issue-1175 -->
 - #1175: i18n: localize KYB gate and Synaps error bodies fully

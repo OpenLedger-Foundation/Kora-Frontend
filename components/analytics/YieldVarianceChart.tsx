@@ -88,7 +88,7 @@ export default function YieldVarianceChart({
   onExport,
 }: YieldVarianceChartProps) {
   const t = useTranslations("analytics");
-  const { formatCurrency, formatPercentage } = useFormatters();
+  const { formatCurrency, formatPercentage, formatMonth: formatMonthValue } = useFormatters();
 
   const rows = React.useMemo(() => computeVarianceRows(positions), [positions]);
   const series = React.useMemo(() => buildVarianceSeries(rows), [rows]);
@@ -98,6 +98,10 @@ export default function YieldVarianceChart({
     (value: number) => formatCurrency(value, "USDC"),
     [formatCurrency]
   );
+  const formatMonth = React.useCallback((month: string) => {
+    const date = new Date(`${month}-01`);
+    return Number.isNaN(date.getTime()) ? month : formatMonthValue(date.toISOString());
+  }, [formatMonthValue]);
 
   /** Filter out NaN / Infinity values so Recharts never receives bad data. */
   const safeSeries = React.useMemo(
@@ -117,21 +121,19 @@ export default function YieldVarianceChart({
 
   /** Spell the series out for assistive tech, matching the other charts. */
   const description = React.useMemo(() => {
-    if (safeSeries.length === 0) {
-      return "Realized versus expected yield. No data available.";
-    }
-    if (safeSeries.length === 1) {
-      const p = safeSeries[0];
-      return `Realized versus expected yield. Single data point — ${p.month}: expected ${money(p.expected)}, realized ${money(p.realized)}.`;
-    }
     const points = safeSeries
       .map(
         (p) =>
-          `${p.month}: expected ${money(p.expected)}, realized ${money(p.realized)}`
+          t("chartA11y.variancePoint", {
+            month: formatMonth(p.month),
+            expected: money(p.expected),
+            realized: money(p.realized),
+          })
       )
-      .join("; ");
-    return `Realized versus expected yield. ${safeSeries.length} months — ${points}.`;
-  }, [safeSeries, money]);
+      .join(t("chartA11y.separator"));
+    if (safeSeries.length === 0) return t("chartA11y.empty", { title: t("variance.title") });
+    return t("chartA11y.series", { title: t("variance.title"), count: safeSeries.length, points });
+  }, [safeSeries, money, formatMonth, t]);
 
   const handleExport = React.useCallback(() => {
     onExport?.(varianceToExportRows(rows), varianceExportFilename(), VARIANCE_EXPORT_HEADERS);
@@ -258,6 +260,7 @@ export default function YieldVarianceChart({
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis
                     dataKey="month"
+                    tickFormatter={formatMonth}
                     tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
@@ -275,7 +278,7 @@ export default function YieldVarianceChart({
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar
                     dataKey="expected"
-                    name="Expected"
+                    name={t("variance.expected")}
                     fill="hsl(var(--muted-foreground))"
                     fillOpacity={0.35}
                     radius={[4, 4, 0, 0]}
@@ -286,7 +289,7 @@ export default function YieldVarianceChart({
                     <Line
                       type="monotone"
                       dataKey="realized"
-                      name="Realized"
+                      name={t("variance.realized")}
                       stroke="hsl(var(--primary))"
                       strokeWidth={2}
                       dot={{ r: 3 }}

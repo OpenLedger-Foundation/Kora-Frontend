@@ -55,6 +55,7 @@ import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { RiskScoreGauge } from "@/components/invoice/RiskScoreGauge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 import { InvoiceMetadataViewer } from "@/components/invoice/InvoiceMetadataViewer";
 import {
   validateRouteId,
@@ -461,7 +462,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
           {/* ── Left: Invoice Details ─────────────────────────────────────── */}
           <PrintLayout
             title={metadata.invoiceNumber}
-            subtitle={`${metadata.debtorName} · ${metadata.issuerName}`}
+            subtitle={`${getMaskedDebtorName(invoice, isFunded)} · ${metadata.issuerName}`}
             className="space-y-6 lg:col-span-2"
           >
             {/* Header card */}

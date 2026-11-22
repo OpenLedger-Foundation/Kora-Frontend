@@ -23,6 +23,12 @@ export interface UsePinataHealthResult {
   status: PinataHealthStatus;
   isHealthy: boolean;
   isChecking: boolean;
+  /**
+   * True when Pinata is unreachable and metadata views should render their
+   * degraded fallback UI (banner + placeholder fields) instead of looking
+   * like the invoice has no metadata at all.
+   */
+  isDegraded: boolean;
   /** Number of automatic backoff retries performed since the last healthy check. */
   retryCount: number;
   /** Timestamp (ms) of the last completed check, or null before the first. */
@@ -44,6 +50,9 @@ export interface UsePinataHealthResult {
  * - When `autoRetry` is enabled, an unhealthy result schedules escalating
  *   background re-checks (exponential backoff) so the wizard self-heals once
  *   Pinata recovers, without hammering the endpoint.
+ * - `isDegraded` lets metadata views distinguish "Pinata is down" from
+ *   "this invoice has no metadata" so they can show a fallback instead of
+ *   appearing empty.
  */
 export function usePinataHealth(
   options: UsePinataHealthOptions = {}
@@ -127,6 +136,7 @@ export function usePinataHealth(
     status,
     isHealthy: status === "healthy",
     isChecking: status === "checking",
+    isDegraded: status === "unhealthy",
     retryCount,
     lastCheckedAt,
     recheck,

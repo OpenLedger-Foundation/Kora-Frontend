@@ -220,3 +220,74 @@ describe("useResizeObserver", () => {
     expect(disconnectMock).toHaveBeenCalled();
   });
 });
+
+// ─── useHorizonHealthToast ────────────────────────────────────────────────────
+
+const toastMock = vi.fn();
+
+vi.mock("../hooks/useToast", () => ({
+  useToast: () => ({ toast: toastMock }),
+}));
+
+import { useHorizonHealthToast } from "../hooks/useHorizonHealthToast";
+
+describe("useHorizonHealthToast", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    toastMock.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not toast while horizon is healthy", () => {
+    renderHook(() => useHorizonHealthToast({ status: "online" }));
+    act(() => vi.advanceTimersByTime(5000));
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("dedupes repeated identical offline warnings", () => {
+    const { rerender } = renderHook(
+      ({ status }) => useHorizonHealthToast({ status }),
+      { initialProps: { status: "offline" } }
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    rerender({ status: "offline" });
+    act(() => vi.advanceTimersByTime(1000));
+    rerender({ status: "offline" });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces offline/online flaps into a single toast", () => {
+    const { rerender } = renderHook(
+      ({ status }) => useHorizonHealthToast({ status }),
+      { initialProps: { status: "online" } }
+    );
+    rerender({ status: "offline" });
+    act(() => vi.advanceTimersByTime(100));
+    rerender({ status: "online" });
+    act(() => vi.advanceTimersByTime(100));
+    rerender({ status: "offline" });
+    act(() => vi.advanceTimersByTime(100));
+    rerender({ status: "online" });
+    act(() => vi.advanceTimersByTime(100));
+    rerender({ status: "offline" });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits a single toast for a long outage", () => {
+    const { rerender } = renderHook(
+      ({ status }) => useHorizonHealthToast({ status }),
+      { initialProps: { status: "offline" } }
+    );
+    act(() => vi.advanceTimersByTime(1000));
+    for (let i = 0; i < 10; i++) {
+      rerender({ status: "offline" });
+      act(() => vi.advanceTimersByTime(1000));
+    }
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+});
