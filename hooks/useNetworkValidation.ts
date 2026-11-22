@@ -56,6 +56,38 @@ export function useNetworkValidation() {
     return !currentWrongNet && !currentWrongPass;
   }, []);
 
+  /**
+   * One-click switch handler for the mismatch banner CTA.
+   *
+   * Attempts to switch the connected wallet to the app's configured network.
+   * Falls back to a re-verification when the wallet does not expose a
+   * programmatic switch API (e.g. passphrase-only mismatch). Returns true
+   * when the wallet is on the correct network after the attempt.
+   */
+  const switchNetwork = useCallback(async (): Promise<boolean> => {
+    const state = useWalletStore.getState();
+
+    // Already correct — nothing to do.
+    if (!state.isWrongNetwork() && !state.hasPassphraseMismatch()) {
+      return true;
+    }
+
+    const switchFn = (state as { switchNetwork?: () => Promise<unknown> }).switchNetwork;
+    if (typeof switchFn === "function") {
+      try {
+        await switchFn.call(state);
+      } catch {
+        // Wallet rejected or does not support programmatic switching.
+        return false;
+      }
+    }
+
+    // Re-verify against the store after the attempt.
+    const currentWrongNet = useWalletStore.getState().isWrongNetwork();
+    const currentWrongPass = useWalletStore.getState().hasPassphraseMismatch();
+    return !currentWrongNet && !currentWrongPass;
+  }, []);
+
   return {
     isNetworkMismatch,
     errorMessage,
@@ -67,6 +99,8 @@ export function useNetworkValidation() {
     currentNetwork: network,
     expectedNetwork,
     isCorrectNetwork: !isNetworkMismatch,
+    isConnected,
     reVerify,
+    switchNetwork,
   };
 }
