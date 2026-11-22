@@ -576,3 +576,6 @@ the identical flow above using `buildAddTrustlineTx(address, "eurc")`.
 
 <!-- handsoff-issue-1117 -->
 - #1117: Dashboard investor and SME role chrome localization
+
+<!-- handsoff-issue-1175 -->
+- #1175: i18n: localize KYB gate and Synaps error bodies fully
