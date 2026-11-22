@@ -87,6 +87,15 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "hw-wallet-signing": "NEXT_PUBLIC_ENABLE_HW_WALLET_SIGNING",
 };
 
+/**
+ * Public, read-only view of the flag → env var mapping.
+ *
+ * Exposed so the docs-parity test (Issue #1157) can assert that every runtime
+ * flag is documented with the correct env var without duplicating the map.
+ */
+export const FEATURE_FLAG_ENV_MAP: Readonly<Record<FeatureFlag, string>> =
+  FLAG_ENV_MAP;
+
 function readEnvFlag(flag: FeatureFlag): boolean {
   const envVar = FLAG_ENV_MAP[flag];
   const val = process.env[envVar];
@@ -227,37 +236,32 @@ export function getFeatureFlagOverride(
 
 export function setFeatureFlagOverride(
   flag: FeatureFlag,
-  enabled: boolean | undefined,
+  value: boolean | undefined,
 ): void {
   if (!isFlagOverrideAllowed(flag)) return;
 
   const overrides = readStoredOverrides();
-
-  if (enabled === undefined) {
+  if (value === undefined) {
     delete overrides[flag];
   } else {
-    overrides[flag] = enabled;
+    overrides[flag] = value;
   }
-
   writeOverrides(overrides);
 }
 
-export function resetFeatureFlagOverrides(): void {
+export function clearFeatureFlagOverrides(): void {
   writeOverrides({});
 }
 
-export function useFeatureFlag(flag: FeatureFlag): boolean {
-  return useSyncExternalStore(
+/**
+ * React hook returning the live feature flag state.
+ * Re-renders when overrides change (same tab or cross-tab).
+ */
+export function useFeatureFlags(): FeatureFlagState {
+  const serialized = useSyncExternalStore(
     subscribeToFeatureFlags,
-    () => isEnabled(flag),
-    () => readEnvFlag(flag),
+    serializeFeatureFlagState,
+    serializeEnvFeatureFlagState,
   );
-}
-
-export function useFeatureFlagState(): FeatureFlagState {
-  return useSyncExternalStore(
-    subscribeToFeatureFlags,
-    readFeatureFlagState,
-    () => JSON.parse(serializeEnvFeatureFlagState()) as FeatureFlagState,
-  );
+  return JSON.parse(serialized) as FeatureFlagState;
 }
