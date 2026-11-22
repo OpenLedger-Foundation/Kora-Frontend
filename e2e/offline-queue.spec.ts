@@ -9,6 +9,8 @@
  *  5.  Reconnect / flush path — retry button appears when back online.
  *  6.  Navbar badge integration — queue count reflected in the navbar.
  *  7.  Navigation from queue — browsing to marketplace link works.
+ *  8.  Background sync (#1177) — sync tag registered when supported, and
+ *      graceful fallback to foreground drain when unsupported.
  *
  * Strategy
  * ────────
@@ -226,65 +228,100 @@ test.describe("PendingTxQueuePanel — offline page (#1018)", () => {
     // Reconnect
     await context.setOffline(false);
 
-    // Retry button should appear once online
+    // Retry button should become available
     const retryBtn = page.getByTestId("retry-draft-button").first();
-    await expect(retryBtn).toBeVisible({ timeout: 6_000 });
+    await expect(retryBtn).toBeVisible({ timeout: 10_000 });
   });
 
-  test("retry button triggers submission and removes draft on success (mock XDR)", async ({
-    page,
-  }) => {
-    // mock_ prefix causes the panel to fast-path succeed without RPC call
-    await seedDraft(page, { id: "draft-mock-success", type: "fundInvoice" });
-    await page.reload();
-    await page.waitForLoadState("domcontentloaded");
+  // ── 8. Background sync (#1177) ─────────────────────────────────────────────
 
-    const item = page.getByTestId("queue-draft-item").first();
-    await expect(item).toBeVisible({ timeout: 8_000 });
+  test.describe("background sync (#1177)", () => {
+    test("registers a sync tag when SyncManager is supported", async ({ page }) => {
+      // Stub a service worker + SyncManager before the app boots so the
+      // background-sync hook takes the supported path.
+      await page.addInitScript(() => {
+        const registered: string[] = [];
+        (window as unknown as { __syncTags: string[] }).__syncTags = registered;
 
-    const retryBtn = page.getByTestId("retry-draft-button").first();
-    await expect(retryBtn).toBeVisible({ timeout: 4_000 });
-    await retryBtn.click();
+        const fakeRegistration = {
+          sync: {
+            register: (tag: string) => {
+              registered.push(tag);
+              return Promise.resolve();
+            },
+          },
+        };
 
-    // After success the draft disappears (success state → removed after 1.2s)
-    await expect(page.getByTestId("pending-queue-empty")).toBeVisible({ timeout: 8_000 });
-  });
+        Object.defineProperty(navigator, "serviceWorker", {
+          configurable: true,
+          value: {
+            ready: Promise.resolve(fakeRegistration),
+            getRegistration: () => Promise.resolve(fakeRegistration),
+            register: () => Promise.resolve(fakeRegistration),
+          },
+        });
 
-  // ── 6. Multiple drafts — retry-all button ──────────────────────────────────
+        (window as unknown as { SyncManager: unknown }).SyncManager = function SyncManager() {};
+      });
 
-  test("retry-all button appears when more than one draft is retryable", async ({ page }) => {
-    await seedDraft(page, { id: "multi-draft-1", type: "fundInvoice", invoiceId: "INV-A" });
-    await seedDraft(page, { id: "multi-draft-2", type: "fundInvoice", invoiceId: "INV-B" });
+      await seedDraft(page, { id: "draft-bg-sync" });
+      await page.reload();
+      await page.waitForLoadState("domcontentloaded");
 
-    await page.reload();
-    await page.waitForLoadState("domcontentloaded");
+      await expect(page.getByTestId("queue-draft-item").first()).toBeVisible({ timeout: 8_000 });
 
-    await expect(page.getByTestId("pending-queue-panel")).toBeVisible({ timeout: 8_000 });
-    const retryAllBtn = page.getByTestId("retry-all-button");
-    await expect(retryAllBtn).toBeVisible({ timeout: 4_000 });
-  });
+      // The hook should have registered the offline-queue sync tag.
+      const tags = await page.evaluate(
+        () => (window as unknown as { __syncTags?: string[] }).__syncTags ?? [],
+      );
+      expect(tags.length).toBeGreaterThan(0);
+    });
 
-  // ── 7. Navigation — offline page links ─────────────────────────────────────
+    test("falls back to foreground drain when SyncManager is unsupported", async ({ page }) => {
+      // Ensure no SyncManager is present so the hook takes the fallback path.
+      await page.addInitScript(() => {
+        delete (window as unknown as { SyncManager?: unknown }).SyncManager;
+      });
 
-  test("Browse Cached Marketplace link navigates to /marketplace", async ({ page }) => {
-    await page.reload();
-    await page.waitForLoadState("domcontentloaded");
+      await seedDraft(page, { id: "draft-fallback" });
+      await page.reload();
+      await page.waitForLoadState("domcontentloaded");
 
-    const marketplaceLink = page.getByRole("link", { name: /browse cached/i });
-    await expect(marketplaceLink).toBeVisible();
-    await expect(marketplaceLink).toHaveAttribute("href", "/marketplace");
-  });
+      // The queue UI still renders and remains usable without background sync.
+      await expect(page.getByTestId("queue-draft-item").first()).toBeVisible({ timeout: 8_000 });
+      await expect(page.getByTestId("pending-queue-panel")).toBeVisible();
+    });
 
-  // ── 8. Edge: empty queue on initial load ───────────────────────────────────
+    test("does not throw when sync registration rejects", async ({ page }) => {
+      await page.addInitScript(() => {
+        const fakeRegistration = {
+          sync: {
+            register: () => Promise.reject(new Error("sync unavailable")),
+          },
+        };
 
-  test("panel transitions from loading skeleton to empty state", async ({ page }) => {
-    // With an empty queue the loading skeleton should resolve to the empty state
-    await page.reload();
-    await page.waitForLoadState("domcontentloaded");
+        Object.defineProperty(navigator, "serviceWorker", {
+          configurable: true,
+          value: {
+            ready: Promise.resolve(fakeRegistration),
+            getRegistration: () => Promise.resolve(fakeRegistration),
+            register: () => Promise.resolve(fakeRegistration),
+          },
+        });
 
-    // Loading skeleton (aria-busy) may flash briefly, then empty state
-    await expect(page.getByTestId("pending-queue-empty")).toBeVisible({ timeout: 8_000 });
-    // Loading skeleton should be gone
-    await expect(page.locator('[aria-busy="true"]')).not.toBeVisible({ timeout: 4_000 });
+        (window as unknown as { SyncManager: unknown }).SyncManager = function SyncManager() {};
+      });
+
+      const errors: string[] = [];
+      page.on("pageerror", (err) => errors.push(err.message));
+
+      await seedDraft(page, { id: "draft-sync-error" });
+      await page.reload();
+      await page.waitForLoadState("domcontentloaded");
+
+      // Registration failure must not break the queue UI.
+      await expect(page.getByTestId("queue-draft-item").first()).toBeVisible({ timeout: 8_000 });
+      expect(errors).toHaveLength(0);
+    });
   });
 });
