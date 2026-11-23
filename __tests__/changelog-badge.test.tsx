@@ -1,10 +1,14 @@
 /**
- * Tests for the changelog unread badge (Issue #679).
+ * Tests for the changelog unread badge (Issue #679, #1159).
  *
  * useChangelog already stored the seen version, but nothing surfaced an unread
  * release once the auto-open modal had been dismissed. These cover the compare,
  * the clear-on-open, and the fail-closed rule — a dot that might be pointing at
  * nothing is worse than no dot at all.
+ *
+ * Issue #1159 adds locale-aware date handling: unread must stay accurate when
+ * release dates are written in non-ISO / localized formats, and clock skew must
+ * not resurrect a release that has already been seen.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -33,6 +37,20 @@ const CHANGELOG = `# Changelog
 - Older release
 `;
 
+// Localized / non-ISO dates that must still order correctly.
+const LOCALIZED_CHANGELOG = `# Changelog
+
+## [2.0.0] - 1 de mayo de 2026
+
+### Added
+- Localized newest release
+
+## [1.9.0] - 1 de abril de 2026
+
+### Fixed
+- Localized older release
+`;
+
 function mockChangelogFetch(body: string | null, ok = true) {
   vi.stubGlobal(
     "fetch",
@@ -51,6 +69,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   useUIStore.setState({ changelogOpen: false });
 });
 
@@ -80,6 +99,53 @@ describe("useChangelogBadge", () => {
 
     await waitFor(() => expect(result.current.latestVersion).toBe("1.4.0"));
     expect(result.current.hasUnread).toBe(false);
+  });
+
+  describe("locale-aware dates", () => {
+    it("orders localized release dates and reports the newest version", async () => {
+      mockChangelogFetch(LOCALIZED_CHANGELOG);
+      const { result } = renderHook(() => useChangelogBadge());
+
+      await waitFor(() => expect(result.current.latestVersion).toBe("2.0.0"));
+    });
+
+    it("flags unread for a localized release that has not been seen", async () => {
+      mockChangelogFetch(LOCALIZED_CHANGELOG);
+      localStorage.setItem(SEEN_KEY, "1.9.0");
+      const { result } = renderHook(() => useChangelogBadge());
+
+      await waitFor(() => expect(result.current.hasUnread).toBe(true));
+    });
+
+    it("stays clear when the localized latest release has been seen", async () => {
+      mockChangelogFetch(LOCALIZED_CHANGELOG);
+      localStorage.setItem(SEEN_KEY, "2.0.0");
+      const { result } = renderHook(() => useChangelogBadge());
+
+      await waitFor(() => expect(result.current.latestVersion).toBe("2.0.0"));
+      expect(result.current.hasUnread).toBe(false);
+    });
+  });
+
+  describe("clock skew", () => {
+    it("does not flag unread for a release dated in the future once seen", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      localStorage.setItem(SEEN_KEY, "1.4.0");
+      const { result } = renderHook(() => useChangelogBadge());
+
+      await waitFor(() => expect(result.current.latestVersion).toBe("1.4.0"));
+      expect(result.current.hasUnread).toBe(false);
+    });
+
+    it("still flags unread for an unseen future-dated release", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+      localStorage.setItem(SEEN_KEY, "1.3.0");
+      const { result } = renderHook(() => useChangelogBadge());
+
+      await waitFor(() => expect(result.current.hasUnread).toBe(true));
+    });
   });
 
   describe("clearing", () => {
