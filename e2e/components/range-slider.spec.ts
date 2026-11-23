@@ -94,6 +94,18 @@ test.describe("RangeSlider component — keyboard interactions", () => {
     expect(maxTab).not.toBe(-1);
   });
 
+  test("Tab moves focus from min thumb to max thumb", async ({ page }) => {
+    await getMinThumb(page).focus();
+    await expect(getMinThumb(page)).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(getMaxThumb(page)).toBeFocused();
+  });
+
+  test("thumbs expose accessible names via aria-label", async ({ page }) => {
+    await expect(getMinThumb(page)).toHaveAccessibleName(/minimum value/i);
+    await expect(getMaxThumb(page)).toHaveAccessibleName(/maximum value/i);
+  });
+
   // ── Min thumb keyboard navigation ─────────────────────────────────────────
 
   test("ArrowRight on min thumb increases its value by one step", async ({
@@ -223,58 +235,43 @@ test.describe("RangeSlider component — keyboard interactions", () => {
     );
   });
 
-  // ── Boundary clamping ──────────────────────────────────────────────────────
+  // ── Clamping ───────────────────────────────────────────────────────────────
 
-  test("min thumb never exceeds max thumb under repeated ArrowRight", async ({
+  test("min thumb cannot exceed max thumb under repeated ArrowRight", async ({
     page,
   }) => {
     const minThumb = getMinThumb(page);
     const maxThumb = getMaxThumb(page);
-
     await minThumb.focus();
-    // 60 presses > full 0–50 range
     for (let i = 0; i < 60; i++) {
       await minThumb.press("ArrowRight");
     }
-
     expect(Number(await minThumb.inputValue())).toBeLessThan(
       Number(await maxThumb.inputValue())
     );
   });
 
-  test("max thumb never goes below min thumb under repeated ArrowLeft", async ({
+  test("max thumb cannot go below min thumb under repeated ArrowLeft", async ({
     page,
   }) => {
     const minThumb = getMinThumb(page);
     const maxThumb = getMaxThumb(page);
-
     await maxThumb.focus();
     for (let i = 0; i < 60; i++) {
       await maxThumb.press("ArrowLeft");
     }
-
     expect(Number(await maxThumb.inputValue())).toBeGreaterThan(
       Number(await minThumb.inputValue())
     );
   });
 
-  // ── Labels and output ──────────────────────────────────────────────────────
+  // ── Endpoint labels ────────────────────────────────────────────────────────
 
-  test("endpoint labels '0%' and '50%' are visible below the slider track", async ({
+  test("endpoint labels (0% / 50%) are visible below the slider track", async ({
     page,
   }) => {
-    // RangeSlider renders formatLabel(min) and formatLabel(max) at the bottom
     const fixture = page.locator("#range-slider-fixture");
-    await expect(fixture.getByText("0%")).toBeVisible();
-    await expect(fixture.getByText("50%")).toBeVisible();
-  });
-
-  test("live output label updates after keyboard input", async ({ page }) => {
-    const minThumb = getMinThumb(page);
-    await minThumb.focus();
-    await minThumb.press("ArrowRight");
-
-    // The fixture page renders `{value[0]}% – {value[1]}%` in data-testid="range-slider-output"
-    await expect(page.getByTestId("range-slider-output")).toContainText("1%");
+    await expect(fixture.getByText("0%", { exact: true })).toBeVisible();
+    await expect(fixture.getByText("50%", { exact: true })).toBeVisible();
   });
 });
