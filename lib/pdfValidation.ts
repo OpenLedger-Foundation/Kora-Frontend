@@ -16,6 +16,22 @@ export class InvalidPdfError extends Error {
 }
 
 /**
+ * Machine-readable reason codes for file-input validation failures.
+ * Consumers map these to localized messages via the i18n system.
+ */
+export type PdfValidationErrorCode = "empty" | "invalidType" | "invalidHeader";
+
+export class PdfValidationError extends Error {
+  readonly code: PdfValidationErrorCode;
+
+  constructor(code: PdfValidationErrorCode, message?: string) {
+    super(message ?? code);
+    this.name = "PdfValidationError";
+    this.code = code;
+  }
+}
+
+/**
  * Checks whether the given file starts with the %PDF- magic header.
  * Uses file.slice(0, 5) to stream only the first 5 bytes.
  * Returns true if valid, false otherwise (e.g. empty file, renamed binary, wrong header).
@@ -61,3 +77,42 @@ export async function assertPdfMagicBytes(file: File | Blob): Promise<void> {
   }
 }
 
+/**
+ * Validates an invoice attachment file and returns a machine-readable error code
+ * (or null when valid). Distinguishes empty files, wrong MIME/extension, and
+ * files that fail the %PDF- magic-byte check so the UI can show a clear,
+ * localized message for each case.
+ */
+export async function validateInvoiceAttachment(file: File | Blob | null | undefined): Promise<PdfValidationErrorCode | null> {
+  if (!file || file.size === 0) {
+    return "empty";
+  }
+
+  const name = typeof (file as File).name === "string" ? (file as File).name : "";
+  const type = typeof file.type === "string" ? file.type : "";
+  const hasPdfExtension = /\.pdf$/i.test(name);
+  const hasPdfMime = type === "application/pdf";
+
+  if (!hasPdfExtension && !hasPdfMime) {
+    return "invalidType";
+  }
+
+  const validHeader = await isValidPdfMagicBytes(file);
+  if (!validHeader) {
+    return "invalidHeader";
+  }
+
+  return null;
+}
+
+/**
+ * Asserts that an invoice attachment is a valid, non-empty PDF.
+ * Throws PdfValidationError with a specific code for empty, wrong-type,
+ * or invalid-header files.
+ */
+export async function assertValidInvoiceAttachment(file: File | Blob | null | undefined): Promise<void> {
+  const code = await validateInvoiceAttachment(file);
+  if (code) {
+    throw new PdfValidationError(code);
+  }
+}
