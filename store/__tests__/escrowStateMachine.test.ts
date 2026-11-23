@@ -51,4 +51,76 @@ describe("Escrow State Machine", () => {
     expect(state.errorStep).toBe(null);
     expect(state.errorMessage).toBe(null);
   });
+
+  it("should walk the full happy path through to completion", () => {
+    const store = useTransactionStore.getState();
+    const path = [
+      "buyer_funding",
+      "buyer_funded",
+      "seller_transferring",
+      "completed",
+    ] as const;
+
+    for (const step of path) {
+      store.setEscrowStep(step);
+      expect(useTransactionStore.getState().escrowState.step).toBe(step);
+    }
+  });
+
+  it("should expose dispute-relevant states the UI binds to", () => {
+    const store = useTransactionStore.getState();
+    const disputeStates = [
+      "disputed",
+      "refunded",
+      "cancelled",
+    ] as const;
+
+    for (const step of disputeStates) {
+      store.setEscrowStep(step);
+      expect(useTransactionStore.getState().escrowState.step).toBe(step);
+    }
+  });
+
+  it("should keep terminal states stable and not auto-clear errors", () => {
+    const store = useTransactionStore.getState();
+    store.setEscrowStep("disputed");
+    store.setEscrowError("disputed", "Awaiting arbitration");
+
+    let state = useTransactionStore.getState().escrowState;
+    expect(state.step).toBe("disputed");
+    expect(state.errorStep).toBe("disputed");
+    expect(state.errorMessage).toBe("Awaiting arbitration");
+
+    // Re-entering a terminal state must not silently drop the error, so the
+    // dispute UI keeps showing the machine's actual state.
+    store.setEscrowStep("disputed");
+    state = useTransactionStore.getState().escrowState;
+    expect(state.step).toBe("disputed");
+    expect(state.errorStep).toBe("disputed");
+    expect(state.errorMessage).toBe("Awaiting arbitration");
+  });
+
+  it("should clear errors when retrying from a terminal dispute state", () => {
+    const store = useTransactionStore.getState();
+    store.setEscrowStep("disputed");
+    store.setEscrowError("disputed", "Awaiting arbitration");
+
+    store.setEscrowStep("buyer_funding");
+    const state = useTransactionStore.getState().escrowState;
+    expect(state.step).toBe("buyer_funding");
+    expect(state.errorStep).toBe(null);
+    expect(state.errorMessage).toBe(null);
+  });
+
+  it("should reset from a terminal dispute state back to idle", () => {
+    const store = useTransactionStore.getState();
+    store.setEscrowStep("refunded");
+    store.setEscrowError("refunded", "Refund processed");
+    store.resetEscrow();
+
+    const state = useTransactionStore.getState().escrowState;
+    expect(state.step).toBe("idle");
+    expect(state.errorStep).toBe(null);
+    expect(state.errorMessage).toBe(null);
+  });
 });
