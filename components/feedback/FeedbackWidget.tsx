@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MessageSquarePlus, X, Bug, Lightbulb, MessageCircle, Paperclip, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -13,13 +13,17 @@ import { Button } from "@/components/ui/button";
 import { useWalletStore } from "@/store/walletStore";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
+// Validation messages are i18n keys resolved against the `feedback` namespace.
 const feedbackSchema = z.object({
   type: z.enum(["bug", "feature", "other"]),
-  title: z.string().min(3, "Title must be at least 3 characters").max(120),
-  description: z.string().min(10, "Please provide more detail").max(2000),
+  title: z.string().min(3, "validation.titleMin").max(120, "validation.titleMax"),
+  description: z.string().min(10, "validation.descriptionMin").max(2000, "validation.descriptionMax"),
 });
 
 type FeedbackFormValues = z.infer<typeof feedbackSchema>;
+
+// Default cooldown (seconds) when the API does not provide a retry hint.
+const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
 // ── Type selector config ──────────────────────────────────────────────────────
 const FEEDBACK_TYPES = [
@@ -58,8 +62,19 @@ export function FeedbackWidget() {
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [capturingScreen, setCapturingScreen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const walletAddress = useWalletStore((s) => s.address);
+  const rateLimited = retryAfter > 0;
+
+  // ── Rate-limit cooldown countdown ─────────────────────────────────────────
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = setInterval(() => {
+      setRetryAfter((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [retryAfter]);
 
   const {
     register,
@@ -106,6 +121,7 @@ export function FeedbackWidget() {
   // ── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = useCallback(
     async (values: FeedbackFormValues) => {
+      if (retryAfter > 0) return;
       setSubmitting(true);
       try {
         const payload = {
@@ -125,6 +141,22 @@ export function FeedbackWidget() {
           body: JSON.stringify(payload),
         });
 
+        if (res.status === 429) {
+          const err = await res.json().catch(() => ({}));
+          const seconds =
+            typeof err?.retryAfterSeconds === "number" && err.retryAfterSeconds > 0
+              ? Math.ceil(err.retryAfterSeconds)
+              : DEFAULT_RETRY_AFTER_SECONDS;
+          setRetryAfter(seconds);
+          toast.error(t("rateLimitedTitle"), {
+            description: (
+              <span role="alert">{t("rateLimitedDescription", { seconds })}</span>
+            ),
+            duration: seconds * 1000,
+          });
+          return;
+        }
+
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error ?? t("submissionFailed"));
@@ -142,7 +174,7 @@ export function FeedbackWidget() {
         setSubmitting(false);
       }
     },
-    [screenshot, walletAddress, reset, t]
+    [screenshot, walletAddress, reset, t, retryAfter]
   );
 
   const handleClose = useCallback(() => {
@@ -229,7 +261,7 @@ export function FeedbackWidget() {
                   />
                   {errors.title && (
                     <p className="mt-1 text-xs text-destructive" role="alert">
-                      {errors.title.message}
+                      {t(errors.title.message as never)}
                     </p>
                   )}
                 </div>
@@ -252,7 +284,7 @@ export function FeedbackWidget() {
                   />
                   {errors.description && (
                     <p className="mt-1 text-xs text-destructive" role="alert">
-                      {errors.description.message}
+                      {t(errors.description.message as never)}
                     </p>
                   )}
                 </div>
@@ -319,6 +351,13 @@ export function FeedbackWidget() {
                   {t("contextNote", { wallet: walletAddress ? t("contextWallet") : "" })}
                 </p>
 
+                {/* Rate-limit notice */}
+                {rateLimited && (
+                  <p className="text-xs text-destructive" role="alert" aria-live="polite">
+                    {t("rateLimitedDescription", { seconds: retryAfter })}
+                  </p>
+                )}
+
                 {/* Actions */}
                 <div className="flex gap-2 pt-1">
                   <Button
@@ -337,8 +376,9 @@ export function FeedbackWidget() {
                     size="sm"
                     className="flex-1"
                     isLoading={submitting}
+                    disabled={submitting || rateLimited}
                   >
-                    {t("submit")}
+                    {rateLimited ? t("retryIn", { seconds: retryAfter }) : t("submit")}
                   </Button>
                 </div>
               </form>

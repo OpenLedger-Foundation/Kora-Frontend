@@ -336,6 +336,7 @@ NEXT_PUBLIC_ENABLE_DEVTOOLS=true
 NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
 NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
 NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
+NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS=false  # Privacy-safe install prompt analytics (default off)
 
 # Redis / Shared State (Optional for multi-instance deployments — see docs/architecture.md)
 # REDIS_URL=redis://default:password@127.0.0.1:6379
@@ -343,6 +344,8 @@ NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 ```
 
 > **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
+
+> **PWA install analytics:** When `NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS=true`, install prompt outcomes are reported (see [PWA install prompt analytics](#pwa-install-prompt-analytics)). The flag defaults to `false`; when unset or `false` no events are emitted.
 
 ---
 
@@ -588,3 +591,95 @@ the identical flow above using `buildAddTrustlineTx(address, "eurc")`.
 
 <!-- handsoff-issue-1175 -->
 - #1175: i18n: localize KYB gate and Synaps error bodies fully
+
+<!-- handsoff-issue-1259 -->
+- #1259: Invoice illegal transition toast with stable support code
+
+<!-- handsoff-issue-1261 -->
+- #1261: PWA install prompt analytics events (privacy-safe)
+
+<!-- handsoff-issue-1265 -->
+- #1265: Feedback widget 429 rate-limit UX
+
+<!-- handsoff-issue-1266 -->
+- #1266: Testnet nightly console-error assertion
+
+## Invoice — Illegal Transition Support Codes
+
+Invoice status changes are validated by the state machine in
+`lib/invoiceStateMachine.ts`. When a transition is not allowed (for example
+attempting to `repay` an invoice that is still `listed`), the UI shows a toast
+instead of a generic error.
+
+The toast includes a **stable support code** so support can identify the exact
+failure without reproducing it. The code is derived deterministically from the
+transition attempt:
+
+```
+KORA-INV-<FROM>-<TO>
+```
+
+- `<FROM>` / `<TO>` are the upper-cased source and target statuses
+  (`DRAFT`, `LISTED`, `FUNDED`, `REPAID`, `DEFAULTED`, `CANCELLED`).
+- Example: `KORA-INV-LISTED-REPAID` — a repay was attempted on a listed invoice.
+
+The user-facing message is localized (`messages/{en,es,pt-BR}.json` →
+`invoice.errors.illegalTransition.*`); the support code is rendered verbatim
+and is not translated. The code is also attached to the toast description so it
+can be copied from the UI.
+
+## PWA install prompt analytics
+
+`lib/installPromptAnalytics.ts` emits privacy-safe events for the install
+prompt funnel. Events are only sent when
+`NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS=true`; the default is **off**.
+
+| Event | When |
+|-------|------|
+| `pwa_install_prompt_shown` | The install prompt UI is displayed |
+| `pwa_install_prompt_accepted` | The user accepts the prompt |
+| `pwa_install_prompt_dismissed` | The user dismisses the prompt |
+| `pwa_install_prompt_unavailable` | The browser does not support installation |
+
+Privacy guarantees:
+
+- No wallet address, IP, or user identifier is included.
+- No free-form text is included.
+- Payloads are limited to the event name, a coarse platform bucket
+  (`desktop` / `mobile`), and the app locale.
+
+If the analytics endpoint is unreachable (offline / degraded API), events are
+dropped silently — the install prompt itself never blocks on analytics.
+
+## Feedback — 429 rate-limit UX
+
+`POST /api/feedback` returns `429 Too Many Requests` when a client exceeds the
+submit budget. The feedback widget (`components/feedback/`) handles this
+gracefully instead of showing a hard failure:
+
+- The form stays filled in so the user does not lose their report.
+- A localized message (`feedback.errors.rateLimited`) explains the limit and
+  shows the wait time when available.
+- The submit button is disabled until the retry window elapses.
+
+**`Retry-After` contract:** the API sets a `Retry-After` response header in
+seconds. The client reads it and counts down; if the header is missing or
+unparseable, the client falls back to a safe default (60s) and still shows the
+localized message. Offline / network errors are treated separately from 429s.
+
+## Testnet nightly — console error assertion
+
+`e2e/testnet-nightly.spec.ts` runs the critical paths (marketplace browse,
+invoice detail, funding flow, dashboards) against testnet and **fails the run
+if any `console.error` is emitted** on those paths.
+
+- Console errors are collected per test via a `page.on("console")` listener.
+- Known-benign noise is filtered through an explicit allowlist in the spec;
+  anything else fails the test with the captured message and stack.
+- The check runs on both desktop and mobile viewports.
+
+Run it locally with:
+
+```bash
+npm run test:e2e -- e2e/testnet-nightly.spec.ts
+```

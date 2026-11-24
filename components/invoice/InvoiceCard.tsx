@@ -27,6 +27,8 @@ import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { useFeatureFlag } from "@/lib/featureFlags";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+import { useToast } from "@/components/ui/toast";
+import { getIllegalTransitionSupportCode } from "@/lib/invoiceStateMachine";
 import {
   resolveThumbnailSrc,
   thumbnailBlurDataUri,
@@ -86,6 +88,8 @@ function getFlagEmoji(countryCode: string) {
 export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updatedAt, tabIndex, onCardKeyDown, onCardFocus, isSelectedForComparison = false }: InvoiceCardProps) {
   const t = useTranslations("invoiceCard");
   const tMarketplace = useTranslations("marketplace");
+  const tTransition = useTranslations("statusTransition");
+  const { showError } = useToast();
   const { metadata, terms, funding, riskTier, status, listingExpiry } = invoice;
   const { formatCurrency, formatApr } = useFormatters();
   const days = daysUntil(terms.repaymentDate);
@@ -163,6 +167,36 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
     e.preventDefault();
     e.stopPropagation();
     if (!comparisonFull) toggleComparison(invoice.id);
+  };
+
+  // A card can outlive the invoice's real status (stale cache, another tab
+  // funding it, an offline queue flushing late). When the user acts on a
+  // transition the card still believes is legal but the server rejects, we
+  // surface a stable support code instead of a generic error so support can
+  // trace the exact from/to pair.
+  const handleTransitionAttempt = useCallback(
+    (targetStatus: Invoice["status"]) => {
+      const isLegal =
+        (status === "listed" || status === "partially_funded") &&
+        targetStatus === "funded";
+      if (isLegal) return;
+
+      showError({
+        title: tTransition("illegalTransitionTitle"),
+        description: tTransition("illegalTransitionDescription", {
+          from: tTransition(`statuses.${status}`),
+          to: tTransition(`statuses.${targetStatus}`),
+          code: getIllegalTransitionSupportCode(status, targetStatus),
+        }),
+      });
+    },
+    [showError, status, tTransition]
+  );
+
+  const handleFundClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleTransitionAttempt("funded");
   };
 
   return (
@@ -360,7 +394,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           </div>
 
           {!isExpired && (status === "listed" || status === "partially_funded") ? (
-            <Button size="sm" className="mt-4 w-full relative z-20" onClick={(e) => e.preventDefault()}>
+            <Button size="sm" className="mt-4 w-full relative z-20" onClick={handleFundClick}>
               {t("fundInvoice")}
             </Button>
           ) : null}

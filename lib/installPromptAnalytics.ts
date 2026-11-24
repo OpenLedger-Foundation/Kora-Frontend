@@ -9,16 +9,67 @@
 
 export type InstallCohort = "sme" | "investor" | "unknown";
 
-export type InstallPromptEventName =
-  | "install_prompt_shown"
-  | "install_prompt_accepted"
-  | "install_prompt_dismissed";
+/**
+ * Strict allowlist of event names. Anything not listed here must never be
+ * emitted — this keeps the analytics surface auditable and privacy-safe.
+ */
+export const INSTALL_PROMPT_EVENT_NAMES = [
+  "install_prompt_shown",
+  "install_prompt_accepted",
+  "install_prompt_dismissed",
+  "install_prompt_unavailable",
+] as const;
 
+export type InstallPromptEventName = (typeof INSTALL_PROMPT_EVENT_NAMES)[number];
+
+/** Coarse, non-identifying outcome derived from the event name. */
+export type InstallPromptOutcome = "shown" | "accepted" | "dismissed" | "unavailable";
+
+/**
+ * The ONLY fields allowed in an emitted payload. No user ids, emails, names,
+ * URLs, referrers, or free-form strings — just coarse, non-identifying data.
+ */
 export interface InstallPromptEvent {
   name: InstallPromptEventName;
   cohort: InstallCohort;
   visitCount: number;
   timestamp: number;
+  outcome: InstallPromptOutcome;
+}
+
+const MAX_LOCAL_EVENTS = 200;
+const LOCAL_STORAGE_KEY = "kora-install-prompt-events";
+
+function isAllowedEventName(name: unknown): name is InstallPromptEventName {
+  return typeof name === "string" && (INSTALL_PROMPT_EVENT_NAMES as readonly string[]).includes(name);
+}
+
+function outcomeFor(name: InstallPromptEventName): InstallPromptOutcome {
+  switch (name) {
+    case "install_prompt_shown":
+      return "shown";
+    case "install_prompt_accepted":
+      return "accepted";
+    case "install_prompt_dismissed":
+      return "dismissed";
+    case "install_prompt_unavailable":
+      return "unavailable";
+  }
+}
+
+/**
+ * Builds a sanitized payload from an event name. Only allowlisted fields are
+ * copied through, so callers cannot accidentally leak PII into analytics.
+ */
+function buildEvent(name: InstallPromptEventName, visitCount: number): InstallPromptEvent {
+  const safeVisitCount = Number.isFinite(visitCount) && visitCount >= 0 ? Math.floor(visitCount) : 0;
+  return {
+    name,
+    cohort: detectInstallCohort(),
+    visitCount: safeVisitCount,
+    timestamp: Date.now(),
+    outcome: outcomeFor(name),
+  };
 }
 
 /**
@@ -33,6 +84,16 @@ export function detectInstallCohort(pathname: string = typeof window !== "undefi
 }
 
 function sendAnalyticsEvent(event: InstallPromptEvent): void {
+  // Guard against any non-allowlisted name slipping through.
+  if (!isAllowedEventName(event.name)) return;
+
+  // Only these coarse fields are ever forwarded to analytics SDKs.
+  const payload = {
+    cohort: event.cohort,
+    visitCount: event.visitCount,
+    outcome: event.outcome,
+  };
+
   try {
     // Fire-and-forget to whatever analytics pipe the app already uses.
     // Falls back to a no-op if `window.gtag`/`plausible` aren't present.
@@ -41,54 +102,48 @@ function sendAnalyticsEvent(event: InstallPromptEvent): void {
       plausible?: (...args: unknown[]) => void;
     };
     if (typeof w.gtag === "function") {
-      w.gtag("event", event.name, { cohort: event.cohort, visit_count: event.visitCount });
+      w.gtag("event", event.name, payload);
     }
     if (typeof w.plausible === "function") {
-      w.plausible(event.name, { props: { cohort: event.cohort, visitCount: event.visitCount } });
+      w.plausible(event.name, { props: payload });
     }
-    // Always log locally so the metric isn't lost when no analytics SDK is loaded.
-    const key = "kora-install-prompt-events";
-    const raw = localStorage.getItem(key);
-    const events: InstallPromptEvent[] = raw ? JSON.parse(raw) : [];
-    events.push(event);
-    localStorage.setItem(key, JSON.stringify(events.slice(-200)));
   } catch {
     // Analytics must never break the install flow.
+  }
+
+  try {
+    // Always log locally so the metric isn't lost when no analytics SDK is loaded.
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const events: InstallPromptEvent[] = raw ? JSON.parse(raw) : [];
+    events.push(event);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(events.slice(-MAX_LOCAL_EVENTS)));
+  } catch {
+    // Storage may be unavailable (private mode, quota) — never throw.
   }
 }
 
 export function trackInstallPromptShown(visitCount: number): void {
-  sendAnalyticsEvent({
-    name: "install_prompt_shown",
-    cohort: detectInstallCohort(),
-    visitCount,
-    timestamp: Date.now(),
-  });
+  sendAnalyticsEvent(buildEvent("install_prompt_shown", visitCount));
 }
 
 export function trackInstallPromptAccepted(visitCount: number): void {
-  sendAnalyticsEvent({
-    name: "install_prompt_accepted",
-    cohort: detectInstallCohort(),
-    visitCount,
-    timestamp: Date.now(),
-  });
+  sendAnalyticsEvent(buildEvent("install_prompt_accepted", visitCount));
 }
 
 export function trackInstallPromptDismissed(visitCount: number): void {
-  sendAnalyticsEvent({
-    name: "install_prompt_dismissed",
-    cohort: detectInstallCohort(),
-    visitCount,
-    timestamp: Date.now(),
-  });
+  sendAnalyticsEvent(buildEvent("install_prompt_dismissed", visitCount));
+}
+
+export function trackInstallPromptUnavailable(visitCount: number): void {
+  sendAnalyticsEvent(buildEvent("install_prompt_unavailable", visitCount));
 }
 
 /** Reads locally-logged events back out, e.g. for a debug/analytics panel. */
 export function getLocalInstallPromptEvents(): InstallPromptEvent[] {
   try {
-    const raw = localStorage.getItem("kora-install-prompt-events");
-    return raw ? JSON.parse(raw) : [];
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }

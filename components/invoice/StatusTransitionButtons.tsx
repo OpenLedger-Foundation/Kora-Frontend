@@ -22,6 +22,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +34,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import {
   getAllowedTransitions,
   getBlockedReason,
+  getIllegalTransitionSupportCode,
   STATUS_TO_CHAIN_INDEX,
 } from "@/lib/invoiceStateMachine";
 import { useTransaction } from "@/hooks/useTransaction";
@@ -116,6 +118,7 @@ export function StatusTransitionButtons({
   const queryClient = useQueryClient();
   const { execute, status: txStatus } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
+  const { error: showErrorToast } = useToast();
 
   // Inline confirm dialog (non-destructive, e.g. "Mark as Funded")
   const [inlineConfirm, setInlineConfirm] = useState<InlineConfirm | null>(null);
@@ -178,6 +181,31 @@ export function StatusTransitionButtons({
   // ── Button click handler ─────────────────────────────────────────────────
 
   function handleClick(transition: StatusTransition) {
+    // Guard against stale UI: the transition may no longer be valid for the
+    // invoice's current status (e.g. status changed on another device). Surface
+    // a localized toast with a stable support code instead of firing a call
+    // that the contract would reject.
+    const stillAllowed = getAllowedTransitions(invoice.status).some(
+      (allowed) => allowed.to === transition.to
+    );
+    if (!stillAllowed) {
+      const supportCode = getIllegalTransitionSupportCode(
+        invoice.status,
+        transition.to
+      );
+      showErrorToast({
+        title: t("illegalTransitionTitle"),
+        description: t("illegalTransitionDescription", {
+          from: invoice.status,
+          to: transition.to,
+          supportCode,
+        }),
+        supportCode,
+        supportCodeLabel: t("supportCodeLabel"),
+      });
+      return;
+    }
+
     if (transition.contractMethod === "cancel") {
       setCancelError(undefined);
       setCancelDialogOpen(true);
@@ -197,8 +225,11 @@ export function StatusTransitionButtons({
       await fireTransition(cancelTransition, reason, notes);
       setCancelDialogOpen(false);
     } catch (err) {
-      setCancelError(err instanceof Error ? err.message : "Cancellation failed. Please try again.");
+      setCancelError(
+        err instanceof Error ? err.message : t("cancellationFailed")
+      );
     }
+=======
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
