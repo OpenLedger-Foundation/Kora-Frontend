@@ -277,26 +277,27 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function sanitizeNotifications(
+/**
+ * Validate every notification toggle (#1180). Previously only the three
+ * settings-page toggles survived rehydrate, so `txConfirmed`, `invoiceFunded`,
+ * `yieldAvailable`, `fundingProgress`, `status` and `apr` came back
+ * `undefined` after a reload — the toast gate in `useToast` read that as
+ * "off" and silently stopped notifying. Each key now keeps its persisted
+ * boolean or falls back to its default; nothing is dropped.
+ */
+export function sanitizeNotifications(
   value: unknown,
-  fallback: NotificationPrefs,
+  fallback: NotificationPrefs = DEFAULT_NOTIFICATION_PREFS,
 ): NotificationPrefs {
   const raw = asRecord(value);
   const days = raw.maturityReminderDays;
-  return {
-    maturityReminder:
-      typeof raw.maturityReminder === "boolean"
-        ? raw.maturityReminder
-        : fallback.maturityReminder,
-    fundingAlerts:
-      typeof raw.fundingAlerts === "boolean" ? raw.fundingAlerts : fallback.fundingAlerts,
-    repaymentAlerts:
-      typeof raw.repaymentAlerts === "boolean"
-        ? raw.repaymentAlerts
-        : fallback.repaymentAlerts,
-    maturityReminderDays:
-      days === 1 || days === 3 || days === 7 ? days : fallback.maturityReminderDays,
-  };
+  const prefs = { ...fallback };
+  for (const key of LEGACY_BOOLEAN_KEYS) {
+    if (typeof raw[key] === "boolean") prefs[key] = raw[key] as boolean;
+  }
+  prefs.maturityReminderDays =
+    days === 1 || days === 3 || days === 7 ? days : fallback.maturityReminderDays;
+  return prefs;
 }
 
 /**
@@ -432,15 +433,20 @@ export const useSettingsStore = create<SettingsStore>()(
         });
 
         if (stored) {
+          // Stored buckets may predate a toggle or be partially written, so
+          // validate them the same way rehydrate does (#1180).
+          const storedNotifications = stored.notifications
+            ? sanitizeNotifications(stored.notifications)
+            : undefined;
           useSettingsStore.setState({
             activeWallet: next,
-            notifications: stored.notifications ?? current.notifications,
+            notifications: storedNotifications ?? current.notifications,
             tour: stored.tour ?? current.tour,
             concentration: stored.concentration ?? current.concentration,
             notificationsMigrated:
               stored.notificationsMigrated ?? current.notificationsMigrated,
-            notificationsByWallet: stored.notifications
-              ? { ...byWallet, [next]: stored.notifications }
+            notificationsByWallet: storedNotifications
+              ? { ...byWallet, [next]: storedNotifications }
               : byWallet,
           });
           return;

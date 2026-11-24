@@ -33,9 +33,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { safeStellarTxUrl } from "@/lib/security";
-import { exportCsv } from "@/lib/export";
+import { exportCsv, formatCsvDate, formatCsvNumber } from "@/lib/export";
 import { useToast } from "@/hooks/useToast";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 /**
  * TransactionHistoryDrawer
@@ -383,6 +383,7 @@ export function TransactionHistoryDrawer({
   limit = 15,
 }: TransactionHistoryDrawerProps) {
   const t = useTranslations("transactions");
+  const locale = useLocale();
   const allTransactions = useTransactionHistoryStore((s) => s.transactions);
   const filterType = useTransactionHistoryStore((s) => s.filterType);
   const filterStartDate = useTransactionHistoryStore((s) => s.filterStartDate);
@@ -414,22 +415,55 @@ export function TransactionHistoryDrawer({
     onEscape: () => onOpenChange(false),
   });
 
+  // #1179: locale-aware export. Headers, type/status labels, numbers and dates
+  // follow the active locale; a raw ISO timestamp column is kept so the file
+  // stays machine-sortable regardless of locale.
   const handleExport = () => {
     if (filteredTransactions.length === 0) return;
 
-    exportCsv(
-      filteredTransactions.map((tx) => ({
-        hash: tx.hash,
-        type: tx.type,
-        status: tx.status,
-        amount: tx.amount || "",
-        asset: tx.assetCode || "",
-        timestamp: new Date(tx.timestamp).toISOString(),
-        description: tx.description || "",
-        error: tx.error || "",
-      })),
-      `kora-transactions-${Date.now()}.csv`
-    );
+    const statusLabel = (status: string) =>
+      status === "confirmed" || status === "failed" || status === "pending"
+        ? t(`statusLabels.${status}`)
+        : status;
+    const columns = [
+      "hash",
+      "type",
+      "status",
+      "amount",
+      "asset",
+      "date",
+      "timestampUtc",
+      "description",
+      "error",
+    ];
+
+    try {
+      exportCsv(
+        filteredTransactions.map((tx) => ({
+          hash: tx.hash,
+          type: t((TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other).labelKey),
+          status: statusLabel(tx.status),
+          amount: formatCsvNumber(tx.amount, locale),
+          asset: tx.assetCode || "",
+          date: formatCsvDate(tx.timestamp, locale),
+          timestampUtc: Number.isNaN(new Date(tx.timestamp).getTime())
+            ? ""
+            : new Date(tx.timestamp).toISOString(),
+          description: tx.description || "",
+          error: tx.error || "",
+        })),
+        `kora-transactions-${Date.now()}.csv`,
+        columns,
+        {
+          locale,
+          headerLabels: Object.fromEntries(
+            columns.map((column) => [column, t(`csv.columns.${column}`)])
+          ),
+        }
+      );
+    } catch {
+      toast.error(t("csv.exportFailed"), undefined, "tx-history-export-failed");
+    }
   };
 
   const handleClearHistory = () => {

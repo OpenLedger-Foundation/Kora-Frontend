@@ -53,6 +53,17 @@ const PRINT_STYLES = `
     display: none !important;
   }
 
+  /* ── Redaction (#1182) ──────────────────────────────────────── */
+  /* Screen renderings that may carry private debtor fields are     */
+  /* removed from print; their redacted print-only twins replace    */
+  /* them. Selectors are attribute-based so no utility can undo it. */
+  [data-print-redact] {
+    display: none !important;
+  }
+  [data-print-only] {
+    display: block !important;
+  }
+
   /* ── Page setup ─────────────────────────────────────────────── */
   @page {
     margin: 18mm 15mm;
