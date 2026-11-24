@@ -223,6 +223,8 @@
     "noResults": "No invoices match your filters",
     "noResultsDesc": "We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities.",
     "clearAllFilters": "Clear All Filters",
+    "offlineEmptyTitle": "No cached invoices available offline",
+    "offlineEmptyDesc": "Connect to the internet to load the marketplace. Cached listings will appear here when you are offline after a previous visit.",
     "loadingMore": "Loading more…",
     "allLoaded": "All invoices loaded",
     "backToTop": "↑ Top",
@@ -337,6 +339,20 @@
     "retryLoading": "Retry loading"
   },
   "invoiceDetail": {
+    "yieldCalculator": {
+      "title": "Yield Projection",
+      "expectedReturn": "Expected Return",
+      "annualisedYield": "Annualised Yield",
+      "breakEvenDate": "Break-even Date",
+      "netYield": "Net Yield",
+      "approxUsd": "Approx. USD",
+      "invalidData": "Yield projection unavailable — funding data is invalid.",
+      "capReached": "Amount exceeds the remaining funding cap. Reduce your investment to see a valid projection.",
+      "zeroApr": "0% APR — this investment will not accrue yield.",
+      "noYield": "No yield will accrue for these terms.",
+      "priceUnavailable": "USD estimate unavailable — oracle price is missing.",
+      "a11yLabel": "Yield projection for your investment"
+    },
     "backToMarketplace": "Back to Marketplace",
     "financingTerms": "Financing Terms",
     "fundingProgress": "Funding Progress",
@@ -906,7 +922,10 @@
       "button": "Generate Digest",
       "title": "Portfolio Digest",
       "share": "Share Digest"
-    }
+    },
+    "copyLink": "Copy filtered link",
+    "linkCopied": "Link copied",
+    "linkCopyFailed": "Could not copy link"
   },
   "repaymentDialog": {
     "title": "Confirm Repayment",
@@ -972,6 +991,9 @@
     "writeBytes": "Write Bytes",
     "simulationError": "Simulation Error",
     "simulationErrorDesc": "This transaction cannot be executed. Please review the error below.",
+    "simulationErrorHint": "Nothing was signed or submitted. Review the amount and try again.",
+    "rpcUnavailable": "Simulation service unavailable",
+    "rpcUnavailableDesc": "The Stellar RPC did not respond. Check the RPC endpoint or try again.",
     "timeout": "Simulation timed out after 10 seconds. Please try again.",
     "simulating": "Simulating transaction…",
     "proceed": "Proceed & Sign",

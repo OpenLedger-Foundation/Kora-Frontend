@@ -223,6 +223,8 @@
     "noResults": "Nenhuma fatura corresponde aos seus filtros",
     "noResultsDesc": "Não encontramos nenhuma listagem ativa com sua seleção atual. Tente redefinir seus filtros para explorar outras oportunidades.",
     "clearAllFilters": "Limpar Todos os Filtros",
+    "offlineEmptyTitle": "Nenhuma fatura em cache disponível offline",
+    "offlineEmptyDesc": "Conecte-se à internet para carregar o mercado. Os anúncios em cache aparecerão aqui quando você estiver offline após uma visita anterior.",
     "recovery": {
       "clearRiskTiers": "Limpar níveis de risco",
       "widenApr": "Ampliar faixa de APR",
@@ -337,6 +339,20 @@
     "retryLoading": "Tentar carregar novamente"
   },
   "invoiceDetail": {
+    "yieldCalculator": {
+      "title": "Projeção de rendimento",
+      "expectedReturn": "Retorno esperado",
+      "annualisedYield": "Rendimento anualizado",
+      "breakEvenDate": "Data de equilíbrio",
+      "netYield": "Rendimento líquido",
+      "approxUsd": "Aprox. USD",
+      "invalidData": "Projeção de rendimento indisponível: os dados de financiamento são inválidos.",
+      "capReached": "O valor excede o limite de financiamento restante. Reduza seu investimento para ver uma projeção válida.",
+      "zeroApr": "APR de 0%: este investimento não gerará rendimento.",
+      "noYield": "Nenhum rendimento será gerado com estas condições.",
+      "priceUnavailable": "Estimativa em USD indisponível: preço do oráculo ausente.",
+      "a11yLabel": "Projeção de rendimento do seu investimento"
+    },
     "backToMarketplace": "Voltar ao Mercado",
     "financingTerms": "Condições de Financiamento",
     "fundingProgress": "Progresso do Financiamento",
@@ -889,6 +905,9 @@
       "title": "Resumo da carteira",
       "share": "Compartilhar resumo"
     },
+    "copyLink": "Copiar link filtrado",
+    "linkCopied": "Link copiado",
+    "linkCopyFailed": "Não foi possível copiar o link",
     "a11y": {
       "filterJurisdiction": "Filtrar por jurisdição",
       "filterCategory": "Filtrar por categoria",
@@ -972,6 +991,9 @@
     "writeBytes": "Bytes Escritos",
     "simulationError": "Erro de Simulação",
     "simulationErrorDesc": "Esta transação não pode ser executada. Revise o erro abaixo.",
+    "simulationErrorHint": "Nada foi assinado ou enviado. Revise o valor e tente novamente.",
+    "rpcUnavailable": "Serviço de simulação indisponível",
+    "rpcUnavailableDesc": "O RPC da Stellar não respondeu. Verifique o endpoint do RPC ou tente novamente.",
     "timeout": "A simulação expirou após 10 segundos. Tente novamente.",
     "simulating": "Simulando transação…",
     "proceed": "Prosseguir e Assinar",

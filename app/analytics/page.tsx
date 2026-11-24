@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useMemo, useCallback, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 const YieldVarianceChart = dynamic(() => import("@/components/analytics/YieldVarianceChart"), {
   ssr: false,
@@ -52,73 +52,19 @@ import {
   resolveDateRangeBounds,
 } from "@/lib/portfolioExport";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { AnalyticsFilterBar } from "@/components/analytics/AnalyticsFilterBar";
 import {
-  AnalyticsFilterBar,
-  DEFAULT_FILTERS,
+  filtersFromParams,
+  filtersToParams,
   type AnalyticsFilters,
-  type RiskTierFilter,
-  type JurisdictionFilter,
-  type CategoryFilter,
-} from "@/components/analytics/AnalyticsFilterBar";
-import type { PresetRange } from "@/components/analytics/DateRangePicker";
+} from "@/lib/analyticsFilters";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import {
   aggregatePositions,
   buildPortfolioTimeSeries,
   marketplacePathForAllocation,
   allocationToMarketplaceFilters,
 } from "@/lib/portfolioAllocation";
-
-// ── URL ↔ filter helpers ───────────────────────────────────────────────────────
-
-function filtersFromParams(params: URLSearchParams): AnalyticsFilters {
-  const dateRange = (params.get("range") as PresetRange | "custom") ?? DEFAULT_FILTERS.dateRange;
-  const fromStr = params.get("from");
-  const toStr = params.get("to");
-
-  const result: AnalyticsFilters = {
-    riskTier: (params.get("risk") as RiskTierFilter) ?? DEFAULT_FILTERS.riskTier,
-    jurisdiction:
-      (params.get("jurisdiction") as JurisdictionFilter) ?? DEFAULT_FILTERS.jurisdiction,
-    category: (params.get("category") as CategoryFilter) ?? DEFAULT_FILTERS.category,
-    dateRange,
-  };
-
-  if (dateRange === "custom" && fromStr && toStr) {
-    const from = new Date(fromStr);
-    const to = new Date(toStr);
-    if (!isNaN(from.getTime()) && !isNaN(to.getTime()) && from <= to) {
-      result.customDateRange = { from, to };
-    } else {
-      // Invalid custom range — fall back to default
-      result.dateRange = DEFAULT_FILTERS.dateRange;
-    }
-  }
-
-  return result;
-}
-
-function filtersToParams(filters: AnalyticsFilters): URLSearchParams {
-  const p = new URLSearchParams();
-  if (filters.riskTier !== "all") p.set("risk", filters.riskTier);
-  if (filters.jurisdiction !== "all") p.set("jurisdiction", filters.jurisdiction);
-  if (filters.category !== "all") p.set("category", filters.category);
-  if (filters.dateRange !== DEFAULT_FILTERS.dateRange) p.set("range", filters.dateRange);
-  if (
-    filters.dateRange === "custom" &&
-    filters.customDateRange?.from &&
-    filters.customDateRange?.to
-  ) {
-    const from = filters.customDateRange.from;
-    const to = filters.customDateRange.to;
-    if (from > to) {
-      // Invalid range — don't persist
-      return p;
-    }
-    p.set("from", from.toISOString().split("T")[0]);
-    p.set("to", to.toISOString().split("T")[0]);
-  }
-  return p;
-}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -129,7 +75,9 @@ function PortfolioAnalyticsInner() {
   const t = useTranslations("analytics");
   const tCommon = useTranslations("common");
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { copy, copied, error: copyError } = useCopyToClipboard();
 
   // Single positionsQuery — refetch every 30 s while tab is visible
   const positionsQuery = usePositions(address ?? undefined, { refetchInterval: 30_000 });
@@ -139,12 +87,21 @@ function PortfolioAnalyticsInner() {
 
   const handleFiltersChange = useCallback(
     (next: AnalyticsFilters) => {
-      const params = filtersToParams(next);
+      const params = filtersToParams(next, searchParams);
       const qs = params.toString();
       router.replace(qs ? `?${qs}` : "?", { scroll: false });
     },
-    [router]
+    [router, searchParams]
   );
+
+  // Issue #1178: expose a canonical, shareable URL for the current cohort.
+  // Unrelated params (UTMs, etc.) are preserved by filtersToParams.
+  const handleCopyLink = useCallback(async () => {
+    const params = filtersToParams(filters, searchParams);
+    const qs = params.toString();
+    const url = `${window.location.origin}${pathname}${qs ? `?${qs}` : ""}`;
+    await copy(url);
+  }, [copy, filters, pathname, searchParams]);
 
   const handleRiskSegmentClick = useCallback(
     (riskTier: string) => {
@@ -352,6 +309,19 @@ function PortfolioAnalyticsInner() {
               <p className="mt-1 text-sm text-zinc-500">{t("subtitle")}</p>
             </div>
             <div className="flex items-center gap-2 print:hidden">
+              <button
+                type="button"
+                data-testid="analytics-copy-link"
+                aria-label={t("copyLink")}
+                title={t("copyLink")}
+                className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700"
+                onClick={() => void handleCopyLink()}
+              >
+                {t("copyLink")}
+              </button>
+              <span role="status" aria-live="polite" className="sr-only">
+                {copied ? t("linkCopied") : copyError ? t("linkCopyFailed") : ""}
+              </span>
               <button
                 type="button"
                 disabled={!hasExportData}

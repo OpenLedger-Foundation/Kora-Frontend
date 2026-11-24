@@ -48,6 +48,7 @@ import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useMarketplaceScrollReset } from "@/hooks/useMarketplaceScrollReset";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { buildMarketplaceFilterFingerprint } from "@/lib/marketplaceFilterFingerprint";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
@@ -235,6 +236,7 @@ function Switch({
 
 function MarketplaceContent() {
   const t = useTranslations("marketplace");
+  const { isOnline } = useNetworkStatus();
   const comparisonEnabled = useFeatureFlag("comparison");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -428,6 +430,12 @@ function MarketplaceContent() {
         inv.metadata.issuerName.toLowerCase().includes(query)
     );
   }, [allInvoices, debouncedSearchQuery]);
+
+  // Issue #1135: "no cached data while offline" is a connectivity problem, not
+  // an empty result set caused by the user's filters. TanStack reports
+  // dataUpdatedAt === 0 when no persisted page has been restored.
+  const hasEmptyOfflineCache =
+    !isOnline && !isLoading && filteredInvoices.length === 0 && dataUpdatedAt === 0;
 
   // Result-set fingerprint (Issue #1015). Sort order is intentionally excluded
   // so flipping "APR high→low / low→high" reorders in place instead of
@@ -975,6 +983,18 @@ function MarketplaceContent() {
                 {[...Array(8)].map((_, i) => (
                   <InvoiceCardSkeleton key={i} />
                 ))}
+              </div>
+            ) : hasEmptyOfflineCache ? (
+              <div data-testid="offline-empty-cache">
+                <EmptyState
+                  title={t("offlineEmptyTitle")}
+                  description={t("offlineEmptyDesc")}
+                  cta={{
+                    label: t("retryLoading"),
+                    onClick: () => void infinite.refetch(),
+                  }}
+                  variant="marketplace"
+                />
               </div>
             ) : filteredInvoices.length === 0 ? (
               <EmptyState
