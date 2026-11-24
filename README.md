@@ -340,9 +340,26 @@ NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 # Redis / Shared State (Optional for multi-instance deployments — see docs/architecture.md)
 # REDIS_URL=redis://default:password@127.0.0.1:6379
 # REDIS_TOKEN=your_redis_token_for_rest_endpoints
+
+# Nightly E2E (test-only — read by e2e/testnet-nightly.spec.ts, not by the app)
+# NIGHTLY_CONSOLE_ERROR_ALLOWLIST=ResizeObserver loop limit exceeded,Download the React DevTools
+# NIGHTLY_CONSOLE_ERROR_STRICT=true
 ```
 
 > **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
+
+> **Nightly console-error assertion:** `e2e/testnet-nightly.spec.ts` walks the critical paths (landing → marketplace → invoice detail → dashboards → analytics) on desktop and mobile viewports and **fails the nightly run if any `console.error` is logged**. The spec collects errors per path, ignores the known-benign messages listed in `NIGHTLY_CONSOLE_ERROR_ALLOWLIST` (comma-separated substrings), and reports the offending path plus message in the failure output. `NIGHTLY_CONSOLE_ERROR_STRICT=true` disables the allowlist entirely so every console error fails the run — useful when tightening the baseline. Both flags are test-only and never read by the app bundle.
+
+### Code-split charts
+
+Heavy chart modules (Recharts-based analytics and dashboard charts) are **not** imported eagerly. They are registered in `lib/lazyModules.ts` and loaded through `next/dynamic` with `ssr: false`, so the main bundle stays lean and charts stream in only when their route/section renders. Each lazy entry ships a localized loading skeleton and an error boundary fallback (keys under `common.chartLoading` / `common.chartError` in `en`, `es`, `pt-BR`).
+
+When adding a new chart:
+
+1. Add a `dynamic(() => import("..."), { ssr: false, loading: … })` entry to `lib/lazyModules.ts` — do not import the chart component directly from a page.
+2. Render the lazy component from `components/analytics/` or `components/dashboard/` so the loading/error states stay consistent.
+3. Verify the chart chunk is split by checking the build output (`npm run build`) — the chart code should not appear in the shared main chunk.
+=======
 
 ---
 

@@ -11,7 +11,6 @@ import { Progress } from "@/components/ui/progress";
 import { RepaymentDialog } from "@/components/invoice/RepaymentDialog";
 import { DashboardSkeleton, Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BatchResultSummary } from "@/components/dashboard/BatchActionToolbar";
 import { BatchActionsDisabledNotice } from "@/components/dashboard/BatchActionsDisabledNotice";
 import {
   prepareCancelInvoice,
@@ -44,6 +43,24 @@ const BatchTxQueuePanel = dynamic(
   { ssr: false }
 );
 
+// Batch result summary lives in the same module as the (heavy) batch toolbar.
+// Import it lazily so the summary dialog does not pull the toolbar's chart
+// dependencies into the initial SME dashboard bundle.
+const BatchResultSummary = dynamic(
+  () =>
+    import("@/components/dashboard/BatchActionToolbar").then((m) => m.BatchResultSummary),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        role="status"
+        aria-busy="true"
+        className="h-24 w-full animate-pulse rounded-xl border border-zinc-800 bg-zinc-900/40"
+      />
+    ),
+  }
+);
+
 const DataTable = dynamic<DataTableProps<Invoice>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
   { ssr: false, loading: () => <DashboardSkeleton statCount={4} tableRows={5} tableCols={8} /> }
@@ -55,6 +72,7 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useTranslations } from "next-intl";
+import { lazyModules } from "@/lib/lazyModules";
 import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
@@ -127,21 +145,23 @@ function SMEStatsGrid({ address }: { address: string }) {
       ? Math.round((repaidInvoices.length / fundedInvoices.length) * 100)
       : 0;
 
+  const t = useTranslations("smeDashboard");
+
   const stats = [
     {
-      label: "Total Financed",
+      label: t("stats.totalFinanced"),
       value: formatCurrency(myInvoices.reduce((s, i) => s + i.funding.totalRaised, 0), "USDC", true),
-      change: "12.4% this month",
+      change: t("stats.totalFinancedChange"),
       changePositive: true,
       icon: <TrendingUp className="h-4 w-4" />,
     },
     {
-      label: "Active Invoices",
+      label: t("stats.activeInvoices"),
       value: myInvoices.filter((i) => ["listed", "partially_funded", "fully_funded"].includes(i.status)).length.toString(),
       icon: <FileText className="h-4 w-4" />,
     },
     {
-      label: "Pending Repayment",
+      label: t("stats.pendingRepayment"),
       value: formatCurrency(
         myInvoices.filter((i) => i.status === "fully_funded").reduce((s, i) => s + i.metadata.amount, 0),
         "USDC",
@@ -150,9 +170,12 @@ function SMEStatsGrid({ address }: { address: string }) {
       icon: <Clock className="h-4 w-4" />,
     },
     {
-      label: "Repayment Rate",
+      label: t("stats.repaymentRate"),
       value: `${repaymentRate}%`,
-      change: `${repaidInvoices.length}/${fundedInvoices.length} repaid`,
+      change: t("stats.repaidCount", {
+        repaid: repaidInvoices.length,
+        funded: fundedInvoices.length,
+      }),
       changePositive: repaymentRate >= 80,
       icon: <CheckCircle2 className="h-4 w-4" />,
     },
@@ -183,6 +206,7 @@ export default function SMEDashboardPage() {
   const { setWalletModalOpen } = useUIStore();
   const t = useTranslations("smeDashboard");
   const tCommon = useTranslations("common");
+  const tLazy = useTranslations("lazyModules");
   const queryClient = useQueryClient();
   const invoicesQuery = useSMEInvoices(address ?? undefined);
   const { execute, status: txStatus } = useTransaction();
@@ -252,7 +276,7 @@ export default function SMEDashboardPage() {
 
   const runBatchExecutor = useCallback(
     async (item: BatchQueueItem) => {
-      if (!address) throw new Error("Wallet not connected");
+      if (!address) throw new Error(t("errors.walletNotConnected"));
       // Ensure SequenceManager stays in the batch path (builders/submit use it).
       void sequenceManager;
 
@@ -265,7 +289,7 @@ export default function SMEDashboardPage() {
       const txHash = await submitAndConfirm(signedXdr);
       return { txHash };
     },
-    [address, signTransaction]
+    [address, signTransaction, t]
   );
 
   const hasNoInvoices = allMyInvoices.length === 0;
@@ -335,7 +359,7 @@ export default function SMEDashboardPage() {
         const txHash = await execute(
           () => prepareRepayInvoice(inv.tokenId, address, inv.ownerAddress),
           {
-            successMessage: "Yield distributed to investors",
+            successMessage: t("repay.success"),
             successNotificationType: "yieldAvailable",
             onSimulationPreview,
             onError: rollback,
@@ -362,7 +386,7 @@ export default function SMEDashboardPage() {
         return unsignedXdr;
       },
       {
-        successMessage: "Invoice cancellation submitted",
+        successMessage: t("cancel.success"),
         onSimulationPreview,
         onSuccess: () => {
           invoicesQuery.refetch();
@@ -375,9 +399,7 @@ export default function SMEDashboardPage() {
     if (!address || !batchActionsEnabled || selectedIds.length === 0) return;
 
     if (selectedCancelEligible.length === 0) {
-      toast.error(
-        "No eligible invoices selected. Only unfunded listed/pending invoices can be batch-cancelled."
-      );
+      toast.error(t("batchCancel.noEligible"));
       return;
     }
 
@@ -389,9 +411,7 @@ export default function SMEDashboardPage() {
     if (!address || !batchActionsEnabled || selectedIds.length === 0) return;
 
     if (selectedRepayEligible.length === 0) {
-      toast.error(
-        "No eligible invoices selected. Only fully funded invoices past their due date can be batch-repaid."
-      );
+      toast.error(t("batchRepay.noEligible"));
       return;
     }
 
@@ -408,7 +428,7 @@ export default function SMEDashboardPage() {
       failed: snap.failedCount,
       errors: snap.items
         .filter((i) => i.status === "failed")
-        .map((i) => ({ id: i.label, error: i.error ?? "Unknown error" })),
+        .map((i) => ({ id: i.label, error: i.error ?? t("batchProgress.unknownError") })),
     });
     if (snap.failedCount === 0) {
       clearPersistedBatchQueue();
@@ -416,7 +436,11 @@ export default function SMEDashboardPage() {
     }
     invoicesQuery.refetch();
     toast.message(
-      `Batch ${action} finished: ${snap.successCount} succeeded, ${snap.failedCount} failed`
+      t("batchProgress.finished", {
+        action: t(`batchProgress.action.${action}` as Parameters<typeof t>[0]),
+        success: snap.successCount,
+        failed: snap.failedCount,
+      })
     );
   };
 
@@ -466,8 +490,14 @@ export default function SMEDashboardPage() {
     if (selectedInvoices.length === 0) return;
 
     const headers = [
-      "Invoice Number", "Debtor", "Amount", "Currency", 
-      "APR", "Status", "Due Date", "Created At"
+      t("export.headers.invoiceNumber"),
+      t("export.headers.debtor"),
+      t("export.headers.amount"),
+      t("export.headers.currency"),
+      t("export.headers.apr"),
+      t("export.headers.status"),
+      t("export.headers.dueDate"),
+      t("export.headers.createdAt"),
     ];
 
     const rows = selectedInvoices.map(inv => [
@@ -495,7 +525,7 @@ export default function SMEDashboardPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success(`Exported ${selectedInvoices.length} invoices to CSV`);
+    toast.success(t("export.success", { count: selectedInvoices.length }));
   };
 
   return (
@@ -520,6 +550,40 @@ export default function SMEDashboardPage() {
           <SMEStatsGrid address={address} />
         </Suspense>
       )}
+
+      {/*
+        Analytics charts are code-split through lib/lazyModules so recharts and
+        the analytics bundle stay out of the SME dashboard's initial JS. The
+        fallback is localized and the boundary keeps a chart failure from
+        taking down the invoice table below.
+      */}
+      <ErrorBoundary
+        fallback={
+          <div
+            role="alert"
+            className="mb-8 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground"
+          >
+            {tLazy("chartUnavailable")}
+          </div>
+        }
+      >
+        <Suspense
+          fallback={
+            <div
+              role="status"
+              aria-busy="true"
+              aria-label={tLazy("chartLoading")}
+              className="mb-8 h-64 w-full animate-pulse rounded-xl border border-zinc-800 bg-zinc-900/40"
+            />
+          }
+        >
+          <lazyModules.AnalyticsCharts
+            invoices={allMyInvoices}
+            emptyLabel={tLazy("chartEmpty")}
+            loadingLabel={tLazy("chartLoading")}
+          />
+        </Suspense>
+      </ErrorBoundary>
 
       {!invoicesQuery.isLoading && showFirstInvoiceEmptyState && (
         <div className="mb-8">
@@ -664,7 +728,7 @@ export default function SMEDashboardPage() {
                         <div className="flex items-center gap-2">
                           <ShareInvoiceButton id={row.id} tokenId={row.tokenId} invoiceTitle={row.metadata.invoiceNumber} summary={row.metadata.description} />
                           <Link href={`/marketplace/${row.id}`} className="text-xs text-primary hover:opacity-80">
-                            View →
+                            {t("table.view")}
                           </Link>
                         </div>
                       </div>
@@ -676,8 +740,8 @@ export default function SMEDashboardPage() {
             })()}
             pageSize={5}
             bulkActions={
-              <Button type="button" variant="outline" size="sm">
-                Export selected
+              <Button type="button" variant="outline" size="sm" onClick={handleBatchExport}>
+                {t("table.exportSelected")}
               </Button>
             }
             isLoading={invoicesQuery.isLoading}
@@ -691,8 +755,8 @@ export default function SMEDashboardPage() {
                     illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
                   }
                 : {
-                    title: "No matching invoices",
-                    message: "No invoices have this status. Choose “All statuses” to see everything.",
+                    title: t("empty.filteredTitle"),
+                    message: t("empty.filteredMessage"),
                     illustration: <FileText className="h-10 w-10 text-muted-foreground" />,
                   }
             }
@@ -711,9 +775,9 @@ export default function SMEDashboardPage() {
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <div>
-            <p className="text-sm font-medium text-warning">Repayment Due Soon</p>
+            <p className="text-sm font-medium text-warning">{t("repaymentDueSoon.title")}</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              You have invoices approaching their repayment date. Ensure sufficient USDC balance.
+              {t("repaymentDueSoon.body")}
             </p>
           </div>
         </motion.div>
@@ -753,8 +817,12 @@ export default function SMEDashboardPage() {
             progress={batchProgress}
             processingLabel={
               batchAction === "repay"
-                ? `Repaying ${batchItems.length || selectedIds.length} invoices...`
-                : `Cancelling ${batchItems.length || selectedIds.length} invoices...`
+                ? t("batchProgress.repaying", {
+                    count: batchItems.length || selectedIds.length,
+                  })
+                : t("batchProgress.cancelling", {
+                    count: batchItems.length || selectedIds.length,
+                  })
             }
             items={batchItems}
             onResumeFailed={handleResumeFailed}
@@ -767,7 +835,7 @@ export default function SMEDashboardPage() {
       <Dialog open={!!batchResults} onOpenChange={(open) => !open && setBatchResults(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Batch Operation Summary</DialogTitle>
+            <DialogTitle>{t("batchSummary.title")}</DialogTitle>
           </DialogHeader>
           {batchResults && (
             <BatchResultSummary

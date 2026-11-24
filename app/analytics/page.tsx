@@ -3,30 +3,13 @@
 import { motion } from "framer-motion";
 import { useMemo, useCallback, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
-const YieldVarianceChart = dynamic(() => import("@/components/analytics/YieldVarianceChart"), {
-  ssr: false,
-});
-
-const AnalyticsCharts = dynamic(() => import("@/components/analytics/AnalyticsCharts"), {
-  ssr: false,
-  loading: () => <AnalyticsSkeleton />,
-});
-
-const YieldProjectionCalculator = dynamic(
-  () =>
-    import("@/components/dashboard/YieldProjectionCalculator").then(
-      (mod) => mod.YieldProjectionCalculator
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[400px] w-full animate-pulse rounded-xl border border-zinc-800 bg-zinc-950/50" />
-    ),
-  }
-);
 import { BarChart3, DollarSign, TrendingUp, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
+import {
+  AnalyticsCharts,
+  YieldVarianceChart,
+  YieldProjectionCalculator,
+} from "@/lib/lazyModules";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
@@ -424,7 +407,7 @@ function PortfolioAnalyticsInner() {
             ))}
           </div>
 
-          {/* Yield Projection Calculator */}
+          {/* Yield Projection Calculator — code-split via lib/lazyModules */}
           <div className="mb-6 print-hidden">
             <YieldProjectionCalculator defaultTier={defaultTier} />
           </div>

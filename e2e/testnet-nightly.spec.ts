@@ -32,6 +32,12 @@ import {
   resolveFreighterApiBundle,
   withTimeout,
 } from "./helpers/freighter-extension";
+import {
+  CRITICAL_ROUTES,
+  attachConsoleErrorCollector,
+  expectNoConsoleErrors,
+  getConsoleErrorAllowlist,
+} from "./helpers/console-errors";
 
 const RUN_TESTNET_E2E = process.env.RUN_TESTNET_E2E === "true";
 const SECRET_KEY = process.env.TESTNET_E2E_SECRET_KEY;
@@ -106,6 +112,66 @@ test.describe("Testnet — mint, fund, repay (real contracts)", () => {
     const repayResult = await submitTransaction(signedRepay);
     const repayConfirmation = await waitForTransaction(repayResult.hash);
     expect(repayConfirmation.status).toBe("SUCCESS");
+  });
+});
+
+// ─── Console error assertions on critical paths (Issue #1262) ────────────────
+
+test.describe("Testnet — no console errors on critical paths", () => {
+  test.skip(
+    !RUN_TESTNET_E2E,
+    "Opt-in nightly-only suite. Set RUN_TESTNET_E2E=true to run against live testnet contracts."
+  );
+
+  const allowlist = getConsoleErrorAllowlist();
+
+  for (const route of CRITICAL_ROUTES) {
+    test(`${route.name} (${route.path}) logs no console errors`, async ({ page }) => {
+      const collector = attachConsoleErrorCollector(page, allowlist);
+
+      const response = await page.goto(route.path, { waitUntil: "domcontentloaded" });
+      expect(response, `No navigation response for ${route.path}`).toBeTruthy();
+      expect(
+        response!.status(),
+        `${route.path} returned HTTP ${response!.status()}`
+      ).toBeLessThan(400);
+
+      // Let client-side hydration, data fetching and error boundaries settle.
+      await page.waitForLoadState("networkidle").catch(() => undefined);
+      await page.waitForTimeout(route.settleMs ?? 1_000);
+
+      await expectNoConsoleErrors(collector, route.path);
+    });
+  }
+
+  test("collector fails when a console error is injected", async ({ page }) => {
+    const collector = attachConsoleErrorCollector(page, allowlist);
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      // eslint-disable-next-line no-console
+      console.error("nightly-e2e injected console error");
+    });
+
+    await expect(expectNoConsoleErrors(collector, "/")).rejects.toThrow(
+      /nightly-e2e injected console error/
+    );
+  });
+
+  test("collector fails when an uncaught page error is thrown", async ({ page }) => {
+    const collector = attachConsoleErrorCollector(page, allowlist);
+
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      setTimeout(() => {
+        throw new Error("nightly-e2e injected page error");
+      }, 0);
+    });
+    await page.waitForTimeout(250);
+
+    await expect(expectNoConsoleErrors(collector, "/")).rejects.toThrow(
+      /nightly-e2e injected page error/
+    );
   });
 });
 

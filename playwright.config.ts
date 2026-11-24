@@ -81,6 +81,22 @@ export default defineConfig({
       },
       testMatch: /marketplace-mobile\.spec\.ts/,
     },
+
+    /* ── Mobile nightly console-error checks (Issue #1262) ────────────────
+     *  Runs the testnet nightly console-error spec at a mobile viewport so
+     *  critical paths are asserted to be free of console errors on mobile
+     *  as well as desktop.  Scoped to testnet-nightly.spec.ts so no other
+     *  specs are affected.
+     * ─────────────────────────────────────────────────────────────────── */
+    {
+      name: "mobile-nightly",
+      use: {
+        ...devices["Pixel 5"],
+        hasTouch: true,
+        isMobile: true,
+      },
+      testMatch: /testnet-nightly\.spec\.ts/,
+    },
   ],
 
   /* Start Next.js before tests. Prefer production server in CI (after npm run build). */
