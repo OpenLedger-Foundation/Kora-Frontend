@@ -53,6 +53,7 @@ import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
 import { buildRangeSelection } from "@/lib/comparison";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+import { IndexerWatermark } from "@/components/marketplace/IndexerWatermark";
 import {
   MarketplaceAprHistogram,
   MarketplaceRiskDistribution,
@@ -759,6 +760,7 @@ function MarketplaceContent() {
             </p>
             {/* Contextual stale badge — visible when offline and cache has data */}
             <StaleDataBadge updatedAt={dataUpdatedAt || null} className="mt-2" />
+            <IndexerWatermark className="mt-2 flex" />
             {comparisonEnabled && (
               <p className="mt-2 text-xs text-zinc-500" aria-live="polite">
                 {t("comparison.selectionHint", { count: comparisonList.length })}

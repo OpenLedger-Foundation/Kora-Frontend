@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
 import { WalletButton } from "@/components/wallet/WalletButton";
+import { safeInternalPath } from "@/lib/security";
 
 function IntendedDestinationSetter() {
   const pathname = usePathname();
@@ -16,8 +17,12 @@ function IntendedDestinationSetter() {
     // First priority: redirectTo query param (explicit redirect URL)
     const redirectTo = searchParams.get("redirectTo");
     if (redirectTo) {
-      setIntendedDestination(redirectTo);
-      return;
+      // Only same-origin, root-relative paths are accepted (open-redirect hardening)
+      const safe = safeInternalPath(redirectTo);
+      if (safe) {
+        setIntendedDestination(safe);
+        return;
+      }
     }
 
     // Second priority: current pathname for protected routes (implicit redirect)

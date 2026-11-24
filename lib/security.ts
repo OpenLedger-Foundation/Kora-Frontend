@@ -269,6 +269,26 @@ export function safeRedirectUrl(url: string): string {
 }
 
 /**
+ * Returns the value only when it is a same-origin, root-relative path
+ * (e.g. "/dashboard/sme"). Rejects absolute URLs, protocol-relative and
+ * backslash tricks, scheme payloads and control characters. Returns null
+ * otherwise.
+ */
+export function safeInternalPath(value: string | null | undefined): string | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001F\u007F\\]/.test(value)) return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  try {
+    const parsed = new URL(value, "http://kora.local");
+    if (parsed.origin !== "http://kora.local") return null;
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Validates an external href is from an allowed origin.
  * Returns "#" if not allowed.
  */

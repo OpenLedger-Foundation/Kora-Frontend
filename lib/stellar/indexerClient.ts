@@ -28,6 +28,7 @@ export class RpcNetworkError extends Error {
 export class StellarIndexerClient {
   private indexedInvoices: Map<string, Invoice> = new Map();
   private lastIngestedLedger: number = 0;
+  private lastSyncedAt: number | null = null;
   private isIngesting: boolean = false;
   private contractId: string;
 
@@ -43,7 +44,13 @@ export class StellarIndexerClient {
   reset(): void {
     this.indexedInvoices.clear();
     this.lastIngestedLedger = 0;
+    this.lastSyncedAt = null;
     this.isIngesting = false;
+  }
+
+  /** Watermark of the last successful sync (used for staleness indicators). */
+  getSyncWatermark(): { ledger: number; syncedAt: number | null } {
+    return { ledger: this.lastIngestedLedger, syncedAt: this.lastSyncedAt };
   }
 
   /**
@@ -86,6 +93,7 @@ export class StellarIndexerClient {
 
         await this.processEvents(events);
       }
+      this.lastSyncedAt = Date.now();
     } catch (err) {
       if (process.env.NODE_ENV === "development") {
         console.warn("[StellarIndexerClient] Error syncing events:", err);

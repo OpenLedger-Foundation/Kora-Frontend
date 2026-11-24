@@ -64,6 +64,11 @@
     "termsLink": "Terms of Service",
     "connectGuardTitle": "Connect your wallet to continue",
     "connectGuardDesc": "This page requires a connected wallet.",
+    "insufficientUsdcTitle": "Not enough USDC to fund",
+    "insufficientUsdcDesc": "You need {shortfall} more USDC to fund this amount. Your balance is {balance}.",
+    "insufficientUsdcEmpty": "Your wallet has no USDC yet. Add USDC to start funding invoices.",
+    "insufficientUsdcCta": "Get USDC",
+    "insufficientUsdcBridge": "Bridge USDC to Stellar",
     "sessionExpiredTitle": "Wallet session inactive",
     "sessionExpiredDesc": "Unlock your wallet extension or reconnect to continue.",
     "reconnect": "Reconnect Wallet",
@@ -194,6 +199,10 @@
     "title": "Invoice Marketplace",
     "subtitle": "Discovering deals...",
     "showing": "Showing {count} listed invoices",
+    "indexer": {
+      "synced": "Indexed {time} · ledger {ledger}",
+      "stale": "Availability may be outdated — last indexed {time}"
+    },
     "shareFilters": "Share Filters",
     "shareFiltersCopied": "Filter link copied to clipboard",
     "exportCsv": "Export CSV",
@@ -1184,6 +1193,18 @@
     "connectCta": "Connect wallet",
     "navLabel": "Settings",
     "openFull": "Open full settings",
+    "transfer": {
+      "title": "Export & import preferences",
+      "description": "Back up your settings and address book as an encrypted file. You'll need the same passphrase to import it.",
+      "passphrase": "Passphrase",
+      "passphraseHint": "At least {min} characters. It is never stored or sent anywhere.",
+      "export": "Export encrypted",
+      "import": "Import file",
+      "exported": "Preferences exported.",
+      "exportFailed": "Couldn't export preferences.",
+      "imported": "Preferences imported.",
+      "importFailed": "Couldn't import. Check the file and passphrase."
+    },
     "notifications": {
       "sectionTitle": "Notification Preferences",
       "sectionDesc": "Control which in-app alerts appear during your workflow.",

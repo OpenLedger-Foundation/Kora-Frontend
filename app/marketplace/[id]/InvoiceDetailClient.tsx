@@ -66,6 +66,7 @@ import {
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { FundingYieldCalculator } from "@/components/invoice/FundingYieldCalculator";
 import { TestnetUsdcFaucet } from "@/components/wallet/TestnetUsdcFaucet";
+import { InsufficientUsdcNotice } from "@/components/wallet/InsufficientUsdcNotice";
 import {
   isTestnetUsdcFaucetEnabled,
   useUsdcBalance,
@@ -1110,6 +1111,15 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                         </p>
                       )}
                     </div>
+
+                    {isConnected &&
+                      usdcBalance !== null &&
+                      (usdcBalance <= 0 || amountNum > usdcBalance) && (
+                        <InsufficientUsdcNotice
+                          balance={usdcBalance}
+                          required={amountNum}
+                        />
+                      )}
 
                     {showTestnetFaucet && (
                       <TestnetUsdcFaucet

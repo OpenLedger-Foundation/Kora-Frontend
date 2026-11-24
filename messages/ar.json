@@ -64,6 +64,11 @@
     "termsLink": "شروط الخدمة",
     "connectGuardTitle": "ربط محفظتك للمتابعة",
     "connectGuardDesc": "تتطلب هذه الصفحة محفظة مربوطة.",
+    "insufficientUsdcTitle": "رصيد USDC غير كافٍ للتمويل",
+    "insufficientUsdcDesc": "تحتاج إلى {shortfall} USDC إضافية لتمويل هذا المبلغ. رصيدك {balance}.",
+    "insufficientUsdcEmpty": "لا تحتوي محفظتك على USDC بعد. أضف USDC لبدء تمويل الفواتير.",
+    "insufficientUsdcCta": "احصل على USDC",
+    "insufficientUsdcBridge": "انقل USDC إلى Stellar",
     "sessionExpiredTitle": "جلسة المحفظة غير نشطة",
     "sessionExpiredDesc": "افتح ملحق المحفظة أو أعد الاتصال للمتابعة.",
     "reconnect": "إعادة ربط المحفظة",
@@ -194,6 +199,10 @@
     "title": "سوق الفواتير",
     "subtitle": "جارٍ اكتشاف الصفقات...",
     "showing": "عرض {count} فاتورة مدرجة",
+    "indexer": {
+      "synced": "تمت الفهرسة {time} · دفتر {ledger}",
+      "stale": "قد يكون التوفر قديمًا — آخر فهرسة {time}"
+    },
     "shareFilters": "مشاركة الفلاتر",
     "shareFiltersCopied": "تم نسخ رابط الفلتر إلى الحافظة",
     "exportCsv": "تصدير CSV",
@@ -1184,6 +1193,18 @@
     "connectCta": "ربط المحفظة",
     "navLabel": "الإعدادات",
     "openFull": "فتح الإعدادات الكاملة",
+    "transfer": {
+      "title": "تصدير واستيراد التفضيلات",
+      "description": "احفظ نسخة احتياطية من إعداداتك ودفتر العناوين كملف مشفّر. ستحتاج إلى عبارة المرور نفسها لاستيراده.",
+      "passphrase": "عبارة المرور",
+      "passphraseHint": "{min} أحرف على الأقل. لا يتم تخزينها أو إرسالها أبدًا.",
+      "export": "تصدير مشفّر",
+      "import": "استيراد ملف",
+      "exported": "تم تصدير التفضيلات.",
+      "exportFailed": "تعذّر تصدير التفضيلات.",
+      "imported": "تم استيراد التفضيلات.",
+      "importFailed": "تعذّر الاستيراد. تحقق من الملف وعبارة المرور."
+    },
     "notifications": {
       "sectionTitle": "تفضيلات الإشعارات",
       "sectionDesc": "تحكّم في التنبيهات التي تظهر أثناء سير عملك.",

@@ -353,7 +353,7 @@ function sanitizeConcentration(
 }
 
 /** Normalize whatever was read from storage into a complete settings slice. */
-function sanitizeSettings(value: unknown): Pick<
+export function sanitizeSettings(value: unknown): Pick<
   SettingsStore,
   "notifications" | "tour" | "concentration"
 > {

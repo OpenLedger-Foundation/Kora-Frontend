@@ -64,6 +64,11 @@
     "termsLink": "Termos de Serviço",
     "connectGuardTitle": "Conecte sua carteira para continuar",
     "connectGuardDesc": "Esta página requer uma carteira conectada.",
+    "insufficientUsdcTitle": "USDC insuficiente para financiar",
+    "insufficientUsdcDesc": "Você precisa de mais {shortfall} USDC para financiar este valor. Seu saldo é {balance}.",
+    "insufficientUsdcEmpty": "Sua carteira ainda não tem USDC. Adicione USDC para começar a financiar faturas.",
+    "insufficientUsdcCta": "Obter USDC",
+    "insufficientUsdcBridge": "Transferir USDC para a Stellar",
     "sessionExpiredTitle": "Sessão da carteira inativa",
     "sessionExpiredDesc": "Desbloqueie sua extensão de carteira ou reconecte para continuar.",
     "reconnect": "Reconectar Carteira",
@@ -194,6 +199,10 @@
     "title": "Mercado de Faturas",
     "subtitle": "Descobrindo oportunidades...",
     "showing": "Exibindo {count} faturas listadas",
+    "indexer": {
+      "synced": "Indexado {time} · ledger {ledger}",
+      "stale": "A disponibilidade pode estar desatualizada — última indexação {time}"
+    },
     "shareFilters": "Compartilhar Filtros",
     "shareFiltersCopied": "Link do filtro copiado para a área de transferência",
     "exportCsv": "Exportar CSV",
@@ -1184,6 +1193,18 @@
     "connectCta": "Conectar carteira",
     "navLabel": "Configurações",
     "openFull": "Abrir configurações completas",
+    "transfer": {
+      "title": "Exportar e importar preferências",
+      "description": "Faça backup das suas configurações e catálogo de endereços como um arquivo criptografado. Você precisará da mesma senha para importá-lo.",
+      "passphrase": "Senha",
+      "passphraseHint": "Pelo menos {min} caracteres. Nunca é armazenada nem enviada.",
+      "export": "Exportar criptografado",
+      "import": "Importar arquivo",
+      "exported": "Preferências exportadas.",
+      "exportFailed": "Não foi possível exportar as preferências.",
+      "imported": "Preferências importadas.",
+      "importFailed": "Não foi possível importar. Verifique o arquivo e a senha."
+    },
     "notifications": {
       "sectionTitle": "Preferências de Notificação",
       "sectionDesc": "Controle quais alertas aparecem durante seu fluxo de trabalho.",
