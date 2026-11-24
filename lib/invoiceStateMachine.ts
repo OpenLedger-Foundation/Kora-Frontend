@@ -164,6 +164,69 @@ export function getTransition(
 }
 
 /**
+ * Stable support codes for blocked invoice transitions.
+ *
+ * These codes are surfaced to users (and included in support toasts) so that
+ * support agents can identify the exact failure without guessing. They are
+ * part of the public contract — do not rename without a migration.
+ */
+export const INVOICE_TRANSITION_ERROR_CODES = {
+  /** Wallet is not connected. */
+  WALLET_NOT_CONNECTED: "INV_WALLET_NOT_CONNECTED",
+  /** Caller is not the invoice owner. */
+  NOT_OWNER: "INV_NOT_OWNER",
+  /** Transition is not part of the state machine. */
+  ILLEGAL_TRANSITION: "INV_ILLEGAL_TRANSITION",
+} as const;
+
+export type InvoiceTransitionErrorCode =
+  (typeof INVOICE_TRANSITION_ERROR_CODES)[keyof typeof INVOICE_TRANSITION_ERROR_CODES];
+
+/** Result of evaluating whether a transition is blocked. */
+export interface BlockedTransitionResult {
+  /** Stable support code identifying the failure. */
+  code: InvoiceTransitionErrorCode;
+  /** Human-readable reason (English fallback; UI should localize via `code`). */
+  reason: string;
+}
+
+/**
+ * Returns the stable support code + human-readable reason why a transition is
+ * blocked, or `null` when the transition is allowed.
+ *
+ * Checks (in order):
+ *  1. Wallet not connected
+ *  2. Caller is not the invoice owner
+ *  3. Transition not in the state machine
+ */
+export function getBlockedTransition(
+  from: InvoiceStatus,
+  to: InvoiceStatus,
+  isOwner: boolean,
+  walletConnected = true
+): BlockedTransitionResult | null {
+  if (!walletConnected) {
+    return {
+      code: INVOICE_TRANSITION_ERROR_CODES.WALLET_NOT_CONNECTED,
+      reason: "Connect your wallet to manage invoice status.",
+    };
+  }
+  if (!isOwner) {
+    return {
+      code: INVOICE_TRANSITION_ERROR_CODES.NOT_OWNER,
+      reason: "Only the invoice owner can trigger status changes.",
+    };
+  }
+  if (!isValidTransition(from, to)) {
+    return {
+      code: INVOICE_TRANSITION_ERROR_CODES.ILLEGAL_TRANSITION,
+      reason: `Cannot transition from "${from.replace(/_/g, " ")}" to "${to.replace(/_/g, " ")}".`,
+    };
+  }
+  return null;
+}
+
+/**
  * Returns a human-readable reason why a transition is blocked.
  * Returns null when the transition is allowed.
  *
@@ -178,16 +241,7 @@ export function getBlockedReason(
   isOwner: boolean,
   walletConnected = true
 ): string | null {
-  if (!walletConnected) {
-    return "Connect your wallet to manage invoice status.";
-  }
-  if (!isOwner) {
-    return "Only the invoice owner can trigger status changes.";
-  }
-  if (!isValidTransition(from, to)) {
-    return `Cannot transition from "${from.replace(/_/g, " ")}" to "${to.replace(/_/g, " ")}".`;
-  }
-  return null;
+  return getBlockedTransition(from, to, isOwner, walletConnected)?.reason ?? null;
 }
 
 /**

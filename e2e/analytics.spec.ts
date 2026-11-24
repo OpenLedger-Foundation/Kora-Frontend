@@ -37,6 +37,74 @@ test.describe("Analytics page — disconnected", () => {
   });
 });
 
+test.describe("Analytics page — filter chips keyboard", () => {
+  test("creates and removes filter chips using only the keyboard", async ({
+    page,
+    context,
+  }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/analytics");
+
+    await expect(
+      page.getByRole("heading", { name: /connect your wallet/i })
+    ).not.toBeVisible();
+
+    const chipGroup = page.getByRole("toolbar", { name: /filter/i });
+    await expect(chipGroup).toBeVisible();
+
+    // Tab into the chip group and focus the first chip.
+    await chipGroup.focus();
+    const firstChip = chipGroup.getByRole("button").first();
+    await expect(firstChip).toBeFocused();
+
+    // Arrow between chips moves roving focus.
+    const chips = chipGroup.getByRole("button");
+    const chipCount = await chips.count();
+    if (chipCount > 1) {
+      await page.keyboard.press("ArrowRight");
+      await expect(chips.nth(1)).toBeFocused();
+      await page.keyboard.press("ArrowLeft");
+      await expect(chips.nth(0)).toBeFocused();
+    }
+
+    // Enter activates the focused chip (adds it to the active filters).
+    await page.keyboard.press("Enter");
+    await expect(chipGroup.getByRole("button", { pressed: true }).first()).toBeVisible();
+
+    // Space also activates a chip.
+    if (chipCount > 1) {
+      await page.keyboard.press("ArrowRight");
+      await page.keyboard.press(" ");
+      await expect(chipGroup.getByRole("button", { pressed: true })).toHaveCount(2);
+    }
+
+    // Delete removes the focused chip and focus moves to a sibling.
+    await page.keyboard.press("Delete");
+    await expect(chipGroup.getByRole("button", { pressed: true })).toHaveCount(1);
+    await expect(chipGroup.getByRole("button").first()).toBeFocused();
+  });
+
+  test("Backspace clears the focused chip", async ({ page, context }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/analytics");
+
+    await expect(
+      page.getByRole("heading", { name: /connect your wallet/i })
+    ).not.toBeVisible();
+
+    const chipGroup = page.getByRole("toolbar", { name: /filter/i });
+    await expect(chipGroup).toBeVisible();
+
+    await chipGroup.focus();
+    await page.keyboard.press("Enter");
+    await expect(chipGroup.getByRole("button", { pressed: true }).first()).toBeVisible();
+
+    await page.keyboard.press("Backspace");
+    await expect(chipGroup.getByRole("button", { pressed: true })).toHaveCount(0);
+    await expect(chipGroup.getByRole("button").first()).toBeFocused();
+  });
+});
+
 test.describe("Analytics page — connected", () => {
   test("renders analytics once a wallet is connected", async ({ page, context }) => {
     await injectConnectedWallet(context);

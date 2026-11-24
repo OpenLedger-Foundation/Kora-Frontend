@@ -336,6 +336,7 @@ NEXT_PUBLIC_ENABLE_DEVTOOLS=true
 NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
 NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
 NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
+NEXT_PUBLIC_ENABLE_MATURITY_REMINDER_QUIET_HOURS=true  # Respect quiet hours for maturity reminders (default: true)
 
 # Redis / Shared State (Optional for multi-instance deployments — see docs/architecture.md)
 # REDIS_URL=redis://default:password@127.0.0.1:6379
@@ -343,6 +344,8 @@ NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 ```
 
 > **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
+
+> **Maturity reminder quiet hours:** When `NEXT_PUBLIC_ENABLE_MATURITY_REMINDER_QUIET_HOURS` is unset or `true`, maturity reminder notifications are suppressed during the user's configured quiet hours (stored in `store/settingsStore.ts` and consumed by `hooks/useMaturityReminder.ts`). Reminders that fall inside the window are deferred to the first moment after quiet hours end rather than dropped. Set the flag to `false` to disable quiet-hours handling entirely (e.g. for debugging reminder delivery). The flag defaults to enabled so missing configuration never causes night-time notification spam.
 
 ---
 
@@ -470,6 +473,21 @@ const NETWORK_CONTRACTS = {
 | `fund_invoice(token_id, amount)` | Investor funds an invoice |
 | `repay_invoice(token_id)` | SME repays; triggers yield distribution |
 | `get_positions(investor)` | Returns all investor positions |
+
+### Invoice State Transitions
+
+Invoice status changes are validated by `lib/invoiceStateMachine.ts`. When a user
+attempts an illegal transition (e.g. funding a `repaid` invoice), the UI shows a
+toast that includes a **stable support code** (e.g. `INV-TRANSITION-<from>-<to>`)
+alongside the localized explanation. Support can use that code to identify the
+exact transition without needing the user's full session details.
+
+- Codes are generated deterministically from the `(from, to)` status pair, so the
+  same illegal attempt always yields the same code.
+- Toast copy is localized (en/es/pt-BR) under `messages/`; the support code is
+  rendered verbatim and is not translated.
+- The toast is announced via an ARIA live region so screen-reader users hear the
+  failure and the code.
 
 ### Transaction Flow
 
