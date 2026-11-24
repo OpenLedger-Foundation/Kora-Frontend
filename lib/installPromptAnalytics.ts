@@ -12,13 +12,60 @@ export type InstallCohort = "sme" | "investor" | "unknown";
 export type InstallPromptEventName =
   | "install_prompt_shown"
   | "install_prompt_accepted"
-  | "install_prompt_dismissed";
+  | "install_prompt_dismissed"
+  | "install_prompt_failed";
+
+/** Coarse, non-identifying reason codes for a failed install prompt. */
+export type InstallPromptFailureReason =
+  | "dismissed_by_browser"
+  | "not_supported"
+  | "user_cancelled"
+  | "unknown";
 
 export interface InstallPromptEvent {
   name: InstallPromptEventName;
   cohort: InstallCohort;
   visitCount: number;
   timestamp: number;
+  /** Only present on `install_prompt_failed`; a coarse enum, never free text. */
+  reason?: InstallPromptFailureReason;
+}
+
+/**
+ * Privacy guard: analytics is opt-out via `NEXT_PUBLIC_PWA_INSTALL_ANALYTICS`
+ * (defaults to enabled) and always respects Do Not Track. No PII (URL, wallet
+ * address, user agent, etc.) is ever attached to events.
+ */
+export function isInstallPromptAnalyticsEnabled(): boolean {
+  try {
+    const flag = process.env.NEXT_PUBLIC_PWA_INSTALL_ANALYTICS;
+    if (typeof flag === "string" && /^(0|false|off|no)$/i.test(flag.trim())) {
+      return false;
+    }
+    if (typeof navigator !== "undefined") {
+      const dnt =
+        (navigator as unknown as { doNotTrack?: string | null }).doNotTrack ??
+        (typeof window !== "undefined"
+          ? (window as unknown as { doNotTrack?: string | null }).doNotTrack
+          : undefined);
+      if (dnt === "1" || dnt === "yes") return false;
+    }
+    return true;
+  } catch {
+    // Fail safe: if we can't determine consent, don't send.
+    return false;
+  }
+}
+
+function normalizeFailureReason(reason?: string): InstallPromptFailureReason {
+  switch (reason) {
+    case "dismissed_by_browser":
+    case "not_supported":
+    case "user_cancelled":
+      return reason;
+    default:
+      return "unknown";
+  }
 }
 
 /**
@@ -33,7 +80,15 @@ export function detectInstallCohort(pathname: string = typeof window !== "undefi
 }
 
 function sendAnalyticsEvent(event: InstallPromptEvent): void {
+  if (!isInstallPromptAnalyticsEnabled()) return;
   try {
+    // Only coarse, non-identifying fields are ever sent.
+    const props: Record<string, string | number> = {
+      cohort: event.cohort,
+      visit_count: event.visitCount,
+    };
+    if (event.reason) props.reason = event.reason;
+
     // Fire-and-forget to whatever analytics pipe the app already uses.
     // Falls back to a no-op if `window.gtag`/`plausible` aren't present.
     const w = window as unknown as {
@@ -41,10 +96,10 @@ function sendAnalyticsEvent(event: InstallPromptEvent): void {
       plausible?: (...args: unknown[]) => void;
     };
     if (typeof w.gtag === "function") {
-      w.gtag("event", event.name, { cohort: event.cohort, visit_count: event.visitCount });
+      w.gtag("event", event.name, props);
     }
     if (typeof w.plausible === "function") {
-      w.plausible(event.name, { props: { cohort: event.cohort, visitCount: event.visitCount } });
+      w.plausible(event.name, { props });
     }
     // Always log locally so the metric isn't lost when no analytics SDK is loaded.
     const key = "kora-install-prompt-events";
@@ -84,11 +139,35 @@ export function trackInstallPromptDismissed(visitCount: number): void {
   });
 }
 
+export function trackInstallPromptFailed(visitCount: number, reason?: string): void {
+  sendAnalyticsEvent({
+    name: "install_prompt_failed",
+    cohort: detectInstallCohort(),
+    visitCount,
+    timestamp: Date.now(),
+    reason: normalizeFailureReason(reason),
+  });
+}
+
 /** Reads locally-logged events back out, e.g. for a debug/analytics panel. */
 export function getLocalInstallPromptEvents(): InstallPromptEvent[] {
   try {
     const raw = localStorage.getItem("kora-install-prompt-events");
-    return raw ? JSON.parse(raw) : [];
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    // Strip any potentially identifying fields that may have been persisted
+    // by older versions of this module.
+    return parsed.map((entry) => {
+      const e = (entry ?? {}) as Partial<InstallPromptEvent> & Record<string, unknown>;
+      const clean: InstallPromptEvent = {
+        name: e.name as InstallPromptEventName,
+        cohort: (e.cohort as InstallCohort) ?? "unknown",
+        visitCount: typeof e.visitCount === "number" ? e.visitCount : 0,
+        timestamp: typeof e.timestamp === "number" ? e.timestamp : 0,
+      };
+      if (e.reason) clean.reason = normalizeFailureReason(e.reason as string);
+      return clean;
+    });
   } catch {
     return [];
   }

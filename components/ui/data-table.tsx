@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import type { ColumnDef, DataTableProps, TableSortDirection } from "@/types/table";
 import { Pagination } from "./pagination";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -54,6 +55,7 @@ export function DataTable<T extends { id: string }>({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<TableSortDirection>(null);
@@ -201,6 +203,17 @@ export function DataTable<T extends { id: string }>({
     );
   };
 
+  // Sticky header classes: keep the header sticky in both modes, but only
+  // apply motion-related transitions when the user has not requested reduced
+  // motion. The header remains static (no animated shadow/transition) when
+  // prefers-reduced-motion is enabled.
+  const stickyHeaderClasses = cn(
+    "sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+    prefersReducedMotion
+      ? "shadow-none"
+      : "transition-shadow duration-200 shadow-sm"
+  );
+
   if (!isLoading && data.length === 0) {
     return (
       <div
@@ -226,7 +239,12 @@ export function DataTable<T extends { id: string }>({
   if (isMobileView) {
     return (
       <div className={cn("space-y-4", className)}>
-        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-border/50 pb-4">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-4 flex-wrap border-b border-border/50 pb-4",
+            stickyHeaderClasses
+          )}
+        >
           {enableSelection && (
             <label className="inline-flex items-center gap-2 text-xs text-muted-foreground select-none cursor-pointer">
               <input
@@ -244,7 +262,7 @@ export function DataTable<T extends { id: string }>({
 
           <div className="flex items-center gap-2">
             <label htmlFor="mobile-sort-select" className="text-xs text-muted-foreground whitespace-nowrap">
-              Sort by
+              {t("sortByLabel")}
             </label>
             <select
               id="mobile-sort-select"
@@ -271,17 +289,17 @@ export function DataTable<T extends { id: string }>({
                 }
               }}
             >
-              <option value="">None</option>
+              <option value="">{t("sortNone")}</option>
               {columns
                 .filter((c) => c.sortable !== false && c.accessor)
                 .flatMap((column) => [
                   {
                     value: `${column.id}:asc`,
-                    label: `${column.header} (Ascending)`,
+                    label: t("sortAscendingOption", { column: column.header }),
                   },
                   {
                     value: `${column.id}:desc`,
-                    label: `${column.header} (Descending)`,
+                    label: t("sortDescendingOption", { column: column.header }),
                   },
                 ])
                 .map((opt) => (
@@ -296,7 +314,7 @@ export function DataTable<T extends { id: string }>({
         {enableSelection && selected.size > 0 && bulkActions && (
           <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-2">
             <span className="text-sm text-muted-foreground">
-              {selected.size} row{selected.size === 1 ? "" : "s"} selected
+              {t("rowsSelected", { count: selected.size })}
             </span>
             {bulkActions}
           </div>
@@ -338,7 +356,7 @@ export function DataTable<T extends { id: string }>({
                           onChange={() => toggleRow(rowId)}
                           aria-label={t("selectRowAria", { id: rowId })}
                         />
-                        Select
+                        {t("selectRowLabel")}
                       </label>
                     )}
                     <div className="min-w-0 flex-1">
@@ -400,7 +418,7 @@ export function DataTable<T extends { id: string }>({
       {enableSelection && selected.size > 0 && bulkActions && (
         <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-2">
           <span className="text-sm text-muted-foreground">
-            {selected.size} row{selected.size === 1 ? "" : "s"} selected
+            {t("rowsSelected", { count: selected.size })}
           </span>
           {bulkActions}
         </div>
@@ -408,7 +426,7 @@ export function DataTable<T extends { id: string }>({
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
-          <thead>
+          <thead className={stickyHeaderClasses}>
             <tr className="border-b border-border text-left">
               {enableSelection && (
                 <th className="w-10 px-4 py-3">
@@ -469,7 +487,8 @@ export function DataTable<T extends { id: string }>({
                       key={rowId}
                       {...props}
                       className={cn(
-                        "border-b border-border/50 transition-colors hover:bg-muted/30",
+                        "border-b border-border/50 hover:bg-muted/30",
+                        !prefersReducedMotion && "transition-colors",
                         props.className
                       )}
                     >

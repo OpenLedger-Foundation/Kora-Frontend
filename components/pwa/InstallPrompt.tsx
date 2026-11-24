@@ -28,6 +28,7 @@ import {
   trackInstallPromptShown,
   trackInstallPromptAccepted,
   trackInstallPromptDismissed,
+  trackInstallPromptFailed,
 } from "@/lib/installPromptAnalytics";
 
 // ─── LocalStorage keys ────────────────────────────────────────────────────────
@@ -140,17 +141,23 @@ export function InstallPrompt() {
 
   const handleInstall = useCallback(async () => {
     if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      // Permanent dismiss — user installed the app
-      suppressForDays(365 * 10);
-      trackInstallPromptAccepted(visitCountRef.current);
-    } else {
-      trackInstallPromptDismissed(visitCountRef.current);
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        // Permanent dismiss — user installed the app
+        suppressForDays(365 * 10);
+        trackInstallPromptAccepted(visitCountRef.current);
+      } else {
+        trackInstallPromptDismissed(visitCountRef.current);
+      }
+    } catch {
+      // prompt() or userChoice rejected — never break the install flow
+      trackInstallPromptFailed(visitCountRef.current);
+    } finally {
+      setDeferredPrompt(null);
+      setVisible(false);
     }
-    setDeferredPrompt(null);
-    setVisible(false);
   }, [deferredPrompt]);
 
   const handleDismiss = useCallback(() => {

@@ -336,6 +336,10 @@ NEXT_PUBLIC_ENABLE_DEVTOOLS=true
 NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
 NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
 NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
+NEXT_PUBLIC_PWA_INSTALL_ANALYTICS=true  # Privacy-safe install prompt analytics (no PII); respects Do Not Track
+
+# Feedback API rate limiting (server-side; see app/api/feedback/)
+FEEDBACK_RATE_LIMIT_WINDOW_SECONDS=60  # Window length for feedback submit rate limits (safe default)
 
 # Redis / Shared State (Optional for multi-instance deployments — see docs/architecture.md)
 # REDIS_URL=redis://default:password@127.0.0.1:6379
@@ -343,6 +347,10 @@ NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
 ```
 
 > **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
+
+> **PWA install analytics:** When `NEXT_PUBLIC_PWA_INSTALL_ANALYTICS=true` (default), the install prompt fires privacy-safe outcome events (e.g. shown, accepted, dismissed). Events contain no PII, are never tied to a wallet address, and are suppressed when the browser sends `DNT: 1`. See `lib/installPromptAnalytics.ts` and [docs/analytics-events.md](./docs/analytics-events.md).
+
+> **Feedback rate limits:** The feedback API returns `429` with a `Retry-After` header when a client exceeds the limit. `FEEDBACK_RATE_LIMIT_WINDOW_SECONDS` controls the window length (default `60`); the feedback widget surfaces a localized, friendly retry message instead of a hard failure.
 
 ---
 

@@ -25,6 +25,70 @@ const MAX_CONTEXT_FIELD_LENGTH = 2048;
 const ALLOWED_KEYS = new Set(["type", "title", "description", "screenshot", "context"]);
 const CONTEXT_KEYS = new Set(["url", "walletAddress", "userAgent", "timestamp"]);
 
+// ── Rate limiting (Issue #1260) ─────────────────────────────────────────────
+// Simple in-memory sliding window keyed by client IP. Mirrors the lightweight
+// approach used elsewhere in the app; no external store is required.
+const DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 60;
+const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 5;
+
+function readPositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getRateLimitConfig(): { windowMs: number; maxRequests: number } {
+  const windowSeconds = readPositiveIntEnv(
+    "FEEDBACK_RATE_LIMIT_WINDOW_SECONDS",
+    DEFAULT_RATE_LIMIT_WINDOW_SECONDS
+  );
+  const maxRequests = readPositiveIntEnv(
+    "FEEDBACK_RATE_LIMIT_MAX_REQUESTS",
+    DEFAULT_RATE_LIMIT_MAX_REQUESTS
+  );
+  return { windowMs: windowSeconds * 1000, maxRequests };
+}
+
+const rateLimitBuckets = new Map<string, number[]>();
+
+function getClientKey(req: NextRequest): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0]!.trim();
+  return req.headers.get("x-real-ip") ?? "unknown";
+}
+
+/**
+ * Returns the number of seconds to wait if the client is rate-limited,
+ * or null if the request is allowed. Records the request when allowed.
+ */
+function checkRateLimit(req: NextRequest): number | null {
+  const { windowMs, maxRequests } = getRateLimitConfig();
+  const now = Date.now();
+  const key = getClientKey(req);
+
+  const timestamps = (rateLimitBuckets.get(key) ?? []).filter((t) => now - t < windowMs);
+
+  if (timestamps.length >= maxRequests) {
+    rateLimitBuckets.set(key, timestamps);
+    const oldest = timestamps[0]!;
+    const retryAfterSeconds = Math.max(1, Math.ceil((windowMs - (now - oldest)) / 1000));
+    return retryAfterSeconds;
+  }
+
+  timestamps.push(now);
+  rateLimitBuckets.set(key, timestamps);
+
+  // Opportunistic cleanup to keep the map from growing unbounded.
+  if (rateLimitBuckets.size > 1000) {
+    for (const [bucketKey, bucket] of rateLimitBuckets) {
+      if (bucket.every((t) => now - t >= windowMs)) rateLimitBuckets.delete(bucketKey);
+    }
+  }
+
+  return null;
+}
+
 /**
  * Like sanitizeInput, but keeps line breaks and tabs so multi-line
  * descriptions survive. Emoji and other non-ASCII text are preserved.
@@ -89,6 +153,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (csrfError) return csrfError;
 
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
+
+  // ── Rate limiting (Issue #1260) ───────────────────────────────────────────
+  const retryAfterSeconds = checkRateLimit(req);
+  if (retryAfterSeconds !== null) {
+    logger.warn("Feedback rate limit exceeded", {
+      requestId,
+      route: "/api/feedback",
+      retryAfterSeconds,
+    });
+    return NextResponse.json(
+      {
+        error: "Too many feedback submissions. Please try again shortly.",
+        code: "rate_limited",
+        requestId,
+        retryAfterSeconds,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSeconds),
+          "X-Request-Id": requestId,
+        },
+      }
+    );
+  }
 
   let raw: unknown;
   try {
@@ -233,4 +322,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logger.error("Feedback submission error", { requestId, route: "/api/feedback", error: err });
     return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
+}
+
+/**
+ * Test-only helper: clears in-memory rate-limit buckets between test cases.
+ * Not part of the public API surface.
+ */
+export function __resetRateLimitForTests(): void {
+  rateLimitBuckets.clear();
 }

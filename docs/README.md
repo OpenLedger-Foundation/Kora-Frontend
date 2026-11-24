@@ -10,8 +10,36 @@ Project documentation lives here. GitHub-facing files (`CONTRIBUTING.md`, `SECUR
 | [Design System](./design-system.md)       | Semantic tokens, theming, and UI primitives                          |
 | [Feature Flags](./feature-flags.md)       | All `NEXT_PUBLIC_ENABLE_*` flags, defaults, and local override paths |
 | [Debtor Privacy](./debtor-privacy.md)     | Debtor display rules and privacy constraints                         |
-| [Analytics Events](./analytics-events.md) | Marketplace analytics event schema (no PII)                          |
+| [Analytics Events](./analytics-events.md) | Marketplace and PWA analytics event schema (no PII)                  |
 | [Testnet Nightly E2E](./testnet-nightly-e2e.md) | Opt-in live-testnet suites, real Freighter extension, CI secrets |
+
+## PWA install prompt analytics
+
+Install prompt outcomes are tracked as privacy-safe analytics events — no PII,
+no free-form text, only a coarse outcome and a viewport class:
+
+| Event | When it fires |
+| --- | --- |
+| `pwa_install_prompt_shown` | The install prompt UI is rendered to the user |
+| `pwa_install_prompt_accepted` | The user accepts the install prompt |
+| `pwa_install_prompt_dismissed` | The user dismisses the prompt |
+| `pwa_install_prompt_failed` | The prompt cannot be shown (unsupported, offline, or error) |
+
+See [Analytics Events](./analytics-events.md) for the full schema and payload
+fields. No new environment flags are required for these events.
+
+## Feedback rate-limit UX
+
+When the feedback API responds with `429 Too Many Requests`, the widget shows a
+localized, non-blocking message with a retry hint instead of a hard failure.
+The retry window is configurable:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `NEXT_PUBLIC_FEEDBACK_RATE_LIMIT_RETRY_SECONDS` | `60` | Seconds shown in the retry hint after a `429`. Safe default applies when unset or invalid. |
+
+See [Feature Flags](./feature-flags.md) for related `NEXT_PUBLIC_ENABLE_*`
+toggles and local override paths.
 
 ## Repository docs (root)
 

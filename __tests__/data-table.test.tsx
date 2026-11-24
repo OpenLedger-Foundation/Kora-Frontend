@@ -29,6 +29,43 @@ vi.mock("../hooks/useBreakpoint", () => ({
   useBreakpoint: () => mockUseBreakpoint(),
 }));
 
+// Helper to mock window.matchMedia for reduced-motion queries
+function mockMatchMedia(matches: boolean) {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const mql = {
+    matches,
+    media: "(prefers-reduced-motion: reduce)",
+    onchange: null,
+    addEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener);
+    }),
+    removeEventListener: vi.fn((_type: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener);
+    }),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  };
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: vi.fn((query: string) => ({ ...mql, media: query })),
+  });
+  return mql;
+}
+
+function removeMatchMedia() {
+  // Simulate environments (e.g. SSR / older browsers) without matchMedia
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: undefined,
+  });
+}
+
+const MOTION_CLASS_PATTERN = /(^|\s)(transition|animate|motion|duration-|ease-)/;
+=======
+
 interface TestData {
   id: string;
   name: string;
@@ -190,6 +227,83 @@ describe("DataTable & Pagination localized aria labels", () => {
     expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Go to page 2" })).toBeInTheDocument();
+  });
+});
+
+describe("DataTable sticky header reduced motion", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseBreakpoint.mockReturnValue({ isMobile: false, width: 1024 });
+    vi.mocked(useSearchParams).mockReturnValue(new URLSearchParams());
+  });
+
+  function getHeaderCells() {
+    const table = screen.getByRole("table");
+    const headerRow = table.querySelector("thead tr");
+    expect(headerRow).not.toBeNull();
+    return Array.from(headerRow!.querySelectorAll("th"));
+  }
+
+  function expectNoMotionClasses(elements: Element[]) {
+    for (const el of elements) {
+      expect(el.className).not.toMatch(MOTION_CLASS_PATTERN);
+    }
+  }
+
+  function expectMotionClasses(elements: Element[]) {
+    const hasMotion = elements.some((el) => MOTION_CLASS_PATTERN.test(el.className));
+    expect(hasMotion).toBe(true);
+  }
+
+  it("omits motion/transition classes on sticky headers when reduced motion is preferred", () => {
+    mockMatchMedia(true);
+
+    render(<DataTable data={testData} columns={testColumns} stickyHeader syncToUrl={false} />);
+
+    const headerCells = getHeaderCells();
+    expect(headerCells.length).toBeGreaterThan(0);
+    expectNoMotionClasses(headerCells);
+  });
+
+  it("applies motion/transition classes on sticky headers when motion is allowed", () => {
+    mockMatchMedia(false);
+
+    render(<DataTable data={testData} columns={testColumns} stickyHeader syncToUrl={false} />);
+
+    const headerCells = getHeaderCells();
+    expect(headerCells.length).toBeGreaterThan(0);
+    expectMotionClasses(headerCells);
+  });
+
+  it("falls back to the safe default when matchMedia is unavailable", () => {
+    removeMatchMedia();
+
+    expect(() => {
+      render(<DataTable data={testData} columns={testColumns} stickyHeader syncToUrl={false} />);
+    }).not.toThrow();
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(getHeaderCells().length).toBeGreaterThan(0);
+  });
+
+  it("renders the sticky header on mobile viewports with reduced motion", () => {
+    mockMatchMedia(true);
+    mockUseBreakpoint.mockReturnValue({ isMobile: true, width: 375 });
+
+    render(<DataTable data={testData} columns={testColumns} stickyHeader enableSelection syncToUrl={false} />);
+
+    expect(screen.getByText("Select all on page")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("renders the sticky header on desktop viewports with reduced motion", () => {
+    mockMatchMedia(true);
+    mockUseBreakpoint.mockReturnValue({ isMobile: false, width: 1280 });
+
+    render(<DataTable data={testData} columns={testColumns} stickyHeader syncToUrl={false} />);
+
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expectNoMotionClasses(getHeaderCells());
   });
 });
 

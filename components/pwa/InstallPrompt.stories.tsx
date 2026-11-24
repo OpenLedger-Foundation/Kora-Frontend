@@ -15,6 +15,8 @@ const messages = {
   },
 };
 
+type PromptOutcome = "accepted" | "dismissed" | "failed";
+
 function IntlWrapper({ children }: { children: React.ReactNode }) {
   return (
     <NextIntlClientProvider locale="en" messages={messages}>
@@ -26,7 +28,13 @@ function IntlWrapper({ children }: { children: React.ReactNode }) {
 // Simulate `beforeinstallprompt` firing so the banner becomes visible.
 // The component listens for the native event; we dispatch a synthetic one
 // that carries the minimal shape InstallPrompt expects (preventDefault + prompt).
-function FireInstallPrompt({ outcome = "accepted" }: { outcome?: "accepted" | "dismissed" }) {
+//
+// `outcome` drives the resolved `userChoice` so the analytics path exercised by
+// `lib/installPromptAnalytics.ts` can be demonstrated for each terminal state:
+//   - "accepted": user installs the app
+//   - "dismissed": user dismisses the native prompt
+//   - "failed":   prompt() rejects (degraded/offline browser behavior)
+function FireInstallPrompt({ outcome = "accepted" }: { outcome?: PromptOutcome }) {
   useEffect(() => {
     // Give InstallPrompt time to register its listener (effect runs after mount)
     const timer = setTimeout(() => {
@@ -36,8 +44,16 @@ function FireInstallPrompt({ outcome = "accepted" }: { outcome?: "accepted" | "d
         prompt: () => Promise<void>;
       };
       evt.platforms = ["web"];
-      evt.userChoice = Promise.resolve({ outcome, platform: "web" });
-      evt.prompt = async () => {};
+      evt.userChoice =
+        outcome === "failed"
+          ? Promise.reject(new Error("prompt failed"))
+          : Promise.resolve({ outcome, platform: "web" });
+      evt.prompt =
+        outcome === "failed"
+          ? async () => {
+              throw new Error("prompt failed");
+            }
+          : async () => {};
       // beforeinstallprompt is cancelable — mimic that
       Object.defineProperty(evt, "cancelable", { value: true });
       evt.preventDefault = () => {};
@@ -60,7 +76,8 @@ const meta: Meta<typeof InstallPrompt> = {
     docs: {
       description: {
         component:
-          "PWA Add-to-Home-Screen banner. Visible state is tested in Vitest (`__tests__/install-prompt.test.tsx`); axe coverage is documented via the a11y notes below. Primary actions (Install / Not now) carry explicit accessible names (`aria-label`) and the dialog has `aria-label=\"Install Kora Protocol app\"` so axe does not flag missing names.",
+          "PWA Add-to-Home-Screen banner. Visible state is tested in Vitest (`__tests__/install-prompt.test.tsx`); axe coverage is documented via the a11y notes below. Primary actions (Install / Not now) carry explicit accessible names (`aria-label`) and the dialog has `aria-label=\"Install Kora Protocol app\"` so axe does not flag missing names.\n\n" +
+          "**Analytics (privacy-safe).** Install prompt outcomes (`shown`, `accepted`, `dismissed`, `failed`) are emitted through `lib/installPromptAnalytics.ts`. Events are gated by the `NEXT_PUBLIC_PWA_INSTALL_ANALYTICS` env flag (defaults to off when unset) and carry no PII — only the outcome, platform bucket, and a coarse viewport class. See the `Analytics*` stories below to preview each terminal state.",
       },
     },
     a11y: {
@@ -127,5 +144,56 @@ export const Dismissed: Story = {
         <InstallPrompt />
       </>
     );
+  },
+};
+
+/**
+ * Analytics: accepted outcome. The synthetic `beforeinstallprompt` resolves
+ * `userChoice` with `outcome: "accepted"`, exercising the privacy-safe
+ * `install_prompt_accepted` event path in `lib/installPromptAnalytics.ts`.
+ * Screenshot-friendly visible banner for PR evidence.
+ */
+export const AnalyticsAccepted: Story = {
+  render: () => (
+    <>
+      <FireInstallPrompt outcome="accepted" />
+      <InstallPrompt />
+    </>
+  ),
+  play: async () => {
+    await new Promise((r) => setTimeout(r, 200));
+  },
+};
+
+/**
+ * Analytics: dismissed outcome. `userChoice` resolves with `outcome: "dismissed"`,
+ * exercising the `install_prompt_dismissed` event path.
+ */
+export const AnalyticsDismissed: Story = {
+  render: () => (
+    <>
+      <FireInstallPrompt outcome="dismissed" />
+      <InstallPrompt />
+    </>
+  ),
+  play: async () => {
+    await new Promise((r) => setTimeout(r, 200));
+  },
+};
+
+/**
+ * Analytics: failed outcome. `prompt()` rejects (degraded/offline browser
+ * behavior), exercising the `install_prompt_failed` event path. The banner
+ * remains visible so the user can retry.
+ */
+export const AnalyticsFailed: Story = {
+  render: () => (
+    <>
+      <FireInstallPrompt outcome="failed" />
+      <InstallPrompt />
+    </>
+  ),
+  play: async () => {
+    await new Promise((r) => setTimeout(r, 200));
   },
 };

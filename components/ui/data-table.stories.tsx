@@ -37,11 +37,61 @@ const COLUMNS: ColumnDef<InvoiceRow>[] = [
   { id: 'status', header: 'Status', accessor: 'status', sortable: false },
 ];
 
+// ─── Reduced-motion helper ─────────────────────────────────────────────────────
+/**
+ * Decorator that emulates `prefers-reduced-motion: reduce` by stubbing
+ * `window.matchMedia` for the duration of the story. Storybook's built-in
+ * `parameters.prefersReducedMotion` only affects Storybook's own UI, so we
+ * mock the media query directly to exercise the DataTable's sticky-header
+ * motion logic (see `hooks/usePrefersReducedMotion.ts`).
+ */
+const withReducedMotion = (Story: () => JSX.Element) => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = ((query: string) => {
+    const matches = query.includes('prefers-reduced-motion');
+    return {
+      matches,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    } as MediaQueryList;
+  }) as typeof window.matchMedia;
+
+  // Restore on unmount so other stories are unaffected.
+  if (typeof window !== 'undefined') {
+    const observer = new MutationObserver(() => {});
+    observer.observe(document.body, { childList: true });
+    // Best-effort restore; Storybook remounts decorators per story.
+    setTimeout(() => {
+      window.matchMedia = originalMatchMedia;
+      observer.disconnect();
+    }, 0);
+  }
+
+  return <Story />;
+};
+
 // ─── Meta ──────────────────────────────────────────────────────────────────────
 const meta: Meta<typeof DataTable> = {
   title: 'UI/DataTable',
   component: DataTable,
-  parameters: { layout: 'padded' },
+  parameters: {
+    layout: 'padded',
+    docs: {
+      description: {
+        component:
+          'Data table with an optional sticky header. When the user prefers reduced motion ' +
+          '(`prefers-reduced-motion: reduce`), the sticky header renders without animated ' +
+          'transitions (no shadow/elevation tween) while remaining sticky. Use the ' +
+          '`StickyHeader` and `StickyHeaderReducedMotion` stories to capture screenshots ' +
+          'for both modes.',
+      },
+    },
+  },
   tags: ['autodocs'],
 };
 
@@ -102,5 +152,57 @@ export const SmallPageSize: Story = {
     pageSize: 2,
     pageSizeOptions: [2, 4, 6],
     syncToUrl: false,
+  },
+};
+
+/**
+ * Sticky header with motion enabled (default). Scroll the table body to see the
+ * header stay pinned with its animated elevation/shadow transition.
+ */
+export const StickyHeader: Story = {
+  args: {
+    data: INVOICE_ROWS,
+    columns: COLUMNS,
+    pageSize: 5,
+    stickyHeader: true,
+    syncToUrl: false,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Sticky header with motion enabled. The header remains pinned while the body ' +
+          'scrolls and animates its elevation. Capture a screenshot at desktop and mobile ' +
+          'viewports for the default (motion) mode.',
+      },
+    },
+  },
+};
+
+/**
+ * Sticky header with `prefers-reduced-motion: reduce` emulated. The header stays
+ * pinned but renders without animated transitions. Capture a screenshot to
+ * verify the reduced-motion path.
+ */
+export const StickyHeaderReducedMotion: Story = {
+  args: {
+    data: INVOICE_ROWS,
+    columns: COLUMNS,
+    pageSize: 5,
+    stickyHeader: true,
+    syncToUrl: false,
+  },
+  decorators: [withReducedMotion],
+  parameters: {
+    prefersReducedMotion: 'reduce',
+    docs: {
+      description: {
+        story:
+          'Sticky header with `prefers-reduced-motion: reduce` emulated via a mocked ' +
+          '`matchMedia`. The header remains sticky but skips animated transitions. ' +
+          'Capture a screenshot at desktop and mobile viewports to verify the ' +
+          'reduced-motion path.',
+      },
+    },
   },
 };

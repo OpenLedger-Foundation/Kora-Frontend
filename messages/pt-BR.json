@@ -889,6 +889,16 @@
       "title": "Resumo da carteira",
       "share": "Compartilhar resumo"
     },
+    "filterChips": {
+      "groupLabel": "Filtros ativos",
+      "addLabel": "Adicionar filtro {filter}",
+      "removeLabel": "Remover filtro {filter}",
+      "removeChip": "Remover {label}",
+      "keyboardHint": "Use as setas para navegar entre os filtros, Enter para adicionar e Delete para remover.",
+      "added": "Filtro {label} adicionado",
+      "removed": "Filtro {label} removido",
+      "empty": "Nenhum filtro ativo"
+    },
     "a11y": {
       "filterJurisdiction": "Filtrar por jurisdição",
       "filterCategory": "Filtrar por categoria",
@@ -1301,7 +1311,15 @@
     "submitFailed": "Falha ao enviar feedback",
     "submissionFailed": "Falha no envio",
     "invalidImageType": "Por favor, envie um arquivo de imagem",
-    "imageTooLarge": "A captura de tela deve ter menos de 5 MB"
+    "imageTooLarge": "A captura de tela deve ter menos de 5 MB",
+    "rateLimited": {
+      "title": "Você está enviando feedback muito rápido",
+      "body": "Recebemos muitos envios recentemente. Aguarde um momento e tente novamente — seu rascunho foi mantido.",
+      "retryIn": "Tentar novamente em {seconds}s",
+      "retry": "Tentar novamente",
+      "retryAriaLabel": "Tentar enviar o feedback novamente",
+      "genericError": "Você atingiu o limite de envios. Aguarde um momento antes de tentar novamente."
+    }
   },
   "onboarding": {
     "step": "Passo {current} de {total}",

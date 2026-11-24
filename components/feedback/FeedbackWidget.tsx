@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MessageSquarePlus, X, Bug, Lightbulb, MessageCircle, Paperclip, Loader2 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -34,6 +34,26 @@ function getBrowserInfo(): string {
   return navigator.userAgent;
 }
 
+/**
+ * Parse a Retry-After header value into a cooldown in seconds.
+ * Supports both delta-seconds ("120") and HTTP-date formats.
+ * Falls back to `fallbackSeconds` when the value is missing or invalid.
+ */
+export function parseRetryAfter(value: string | null, fallbackSeconds = 60): number {
+  if (!value) return fallbackSeconds;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = parseInt(trimmed, 10);
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : fallbackSeconds;
+  }
+  const date = Date.parse(trimmed);
+  if (!Number.isNaN(date)) {
+    const seconds = Math.ceil((date - Date.now()) / 1000);
+    return seconds > 0 ? seconds : 0;
+  }
+  return fallbackSeconds;
+}
+
 async function captureScreenshot(): Promise<string | null> {
   try {
     // Dynamically import html2canvas to keep it out of the initial bundle
@@ -58,6 +78,7 @@ export function FeedbackWidget() {
   const [screenshot, setScreenshot] = useState<string | null>(null);
   const [capturingScreen, setCapturingScreen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const walletAddress = useWalletStore((s) => s.address);
 
@@ -74,6 +95,15 @@ export function FeedbackWidget() {
   });
 
   const selectedType = watch("type");
+
+  // ── Rate-limit cooldown countdown ─────────────────────────────────────────
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const id = setInterval(() => {
+      setCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [cooldown]);
 
   // ── Screenshot capture ────────────────────────────────────────────────────
   const handleCaptureScreen = useCallback(async () => {
@@ -124,6 +154,15 @@ export function FeedbackWidget() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
+
+        if (res.status === 429) {
+          const retryAfter = parseRetryAfter(res.headers.get("Retry-After"));
+          setCooldown(retryAfter);
+          toast.error(t("rateLimitedTitle"), {
+            description: t("rateLimitedDescription", { seconds: retryAfter }),
+          });
+          return;
+        }
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -314,6 +353,20 @@ export function FeedbackWidget() {
                   )}
                 </div>
 
+                {/* Rate-limit notice */}
+                {cooldown > 0 && (
+                  <div
+                    role="alert"
+                    aria-live="assertive"
+                    className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
+                  >
+                    <p className="font-medium">{t("rateLimitedTitle")}</p>
+                    <p className="mt-0.5 text-muted-foreground" role="status" aria-live="polite">
+                      {t("rateLimitedDescription", { seconds: cooldown })}
+                    </p>
+                  </div>
+                )}
+
                 {/* Auto-captured context info */}
                 <p className="text-[11px] text-muted-foreground">
                   {t("contextNote", { wallet: walletAddress ? t("contextWallet") : "" })}
@@ -337,8 +390,10 @@ export function FeedbackWidget() {
                     size="sm"
                     className="flex-1"
                     isLoading={submitting}
+                    disabled={submitting || cooldown > 0}
+                    aria-disabled={submitting || cooldown > 0}
                   >
-                    {t("submit")}
+                    {cooldown > 0 ? t("retryIn", { seconds: cooldown }) : t("submit")}
                   </Button>
                 </div>
               </form>
