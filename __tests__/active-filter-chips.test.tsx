@@ -15,12 +15,28 @@ import userEvent from "@testing-library/user-event";
 import React from "react";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => {
+  useTranslations: () => {
     const translations: Record<string, string> = {
       activeOnly: "Active Only",
       showExpired: "Show Expired",
+      activeFilters: "Active filters",
+      removeFilterAria: "Remove filter: {label}",
+      clearAllFiltersAria: "Clear all active filters",
+      filterRemoved: 'Filter "{label}" removed',
+      allFiltersCleared: "All filters cleared",
+      activeFiltersKeyboardHint:
+        "Use the arrow keys to move between active filters. Press Delete or Backspace to remove the focused filter.",
     };
-    return translations[key] ?? key;
+    // Minimal ICU {token} interpolation so localised aria-labels/announcements
+    // resolve the same way `next-intl` would at runtime.
+    return (key: string, values?: Record<string, string | number>) => {
+      const template = translations[key];
+      if (template === undefined) return key;
+      if (!values) return template;
+      return template.replace(/\{(\w+)\}/g, (_, token: string) =>
+        token in values ? String(values[token]) : `{${token}}`
+      );
+    };
   },
 }));
 
@@ -544,3 +560,157 @@ describe("ActiveFilterChips — screen-reader announcements", () => {
     });
   });
 });
+
+// ─── Localized accessible names ───────────────────────────────────────────────
+
+function setCategoryFilters(categories: string[]) {
+  useInvoiceStore.setState({
+    filters: {
+      categories,
+      jurisdictions: [],
+      riskTiers: [],
+      aprRange: [0, 50],
+      activeOnly: false,
+      showExpired: false,
+    },
+  });
+}
+
+describe("ActiveFilterChips — localized accessible names", () => {
+  it("localizes the group label, keyboard hint, hint wiring and clear-all label", () => {
+    setCategoryFilters(["technology"]);
+    render(<ActiveFilterChips />);
+
+    const group = screen.getByTestId("active-filter-chips");
+    expect(group).toHaveAttribute("role", "group");
+    expect(group).toHaveAttribute("aria-label", "Active filters");
+
+    const hint = screen.getByTestId("filter-chips-hint");
+    expect(group).toHaveAttribute("aria-describedby", hint.id);
+    expect(hint).toHaveTextContent(/Delete or Backspace/);
+
+    expect(screen.getByTestId("clear-all-filters")).toHaveAttribute(
+      "aria-label",
+      "Clear all active filters"
+    );
+    expect(screen.getByTestId("remove-chip-category:technology")).toHaveAttribute(
+      "aria-label",
+      "Remove filter: Technology"
+    );
+  });
+});
+
+// ─── Roving tabindex + Delete/Backspace dismissal (#440) ─────────────────────
+
+describe("ActiveFilterChips — roving tabindex", () => {
+  it("exposes a single tab stop across all chip remove buttons", () => {
+    setCategoryFilters(["technology", "healthcare", "retail"]);
+    render(<ActiveFilterChips />);
+
+    const buttons = screen.getAllByRole("button", { name: /Remove filter:/i });
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0]).toHaveAttribute("tabindex", "0");
+    expect(buttons[1]).toHaveAttribute("tabindex", "-1");
+    expect(buttons[2]).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("moves focus between chips with arrow keys and Home/End", async () => {
+    const user = userEvent.setup();
+    setCategoryFilters(["technology", "healthcare", "retail"]);
+    render(<ActiveFilterChips />);
+
+    await user.tab();
+    const first = screen.getByTestId("remove-chip-category:technology");
+    expect(first).toHaveFocus();
+
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByTestId("remove-chip-category:healthcare")).toHaveFocus();
+
+    await user.keyboard("{End}");
+    expect(screen.getByTestId("remove-chip-category:retail")).toHaveFocus();
+
+    await user.keyboard("{Home}");
+    expect(first).toHaveFocus();
+  });
+});
+
+describe("ActiveFilterChips — Delete/Backspace dismissal", () => {
+  it("removes the focused chip on Delete and moves focus to the next chip", async () => {
+    const user = userEvent.setup();
+    setCategoryFilters(["technology", "healthcare", "retail"]);
+    render(<ActiveFilterChips />);
+
+    await user.tab(); // technology
+    await user.keyboard("{ArrowRight}"); // healthcare
+    await user.keyboard("{Delete}");
+
+    await waitFor(() => {
+      expect(useInvoiceStore.getState().filters.categories).toEqual([
+        "technology",
+        "retail",
+      ]);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("remove-chip-category:retail")).toHaveFocus();
+    });
+  });
+
+  it("removes the focused chip on Backspace and moves focus to the previous chip", async () => {
+    const user = userEvent.setup();
+    setCategoryFilters(["technology", "healthcare", "retail"]);
+    render(<ActiveFilterChips />);
+
+    await user.tab();
+    await user.keyboard("{End}"); // retail
+    await user.keyboard("{Backspace}");
+
+    await waitFor(() => {
+      expect(useInvoiceStore.getState().filters.categories).toEqual([
+        "technology",
+        "healthcare",
+      ]);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("remove-chip-category:healthcare")).toHaveFocus();
+    });
+  });
+
+  it("hands focus to the fallback control when the last remaining chip is dismissed", async () => {
+    const user = userEvent.setup();
+    setCategoryFilters(["technology"]);
+    render(
+      <>
+        <ActiveFilterChips fallbackFocusId="marketplace-search" />
+        <input id="marketplace-search" data-testid="marketplace-search" />
+      </>
+    );
+
+    await user.tab();
+    expect(screen.getByTestId("remove-chip-category:technology")).toHaveFocus();
+
+    await user.keyboard("{Delete}");
+
+    await waitFor(() => {
+      expect(useInvoiceStore.getState().filters.categories).toHaveLength(0);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("marketplace-search")).toHaveFocus();
+    });
+  });
+
+  it("announces the dismissed chip to the live region", async () => {
+    const user = userEvent.setup();
+    setCategoryFilters(["technology", "healthcare"]);
+    render(<ActiveFilterChips />);
+
+    await user.tab();
+    await user.keyboard("{Delete}");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("filter-chips-announcer").textContent).toContain(
+        "Technology"
+      );
+    });
+  });
+});
+

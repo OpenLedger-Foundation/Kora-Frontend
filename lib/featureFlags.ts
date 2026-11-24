@@ -265,3 +265,71 @@ export function useFeatureFlags(): FeatureFlagState {
   );
   return JSON.parse(serialized) as FeatureFlagState;
 }
+
+// ─── Network mode & query tuning (Issue #436) ────────────────────────────────
+
+/**
+ * Active data source for invoice queries.
+ *
+ * `mock` resolves from the static `MOCK_INVOICES` fixture, `live` talks to the
+ * Soroban indexer/RPC. Driven by the `mock-data` flag so cache-key namespacing
+ * (`lib/queryKeys.ts`) and query tuning can never disagree about which mode is
+ * active.
+ */
+export type NetworkMode = "mock" | "live";
+
+/** Resolve the active network mode from the `mock-data` feature flag. */
+export function getNetworkMode(): NetworkMode {
+  return isEnabled("mock-data") ? "mock" : "live";
+}
+
+/**
+ * TanStack Query timings for one network mode.
+ *
+ * `staleTime`/`gcTime` are passed straight to `useQuery`; the refetch fields
+ * are backstop intervals (a hidden tab is skipped by `whenVisible()` in
+ * `hooks/useInvoices.ts`), and `false` disables polling outright.
+ */
+export interface QueryTuning {
+  staleTime: number;
+  gcTime: number;
+  listRefetchInterval: number | false;
+  detailRefetchInterval: number | false;
+  ownerRefetchInterval: number | false;
+  batchRefetchInterval: number | false;
+}
+
+/**
+ * Single source of truth for per-mode query tuning (see docs/architecture.md).
+ *
+ * Live mode is event-driven — `useContractEvents` invalidates the affected
+ * keys as events arrive, so these timers are a slow safety net for a degraded
+ * stream. Mock fixtures are immutable, so polling is disabled entirely.
+ */
+export const QUERY_TUNING: Readonly<Record<NetworkMode, QueryTuning>> = {
+  live: {
+    staleTime: 5_000,
+    gcTime: 5 * 60_000,
+    listRefetchInterval: 2 * 60_000,
+    detailRefetchInterval: 2 * 60_000,
+    ownerRefetchInterval: 2 * 60_000,
+    batchRefetchInterval: 2 * 60_000,
+  },
+  mock: {
+    staleTime: 5 * 60_000,
+    gcTime: 5 * 60_000,
+    listRefetchInterval: false,
+    detailRefetchInterval: false,
+    ownerRefetchInterval: false,
+    batchRefetchInterval: false,
+  },
+};
+
+/**
+ * React hook returning the query tuning for the active network mode.
+ * Re-renders when the `mock-data` flag flips at runtime.
+ */
+export function useQueryTuning(): QueryTuning {
+  const flags = useFeatureFlags();
+  return QUERY_TUNING[flags["mock-data"] ? "mock" : "live"];
+}
