@@ -361,7 +361,7 @@ export interface InvoiceStoreState {
   searchQuery: string;
   watchlist: string[];
   savedPresets: SavedMarketplacePreset[];
-  comparisonIds: string[];
+  comparisonList: string[];
   /** In-memory wizard draft envelope (autosaved to storage). */
   invoiceDraft: InvoiceDraftEnvelope | null;
   /** Pending conflict awaiting user resolution. */
@@ -375,6 +375,8 @@ export interface InvoiceStoreState {
   addSavedPreset: (preset: SavedMarketplacePreset) => void;
   removeSavedPreset: (id: string) => void;
   toggleComparison: (id: string) => void;
+  setComparisonList: (ids: string[]) => void;
+  removeFromComparison: (id: string) => void;
   clearComparison: () => void;
   /** Autosave the wizard draft (bumps version, persists to storage). */
   saveInvoiceDraft: (data: InvoiceCreateDraft) => void;
@@ -396,7 +398,7 @@ export const useInvoiceStore = create<InvoiceStoreState>()(
       searchQuery: "",
       watchlist: [],
       savedPresets: [],
-      comparisonIds: [],
+      comparisonList: [],
       invoiceDraft: null,
       invoiceDraftConflict: null,
       setInvoices: (invoices) => set({ invoices }),
@@ -423,9 +425,15 @@ export const useInvoiceStore = create<InvoiceStoreState>()(
         })),
       toggleComparison: (id) =>
         set((state) => ({
-          comparisonIds: toggleComparisonId(state.comparisonIds, id),
+          comparisonList: toggleComparisonId(state.comparisonList, id),
         })),
-      clearComparison: () => set({ comparisonIds: [] }),
+      setComparisonList: (ids) =>
+        set({ comparisonList: normalizeComparisonList(ids) }),
+      removeFromComparison: (id) =>
+        set((state) => ({
+          comparisonList: state.comparisonList.filter((entry) => entry !== id),
+        })),
+      clearComparison: () => set({ comparisonList: [] }),
       saveInvoiceDraft: (data) => {
         const current = get().invoiceDraft;
         const nextVersion = (current?.version ?? 0) + 1;
@@ -468,7 +476,7 @@ export const useInvoiceStore = create<InvoiceStoreState>()(
       partialize: (state) => ({
         watchlist: state.watchlist,
         savedPresets: state.savedPresets,
-        comparisonIds: normalizeComparisonList(state.comparisonIds),
+        comparisonList: normalizeComparisonList(state.comparisonList),
       }),
     }
   )
