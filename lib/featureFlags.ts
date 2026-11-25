@@ -265,3 +265,100 @@ export function useFeatureFlags(): FeatureFlagState {
   );
   return JSON.parse(serialized) as FeatureFlagState;
 }
+
+/** Subscribe to one flag while respecting the existing override rules. */
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  return useSyncExternalStore(
+    subscribeToFeatureFlags,
+    () => isEnabled(flag),
+    () => readEnvFlag(flag),
+  );
+}
+
+export type NetworkMode = "mock" | "live";
+
+/** Resolve the active network mode from the `mock-data` flag. */
+export function getNetworkMode(): NetworkMode {
+  return isEnabled("mock-data") ? "mock" : "live";
+}
+
+export function useNetworkMode(): NetworkMode {
+  return useFeatureFlag("mock-data") ? "mock" : "live";
+}
+
+/** True when cache freshness is driven by the contract event stream. */
+export function isEventDriven(mode: NetworkMode = getNetworkMode()): boolean {
+  return mode === "live";
+}
+
+/**
+ * TanStack Query timings for a single network mode.
+ *
+ * A `false` refetch interval disables timer-based polling for that query;
+ * freshness then comes from cache invalidation — contract events, mutation
+ * `onSettled` handlers, or an explicit `refetch()`.
+ */
+export interface QueryTuning {
+  /** How long a fetched result is considered fresh. */
+  staleTime: number;
+  /** How long an unused result stays cached before garbage collection. */
+  gcTime: number;
+  /**
+   * Backstop poll for marketplace/list queries. In live mode this is a long
+   * safety net for a degraded event stream — not the primary freshness path.
+   */
+  listRefetchInterval: number | false;
+  /** Backstop poll for a detail query whose invoice is still fundable. */
+  detailRefetchInterval: number | false;
+  /** Backstop poll for owner-scoped ("my invoices") queries. */
+  ownerRefetchInterval: number | false;
+  /** Backstop poll for the batched token-id watcher. */
+  batchRefetchInterval: number | false;
+}
+
+const GC_5_MIN = 5 * 60 * 1000;
+
+/**
+ * Per-mode tuning table.
+ *
+ * **live** — `staleTime` is short (5 s) because the event stream invalidates
+ * keys the moment on-chain state changes; a short stale window means the
+ * invalidated query refetches promptly instead of serving a stale entry. Timer
+ * intervals are pushed out to 2 min so they act purely as a backstop for a
+ * degraded stream (`useContractEvents` already falls back SSE → RPC stream →
+ * 5 s polling internally) rather than racing it, which is what produced the
+ * duplicate requests.
+ *
+ * **mock** — the fixture never changes, so `staleTime` is 5 min and every timer
+ * is disabled. Mutations still invalidate explicitly, so optimistic updates and
+ * the invoice wizard continue to work.
+ */
+export const QUERY_TUNING: Record<NetworkMode, QueryTuning> = {
+  live: {
+    staleTime: 5_000,
+    gcTime: GC_5_MIN,
+    listRefetchInterval: 120_000,
+    detailRefetchInterval: 120_000,
+    ownerRefetchInterval: 120_000,
+    batchRefetchInterval: 120_000,
+  },
+  mock: {
+    staleTime: GC_5_MIN,
+    gcTime: GC_5_MIN,
+    listRefetchInterval: false,
+    detailRefetchInterval: false,
+    ownerRefetchInterval: false,
+    batchRefetchInterval: false,
+  },
+};
+
+/** Tuning for the active mode, or an explicitly supplied one (used in tests). */
+export function getQueryTuning(
+  mode: NetworkMode = getNetworkMode(),
+): QueryTuning {
+  return QUERY_TUNING[mode];
+}
+
+export function useQueryTuning(): QueryTuning {
+  return getQueryTuning(useNetworkMode());
+}

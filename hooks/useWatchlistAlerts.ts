@@ -103,7 +103,7 @@ export function useWatchlistAlerts() {
   const t = useTranslations("marketplace.watchlist");
   const { formatPercentage } = useFormatters();
   const invoices = useInvoiceStore((state) => state.invoices);
-  const watchedInvoiceIds = useInvoiceStore((state) => state.watchedInvoiceIds);
+  const watchedInvoiceIds = useInvoiceStore((state) => state.watchlist);
   const preferences = useSettingsStore((state) => state.notifications);
   const previous = useRef<Record<string, Snapshot>>({});
   const gate = useRef<AlertGate | null>(null);

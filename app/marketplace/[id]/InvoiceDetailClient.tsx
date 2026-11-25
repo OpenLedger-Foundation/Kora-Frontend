@@ -374,6 +374,8 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
           () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
           {
             successMessage: "Invoice funded successfully!",
+            txType: "fund_invoice",
+            invoiceId: invoice.tokenId,
             successNotificationType: "invoiceFunded",
             onSimulationPreview,
             onSuccess: (txHash) => {

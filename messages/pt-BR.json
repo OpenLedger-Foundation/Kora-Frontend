@@ -712,6 +712,7 @@
     }
   },
   "transactions": {
+    "invoiceGroup": "Fatura {invoice} · {count, plural, one {# transação} other {# transações}}",
     "title": "Histórico de Transações",
     "subtitle": "Toda sua atividade on-chain no Kora Protocol",
     "exportCsv": "Exportar CSV",
@@ -766,6 +767,7 @@
       "pending": "Pendente"
     },
     "typeLabels": {
+      "cancel_invoice": "Cancelar fatura",
       "mint_invoice": "Criar Fatura",
       "fund_invoice": "Financiar Fatura",
       "repay_invoice": "Reembolsar Fatura",
@@ -983,6 +985,8 @@
     "kb": "{count} KB"
   },
   "network": {
+    "checking": "Verificando o estado da rede",
+    "serviceUnavailable": "Um serviço da Stellar está indisponível. Tente novamente em instantes.",
     "operational": "Operacional",
     "degraded": "Degradado",
     "down": "Indisponível",
@@ -1173,6 +1177,27 @@
     "gotIt": "Entendi"
   },
   "settings": {
+    "backup": {
+      "close": "Fechar",
+      "title": "Backup de preferências",
+      "description": "Salve suas preferências de notificação e limites de concentração em um arquivo criptografado.",
+      "export": "Exportar preferências",
+      "import": "Importar preferências",
+      "passphrase": "Frase-senha",
+      "file": "Arquivo criptografado de preferências",
+      "confirmImport": "Aplicar este backup substitui as preferências de notificação e os limites de concentração da carteira atual.",
+      "guidance": "Use uma frase-senha exclusiva de pelo menos 12 caracteres e guarde-a em segurança. Você precisará dela para abrir o backup.",
+      "apply": "Descriptografar e aplicar",
+      "download": "Baixar backup criptografado",
+      "exported": "Preferências criptografadas baixadas.",
+      "imported": "Preferências importadas.",
+      "invalidFile": "Selecione um backup válido de preferências da Kora (até 16 KB).",
+      "unsupportedVersion": "Esta versão do backup não é compatível.",
+      "decryptFailed": "A frase-senha está incorreta ou o arquivo foi alterado.",
+      "invalidSettings": "O backup contém configurações inválidas.",
+      "walletChanged": "A carteira ativa mudou. Abra a importação novamente para a carteira atual.",
+      "failed": "A operação falhou. Tente novamente em um contexto seguro do navegador."
+    },
     "error": {
       "title": "Não foi possível carregar as configurações",
       "description": "Algo deu errado ao carregar suas configurações. Tente novamente."

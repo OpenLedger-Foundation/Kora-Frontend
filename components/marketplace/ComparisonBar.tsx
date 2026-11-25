@@ -26,12 +26,10 @@ export function ComparisonBar() {
   const tInvoiceCard = useTranslations("invoiceCard");
   const tMarketplace = useTranslations("marketplace");
   const {
-    comparisonList,
+    comparisonIds: comparisonList,
     invoices,
-    invoicesByTokenId,
-    removeFromComparison,
+    toggleComparison,
     clearComparison,
-    setComparisonList,
   } = useInvoiceStore();
   const [tableOpen, setTableOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -59,7 +57,7 @@ export function ComparisonBar() {
 
     if (ids.length === 0) return;
 
-    setComparisonList(ids);
+    useInvoiceStore.setState({ comparisonIds: [...new Set(ids)] });
     if (ids.length >= 2) setTableOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isComparisonEnabled]);
@@ -87,11 +85,8 @@ export function ComparisonBar() {
 
   if (!isComparisonEnabled) return null;
 
-  // Resolve selected invoices from store list + token map (live indexer shape)
-  const invoiceIndex = [
-    ...invoices,
-    ...Object.values(invoicesByTokenId),
-  ];
+  // Either the invoice ID or its token ID can occur in a shared URL.
+  const invoiceIndex = invoices;
   const selectedInvoices = comparisonList
     .map((id) => invoiceIndex.find((inv) => inv.id === id || inv.tokenId === id))
     .filter(Boolean) as NonNullable<(typeof invoiceIndex)[number]>[];
@@ -162,7 +157,7 @@ export function ComparisonBar() {
                   {invoice.terms.apr.toFixed(1)}%
                 </span>
                 <button
-                  onClick={() => removeFromComparison(invoice.id)}
+                  onClick={() => toggleComparison(invoice.id)}
                   className="ml-0.5 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                   aria-label={tInvoiceCard("removeFromCompare", { debtor: getMaskedDebtorName(invoice) })}
                 >

@@ -336,6 +336,8 @@ export default function SMEDashboardPage() {
           () => prepareRepayInvoice(inv.tokenId, address, inv.ownerAddress),
           {
             successMessage: "Yield distributed to investors",
+            txType: "repay_invoice",
+            invoiceId: inv.tokenId,
             successNotificationType: "yieldAvailable",
             onSimulationPreview,
             onError: rollback,
@@ -363,6 +365,8 @@ export default function SMEDashboardPage() {
       },
       {
         successMessage: "Invoice cancellation submitted",
+        txType: "cancel_invoice",
+        invoiceId: inv.tokenId,
         onSimulationPreview,
         onSuccess: () => {
           invoicesQuery.refetch();

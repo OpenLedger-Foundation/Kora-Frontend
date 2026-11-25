@@ -23,7 +23,7 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
   }, [fn]);
 
   const cancel = useCallback(() => {
-    if (timerRef.current) {
+    if (timerRef.current !== null) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
@@ -36,8 +36,8 @@ export function useDebouncedCallback<T extends (...args: any[]) => any>(
     (...args: Parameters<T>) => {
       cancel();
       timerRef.current = setTimeout(() => {
-        fnRef.current(...args);
         timerRef.current = null;
+        fnRef.current(...args);
       }, delay);
     },
     [cancel, delay]

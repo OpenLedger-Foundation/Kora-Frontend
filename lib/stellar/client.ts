@@ -1397,24 +1397,30 @@ export async function fetchTransactionDetails(hash: string): Promise<Transaction
 
 export interface RpcHealthResult {
   ok: boolean;
+  degraded?: boolean;
   latencyMs: number;
 }
 
-/**
- * Ping the Soroban RPC and return health status + latency.
- * Never throws — returns ok:false on error.
- */
+/** Ping the Soroban RPC with a bounded deadline. */
 export async function checkRpcHealth(): Promise<RpcHealthResult> {
   const start = Date.now();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
+    const health = await Promise.race([
       rpc.getHealth(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5_000)),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("timeout")), 5_000);
+      }),
     ]);
-    return { ok: true, latencyMs: Date.now() - start };
-  } catch {
-    return { ok: false, latencyMs: Date.now() - start };
+    return { ok: health.status === "healthy", latencyMs: Date.now() - start };
+  } catch (error) {
+    const status = (error as { response?: { status?: number } } | null)?.response?.status;
+    return {
+      ok: false,
+      degraded: status !== undefined && status >= 400 && status < 500,
+      latencyMs: Date.now() - start,
+    };
+  } finally {
+    clearTimeout(timeout);
   }
 }
-
-

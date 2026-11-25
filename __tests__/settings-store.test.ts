@@ -126,6 +126,19 @@ describe("settingsStore — persistence & sanitization (#1125)", () => {
     );
   });
 
+  it("retains imported notification toggles and zero thresholds after rehydration", async () => {
+    const original = useSettingsStore.getState();
+    original.importPreferences({
+      notifications: { ...original.notifications, txConfirmed: false, apr: true },
+      thresholds: { ...original.concentration.thresholds, debtor: 0 },
+    });
+    await useSettingsStore.persist.rehydrate();
+    const rehydrated = useSettingsStore.getState();
+    expect(rehydrated.notifications.txConfirmed).toBe(false);
+    expect(rehydrated.notifications.apr).toBe(true);
+    expect(rehydrated.concentration.thresholds.debtor).toBe(0);
+  });
+
   it("rejects corrupt tour state instead of stranding the tour", async () => {
     localStorage.setItem(
       KEY,

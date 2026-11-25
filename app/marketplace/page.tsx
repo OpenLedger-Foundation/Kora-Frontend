@@ -32,9 +32,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InvoiceCard, InvoiceCardSkeleton } from "@/components/invoice/InvoiceCard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useInfiniteInvoices, MARKETPLACE_PAGE_SIZE } from "@/hooks/useInvoices";
+import { useInfiniteInvoices, MARKETPLACE_PAGE_SIZE, marketplaceSortValue } from "@/hooks/useInvoices";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { useInvoiceStore, DEFAULT_FILTERS } from "@/store";
+import type { FilterState, SortState } from "@/store/invoiceStore";
 import { Container } from "@/components/layout/Container";
 import { cn } from "@/lib/utils";
 import { sanitizeQueryParam } from "@/lib/security";
@@ -245,20 +246,32 @@ function MarketplaceContent() {
   // Zustand Store
   const {
     filters,
-    sortBy,
+    sort,
     searchQuery,
-    searchHistory,
     setFilters,
-    updateSingleFilter,
-    resetFilters,
-    setSortBy,
+    setSort,
     setSearchQuery,
-    clearSearchHistory,
     setInvoices,
     toggleComparison,
-    setComparisonList,
   } = useInvoiceStore();
-  const comparisonList = useInvoiceStore((s) => s.comparisonList);
+  const comparisonList = useInvoiceStore((s) => s.comparisonIds);
+  const setComparisonList = useCallback((comparisonIds: string[]) => {
+    useInvoiceStore.setState({ comparisonIds });
+  }, []);
+  const sortBy = marketplaceSortValue(sort);
+  const setSortBy = useCallback((value: string) => {
+    const [key, direction] = value.split("_");
+    const sortDir: SortState["sortDir"] = direction === "asc" || direction === "soonest" ? "asc" : "desc";
+    const sortBy: SortState["sortBy"] = key === "amount" ? "amount"
+      : ["due", "dueDate", "duration"].includes(key) ? "dueDate"
+        : ["listed", "newest", "createdAt"].includes(key) ? "listed" : "apr";
+    setSort({ sortBy, sortDir });
+  }, [setSort]);
+
+  const resetFilters = () => setFilters(DEFAULT_FILTERS);
+  const updateSingleFilter = <K extends keyof FilterState,>(key: K, value: FilterState[K]) =>
+    setFilters({ [key]: value });
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
 
   // Active filters count — computed early so analytics hooks can reference it.
   const activeFiltersCount =
@@ -271,20 +284,24 @@ function MarketplaceContent() {
 
   const [showFilters, setShowFilters] = useState(false);
   const [watchlistOpen, setWatchlistOpen] = useState(false);
-  const watchedCount = useInvoiceStore((state) => state.watchedInvoiceIds.length);
+  const watchedCount = useInvoiceStore((state) => state.watchlist.length);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [pageSize, setPageSize] = useState(MARKETPLACE_PAGE_SIZE);
   const [comparisonAnchorIndex, setComparisonAnchorIndex] = useState(0);
 
+  const debouncedFilters = useDebounce(filters, 400);
+
   // Infinite loader — first page only until sentinel intersects
+  const requestFiltersReady = isUrlHydrated && Object.is(filters, debouncedFilters);
   const infinite = useInfiniteInvoices({
     pageSize,
-    enabled: isUrlHydrated,
+    enabled: requestFiltersReady,
+    filters: debouncedFilters,
   });
 
-  const isLoading = infinite.isLoading;
+  const isLoading = infinite.isLoading || (!requestFiltersReady && !infinite.data && !infinite.isError);
   const dataUpdatedAt = infinite.dataUpdatedAt;
   const isFetchingNextPage = infinite.isFetchingNextPage;
   const hasNextPage = Boolean(infinite.hasNextPage);
@@ -335,7 +352,8 @@ function MarketplaceContent() {
       activeOnly,
       showExpired,
     });
-    setSortBy(sortByParam);
+    const legacySortDir = searchParams.get("sortDir");
+    setSortBy(legacySortDir && !sortByParam.includes("_") ? `${sortByParam}_${legacySortDir}` : sortByParam);
     setSearchQuery(qParam);
 
     setIsUrlHydrated(true);
@@ -351,13 +369,12 @@ function MarketplaceContent() {
   }, [isUrlHydrated]);
 
   // 2. Debouncing Changes to Prevent URL History Thrashing
-  const debouncedFilters = useDebounce(filters, 400);
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // 3. Zustand to URL Sync Loop (On Change) — filters/sort only; pages load via infinite scroll
   /* Serializes active filters and pushes the resulting query string to the browser address bar */
   useEffect(() => {
-    if (!isUrlHydrated) return;
+    if (!requestFiltersReady) return;
 
     const params = new URLSearchParams();
 
@@ -395,7 +412,7 @@ function MarketplaceContent() {
     const targetUrl = queryString ? `/marketplace?${queryString}` : "/marketplace";
 
     router.replace(targetUrl, { scroll: false });
-  }, [debouncedFilters, debouncedSearchQuery, sortBy, isUrlHydrated, router, pageSize]);
+  }, [debouncedFilters, debouncedSearchQuery, sortBy, requestFiltersReady, router, pageSize]);
 
   // Use all pages loaded by the infinite query, deduplicated by invoice ID (#560)
   const allInvoices = useMemo(() => {
@@ -714,7 +731,7 @@ function MarketplaceContent() {
     const obs = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+          if (requestFiltersReady && entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
             void infinite.fetchNextPage();
           }
         });
@@ -723,7 +740,7 @@ function MarketplaceContent() {
     );
     obs.observe(el);
     return () => obs.disconnect();
-  }, [hasNextPage, isFetchingNextPage, infinite]);
+  }, [hasNextPage, isFetchingNextPage, infinite, requestFiltersReady]);
 
   // Return full skeleton block while initializing from URL to avoid flashing default states
   if (!isUrlHydrated) {
@@ -803,6 +820,12 @@ function MarketplaceContent() {
                 id="marketplace-search"
                 placeholder={t("searchPlaceholder")}
                 value={searchQuery}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  const query = searchQuery.trim();
+                  if (query) setSearchHistory((history) => [query, ...history.filter((item) => item !== query)].slice(0, 5));
+                  setShowHistory(false);
+                }}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowHistory(true)}
                 leftIcon={<Search className="h-4 w-4 text-zinc-500" />}
@@ -824,7 +847,7 @@ function MarketplaceContent() {
                     <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{t("recent")}</span>
                     <button
                       type="button"
-                      onClick={clearSearchHistory}
+                      onClick={() => setSearchHistory([])}
                       className="text-[10px] text-zinc-500 hover:text-zinc-300"
                     >
                       {t("clear")}
@@ -898,15 +921,6 @@ function MarketplaceContent() {
         </div>
 
         <div className="mb-8">
-          <ActiveFilterChips
-            filters={filters}
-            sort={sort}
-            presets={savedPresets}
-            onSave={savePreset}
-            onLoad={handleLoadPreset}
-            onRename={renamePreset}
-            onDelete={deletePreset}
-          />
           <div className="mt-3">
             <PresetImportExport />
           </div>
@@ -1057,6 +1071,7 @@ function MarketplaceContent() {
                         variant="outline"
                         size="sm"
                         onClick={() => infinite.refetch()}
+                        disabled={!requestFiltersReady}
                         className="gap-2 border-destructive/40 text-xs text-destructive hover:bg-destructive/20"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />

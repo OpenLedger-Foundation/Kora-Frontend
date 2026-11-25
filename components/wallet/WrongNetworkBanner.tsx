@@ -63,10 +63,6 @@ export function WrongNetworkBanner() {
 
   const isWrongNetworkState = (networkMismatch || passphraseMismatch) && !dismissed;
 
-  if (!isWrongNetworkState) return null;
-
-  const mismatchType = passphraseMismatch ? "passphrase" : "network";
-
   const advanceStep = useCallback(
     async (step: WizardStep) => {
       setStepStatus((prev) => ({ ...prev, [step]: "done" }));
@@ -79,6 +75,10 @@ export function WrongNetworkBanner() {
     },
     []
   );
+
+  if (!isWrongNetworkState) return null;
+
+  const mismatchType = passphraseMismatch ? "passphrase" : "network";
 
   const handleSwitchNetwork = async () => {
     setIsSwitching(true);

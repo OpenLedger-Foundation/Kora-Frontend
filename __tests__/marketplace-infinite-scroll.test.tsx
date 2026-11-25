@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, notifyManager } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { MARKETPLACE_PAGE_SIZE, useInfiniteInvoices } from "@/hooks/useInvoices";
-import { useInvoiceStore } from "@/store/invoiceStore";
+import { useDebounce } from "@/hooks/useDebounce";
+import { DEFAULT_FILTERS, useInvoiceStore } from "@/store/invoiceStore";
 import type { PaginatedResponse, Invoice } from "@/types";
 
 vi.mock("@/services/invoiceService", () => ({
@@ -59,7 +60,7 @@ describe("useInfiniteInvoices", () => {
         activeOnly: false,
         showExpired: false,
       },
-      sortBy: "apr_desc",
+      sort: { sortBy: "apr", sortDir: "desc" },
     });
   });
 
@@ -150,9 +151,8 @@ describe("useInfiniteInvoices", () => {
     const { result } = renderHook(() => useInfiniteInvoices({ pageSize: 12 }), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    await act(async () => result.current.fetchNextPage());
-
-    const pages = result.current.data?.pages ?? [];
+    const nextPage = await act(async () => result.current.fetchNextPage());
+    const pages = nextPage.data?.pages ?? [];
     const flattened = pages.flatMap((p) => p.data);
 
     expect(flattened).toHaveLength(24);
@@ -186,4 +186,58 @@ describe("useInfiniteInvoices", () => {
     expect(result.current.data?.pages[0].data).toHaveLength(0);
     expect(result.current.hasNextPage).toBe(false);
   });
+});
+
+it("coalesces rapid APR edits and supersedes pending edits on reset", async () => {
+  const fetch = vi.mocked(fetchInvoices);
+  fetch.mockReset();
+  fetch.mockResolvedValue(makePage(1, 12, 12));
+  useInvoiceStore.setState({ filters: { ...DEFAULT_FILTERS } });
+  const { wrapper } = createWrapper();
+
+  function Filters() {
+    const filters = useInvoiceStore((state) => state.filters);
+    const setFilters = useInvoiceStore((state) => state.setFilters);
+    const debounced = useDebounce(filters, 400);
+    useInfiniteInvoices({ filters: debounced, enabled: filters === debounced });
+    return (
+      <>
+        <input
+          aria-label="Maximum APR"
+          type="number"
+          value={filters.aprRange?.[1] ?? 50}
+          onChange={(event) => setFilters({ aprRange: [0, Number(event.currentTarget.value)] })}
+        />
+        <button onClick={() => setFilters(DEFAULT_FILTERS)}>Reset filters</button>
+      </>
+    );
+  }
+
+  vi.useFakeTimers();
+  try {
+    const { unmount } = render(<Filters />, { wrapper });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    const input = screen.getByRole("spinbutton", { name: "Maximum APR" });
+    fireEvent.change(input, { target: { value: "21" } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    fireEvent.change(input, { target: { value: "25" } });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[1][0]?.aprRange).toEqual([0, 25]);
+
+    fireEvent.change(input, { target: { value: "35" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(fetch.mock.calls.every(([filters]) => filters?.aprRange?.[1] !== 35)).toBe(true);
+
+    fireEvent.change(input, { target: { value: "45" } });
+    unmount();
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(fetch.mock.calls.every(([filters]) => filters?.aprRange?.[1] !== 45)).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
 });

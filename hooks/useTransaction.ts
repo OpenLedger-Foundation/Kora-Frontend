@@ -403,6 +403,7 @@ export function useTransaction() {
         onSimulationPreview?: (preview: SimulationPreview) => Promise<boolean>;
         txType?: string;
         txDescription?: string;
+        invoiceId?: string;
         txAmount?: string;
         txAssetCode?: string;
         cancelReason?: string;
@@ -569,7 +570,8 @@ export function useTransaction() {
             if (isNetworkError) {
               await enqueueSignedXdr(signedXdr, {
                 type: options?.txType ?? "other",
-                invoiceId: options?.txDescription,
+                invoiceId: options?.invoiceId,
+                description: options?.txDescription,
                 amount: options?.txAmount,
                 assetCode: options?.txAssetCode,
               });
@@ -593,6 +595,7 @@ export function useTransaction() {
           type: (options?.txType as TxType | undefined) || "other",
           status: "pending",
           description: options?.txDescription,
+          invoiceId: options?.invoiceId,
           amount: options?.txAmount,
           assetCode: options?.txAssetCode,
           cancelReason: options?.cancelReason,

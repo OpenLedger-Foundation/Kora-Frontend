@@ -24,10 +24,10 @@ const PREFERENCE_KEYS: Array<{ key: WatchlistAlertKey; i18nKey: "fundingProgress
 export function WatchlistDrawer({ open, onClose }: WatchlistDrawerProps) {
   const t = useTranslations("marketplace.watchlist");
   const invoices = useInvoiceStore((state) => state.invoices);
-  const watchedIds = useInvoiceStore((state) => state.watchedInvoiceIds);
+  const watchedIds = useInvoiceStore((state) => state.watchlist);
   const preferences = useSettingsStore((state) => state.notifications);
   const setPreferences = useSettingsStore((state) => state.setNotifications);
-  const toggleWatched = useInvoiceStore((state) => state.toggleWatchedInvoice);
+  const toggleWatched = useInvoiceStore((state) => state.toggleWatchlist);
   const watched = watchedIds
     .map((id) => invoices.find((invoice) => invoice.id === id))
     .filter((invoice): invoice is NonNullable<typeof invoice> => Boolean(invoice));

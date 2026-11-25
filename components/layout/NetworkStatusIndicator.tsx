@@ -21,6 +21,7 @@ function formatQueueCount(count: number): string {
 }
 
 const STATUS_COLOR: Record<NetworkStatus, string> = {
+  checking: "bg-muted-foreground",
   operational: "bg-green-500",
   degraded: "bg-amber-500",
   down: "bg-red-500",
@@ -69,26 +70,28 @@ export function NetworkStatusIndicator() {
   const networkLabel = health.network === "testnet" ? t("testnet") : t("mainnet");
 
   const statusLabel: Record<NetworkStatus, string> = {
+    checking: t("checking"),
     operational: t("operational"),
     degraded: t("degraded"),
     down: t("down"),
   };
 
   const statusDesc: Record<NetworkStatus, string> = {
+    checking: t("checking"),
     operational: t("operationalDesc"),
     degraded: t("degradedDesc"),
     down: t("downDesc"),
   };
 
   // Show "RPC Degraded" inline label when Soroban RPC is not operational
-  const rpcDegraded = health.soroban.status !== "operational";
+  const rpcDegraded = health.soroban.status === "degraded" || health.soroban.status === "down";
   const badgeLabel = !isOnline
     ? t("offline")
     : rpcDegraded
       ? health.soroban.status === "down"
         ? t("rpcDown")
         : t("rpcDegraded")
-      : networkLabel;
+      : health.overall === "operational" ? networkLabel : statusLabel[health.overall];
 
   return (
     <div
@@ -100,6 +103,7 @@ export function NetworkStatusIndicator() {
           <TooltipTrigger asChild>
             <div
               className="relative flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted/50"
+              tabIndex={0}
               role="status"
               aria-live="polite"
               aria-label={t("statusAriaLabel", {
@@ -157,11 +161,11 @@ export function NetworkStatusIndicator() {
                 />
               </div>
 
-              <div className="border-t pt-2 text-xs text-muted-foreground">
+              {isOnline && health.overall !== "checking" && <div className="border-t pt-2 text-xs text-muted-foreground">
                 {t("lastChecked", {
                   time: formatDistanceToNow(health.soroban.lastChecked, { addSuffix: true }),
                 })}
-              </div>
+              </div>}
 
               {/* Pending queue link inside tooltip */}
               {queueCount > 0 && (
@@ -213,9 +217,9 @@ function ServiceStatus({
         <span>{name}</span>
       </div>
       <div className="text-muted-foreground">
-        {service.status === "down" && service.error ? (
+        {service.status === "down" ? (
           <span className="text-red-400">{errorLabel}</span>
-        ) : (
+        ) : service.status !== "checking" && (
           <span>{service.responseTime}ms</span>
         )}
       </div>

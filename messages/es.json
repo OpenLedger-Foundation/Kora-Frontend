@@ -712,6 +712,7 @@
     }
   },
   "transactions": {
+    "invoiceGroup": "Factura {invoice} · {count, plural, one {# transacción} other {# transacciones}}",
     "title": "Historial de Transacciones",
     "subtitle": "Tu actividad completa en cadena en Kora Protocol",
     "exportCsv": "Exportar CSV",
@@ -766,6 +767,7 @@
       "pending": "Pendiente"
     },
     "typeLabels": {
+      "cancel_invoice": "Cancelar factura",
       "mint_invoice": "Acuñar Factura",
       "fund_invoice": "Financiar Factura",
       "repay_invoice": "Pagar Factura",
@@ -983,6 +985,8 @@
     "kb": "{count} KB"
   },
   "network": {
+    "checking": "Comprobando el estado de la red",
+    "serviceUnavailable": "Un servicio de Stellar no está disponible. Vuelve a intentarlo en breve.",
     "operational": "Operacional",
     "degraded": "Degradado",
     "down": "Caído",
@@ -1173,6 +1177,27 @@
     "gotIt": "Entendido"
   },
   "settings": {
+    "backup": {
+      "close": "Cerrar",
+      "title": "Copia de seguridad de preferencias",
+      "description": "Guarda tus preferencias de notificación y umbrales de concentración en un archivo cifrado.",
+      "export": "Exportar preferencias",
+      "import": "Importar preferencias",
+      "passphrase": "Frase de contraseña",
+      "file": "Archivo cifrado de preferencias",
+      "confirmImport": "Al aplicar esta copia se reemplazan las preferencias de notificación y los umbrales de concentración de la cartera actual.",
+      "guidance": "Usa una frase única de al menos 12 caracteres y guárdala en un lugar seguro. La necesitarás para abrir la copia.",
+      "apply": "Descifrar y aplicar",
+      "download": "Descargar copia cifrada",
+      "exported": "Se descargaron las preferencias cifradas.",
+      "imported": "Se importaron las preferencias.",
+      "invalidFile": "Selecciona una copia válida de preferencias de Kora (hasta 16 KB).",
+      "unsupportedVersion": "Esta versión de la copia no es compatible.",
+      "decryptFailed": "La frase de contraseña es incorrecta o se modificó el archivo.",
+      "invalidSettings": "La copia contiene ajustes no válidos.",
+      "walletChanged": "La cartera activa cambió. Abre de nuevo la importación para la cartera actual.",
+      "failed": "La operación falló. Vuelve a intentarlo en un contexto seguro del navegador."
+    },
     "error": {
       "title": "No se pudo cargar la configuración",
       "description": "Algo salió mal al cargar tu configuración. Inténtalo de nuevo."

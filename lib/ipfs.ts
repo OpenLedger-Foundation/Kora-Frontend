@@ -195,21 +195,6 @@ export function xhrUpload(
       return;
     }
     const xhr = new XMLHttpRequest();
-    let aborted = false;
-
-    const onAbort = () => {
-      aborted = true;
-      try {
-        xhr.abort();
-      } catch {
-        // ignore
-      }
-      reject(new UploadAbortedError(signal?.reason ? String(signal.reason) : "Upload aborted"));
-    };
-
-    if (signal) {
-      signal.addEventListener("abort", onAbort, { once: true });
-    }
 
     xhr.open("POST", url);
 

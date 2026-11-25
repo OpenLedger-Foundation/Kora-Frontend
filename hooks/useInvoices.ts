@@ -10,7 +10,7 @@ import {
 import { queryKeys } from "@/lib/queryKeys";
 import { useQueryTuning } from "@/lib/featureFlags";
 import { MARKETPLACE_CACHE_GC_TIME_MS } from "@/lib/queryPersistence";
-import { useInvoiceStore } from "@/store/invoiceStore";
+import { useInvoiceStore, type SortState } from "@/store/invoiceStore";
 import {
   fetchInvoices,
   fetchInvoiceById,
@@ -56,18 +56,10 @@ const SORT_KEY_MAP: Record<string, MarketplaceSortKey> = {
   createdAt: "createdAt",
 };
 
-function resolveMarketplaceSort(sortBy: string): {
-  key: MarketplaceSortKey;
-  direction: "asc" | "desc";
-} {
-  const rawKey = sortBy?.split("_")[0] ?? "apr";
-  const key = SORT_KEY_MAP[rawKey] ?? "apr";
-  // due_soonest / newest style keys
-  if (sortBy === "due_soonest") return { key: "duration", direction: "asc" };
-  if (sortBy === "due_latest") return { key: "duration", direction: "desc" };
-  if (sortBy === "newest") return { key: "createdAt", direction: "desc" };
-  const direction = sortBy?.endsWith("asc") ? "asc" : "desc";
-  return { key, direction };
+export function marketplaceSortValue(sort: SortState) {
+  if (sort.sortBy === "dueDate") return sort.sortDir === "asc" ? "due_soonest" : "due_latest";
+  if (sort.sortBy === "listed" && sort.sortDir === "desc") return "newest";
+  return `${sort.sortBy}_${sort.sortDir}`;
 }
 
 // ─── List ─────────────────────────────────────────────────────────────────────
@@ -106,11 +98,14 @@ export const MARKETPLACE_PAGE_SIZE = 12;
 export function useInfiniteInvoices(options?: {
   pageSize?: number;
   enabled?: boolean;
+  filters?: ReturnType<typeof useInvoiceStore.getState>["filters"];
 }) {
   const pageSize = options?.pageSize ?? MARKETPLACE_PAGE_SIZE;
   const enabled = options?.enabled ?? true;
-  const filters = useInvoiceStore((s) => s.filters);
-  const sortBy = useInvoiceStore((s) => s.sortBy);
+  const storeFilters = useInvoiceStore((s) => s.filters);
+  const filters = options?.filters ?? storeFilters;
+  const sort = useInvoiceStore((s) => s.sort);
+  const sortBy = marketplaceSortValue(sort);
   const tuning = useQueryTuning();
 
   return useInfiniteQuery({
@@ -124,7 +119,7 @@ export function useInfiniteInvoices(options?: {
           aprRange: filters.aprRange,
           activeOnly: filters.activeOnly,
         },
-        resolveMarketplaceSort(sortBy),
+        { key: SORT_KEY_MAP[sort.sortBy] ?? "apr", direction: sort.sortDir },
         pageParam,
         pageSize
       ),

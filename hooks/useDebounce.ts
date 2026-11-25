@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useDebouncedCallback } from "./useDebouncedCallback";
 
 /**
  * Returns a debounced copy of `value` that only updates after `delay` ms of
@@ -7,10 +8,12 @@ import { useState, useEffect } from "react";
 export function useDebounce<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState<T>(value);
 
+  const update = useDebouncedCallback((next: T) => setDebounced(() => next), delay);
+
   useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
+    update(value);
+    return update.cancel;
+  }, [value, update]);
 
   return debounced;
 }

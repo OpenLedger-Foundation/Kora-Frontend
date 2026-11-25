@@ -18,7 +18,7 @@
  * instant switching; the per-wallet storage buckets survive reloads.
  */
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist } from "zustand/middleware";
 import {
   safeStorageGetItem,
   safeStorageSetItem,
@@ -283,20 +283,14 @@ function sanitizeNotifications(
 ): NotificationPrefs {
   const raw = asRecord(value);
   const days = raw.maturityReminderDays;
-  return {
-    maturityReminder:
-      typeof raw.maturityReminder === "boolean"
-        ? raw.maturityReminder
-        : fallback.maturityReminder,
-    fundingAlerts:
-      typeof raw.fundingAlerts === "boolean" ? raw.fundingAlerts : fallback.fundingAlerts,
-    repaymentAlerts:
-      typeof raw.repaymentAlerts === "boolean"
-        ? raw.repaymentAlerts
-        : fallback.repaymentAlerts,
-    maturityReminderDays:
-      days === 1 || days === 3 || days === 7 ? days : fallback.maturityReminderDays,
-  };
+  const prefs = { ...fallback };
+  for (const key of Object.keys(fallback) as Array<keyof NotificationPrefs>) {
+    if (key === "maturityReminderDays") continue;
+    const candidate = raw[key];
+    if (typeof candidate === "boolean") prefs[key] = candidate;
+  }
+  if (days === 1 || days === 3 || days === 7) prefs.maturityReminderDays = days;
+  return prefs;
 }
 
 /**
@@ -327,7 +321,7 @@ function sanitizeConcentration(
   const thresholds: ConcentrationThresholds = { ...fallback.thresholds };
   for (const key of Object.keys(thresholds) as Array<keyof ConcentrationThresholds>) {
     const candidate = rawThresholds[key];
-    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate > 0) {
+    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate >= 0 && candidate <= 100) {
       thresholds[key] = candidate;
     }
   }
@@ -379,6 +373,7 @@ interface SettingsStore {
   setActiveWallet: (address: string | null) => void;
   setNotifications: (prefs: Partial<NotificationPrefs>) => void;
   resetNotifications: () => void;
+  importPreferences: (preferences: { notifications: NotificationPrefs; thresholds: ConcentrationThresholds }) => void;
   tour: TourSettings;
   setTourSettings: (settings: Partial<TourSettings>) => void;
   resetTourSettings: () => void;
@@ -470,6 +465,15 @@ export const useSettingsStore = create<SettingsStore>()(
           };
         }),
 
+      importPreferences: ({ notifications, thresholds }) =>
+        set((state) => ({
+          notifications,
+          notificationsByWallet: state.activeWallet
+            ? { ...state.notificationsByWallet, [state.activeWallet]: notifications }
+            : state.notificationsByWallet,
+          concentration: { ...state.concentration, thresholds },
+        })),
+
       resetNotifications: () =>
         set((s) => ({
           notifications: DEFAULT_NOTIFICATION_PREFS,
@@ -555,18 +559,21 @@ export const useSettingsStore = create<SettingsStore>()(
       },
     }),
     {
-      name: "kora-settings-store",
       // Safe storage with an in-memory fallback (#1125): a blocked or full
       // localStorage must not break settings, and writes must be JSON.
       storage: createPersistentJSONStorage(),
       version: SETTINGS_STORAGE_VERSION,
       // v0 → v1: same slices, but validated instead of trusted.
-      migrate: (persisted) => sanitizeSettings(persisted),
+      migrate: (persisted) => ({
+        ...sanitizeSettings(persisted),
+        notificationsMigrated: asRecord(persisted).notificationsMigrated === true,
+      }),
       // Always run on rehydrate (same version too): fills any slice that is
       // missing and drops fields that do not belong, without touching actions.
       merge: (persisted, current) => ({
         ...current,
         ...sanitizeSettings(persisted),
+        notificationsMigrated: asRecord(persisted).notificationsMigrated === true,
       }),
       name: settingsStorageKey(null),
       /**

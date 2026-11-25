@@ -712,6 +712,7 @@
     }
   },
   "transactions": {
+    "invoiceGroup": "Invoice {invoice} · {count, plural, one {# transaction} other {# transactions}}",
     "title": "Transaction History",
     "subtitle": "Your complete on-chain activity on Kora Protocol",
     "exportCsv": "Export CSV",
@@ -766,6 +767,7 @@
       "pending": "Pending"
     },
     "typeLabels": {
+      "cancel_invoice": "Cancel Invoice",
       "mint_invoice": "Mint Invoice",
       "fund_invoice": "Fund Invoice",
       "repay_invoice": "Repay Invoice",
@@ -983,6 +985,8 @@
     "kb": "{count} KB"
   },
   "network": {
+    "checking": "Checking network status",
+    "serviceUnavailable": "A Stellar service is unavailable. Try again shortly.",
     "operational": "Operational",
     "degraded": "Degraded",
     "down": "Down",
@@ -1173,6 +1177,27 @@
     "gotIt": "Got it"
   },
   "settings": {
+    "backup": {
+      "close": "Close",
+      "title": "Preferences backup",
+      "description": "Back up your notification preferences and concentration thresholds in an encrypted file.",
+      "export": "Export preferences",
+      "import": "Import preferences",
+      "passphrase": "Passphrase",
+      "file": "Encrypted preferences file",
+      "confirmImport": "Applying this backup replaces notification preferences and concentration thresholds for the current wallet.",
+      "guidance": "Use a unique passphrase of at least 12 characters and keep it safe. You will need it to open the backup.",
+      "apply": "Decrypt and apply",
+      "download": "Download encrypted backup",
+      "exported": "Encrypted preferences downloaded.",
+      "imported": "Preferences imported.",
+      "invalidFile": "Choose a valid Kora preferences backup (up to 16 KB).",
+      "unsupportedVersion": "This backup version is unsupported.",
+      "decryptFailed": "The passphrase is incorrect or the file was altered.",
+      "invalidSettings": "The backup contains invalid settings.",
+      "walletChanged": "The active wallet changed. Open the import again for the current wallet.",
+      "failed": "The operation failed. Try again in a secure browser context."
+    },
     "error": {
       "title": "Couldn't load settings",
       "description": "Something went wrong while loading your settings. Please try again."

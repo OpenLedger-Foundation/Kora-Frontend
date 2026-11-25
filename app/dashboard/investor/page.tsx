@@ -179,6 +179,8 @@ export default function InvestorDashboardPage() {
     const runClaim = async () => {
       await execute(() => prepareClaimPosition(pos.id, address), {
         successMessage: t("claim.successMessage"),
+        txType: "claim_yield",
+        invoiceId: pos.invoice?.tokenId,
         // Yield claims are the "yield available" notification channel, not the
         // generic tx one — muting that preference must mute this too.
         successNotificationType: "yieldAvailable",
@@ -219,52 +221,37 @@ export default function InvestorDashboardPage() {
    * it runs through the same verification gate as funding/claim/repayment
    * (#1123) — previously it called the store directly and skipped it.
    */
-  const handleListSubmit = (askPrice: number) => {
-    if (!listingTarget) return;
+  const handleListSubmit = (askPrice: number, expiresAt?: string) => {
+    if (!listingTarget || !address) return;
     const target = listingTarget;
 
     const runListing = async () => {
       listPosition({
         positionId: target.id,
         askPrice,
-        seller: address ?? "",
+        impliedDiscount: computeImpliedDiscount(askPrice, target.expectedReturn),
+        listedAt: new Date().toISOString(),
+        expiresAt,
+        invoiceTokenId: target.invoice?.tokenId,
+        repaymentDate: target.invoice?.terms.repaymentDate,
       });
+      toast.success(t("listing.success"));
       setListingTarget(null);
     };
 
     void executeProtectedAction(runListing, "listing").then((result) => {
-      // No VerificationProvider in the tree to raise the modal — tell the user
-      // why nothing happened instead of failing silently.
       if (result.requiresVerification) {
         toast.error(
-          "Verification required",
-          "Verify wallet ownership to list this position.",
-          () => {
-            handleListSubmit(askPrice);
-          },
+          t("claim.verificationRequiredTitle"),
+          undefined,
+          () => handleListSubmit(askPrice, expiresAt),
         );
         return;
       }
-
       if (result.error && result.error !== "Wallet not connected") {
-        toast.error("Listing failed", result.error, () => {
-          handleListSubmit(askPrice);
-        });
+        toast.error(result.error, undefined, () => handleListSubmit(askPrice, expiresAt));
       }
     });
-  const handleListSubmit = (askPrice: number, expiresAt?: string) => {
-    if (!listingTarget || !address) return;
-    listPosition({
-      positionId: listingTarget.id,
-      askPrice,
-      impliedDiscount: computeImpliedDiscount(askPrice, listingTarget.expectedReturn),
-      listedAt: new Date().toISOString(),
-      expiresAt,
-      invoiceTokenId: listingTarget.invoice?.tokenId,
-      repaymentDate: listingTarget.invoice?.terms.repaymentDate,
-    });
-    toast.success(t("listing.success"));
-    setListingTarget(null);
   };
 
   /** Export visible positions as a CSV file. Scoped to the connected address. */

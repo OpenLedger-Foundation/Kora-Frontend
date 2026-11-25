@@ -7,8 +7,8 @@
  * recovery.
  */
 
-import { render } from "@testing-library/react";
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { act, render } from "@testing-library/react";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import type { NetworkStatus } from "@/hooks/useNetworkStatus";
@@ -62,6 +62,7 @@ vi.mock("@/components/layout/StaleDataBadge", () => ({
 import { NetworkStatusIndicator } from "../NetworkStatusIndicator";
 import {
   HORIZON_HEALTH_TOAST_ID,
+  HORIZON_HEALTH_COALESCE_MS,
   resetHorizonHealthToastThrottle,
 } from "@/hooks/useHorizonHealthToast";
 
@@ -81,12 +82,19 @@ function setStatus(rerender: (ui: React.ReactElement) => void, next: NetworkStat
 
 describe("NetworkStatusIndicator — Horizon health toast", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     horizonStatus = "operational";
     isOnline = true;
     toastError.mockClear();
     toastDismiss.mockClear();
     resetHorizonHealthToastThrottle();
   });
+
+  afterEach(() => { vi.useRealTimers(); });
+
+  function settle() {
+    act(() => { vi.advanceTimersByTime(HORIZON_HEALTH_COALESCE_MS); });
+  }
 
   it("does not toast while Horizon is operational", () => {
     render(<Harness />);
@@ -96,6 +104,7 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
   it("fires a localized toast when Horizon becomes degraded", () => {
     const { rerender } = render(<Harness />);
     setStatus(rerender, "degraded");
+    settle();
 
     expect(toastError).toHaveBeenCalledTimes(1);
     expect(toastError).toHaveBeenCalledWith(
@@ -109,6 +118,7 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
   it("uses the down copy when Horizon goes down", () => {
     const { rerender } = render(<Harness />);
     setStatus(rerender, "down");
+    settle();
 
     expect(toastError).toHaveBeenCalledWith(
       "t:horizonDownToast",
@@ -121,6 +131,7 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
   it("retry action re-runs the health check", () => {
     const { rerender } = render(<Harness />);
     setStatus(rerender, "degraded");
+    settle();
 
     const onRetry = toastError.mock.calls[0][2] as () => void;
     onRetry();
@@ -132,6 +143,7 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
     setStatus(rerender, "degraded");
     setStatus(rerender, "degraded");
     setStatus(rerender, "degraded");
+    settle();
 
     expect(toastError).toHaveBeenCalledTimes(1);
   });
@@ -143,6 +155,7 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
     setStatus(rerender, "degraded");
     setStatus(rerender, "operational");
     setStatus(rerender, "degraded");
+    settle();
 
     expect(toastError).toHaveBeenCalledTimes(1);
   });
@@ -150,7 +163,9 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
   it("throttles per severity — escalating to down still notifies once", () => {
     const { rerender } = render(<Harness />);
     setStatus(rerender, "degraded");
+    settle();
     setStatus(rerender, "down");
+    settle();
     setStatus(rerender, "degraded");
     setStatus(rerender, "down");
 
@@ -162,6 +177,7 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
   it("dismisses the toast when Horizon recovers", () => {
     const { rerender } = render(<Harness />);
     setStatus(rerender, "down");
+    settle();
     setStatus(rerender, "operational");
 
     expect(toastDismiss).toHaveBeenCalledWith(HORIZON_HEALTH_TOAST_ID);
@@ -171,6 +187,7 @@ describe("NetworkStatusIndicator — Horizon health toast", () => {
     isOnline = false;
     const { rerender } = render(<Harness />);
     setStatus(rerender, "down");
+    settle();
 
     expect(toastError).not.toHaveBeenCalled();
   });

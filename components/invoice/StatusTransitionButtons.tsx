@@ -159,6 +159,7 @@ export function StatusTransitionButtons({
         successMessage: `Invoice ${transition.to.replace(/_/g, " ")} successfully`,
         onSimulationPreview,
         txType: transition.contractMethod === "cancel" ? "cancel_invoice" : undefined,
+        invoiceId: tokenId,
         cancelReason: cancelReason,
         cancelNotes: cancelNotes,
         onSuccess: () => {

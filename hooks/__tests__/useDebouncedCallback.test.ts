@@ -147,4 +147,18 @@ describe("useDebouncedCallback", () => {
     expect(second).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledWith("pending");
   });
+  it("can schedule a new callback from inside the running callback and cancel it", () => {
+    const fn = vi.fn((value: string) => {
+      if (value === "first") result.current("second");
+    });
+    const { result } = renderHook(() => useDebouncedCallback(fn, 100));
+    act(() => {
+      result.current("first");
+      vi.advanceTimersByTime(100);
+      result.current.cancel();
+      vi.advanceTimersByTime(100);
+    });
+    expect(fn.mock.calls).toEqual([["first"]]);
+  });
+
 });

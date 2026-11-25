@@ -125,7 +125,7 @@ function filtersToParams(filters: AnalyticsFilters): URLSearchParams {
 function PortfolioAnalyticsInner() {
   const { isConnected, address } = useWallet();
   const { setWalletModalOpen } = useUIStore();
-  const { setFilters, resetFilters } = useInvoiceStore();
+  const setFilters = useInvoiceStore((state) => state.setFilters);
   const t = useTranslations("analytics");
   const tCommon = useTranslations("common");
   const router = useRouter();
@@ -149,14 +149,13 @@ function PortfolioAnalyticsInner() {
   const handleRiskSegmentClick = useCallback(
     (riskTier: string) => {
       const allocationFilter = { dimension: "riskTier" as const, value: riskTier };
-      resetFilters();
       setFilters({
         ...MARKETPLACE_DEFAULT_FILTERS,
         ...allocationToMarketplaceFilters(allocationFilter),
       });
       router.push(marketplacePathForAllocation(allocationFilter));
     },
-    [resetFilters, setFilters, router]
+    [setFilters, router]
   );
 
   const positionsData = useMemo(() => positionsQuery.data ?? [], [positionsQuery.data]);

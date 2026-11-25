@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -511,6 +512,7 @@ export default function CreateInvoicePage() {
       },
       {
         successMessage: "Invoice minted on Soroban!",
+        txType: "mint_invoice",
         onSimulationPreview,
         onSuccess: async (hash, txResult) => {
           setUploadStage("done");
@@ -529,6 +531,10 @@ export default function CreateInvoicePage() {
 
           // Use pre-submit simulation token ID as fallback (especially in mock mode)
           const finalTokenId = parsedTokenId ?? preSubmitTokenId ?? undefined;
+          const confirmedTokenId = parsedTokenId ?? (txResult?.mock ? preSubmitTokenId : undefined);
+          if (confirmedTokenId) {
+            useTransactionHistoryStore.getState().setInvoiceId(hash, confirmedTokenId);
+          }
 
           setMintedInfo({
             tokenId: finalTokenId,

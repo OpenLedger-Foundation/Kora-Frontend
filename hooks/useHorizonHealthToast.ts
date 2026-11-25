@@ -32,7 +32,7 @@ export const HORIZON_HEALTH_TOAST_ID = "horizon-health";
 /** How long a severity must persist before it is surfaced (coalesces flaps). */
 export const HORIZON_HEALTH_COALESCE_MS = 4000;
 
-type Severity = Exclude<NetworkStatus, "operational">;
+type Severity = Extract<NetworkStatus, "down" | "degraded">;
 
 // Module state is the source of truth for the currently surfaced severity so
 // repeated renders/remounts do not re-toast the same warning (dedupe).
@@ -50,19 +50,17 @@ export function useHorizonHealthToast(
 ) {
   const t = useTranslations("network");
   const toast = useToast();
-  const previous = useRef<NetworkStatus>("operational");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep the latest callbacks without re-running the transition effect.
+  const translateRef = useRef(t);
+  translateRef.current = t;
   const toastRef = useRef(toast);
   toastRef.current = toast;
   const onRetryRef = useRef(onRetry);
   onRetryRef.current = onRetry;
 
   useEffect(() => {
-    const prev = previous.current;
-    previous.current = status;
-
     const clearTimer = () => {
       if (timer.current !== null) {
         clearTimeout(timer.current);
@@ -70,23 +68,13 @@ export function useHorizonHealthToast(
       }
     };
 
-    if (status === "operational") {
-      clearTimer();
-      if (prev !== "operational") {
+    if (!isOnline || status === "operational" || status === "checking") {
+      if (surfaced !== null) {
         toastRef.current.dismiss(HORIZON_HEALTH_TOAST_ID);
         surfaced = null;
       }
       return;
     }
-
-    // Offline: the indicator already shows "Offline"; do not raise a Horizon
-    // toast, and cancel any pending coalesced toast.
-    if (!isOnline) {
-      clearTimer();
-      return;
-    }
-
-    if (status === prev) return;
 
     // Dedupe: this severity is already on screen.
     if (surfaced === status) return;
@@ -99,13 +87,13 @@ export function useHorizonHealthToast(
       if (surfaced === status) return;
       surfaced = status;
       toastRef.current.error(
-        status === "down" ? t("horizonDownToast") : t("horizonDegradedToast"),
-        t("horizonToastHint"),
+        translateRef.current(status === "down" ? "horizonDownToast" : "horizonDegradedToast"),
+        translateRef.current("horizonToastHint"),
         onRetryRef.current ? () => onRetryRef.current?.() : undefined,
         HORIZON_HEALTH_TOAST_ID,
       );
     }, HORIZON_HEALTH_COALESCE_MS);
 
     return clearTimer;
-  }, [status, isOnline, t]);
+  }, [status, isOnline]);
 }

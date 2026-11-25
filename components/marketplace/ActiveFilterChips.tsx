@@ -14,7 +14,7 @@ import React, { useId } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
-import { useInvoiceStore } from "@/store/invoiceStore";
+import { DEFAULT_FILTERS, useInvoiceStore } from "@/store/invoiceStore";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
 
@@ -141,7 +141,7 @@ export default function ActiveFilterChips({
   className,
 }: ActiveFilterChipsProps) {
   const t = useTranslations("marketplace");
-  const { filters, updateSingleFilter, resetFilters } = useInvoiceStore();
+  const { filters, setFilters } = useInvoiceStore();
   const announcerId = useId();
   const prefersReducedMotion = usePrefersReducedMotion();
   const chipMotion = getChipMotionProps(prefersReducedMotion);
@@ -154,22 +154,22 @@ export default function ActiveFilterChips({
 
     if (key === "categories" || key === "jurisdictions" || key === "riskTiers") {
       const current = filters[key] as string[];
-      updateSingleFilter(key, current.filter((v) => v !== chip.value));
+      setFilters({ [key]: current.filter((v) => v !== chip.value) });
       return;
     }
 
     if (key === "aprRange") {
-      updateSingleFilter("aprRange", [0, 50]);
+      setFilters({ aprRange: DEFAULT_FILTERS.aprRange });
       return;
     }
 
     if (key === "activeOnly") {
-      updateSingleFilter("activeOnly", false);
+      setFilters({ activeOnly: false });
       return;
     }
 
     if (key === "showExpired") {
-      updateSingleFilter("showExpired", false);
+      setFilters({ showExpired: false });
     }
   };
 
@@ -235,7 +235,7 @@ export default function ActiveFilterChips({
           layout={!prefersReducedMotion}
           type="button"
           onClick={() => {
-            resetFilters();
+            setFilters(DEFAULT_FILTERS);
             const el = document.getElementById(announcerId);
             if (el) el.textContent = "All filters cleared";
           }}

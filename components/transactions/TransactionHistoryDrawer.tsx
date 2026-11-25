@@ -14,6 +14,8 @@ import {
   X,
   Copy,
 } from "lucide-react";
+import { InvoiceTransactionGroup } from "@/components/transactions/InvoiceTransactionGroup";
+import { groupTransactionsByInvoice } from "@/components/transactions/groupTransactionsByInvoice";
 import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -581,14 +583,21 @@ export function TransactionHistoryDrawer({
                 )
               ) : (
                 <div className="space-y-2">
-                  {transactions.map((tx) => (
-                    <TransactionRow
-                      key={tx.hash}
-                      tx={tx}
-                      onSelect={(selected) => setSelectedTx(selected)}
-                      t={t}
-                    />
-                  ))}
+                  {groupTransactionsByInvoice(transactions).map((group) => {
+                    const rows = group.transactions.map((tx) => (
+                      <TransactionRow
+                        key={tx.hash}
+                        tx={tx}
+                        onSelect={setSelectedTx}
+                        t={t}
+                      />
+                    ));
+                    return group.invoiceId ? (
+                      <InvoiceTransactionGroup key={group.key} invoiceId={group.invoiceId} count={rows.length}>
+                        {rows}
+                      </InvoiceTransactionGroup>
+                    ) : rows;
+                  })}
                 </div>
               )}
             </div>

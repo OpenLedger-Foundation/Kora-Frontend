@@ -25,6 +25,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Container } from "@/components/layout/Container";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore, useTransactionStore } from "@/store";
+import { useTransactionHistoryStore, type TransactionRecord } from "@/store/transactionHistoryStore";
 import type { TxRecord, TxType } from "@/store/transactionStore";
 import { cn, exportCsv } from "@/lib/utils";
 import { useFormatters } from "@/hooks/useFormatters";
@@ -32,6 +33,8 @@ import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { safeStellarTxUrl } from "@/lib/security";
 import EmptyState from "@/components/ui/EmptyState";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { InvoiceTransactionGroup } from "@/components/transactions/InvoiceTransactionGroup";
+import { groupTransactionsByInvoice } from "@/components/transactions/groupTransactionsByInvoice";
 import { useTranslations } from "next-intl";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -41,7 +44,7 @@ import { useTranslations } from "next-intl";
 // is what stops a new transaction type from shipping with an English-only
 // name, which is how the hardcoded labels got here in the first place.
 const TX_TYPE_CONFIG: Record<
-  TxType,
+  string,
   { icon: React.ElementType; colorClass: string; bgClass: string }
 > = {
   mint: {
@@ -66,14 +69,28 @@ const TX_TYPE_CONFIG: Record<
   },
 };
 
+const HISTORY_TYPES: Partial<Record<TransactionRecord["type"], TxType>> = {
+  mint_invoice: "mint",
+  fund_invoice: "fund",
+  repay_invoice: "repay",
+  claim_yield: "claim",
+  transfer: "transfer",
+};
+type HistoryRow = Omit<TxRecord, "type"> & { type: TxType | "cancel_invoice" | "other" };
+const FALLBACK_TYPE_STYLE = {
+  icon: FileText,
+  colorClass: "text-muted-foreground",
+  bgClass: "bg-muted",
+};
+
 // Filter values in display order. Labels are resolved per-render from
 // `transactions.types.*` so the dropdown follows the active locale.
 const TYPE_FILTER_VALUES: (TxType | "all")[] = ["all", "mint", "fund", "repay", "claim"];
 
 const STATUS_FILTER_VALUES = ["all", "confirmed", "failed"] as const;
 
-function TxTypeIcon({ type }: { type: TxType }) {
-  const config = TX_TYPE_CONFIG[type];
+function TxTypeIcon({ type }: { type: HistoryRow["type"] }) {
+  const config = TX_TYPE_CONFIG[type] ?? FALLBACK_TYPE_STYLE;
   const Icon = config.icon;
   return (
     <div
@@ -112,8 +129,8 @@ function StatusBadge({ status }: { status: TxRecord["status"] }) {
 
 // ─── Transaction Row ──────────────────────────────────────────────────────────
 
-function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => void }) {
-  const config = TX_TYPE_CONFIG[tx.type];
+function TxRow({ tx, onRemove }: { tx: HistoryRow; onRemove: (hash: string) => void }) {
+  const config = TX_TYPE_CONFIG[tx.type] ?? FALLBACK_TYPE_STYLE;
   const { formatDate, formatCurrency } = useFormatters();
   const t = useTranslations("transactions");
 
@@ -130,11 +147,15 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className={cn("text-sm font-semibold", config.colorClass)}>
-            {t(`types.${tx.type}Label` as Parameters<typeof t>[0])}
+            {tx.type in TX_TYPE_CONFIG
+              ? t(`types.${tx.type}Label` as Parameters<typeof t>[0])
+              : tx.type === "transfer" || tx.type === "cancel_invoice"
+                ? t(`typeLabels.${tx.type}`)
+                : t("typeLabels.other")}
           </span>
           <StatusBadge status={tx.status} />
           {tx.invoiceNumber && (
-            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+            <span className="max-w-full break-all rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
               {tx.invoiceNumber}
             </span>
           )}
@@ -193,7 +214,47 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
 export default function TransactionHistoryPage() {
   const { isConnected } = useWallet();
   const { setWalletModalOpen } = useUIStore();
-  const { transactions, removeTransaction, clearHistory } = useTransactionStore();
+  const {
+    transactions: legacyTransactions,
+    removeTransaction: removeLegacyTransaction,
+    clearHistory: clearLegacyHistory,
+  } = useTransactionStore();
+  const history = useTransactionHistoryStore((state) => state.transactions);
+  const removeHistoryTransaction = useTransactionHistoryStore((state) => state.removeTransaction);
+  const clearTransactionHistory = useTransactionHistoryStore((state) => state.clearHistory);
+  const transactions = useMemo(() => {
+    const byHash = new Map<string, HistoryRow>(legacyTransactions.map((tx) => [tx.hash, tx]));
+    for (const entry of history) {
+      if (entry.status === "pending") continue;
+      const legacy = byHash.get(entry.hash);
+      if (legacy) {
+        if (!legacy.invoiceId && entry.invoiceId) byHash.set(entry.hash, { ...legacy, invoiceId: entry.invoiceId });
+        continue;
+      }
+      const timestamp = new Date(entry.timestamp);
+      if (!Number.isFinite(timestamp.getTime())) continue;
+      const amount = entry.amount === undefined ? undefined : Number(entry.amount);
+      byHash.set(entry.hash, {
+        ...entry,
+        status: entry.status,
+        type: HISTORY_TYPES[entry.type] ?? (entry.type === "cancel_invoice" ? entry.type : "other"),
+        amount: Number.isFinite(amount) ? amount : undefined,
+        currency: entry.assetCode,
+        timestamp: timestamp.toISOString(),
+      });
+    }
+    return [...byHash.values()].sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
+  }, [history, legacyTransactions]);
+
+  function removeTransaction(hash: string) {
+    removeLegacyTransaction(hash);
+    removeHistoryTransaction(hash);
+  }
+
+  function clearHistory() {
+    clearLegacyHistory();
+    clearTransactionHistory(true);
+  }
   const { formatCurrency, formatNumber } = useFormatters();
   const t = useTranslations("transactions");
 
@@ -235,6 +296,7 @@ export default function TransactionHistoryPage() {
         (t) =>
           t.hash.toLowerCase().includes(q) ||
           t.invoiceNumber?.toLowerCase().includes(q) ||
+          t.invoiceId?.toLowerCase().includes(q) ||
           t.description?.toLowerCase().includes(q)
       );
     }
@@ -249,7 +311,7 @@ export default function TransactionHistoryPage() {
         hash: t.hash,
         type: t.type,
         status: t.status,
-        invoice: t.invoiceNumber ?? "",
+        invoice: t.invoiceNumber ?? t.invoiceId ?? "",
         amount: t.amount ?? "",
         currency: t.currency ?? "USDC",
         description: t.description ?? "",
@@ -461,9 +523,21 @@ export default function TransactionHistoryPage() {
                 </div>
               )
             ) : (
-              filtered.map((tx) => (
-                <TxRow key={tx.hash} tx={tx} onRemove={removeTransaction} />
-              ))
+              groupTransactionsByInvoice(filtered).map((group) => {
+                const rows = group.transactions.map((tx) => (
+                  <TxRow key={tx.hash} tx={tx} onRemove={removeTransaction} />
+                ));
+                return group.invoiceId ? (
+                  <InvoiceTransactionGroup
+                    key={group.key}
+                    invoiceId={group.invoiceId}
+                    label={group.transactions.find((tx) => tx.invoiceNumber)?.invoiceNumber}
+                    count={rows.length}
+                  >
+                    {rows}
+                  </InvoiceTransactionGroup>
+                ) : rows;
+              })
             )}
           </CardContent>
         </Card>

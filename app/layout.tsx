@@ -6,6 +6,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { NetworkStatusBanner } from "@/components/layout/NetworkStatusBanner";
 import { WrongNetworkBanner } from "@/components/wallet/WrongNetworkBanner";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
@@ -215,6 +216,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <WebVitalsReporter />
           <Navbar />
           <WrongNetworkBanner />
+          <NetworkStatusBanner />
           <main id="main-content" className="min-h-screen">
             <PageTransition>{children}</PageTransition>
           </main>

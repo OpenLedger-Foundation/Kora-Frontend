@@ -106,6 +106,7 @@ vi.mock("@/store", async () => {
 import TransactionHistoryPage from "../page";
 import { useWallet } from "@/hooks/useWallet";
 import { useTransactionStore } from "@/store";
+import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -155,6 +156,7 @@ const FUND_TX = {
 describe("TransactionHistoryPage", () => {
   beforeEach(() => {
     useTransactionStore.setState({ transactions: [] });
+    useTransactionHistoryStore.setState({ transactions: [] });
   });
 
   // ── Connect-wallet gate ─────────────────────────────────────────────────────
@@ -199,6 +201,27 @@ describe("TransactionHistoryPage", () => {
 
       expect(screen.getByText("INV-001")).toBeInTheDocument();
       expect(screen.getByText("INV-002")).toBeInTheDocument();
+    });
+
+    it("groups live and legacy records by invoice while deduplicating a shared hash", () => {
+      useTransactionStore.setState({ transactions: [{ ...MINT_TX, invoiceId: "42" }, FUND_TX] });
+      useTransactionHistoryStore.setState({
+        transactions: [
+          { hash: MINT_TX.hash, type: "mint_invoice", invoiceId: "42", status: "confirmed", timestamp: Date.parse(MINT_TX.timestamp) },
+          { hash: "repayment", type: "repay_invoice", invoiceId: "42", status: "confirmed", timestamp: Date.parse(FUND_TX.timestamp), description: "Repayment detail" },
+        ],
+      });
+
+      render(<TransactionHistoryPage />);
+      const disclosure = screen.getByRole("button", { expanded: true });
+      const content = document.getElementById(disclosure.getAttribute("aria-controls")!);
+      expect(screen.getAllByText(MINT_TX.description)).toHaveLength(1);
+      expect(content).toContainElement(screen.getByText("Repayment detail"));
+      expect(content).not.toContainElement(screen.getByText(FUND_TX.description));
+
+      fireEvent.click(disclosure);
+      expect(disclosure).toHaveAttribute("aria-expanded", "false");
+      expect(content).toHaveAttribute("hidden");
     });
 
     it("filters to mint type only", () => {

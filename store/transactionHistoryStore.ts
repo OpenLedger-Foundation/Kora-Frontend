@@ -34,7 +34,8 @@ interface TransactionHistoryStore {
 
   addTransaction: (tx: Omit<TransactionRecord, "timestamp"> & { timestamp?: number }) => void;
   updateTransactionStatus: (hash: string, status: TxStatus, error?: string) => void;
-  clearHistory: () => void;
+  setInvoiceId: (hash: string, invoiceId: string) => void;
+  clearHistory: (keepPending?: boolean) => void;
   getRecentTransactions: (limit?: number) => TransactionRecord[];
   getTransactionByHash: (hash: string) => TransactionRecord | undefined;
   removeTransaction: (hash: string) => void;
@@ -74,7 +75,15 @@ export const useTransactionHistoryStore = create<TransactionHistoryStore>()(
         }));
       },
 
-      clearHistory: () => set({ transactions: [] }),
+      setInvoiceId: (hash, invoiceId) =>
+        set((state) => ({
+          transactions: state.transactions.map((tx) => tx.hash === hash ? { ...tx, invoiceId } : tx),
+        })),
+
+      clearHistory: (keepPending) =>
+        set((state) => ({
+          transactions: keepPending ? state.transactions.filter((tx) => tx.status === "pending") : [],
+        })),
 
       getRecentTransactions: (limit = 10) => {
         return get().transactions.slice(0, limit);

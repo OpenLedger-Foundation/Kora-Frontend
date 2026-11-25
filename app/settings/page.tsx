@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Container } from "@/components/layout/Container";
 import { ConcentrationThresholdSettings } from "@/components/settings/ConcentrationThresholdSettings";
+import { PreferencesBackup } from "@/components/settings/PreferencesBackup";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
 import { useWallet } from "@/hooks/useWallet";
 import { useUIStore } from "@/store";
@@ -61,6 +62,11 @@ export default function SettingsPage() {
       <Card className="mt-6 max-w-2xl">
         <CardContent className="p-6">
           <ConcentrationThresholdSettings />
+        </CardContent>
+      </Card>
+      <Card className="mt-6 max-w-2xl">
+        <CardContent className="p-6">
+          <PreferencesBackup />
         </CardContent>
       </Card>
     </Container>

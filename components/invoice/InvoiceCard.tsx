@@ -93,13 +93,13 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
   const jurisdictionNames = getJurisdictionNames(tMarketplace);
   const countryName = jurisdictionNames[metadata.jurisdiction] || metadata.jurisdiction;
   const { prefetch: prefetchInvoice, cancelPrefetch } = usePrefetchInvoice();
-  const { comparisonList, toggleComparison, toggleWatchedInvoice, isInvoiceWatched } = useInvoiceStore();
+  const { comparisonIds: comparisonList, toggleComparison, toggleWatchlist, watchlist } = useInvoiceStore();
   const isInComparison = comparisonList.includes(invoice.id);
   const comparisonFull = comparisonList.length >= MAX_COMPARISON_INVOICES && !isInComparison;
   const comparisonEnabled = useFeatureFlag("comparison");
   const reduced = useReducedMotion();
   const { isOnline } = useNetworkStatus();
-  const watched = isInvoiceWatched(invoice.id);
+  const watched = watchlist.includes(invoice.id);
 
   // Hover popover state
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -256,7 +256,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
           </div>
           <button
             type="button"
-            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatchedInvoice(invoice.id); }}
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); toggleWatchlist(invoice.id); }}
             className="absolute right-4 top-4 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-primary"
             aria-label={watched ? `Unstar ${metadata.invoiceNumber}` : `Star ${metadata.invoiceNumber}`}
           >
