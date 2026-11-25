@@ -1150,7 +1150,8 @@
     "pickContact": "Escolher um contato salvo",
     "noContacts": "Nenhum contato salvo ainda",
     "pickFromAddressBook": "Escolher da Agenda",
-    "verifiedLabel": "Label verified with signature",
+    "verifiedLabel": "Etiqueta verificada com assinatura",
+    "unverifiedLabel": "Etiqueta não verificada: assinatura ausente ou inválida",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"
