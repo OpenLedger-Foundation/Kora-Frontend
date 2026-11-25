@@ -651,6 +651,8 @@
       "type": "النوع",
       "txHash": "تجزئة المعاملة",
       "copyHashAria": "نسخ التجزئة",
+      "hashCopied": "تم نسخ التجزئة",
+      "hashCopyFailed": "فشل نسخ التجزئة",
       "status": "الحالة",
       "amount": "المبلغ",
       "dateTime": "التاريخ والوقت",

@@ -651,6 +651,8 @@
       "type": "Tipo",
       "txHash": "Hash de Transacción",
       "copyHashAria": "Copiar hash",
+      "hashCopied": "Hash copiado",
+      "hashCopyFailed": "Error al copiar el hash",
       "status": "Estado",
       "amount": "Monto",
       "dateTime": "Fecha y Hora",
