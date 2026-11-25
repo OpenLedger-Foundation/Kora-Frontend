@@ -1540,6 +1540,10 @@
       }
     }
   },
+  "killSwitch": {
+    "title": "Actions are temporarily paused",
+    "description": "This action is turned off on this deployment. Try again later."
+  },
   "secondaryMarket": {
     "title": "Secondary Market",
     "badge": "P2P Transferable Positions",

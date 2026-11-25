@@ -253,6 +253,10 @@ export function clearFeatureFlagOverrides(): void {
   writeOverrides({});
 }
 
+export function resetFeatureFlagOverrides(): void {
+  clearFeatureFlagOverrides();
+}
+
 /**
  * React hook returning the live feature flag state.
  * Re-renders when overrides change (same tab or cross-tab).
@@ -264,4 +268,9 @@ export function useFeatureFlags(): FeatureFlagState {
     serializeEnvFeatureFlagState,
   );
   return JSON.parse(serialized) as FeatureFlagState;
+}
+
+/** React hook returning whether a single flag is enabled (live, like `useFeatureFlags`). */
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  return useFeatureFlags()[flag] === true;
 }
