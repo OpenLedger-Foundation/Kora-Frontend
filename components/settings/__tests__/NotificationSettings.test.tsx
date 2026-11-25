@@ -67,6 +67,12 @@ const NOTIFICATIONS_STRINGS: Record<string, string> = {
   resetDefaults: "Reset to defaults",
   // Interpolated: "Toggle {label}" → return key so tests can predict the value
   toggleAriaLabel: "toggleAriaLabel",
+  "quietHours.label": "Quiet Hours",
+  "quietHours.description": "Silence maturity reminders during the hours you set.",
+  "quietHours.toggleAriaLabel": "Toggle quiet hours",
+  "quietHours.startLabel": "From",
+  "quietHours.endLabel": "To",
+  "quietHours.hint": "quietHours.hint",
   "tourSection.title": "Onboarding Tour",
   "shortcutsSection.title": "Keyboard Shortcuts",
   "shortcutsSection.description": "Enable global keyboard shortcuts for faster navigation.",
@@ -280,10 +286,14 @@ describe("NotificationSettings", () => {
     it("restores every preference to its default", () => {
       useSettingsStore.setState({
         notifications: {
+          ...DEFAULT_NOTIFICATION_PREFS,
           maturityReminder: false,
           fundingAlerts: false,
           repaymentAlerts: false,
           maturityReminderDays: 7,
+          quietHoursEnabled: true,
+          quietHoursStart: "23:00",
+          quietHoursEnd: "07:00",
         },
       });
 
@@ -370,6 +380,108 @@ describe("NotificationSettings", () => {
       expect(revokeObjectURL).toHaveBeenCalledWith("blob:kora");
 
       vi.unstubAllGlobals();
+    });
+  });
+
+  // ── Quiet hours ─────────────────────────────────────────────────────────────
+  describe("quiet hours", () => {
+    it("renders the quiet hours toggle", () => {
+      render(<NotificationSettings />);
+      expect(screen.getByRole("switch", { name: "Toggle quiet hours" })).toBeInTheDocument();
+    });
+
+    it("toggle is off by default (quietHoursEnabled defaults to false)", () => {
+      render(<NotificationSettings />);
+      const toggle = screen.getByRole("switch", { name: "Toggle quiet hours" });
+      expect(toggle).toHaveAttribute("aria-checked", "false");
+    });
+
+    it("enabling quiet hours writes true to the store", () => {
+      render(<NotificationSettings />);
+      fireEvent.click(screen.getByRole("switch", { name: "Toggle quiet hours" }));
+      expect(prefs().quietHoursEnabled).toBe(true);
+    });
+
+    it("disabling quiet hours after enable writes false to the store", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true },
+      });
+      render(<NotificationSettings />);
+      fireEvent.click(screen.getByRole("switch", { name: "Toggle quiet hours" }));
+      expect(prefs().quietHoursEnabled).toBe(false);
+    });
+
+    it("time inputs are disabled while quiet hours are off", () => {
+      render(<NotificationSettings />);
+      expect(screen.getByLabelText("From")).toBeDisabled();
+      expect(screen.getByLabelText("To")).toBeDisabled();
+    });
+
+    it("time inputs become enabled once quiet hours are switched on", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true },
+      });
+      render(<NotificationSettings />);
+      expect(screen.getByLabelText("From")).not.toBeDisabled();
+      expect(screen.getByLabelText("To")).not.toBeDisabled();
+    });
+
+    it("shows the stored start time in the From input", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true, quietHoursStart: "23:00" },
+      });
+      render(<NotificationSettings />);
+      expect(screen.getByLabelText("From")).toHaveValue("23:00");
+    });
+
+    it("shows the stored end time in the To input", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true, quietHoursEnd: "07:00" },
+      });
+      render(<NotificationSettings />);
+      expect(screen.getByLabelText("To")).toHaveValue("07:00");
+    });
+
+    it("changing the start time writes to the store", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true },
+      });
+      render(<NotificationSettings />);
+      fireEvent.change(screen.getByLabelText("From"), { target: { value: "21:00" } });
+      expect(prefs().quietHoursStart).toBe("21:00");
+    });
+
+    it("changing the end time writes to the store", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true },
+      });
+      render(<NotificationSettings />);
+      fireEvent.change(screen.getByLabelText("To"), { target: { value: "09:00" } });
+      expect(prefs().quietHoursEnd).toBe("09:00");
+    });
+
+    it("shows a hint message while quiet hours are enabled", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true },
+      });
+      render(<NotificationSettings />);
+      expect(screen.getByText("quietHours.hint")).toBeInTheDocument();
+    });
+
+    it("does not show the hint while quiet hours are disabled", () => {
+      render(<NotificationSettings />);
+      expect(screen.queryByText("quietHours.hint")).not.toBeInTheDocument();
+    });
+
+    it("reset restores quietHoursEnabled to its default (false)", () => {
+      useSettingsStore.setState({
+        notifications: { ...DEFAULT_NOTIFICATION_PREFS, quietHoursEnabled: true },
+      });
+      render(<NotificationSettings />);
+      fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
+      expect(prefs().quietHoursEnabled).toBe(false);
+      expect(prefs().quietHoursStart).toBe("22:00");
+      expect(prefs().quietHoursEnd).toBe("08:00");
     });
   });
 });

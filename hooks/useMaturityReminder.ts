@@ -33,6 +33,35 @@ function daysUntilDate(date: string, now = new Date()): number {
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * Returns `true` when the given `now` falls within the quiet-hours window
+ * [start, end). The window is expressed as 24-hour "HH:MM" strings in the
+ * user's local time zone. When start > end (e.g. "22:00"–"08:00") the window
+ * wraps around midnight.
+ */
+export function isInQuietHours(
+  start: string,
+  end: string,
+  now = new Date()
+): boolean {
+  // Convert "HH:MM" to minutes-since-midnight for straightforward comparison.
+  function toMinutes(hhmm: string): number {
+    const [h = "0", m = "0"] = hhmm.split(":");
+    return parseInt(h, 10) * 60 + parseInt(m, 10);
+  }
+
+  const startMin = toMinutes(start);
+  const endMin = toMinutes(end);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  if (startMin <= endMin) {
+    // Same-day window, e.g. 08:00–22:00.
+    return nowMin >= startMin && nowMin < endMin;
+  }
+  // Overnight window, e.g. 22:00–08:00.
+  return nowMin >= startMin || nowMin < endMin;
+}
+
 export function isRepaymentDueSoon(invoice: Invoice, now = new Date()): boolean {
   if (invoice.status !== "fully_funded") return false;
   const daysLeft = daysUntilDate(invoice.terms.repaymentDate, now);
@@ -58,6 +87,13 @@ export function useMaturityReminder(invoices: Invoice[]) {
   useEffect(() => {
     if (!notifications.maturityReminder || invoices.length === 0) return;
 
+    if (
+      notifications.quietHoursEnabled &&
+      isInQuietHours(notifications.quietHoursStart, notifications.quietHoursEnd)
+    ) {
+      return;
+    }
+
     invoices.forEach((invoice) => {
       const daysLeft = daysUntilDate(invoice.terms.repaymentDate);
       if (daysLeft !== notifications.maturityReminderDays) return;
@@ -70,7 +106,7 @@ export function useMaturityReminder(invoices: Invoice[]) {
       );
       markShown(REMINDER_STORAGE_KEY, reminderKey);
     });
-  }, [invoices, notifications.maturityReminder, notifications.maturityReminderDays, toast]);
+  }, [invoices, notifications.maturityReminder, notifications.maturityReminderDays, notifications.quietHoursEnabled, notifications.quietHoursStart, notifications.quietHoursEnd, toast]);
 
   useEffect(() => {
     if (!notifications.repaymentAlerts || invoices.length === 0) return;

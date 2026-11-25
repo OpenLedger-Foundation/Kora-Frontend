@@ -147,6 +147,71 @@ export function NotificationSettings() {
         </select>
       </div>
 
+      {/* ── Quiet hours ──────────────────────────────────────────────────── */}
+      <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">{t("quietHours.label")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t("quietHours.description")}</p>
+          </div>
+          <Toggle
+            checked={notifications.quietHoursEnabled}
+            onChange={(next) => setNotifications({ quietHoursEnabled: next })}
+            ariaLabel={t("quietHours.toggleAriaLabel")}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label
+              htmlFor="quiet-hours-start"
+              className={[
+                "block text-xs font-medium",
+                notifications.quietHoursEnabled ? "text-foreground" : "text-muted-foreground",
+              ].join(" ")}
+            >
+              {t("quietHours.startLabel")}
+            </label>
+            <input
+              type="time"
+              id="quiet-hours-start"
+              value={notifications.quietHoursStart}
+              onChange={(e) => setNotifications({ quietHoursStart: e.target.value })}
+              disabled={!notifications.quietHoursEnabled}
+              aria-label={t("quietHours.startLabel")}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="quiet-hours-end"
+              className={[
+                "block text-xs font-medium",
+                notifications.quietHoursEnabled ? "text-foreground" : "text-muted-foreground",
+              ].join(" ")}
+            >
+              {t("quietHours.endLabel")}
+            </label>
+            <input
+              type="time"
+              id="quiet-hours-end"
+              value={notifications.quietHoursEnd}
+              onChange={(e) => setNotifications({ quietHoursEnd: e.target.value })}
+              disabled={!notifications.quietHoursEnabled}
+              aria-label={t("quietHours.endLabel")}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            />
+          </div>
+        </div>
+        {notifications.quietHoursEnabled && (
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {t("quietHours.hint", {
+              start: notifications.quietHoursStart,
+              end: notifications.quietHoursEnd,
+            })}
+          </p>
+        )}
+      </div>
+
       <Button
         variant="outline"
         size="sm"

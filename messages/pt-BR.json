@@ -1016,6 +1016,14 @@
       },
       "resetDefaults": "Restaurar padrões",
       "toggleAriaLabel": "Alternar {label}",
+      "quietHours": {
+        "label": "Horas de Silêncio",
+        "description": "Silencie os lembretes de vencimento durante os horários definidos.",
+        "toggleAriaLabel": "Alternar horas de silêncio",
+        "startLabel": "De",
+        "endLabel": "Até",
+        "hint": "Os lembretes são silenciados das {start} às {end}."
+      },
       "tourSection": {
         "title": "Tour de Integração"
       },
