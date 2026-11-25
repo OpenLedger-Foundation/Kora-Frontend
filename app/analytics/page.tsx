@@ -31,7 +31,12 @@ import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
 import { usePositions } from "@/hooks/usePositions";
-import { buildDigestDocument, buildDigestMailto, digestFilename } from "@/lib/portfolioDigest";
+import {
+  buildDigestDocument,
+  buildDigestMailto,
+  digestDashboardLink,
+  digestFilename,
+} from "@/lib/portfolioDigest";
 import { renderDigestPdf } from "@/lib/portfolioDigestPdf";
 import {
   useUIStore,
@@ -199,8 +204,11 @@ function PortfolioAnalyticsInner() {
   // Issue #710: mailto share for advisors/forwarding — summary stats only,
   // no position-level rows (see buildDigestMailto's doc comment for why).
   const handleShareDigest = useCallback(() => {
-    window.location.href = buildDigestMailto(buildDigest(), (value) =>
-      formatCurrency(value, "USDC")
+    window.location.href = buildDigestMailto(
+      buildDigest(),
+      (value) => formatCurrency(value, "USDC"),
+      "",
+      digestDashboardLink(window.location.origin)
     );
   }, [buildDigest, formatCurrency]);
 

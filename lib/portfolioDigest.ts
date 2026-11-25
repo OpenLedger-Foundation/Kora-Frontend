@@ -197,6 +197,14 @@ export function digestFilename(date: Date = new Date()): string {
   return `kora-portfolio-digest-${yyyy}-${mm}-${dd}`;
 }
 
+/** Element id on the investor dashboard that digest deep links land on. */
+export const DIGEST_DASHBOARD_SECTION_ID = "investor-positions-card";
+
+/** Absolute deep link from a digest email into the investor positions section. */
+export function digestDashboardLink(origin: string): string {
+  return `${origin}/dashboard/investor#${DIGEST_DASHBOARD_SECTION_ID}`;
+}
+
 /**
  * Build a `mailto:` URL for sharing the digest.
  *
@@ -209,7 +217,8 @@ export function digestFilename(date: Date = new Date()): string {
 export function buildDigestMailto(
   doc: DigestDocument,
   formatCurrency: (value: number) => string,
-  to = ""
+  to = "",
+  dashboardUrl?: string
 ): string {
   const subject = `Kora portfolio digest — ${doc.generatedAt.slice(0, 10)}`;
   const body = [
@@ -220,6 +229,7 @@ export function buildDigestMailto(
     `Expected return: ${formatCurrency(doc.summary.totalExpectedReturn)}`,
     "",
     `Filters — ${doc.filterSummary}`,
+    ...(dashboardUrl ? ["", dashboardUrl] : []),
     "",
     "The full PDF is attached separately.",
   ].join("\n");
