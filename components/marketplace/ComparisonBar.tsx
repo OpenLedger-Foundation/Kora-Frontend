@@ -21,6 +21,7 @@ import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { isEnabled } from "@/lib/featureFlags";
 import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 import { ComparisonTable } from "./ComparisonTable";
+import { FeatureFlagKillSwitchBanner } from "./FeatureFlagKillSwitchBanner";
 
 export function ComparisonBar() {
   const tInvoiceCard = useTranslations("invoiceCard");
@@ -85,7 +86,14 @@ export function ComparisonBar() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [comparisonList, isComparisonEnabled, pathname, router, searchParams]);
 
-  if (!isComparisonEnabled) return null;
+  if (!isComparisonEnabled) {
+    return (
+      <FeatureFlagKillSwitchBanner
+        flag="comparison"
+        className="fixed bottom-4 right-4 z-40 max-w-xs shadow-lg"
+      />
+    );
+  }
 
   // Resolve selected invoices from store list + token map (live indexer shape)
   const invoiceIndex = [

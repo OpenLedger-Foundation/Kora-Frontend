@@ -1746,5 +1746,8 @@
       "optionsLoaded": "{count, plural, =0 {No hay opciones disponibles} one {# opción disponible} other {# opciones disponibles}}",
       "loadError": "No se pudieron cargar las opciones"
     }
+  },
+  "featureFlags": {
+    "featureDisabled": "Esta función está desactivada actualmente ({flag})."
   }
 }
