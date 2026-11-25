@@ -190,3 +190,49 @@ Run `npm run test:a11y` (if available) to audit landmark structure. Manual verif
 3. Verify `banner`, `main`, and `contentinfo` are announced and navigable.
 4. Confirm footer's label reads "Kora Protocol copyright" or similar localized text.
 
+## Wallet Connect States
+
+Source: `components/wallet/WalletConnectModal.tsx` (the connect dialog) and `components/wallet/WalletButton.tsx` (the navbar trigger). Any new wallet UI should match these states rather than inventing its own.
+
+### Trigger (`WalletButton`)
+
+| State | Rendered | A11y |
+| ----- | -------- | ---- |
+| Disconnected | `Button` (`size="sm"`) labelled `wallet.connect` | Native button; keyboard and focus reachable. Preloads the wallet kit on hover and focus. |
+| Connected | Menu button showing the truncated address and network chip | `aria-label` reads `Wallet menu`, with ` - Wrong network` or ` - Reconnect required` appended when relevant. |
+| Wrong network | Destructive border and `AlertCircle` icon | The state is conveyed in the `aria-label` suffix, not colour alone. |
+| Reconnect required | Warning border; `reconnect-prompt` block with `role="alert"` | The alert is announced when shown. |
+
+### Connect dialog (`WalletConnectModal`)
+
+Built on the `Dialog` primitive, so focus is trapped and restored to the trigger on close. Escape closes the dialog except while a connection is in progress.
+
+| State | Trigger condition | What the user sees | A11y |
+| ----- | ----------------- | ------------------ | ---- |
+| Idle | Dialog open, no attempt running | One row per wallet. Installed wallets show a `Connect <name>` button. Missing wallets show an `Install` link (desktop) or `Open <name> mobile app` (mobile, when a deep link exists). | Each action has an explicit `aria-label`. External install links use `rel="noopener noreferrer"`. The first action receives initial focus. |
+| Health badge | Provider probe returns `ready`, `missing`, `locked`, `unsupported_network` or `error` | A coloured pill plus the probe message. `missing` and `unsupported_network` disable the Connect button. | Badge text carries the meaning; colour is not the only signal. |
+| Connecting | `connectWallet` in flight | Row border tints primary, a spinning `Loader2` appears, and the row's buttons are disabled. | The dialog sets `aria-busy="true"`. Escape is ignored. The spinner is `aria-hidden`. |
+| Deep-link waiting | Mobile deep link opened and the app is in the background | Inline banner with `role="status"` and `aria-live="polite"`. Connection is attempted again when the page becomes visible (800 ms debounce). | Polite live region, so the message does not interrupt. |
+| Error | `connectWallet` throws | Row border turns destructive, the error message appears (clamped to 2 lines), and a `Retry` button replaces Connect. | Retry is a native button. The error text is not in a live region (see gaps). |
+| Success | `connectWallet` resolves | The list is replaced by a confirmation card. The dialog closes after 1.5 s. | Motion is a fade and scale. The success text is not in a live region (see gaps). |
+
+Motion in these states uses `framer-motion`. Honour `prefers-reduced-motion` through the shared guard in `components/ui/animations.tsx` when you add new motion.
+
+### Layout
+
+- **Mobile and desktop:** the same row layout is used. Only the action differs: `Install` on desktop, `Open in app` on mobile when a deep link exists.
+- **Keyboard:** tab order is top to bottom through the rows, then the read-only watch input, then the Terms link.
+- **Touch targets:** the action buttons are `py-1` text buttons. Keep them at least 24×24 px on mobile when you change them.
+
+### Known a11y gaps
+
+These are documented here so they are not copied into new components.
+
+1. The error message and the success card are not in an `aria-live` region, so screen-reader users may not hear the outcome.
+2. The read-only watch input has only a `placeholder`, with no `<label>`.
+3. Some copy is hardcoded English (`Or browse in read-only mode`, `Paste a G-address to watch...`, `Watch`, `Connect`, and the `Verified` / `Pending Review` labels in `WalletButton`). Move these into the `wallet` namespace when touched.
+
+### Storybook coverage
+
+No Storybook script is wired (see [Storybook](#storybook)), so these states are not yet covered by stories. When adding them, create `components/wallet/WalletConnectModal.stories.tsx` with one story per row of the table above, and add the snapshot to `__tests__/stories.snapshot.test.tsx`.
+
