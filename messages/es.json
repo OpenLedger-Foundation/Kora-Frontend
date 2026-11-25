@@ -1304,7 +1304,8 @@
     "totalFees": "Comisiones totales ({rate})",
     "total": "Total a pagar",
     "noFees": "Esta adquisición no tiene comisiones.",
-    "listingNote": "El comprador paga {rate} en comisiones sobre el precio solicitado."
+    "listingNote": "El comprador paga {rate} en comisiones sobre el precio solicitado.",
+    "tooltipTriggerLabel": "Ver desglose de comisiones"
   },
   "concentrationRisk": {
     "title": "Riesgo de concentración",

@@ -1304,7 +1304,8 @@
     "totalFees": "إجمالي الرسوم ({rate})",
     "total": "المبلغ المستحق",
     "noFees": "لا توجد رسوم على هذا الاستحواذ.",
-    "listingNote": "يدفع المشتري {rate} رسومًا فوق السعر المطلوب."
+    "listingNote": "يدفع المشتري {rate} رسومًا فوق السعر المطلوب.",
+    "tooltipTriggerLabel": "عرض تفاصيل الرسوم"
   },
   "concentrationRisk": {
     "title": "مخاطر التركّز",

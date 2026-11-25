@@ -1304,7 +1304,8 @@
     "totalFees": "Taxas totais ({rate})",
     "total": "Total a pagar",
     "noFees": "Esta aquisição não possui taxas.",
-    "listingNote": "O comprador paga {rate} em taxas sobre o preço pedido."
+    "listingNote": "O comprador paga {rate} em taxas sobre o preço pedido.",
+    "tooltipTriggerLabel": "Ver detalhamento de taxas"
   },
   "concentrationRisk": {
     "title": "Risco de concentração",

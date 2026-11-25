@@ -30,6 +30,7 @@ import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
 import { AcceptTransferDialog } from "@/components/invoice/AcceptTransferDialog";
 import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
+import { FeeTooltip } from "@/components/secondary/FeeTooltip";
 import { useAcquirePositionFlow, useTransferPositionFlow } from "@/hooks/useTransaction";
 import { useWallet } from "@/hooks/useWallet";
 import { env } from "@/lib/env";
@@ -500,8 +501,14 @@ function SecondaryMarketplaceContent() {
                       {/* Financial Metrics */}
                       <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/60 p-3 text-xs">
                         <div>
-                          <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
+                          <span className="flex items-center gap-1 text-zinc-400 text-[10px] uppercase tracking-wider">
                             {t("askPrice")}
+                            {/* Issue #1247: inline fee tooltip trigger with accessible name */}
+                            <FeeTooltip
+                              fees={computeAcquisitionFees(item.listing.askPrice, feeSchedule)}
+                              side="right"
+                              className="inline-flex"
+                            />
                           </span>
                           <span className="text-sm font-semibold text-white">
                             {formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}
