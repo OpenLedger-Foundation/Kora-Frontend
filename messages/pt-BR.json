@@ -310,7 +310,8 @@
       "copied": "Copiado!",
       "clearAriaLabel": "Limpar todas as comparações",
       "selectAtLeastTwo": "Selecione pelo menos 2 faturas para comparar",
-      "openTable": "Abrir tabela de comparação"
+      "openTable": "Abrir tabela de comparação",
+      "maxReached": "Máx atingido"
     },
     "watchlist": {
       "ariaLabel": "Lista de monitoramento de faturas",
