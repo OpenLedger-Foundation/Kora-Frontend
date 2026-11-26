@@ -117,6 +117,55 @@ export function getDebtorAriaLabel(
 }
 
 /**
+ * Print redaction rules (#1182).
+ *
+ * Paper and saved PDFs leave the app's access controls behind, so printing
+ * never reveals more than "partial", whatever the screen shows:
+ *  - the post-funding "full" reveal does NOT apply to print;
+ *  - a declared "full" invoice prints as "partial" (name, no street address);
+ *  - "anonymized" stays anonymized.
+ */
+export function getPrintDebtorPrivacy(invoice: Partial<Invoice>): DebtorPrivacyLevel {
+  return getEffectiveDebtorPrivacy(invoice, false) === "anonymized" ? "anonymized" : "partial";
+}
+
+/** Debtor name safe for print output. */
+export function getPrintDebtorName(invoice: Partial<Invoice>): string {
+  return getMaskedDebtorName({ ...invoice, debtorPrivacy: getPrintDebtorPrivacy(invoice) }, false);
+}
+
+/** Debtor address line safe for print output — never a street address. */
+export function getPrintDebtorAddress(invoice: Partial<Invoice>): string {
+  return getMaskedDebtorAddress({ ...invoice, debtorPrivacy: getPrintDebtorPrivacy(invoice) }, false);
+}
+
+/**
+ * Stellar account (G…), contract (C…) and muxed (M…) strkeys. Muxed
+ * addresses are 69 characters; accounts and contracts are 56.
+ */
+const STELLAR_ADDRESS_RE = /\b[GCM][A-Z2-7]{55}(?:[A-Z2-7]{13})?\b/g;
+
+/** True when `text` contains a full Stellar address. */
+export function containsStellarAddress(text: string | null | undefined): boolean {
+  if (!text) return false;
+  STELLAR_ADDRESS_RE.lastIndex = 0;
+  return STELLAR_ADDRESS_RE.test(text);
+}
+
+/**
+ * Replace every full Stellar address in `text` with a truncated form
+ * (`GABC…WXYZ`) so free text shown or stored on a shared machine — command
+ * palette recents (#1181), printouts (#1182) — never carries a full address.
+ */
+export function redactStellarAddresses(text: string, chars = 4): string {
+  if (!text) return "";
+  return text.replace(
+    STELLAR_ADDRESS_RE,
+    (address) => `${address.slice(0, chars)}…${address.slice(-chars)}`
+  );
+}
+
+/**
  * Masking validation helpers
  */
 export function isDebtorAnonymized(invoice: Partial<Invoice>, isFunded = false): boolean {

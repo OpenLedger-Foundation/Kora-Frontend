@@ -57,33 +57,115 @@ export async function exportPdf(elementId: string, filename: string): Promise<vo
 }
 
 /**
+ * Field delimiter for a locale's CSV (#1179). Locales whose decimal separator
+ * is "," (es, pt-BR, …) use ";" — the convention spreadsheet apps apply for
+ * those locales — so localized amounts like "1.234,56" stay in one column.
+ */
+export function csvDelimiterForLocale(locale?: string): "," | ";" {
+  if (!locale) return ",";
+  try {
+    const decimal = new Intl.NumberFormat(locale)
+      .formatToParts(1.5)
+      .find((part) => part.type === "decimal")?.value;
+    return decimal === "," ? ";" : ",";
+  } catch {
+    return ",";
+  }
+}
+
+/**
+ * Locale-aware number for CSV cells. Non-numeric input is returned unchanged
+ * (trimmed) instead of becoming "NaN", so a malformed amount never corrupts
+ * the export.
+ */
+export function formatCsvNumber(value: unknown, locale?: string): string {
+  if (value == null || value === "") return "";
+  const num = typeof value === "number" ? value : Number(String(value).trim());
+  if (!Number.isFinite(num)) return String(value).trim();
+  try {
+    return new Intl.NumberFormat(locale, {
+      useGrouping: false,
+      maximumFractionDigits: 7, // Stellar amounts have 7 decimal places
+    }).format(num);
+  } catch {
+    return String(num);
+  }
+}
+
+/**
+ * Locale-aware date/time for CSV cells. Invalid dates yield "" rather than
+ * "Invalid Date".
+ */
+export function formatCsvDate(value: string | number | Date, locale?: string): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      timeZoneName: "short",
+    }).format(date);
+  } catch {
+    return date.toISOString();
+  }
+}
+
+export interface CsvOptions {
+  /** Field delimiter. Defaults to "," (or the locale's, via `locale`). */
+  delimiter?: "," | ";";
+  /** Picks the delimiter via {@link csvDelimiterForLocale} when `delimiter` is unset. */
+  locale?: string;
+  /** Header labels to display, keyed by column; defaults to the column key. */
+  headerLabels?: Record<string, string>;
+}
+
+/** Serializes rows to CSV text (RFC 4180 quoting). Pure; used by `exportCsv`. */
+export function buildCsv<T extends Record<string, unknown>>(
+  data: T[],
+  headers?: string[],
+  options: CsvOptions = {}
+): string {
+  const cols = headers ?? (data.length ? Object.keys(data[0]) : []);
+  if (!cols.length) return "";
+  const delimiter = options.delimiter ?? csvDelimiterForLocale(options.locale);
+
+  const escape = (val: unknown): string => {
+    const str = val == null ? "" : String(val);
+    return str.includes(delimiter) || str.includes('"') || str.includes("\n") || str.includes("\r")
+      ? `"${str.replace(/"/g, '""')}"`
+      : str;
+  };
+
+  const headerRow = cols.map((c) => escape(options.headerLabels?.[c] ?? c)).join(delimiter);
+  const rows = data.map((row) => cols.map((h) => escape(row[h])).join(delimiter));
+  return [headerRow, ...rows].join("\n");
+}
+
+/**
  * exportCsv — converts an array of objects to a CSV file and triggers download.
  *
  * @param data      - array of plain objects
  * @param filename  - output filename (with or without .csv extension)
+ * @param headers   - column keys/order (defaults to the first row's keys)
+ * @param options   - delimiter/locale/header labels (see {@link CsvOptions})
  */
 export function exportCsv<T extends Record<string, unknown>>(
   data: T[],
   filename: string,
-  headers?: string[]
+  headers?: string[],
+  options: CsvOptions = {}
 ): void {
-  const cols = headers ?? (data.length ? Object.keys(data[0]) : []);
-  if (!cols.length) return;
+  const csv = buildCsv(data, headers, options);
+  if (!csv) return;
 
-  const rows = data.map((row) =>
-    cols
-      .map((h) => {
-        const val = row[h];
-        const str = val == null ? "" : String(val);
-        return str.includes(",") || str.includes('"') || str.includes("\n")
-          ? `"${str.replace(/"/g, '""')}"`
-          : str;
-      })
-      .join(",")
-  );
-
-  const csv = [cols.join(","), ...rows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  // A UTF-8 BOM makes spreadsheet apps decode accented headers (es, pt-BR)
+  // correctly instead of guessing a legacy codepage.
+  const bom = options.locale ? "﻿" : "";
+  const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
 
   const link = document.createElement("a");

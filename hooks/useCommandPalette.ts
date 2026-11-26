@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import { useUIStore } from "@/store/uiStore";
+import { containsStellarAddress, redactStellarAddresses } from "@/lib/debtorPrivacy";
 
 const RECENT_KEY = "kora-cmd-recent";
 const MAX_RECENT = 5;
@@ -27,10 +28,36 @@ export const COMMAND_PALETTE_SHORTCUTS: Array<{
   { label: "Esc", description: "Close command palette" },
 ];
 
+/**
+ * Privacy redaction for recent destinations (#1181). Recents live in
+ * localStorage, readable by anyone using the same browser, so:
+ *  - full Stellar addresses in labels are truncated (`GABC…WXYZ`);
+ *  - destinations whose URL embeds a full address are not kept at all,
+ *    because the href cannot be truncated without breaking navigation;
+ *  - malformed entries (corrupted or hand-edited storage) are dropped.
+ * Returns `null` when the item must not be stored or shown.
+ */
+export function sanitizeRecentItem(item: unknown): RecentItem | null {
+  if (!item || typeof item !== "object") return null;
+  const { id, label, href, type } = item as Partial<RecentItem>;
+  if (typeof id !== "string" || typeof label !== "string" || typeof href !== "string") {
+    return null;
+  }
+  if (type !== "page" && type !== "invoice") return null;
+  if (containsStellarAddress(href) || containsStellarAddress(id)) return null;
+  return { id, href, type, label: redactStellarAddresses(label) };
+}
+
 function loadRecent(): RecentItem[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    // Also redacts entries written before #1181 existed.
+    return parsed
+      .map(sanitizeRecentItem)
+      .filter((item): item is RecentItem => item !== null)
+      .slice(0, MAX_RECENT);
   } catch {
     return [];
   }
@@ -38,7 +65,11 @@ function loadRecent(): RecentItem[] {
 
 function saveRecent(items: RecentItem[]) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(RECENT_KEY, JSON.stringify(items));
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(items));
+  } catch {
+    // Storage full or blocked: recents are a convenience, never fail navigation.
+  }
 }
 
 export function useCommandPalette() {
@@ -60,8 +91,10 @@ export function useCommandPalette() {
   const getRecent = useCallback((): RecentItem[] => loadRecent(), []);
 
   const pushRecent = useCallback((item: RecentItem) => {
-    const prev = loadRecent().filter((r) => r.id !== item.id);
-    saveRecent([item, ...prev].slice(0, MAX_RECENT));
+    const safe = sanitizeRecentItem(item);
+    if (!safe) return;
+    const prev = loadRecent().filter((r) => r.id !== safe.id);
+    saveRecent([safe, ...prev].slice(0, MAX_RECENT));
   }, []);
 
   const clearRecent = useCallback(() => {

@@ -723,6 +723,20 @@
     }
   },
   "transactions": {
+    "csv": {
+      "columns": {
+        "hash": "Transaction hash",
+        "type": "Type",
+        "status": "Status",
+        "amount": "Amount",
+        "asset": "Asset",
+        "date": "Date",
+        "timestampUtc": "Timestamp (UTC, ISO 8601)",
+        "description": "Description",
+        "error": "Error"
+      },
+      "exportFailed": "Could not export transactions. Please try again."
+    },
     "title": "Transaction History",
     "subtitle": "Your complete on-chain activity on Kora Protocol",
     "exportCsv": "Export CSV",

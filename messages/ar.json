@@ -723,6 +723,20 @@
     }
   },
   "transactions": {
+    "csv": {
+      "columns": {
+        "hash": "رمز المعاملة",
+        "type": "النوع",
+        "status": "الحالة",
+        "amount": "المبلغ",
+        "asset": "الأصل",
+        "date": "التاريخ",
+        "timestampUtc": "الطابع الزمني (UTC، ISO 8601)",
+        "description": "الوصف",
+        "error": "خطأ"
+      },
+      "exportFailed": "تعذّر تصدير المعاملات. يرجى المحاولة مرة أخرى."
+    },
     "title": "سجل المعاملات",
     "subtitle": "نشاطك الكامل على السلسلة في بروتوكول Kora",
     "exportCsv": "تصدير CSV",
