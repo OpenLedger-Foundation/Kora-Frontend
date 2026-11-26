@@ -32,6 +32,77 @@ export function TxToast({ message, txHash, txLinkLabel }: TxToastProps) {
   );
 }
 
+interface SupportCodeToastProps {
+  message: string;
+  description?: string;
+  supportCode: string;
+  toastId: string | number;
+  supportCodeLabel: string;
+  copyLabel: string;
+  copiedLabel: string;
+  dismissLabel: string;
+}
+
+export function SupportCodeToast({
+  message,
+  description,
+  supportCode,
+  toastId,
+  supportCodeLabel,
+  copyLabel,
+  copiedLabel,
+  dismissLabel,
+}: SupportCodeToastProps) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async () => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(supportCode);
+      }
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <div role="alert" aria-live="assertive" className="flex flex-col gap-2 w-full">
+      <div className="flex flex-col gap-0.5">
+        <span className="font-semibold text-destructive">{message}</span>
+        {description && (
+          <span className="text-xs text-muted-foreground">{description}</span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mt-1">
+        <span className="text-xs text-muted-foreground">{supportCodeLabel}</span>
+        <code
+          aria-label={`${supportCodeLabel}: ${supportCode}`}
+          className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-foreground select-all"
+        >
+          {supportCode}
+        </code>
+        <button
+          type="button"
+          onClick={handleCopy}
+          aria-label={copied ? copiedLabel : copyLabel}
+          className="rounded border border-border bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          {copied ? copiedLabel : copyLabel}
+        </button>
+      </div>
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          onClick={() => toast.dismiss(toastId)}
+          className="rounded border border-border bg-transparent px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        >
+          {dismissLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface ErrorToastProps {
   message: string;
   description?: string;
@@ -142,6 +213,7 @@ export function ErrorToast({
 export function useToast() {
   const notificationPreferences = useSettingsStore((s) => s.notifications);
   const t = useTranslations("transaction");
+  const tTransition = useTranslations("statusTransition");
 
   const shouldNotify = (type?: NotificationPreferenceType) => {
     if (!type) return true;
@@ -229,6 +301,36 @@ export function useToast() {
     );
   };
 
+  /**
+   * Illegal invoice state transition — Issue #1259.
+   *
+   * Renders the localized illegal-transition message together with a stable
+   * support code so support can correlate a user report with the exact
+   * transition that was rejected.
+   */
+  const showIllegalTransition = (
+    supportCode: string,
+    description?: string,
+    id?: string | number,
+    type?: NotificationPreferenceType
+  ) => {
+    const toastId = id ?? Math.random().toString();
+    if (!shouldNotify(type)) return toastId;
+    return toast.error(
+      <SupportCodeToast
+        message={tTransition("illegalTransition")}
+        description={description}
+        supportCode={supportCode}
+        toastId={toastId}
+        supportCodeLabel={tTransition("supportCodeLabel")}
+        copyLabel={tTransition("copyCode")}
+        copiedLabel={tTransition("copiedCode")}
+        dismissLabel={t("dismiss")}
+      />,
+      { id: toastId, duration: Infinity }
+    );
+  };
+
   const dismiss = (id?: string | number) => {
     toast.dismiss(id);
   };
@@ -238,6 +340,7 @@ export function useToast() {
     success: showSuccess,
     error: showError,
     info: showInfo,
+    illegalTransition: showIllegalTransition,
     dismiss,
   };
 }

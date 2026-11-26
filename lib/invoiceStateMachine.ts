@@ -163,6 +163,55 @@ export function getTransition(
   return getAllowedTransitions(from).find((t) => t.to === to) ?? null;
 }
 
+// ─── Illegal transition support codes (#1259) ────────────────────────────────
+
+/**
+ * Prefix for all invoice state-machine support codes. Kept stable so support
+ * tooling can grep logs / screenshots for a single token.
+ */
+export const ILLEGAL_TRANSITION_CODE_PREFIX = "INV-TRANS";
+
+/**
+ * Returns a deterministic, stable support code for an illegal transition.
+ *
+ * The code is derived purely from the `from`/`to` statuses so it is identical
+ * across sessions, devices and locales — support can reproduce an issue from
+ * the code alone. Example: `INV-TRANS-LISTED-REPAID`.
+ */
+export function getIllegalTransitionSupportCode(
+  from: InvoiceStatus,
+  to: InvoiceStatus
+): string {
+  const normalize = (status: InvoiceStatus) => status.toUpperCase().replace(/_/g, "-");
+  return `${ILLEGAL_TRANSITION_CODE_PREFIX}-${normalize(from)}-${normalize(to)}`;
+}
+
+/** Structured payload describing an illegal transition. */
+export interface IllegalTransitionMessage {
+  /** Stable support code, e.g. `INV-TRANS-LISTED-REPAID`. */
+  code: string;
+  /** The status the invoice was in. */
+  from: InvoiceStatus;
+  /** The status the caller attempted to reach. */
+  to: InvoiceStatus;
+}
+
+/**
+ * Returns a structured description of an illegal transition, including the
+ * stable support code. Used by the toast so the code can be surfaced to users
+ * and copied into support tickets.
+ */
+export function getIllegalTransitionMessage(
+  from: InvoiceStatus,
+  to: InvoiceStatus
+): IllegalTransitionMessage {
+  return {
+    code: getIllegalTransitionSupportCode(from, to),
+    from,
+    to,
+  };
+}
+
 /**
  * Stable support codes for blocked invoice transitions.
  *
@@ -242,6 +291,39 @@ export function getBlockedReason(
   walletConnected = true
 ): string | null {
   return getBlockedTransition(from, to, isOwner, walletConnected)?.reason ?? null;
+}
+
+/** A blocked-reason result that optionally carries a support code. */
+export interface BlockedReasonWithCode {
+  /** Human-readable reason, or `null` when the transition is allowed. */
+  reason: string | null;
+  /**
+   * Stable support code for illegal transitions, or `null` for allowed
+   * transitions and for wallet/owner blocks (which are user-actionable and
+   * do not need a support code).
+   */
+  code: string | null;
+}
+
+/**
+ * Like {@link getBlockedReason}, but also returns the stable support code when
+ * the transition is illegal per the state machine. Wallet/owner checks keep
+ * their existing behaviour and yield `code: null`.
+ */
+export function getBlockedReasonWithCode(
+  from: InvoiceStatus,
+  to: InvoiceStatus,
+  isOwner: boolean,
+  walletConnected = true
+): BlockedReasonWithCode {
+  const reason = getBlockedReason(from, to, isOwner, walletConnected);
+  if (reason === null) {
+    return { reason: null, code: null };
+  }
+  if (walletConnected && isOwner && !isValidTransition(from, to)) {
+    return { reason, code: getIllegalTransitionSupportCode(from, to) };
+  }
+  return { reason, code: null };
 }
 
 /**

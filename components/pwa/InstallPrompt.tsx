@@ -28,7 +28,9 @@ import {
   trackInstallPromptShown,
   trackInstallPromptAccepted,
   trackInstallPromptDismissed,
+  trackInstallPromptUnavailable,
 } from "@/lib/installPromptAnalytics";
+import { useFeatureFlag } from "@/lib/featureFlags";
 
 // ─── LocalStorage keys ────────────────────────────────────────────────────────
 
@@ -90,10 +92,17 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function InstallPrompt() {
   const t = useTranslations("installPrompt");
+  // Analytics are opt-in: missing/undefined flag defaults to off (safe default).
+  const analyticsEnabled = useFeatureFlag("pwa-install-analytics") === true;
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const visitCountRef = useRef(0);
+  const analyticsEnabledRef = useRef(analyticsEnabled);
+
+  useEffect(() => {
+    analyticsEnabledRef.current = analyticsEnabled;
+  }, [analyticsEnabled]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -113,49 +122,67 @@ export function InstallPrompt() {
     const visitCount = incrementVisitCount();
     visitCountRef.current = visitCount;
 
+    let promptFired = false;
+
     const handler = (e: Event) => {
       e.preventDefault();
+      promptFired = true;
       const promptEvent = e as BeforeInstallPromptEvent;
       setDeferredPrompt(promptEvent);
 
       if (visitCount >= 2) {
         // 2nd+ visit: show immediately when the event fires
         setVisible(true);
-        trackInstallPromptShown(visitCount);
+        if (analyticsEnabledRef.current) trackInstallPromptShown(visitCount);
       } else {
         // 1st visit: wait 30 seconds before showing
         timerRef.current = setTimeout(() => {
           setVisible(true);
-          trackInstallPromptShown(visitCount);
+          if (analyticsEnabledRef.current) trackInstallPromptShown(visitCount);
         }, FIRST_VISIT_DELAY_MS);
       }
     };
 
+    // If the browser never fires `beforeinstallprompt` within the delay window,
+    // the prompt is unavailable (e.g. unsupported browser, already installed).
+    const unavailableTimer = setTimeout(() => {
+      if (!promptFired && analyticsEnabledRef.current) {
+        trackInstallPromptUnavailable(visitCount);
+      }
+    }, FIRST_VISIT_DELAY_MS);
+
     window.addEventListener("beforeinstallprompt", handler);
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
+      clearTimeout(unavailableTimer);
       if (timerRef.current !== null) clearTimeout(timerRef.current);
     };
   }, []);
 
   const handleInstall = useCallback(async () => {
     if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      // Permanent dismiss — user installed the app
-      suppressForDays(365 * 10);
-      trackInstallPromptAccepted(visitCountRef.current);
-    } else {
-      trackInstallPromptDismissed(visitCountRef.current);
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        // Permanent dismiss — user installed the app
+        suppressForDays(365 * 10);
+        if (analyticsEnabledRef.current) trackInstallPromptAccepted(visitCountRef.current);
+      } else {
+        if (analyticsEnabledRef.current) trackInstallPromptDismissed(visitCountRef.current);
+      }
+    } catch {
+      // prompt()/userChoice can reject (e.g. prompt already used) — treat as unavailable
+      if (analyticsEnabledRef.current) trackInstallPromptUnavailable(visitCountRef.current);
+    } finally {
+      setDeferredPrompt(null);
+      setVisible(false);
     }
-    setDeferredPrompt(null);
-    setVisible(false);
   }, [deferredPrompt]);
 
   const handleDismiss = useCallback(() => {
     suppressForDays(SUPPRESS_DAYS);
-    trackInstallPromptDismissed(visitCountRef.current);
+    if (analyticsEnabledRef.current) trackInstallPromptDismissed(visitCountRef.current);
     setVisible(false);
     setDeferredPrompt(null);
     if (timerRef.current !== null) {

@@ -1050,6 +1050,7 @@
     "kb": "{count} KB"
   },
   "network": {
+    "serviceUnavailable": "Un servicio de Stellar no está disponible. Vuelve a intentarlo en breve.",
     "operational": "Operacional",
     "degraded": "Degradado",
     "down": "Caído",
