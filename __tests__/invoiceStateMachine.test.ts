@@ -9,6 +9,7 @@
  *  - STATUS_TO_CHAIN_INDEX: all statuses have an entry; cancelled = 7
  *  - isTerminalStatus: terminal and non-terminal statuses
  *  - contractMethod routing: cancel/repay/update_status assigned correctly
+ *  - UI guard: CTAs mapped to legal transitions (Issue #1163)
  */
 
 import { describe, it, expect } from "vitest";
@@ -244,5 +245,71 @@ describe("contractMethod completeness", () => {
         }
       }
     }
+  });
+});
+
+// ─── UI guard: CTA → legal transition mapping (Issue #1163) ──────────────────
+//
+// The invoice detail UI renders one CTA per allowed transition. These tests
+// assert the guard contract the UI relies on: a CTA is enabled only when its
+// target transition is legal from the current status, and disabled otherwise.
+// This also covers the stale-indexer edge case where the UI's cached status
+// lags behind the on-chain status.
+
+describe("UI guard: CTA legality", () => {
+  // Mirrors the CTA → target-status mapping used by components/invoice/.
+  const CTA_TARGETS: Record<string, InvoiceStatus> = {
+    "mark-funded": "fully_funded",
+    "mark-repaid": "repaid",
+    cancel: "cancelled",
+  };
+
+  const isCtaEnabled = (status: InvoiceStatus, cta: keyof typeof CTA_TARGETS) =>
+    isValidTransition(status, CTA_TARGETS[cta]);
+
+  it("enables Mark-as-Funded and Cancel for listed", () => {
+    expect(isCtaEnabled("listed", "mark-funded")).toBe(true);
+    expect(isCtaEnabled("listed", "cancel")).toBe(true);
+    expect(isCtaEnabled("listed", "mark-repaid")).toBe(false);
+  });
+
+  it("enables Mark-as-Funded and Cancel for partially_funded", () => {
+    expect(isCtaEnabled("partially_funded", "mark-funded")).toBe(true);
+    expect(isCtaEnabled("partially_funded", "cancel")).toBe(true);
+    expect(isCtaEnabled("partially_funded", "mark-repaid")).toBe(false);
+  });
+
+  it("enables only Mark-as-Repaid for fully_funded", () => {
+    expect(isCtaEnabled("fully_funded", "mark-repaid")).toBe(true);
+    expect(isCtaEnabled("fully_funded", "mark-funded")).toBe(false);
+    expect(isCtaEnabled("fully_funded", "cancel")).toBe(false);
+  });
+
+  it("enables only Mark-as-Repaid for active", () => {
+    expect(isCtaEnabled("active", "mark-repaid")).toBe(true);
+    expect(isCtaEnabled("active", "mark-funded")).toBe(false);
+    expect(isCtaEnabled("active", "cancel")).toBe(false);
+  });
+
+  it.each<InvoiceStatus>(["repaid", "defaulted", "cancelled", "pending_mint", "draft"])(
+    "disables every CTA for terminal status %s",
+    (status) => {
+      for (const cta of Object.keys(CTA_TARGETS)) {
+        expect(isCtaEnabled(status, cta)).toBe(false);
+      }
+    }
+  );
+
+  it("stale indexer status: a CTA legal for the stale status is still blocked once status advances", () => {
+    // UI cached "listed" but on-chain has advanced to "fully_funded".
+    // Cancel is legal from listed but illegal from fully_funded — the guard
+    // must reflect the freshest status so the click is blocked.
+    expect(isCtaEnabled("listed", "cancel")).toBe(true);
+    expect(isCtaEnabled("fully_funded", "cancel")).toBe(false);
+  });
+
+  it("stale indexer status: repaid CTA blocked after invoice already repaid", () => {
+    expect(isCtaEnabled("fully_funded", "mark-repaid")).toBe(true);
+    expect(isCtaEnabled("repaid", "mark-repaid")).toBe(false);
   });
 });

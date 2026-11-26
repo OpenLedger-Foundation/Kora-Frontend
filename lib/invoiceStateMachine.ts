@@ -205,6 +205,61 @@ export function isTerminalStatus(status: InvoiceStatus): boolean {
   return TERMINAL_STATUSES.has(status);
 }
 
+// ─── UI CTA guards (#1163) ───────────────────────────────────────────────────
+
+/**
+ * A CTA rendered in the invoice UI. Each CTA maps to exactly one target
+ * status; the guard below decides whether it may be clicked.
+ */
+export type InvoiceCta = "mark_funded" | "mark_repaid" | "cancel";
+
+/** Maps each CTA to the target status it would request on-chain. */
+export const CTA_TARGET_STATUS: Record<InvoiceCta, InvoiceStatus> = {
+  mark_funded: "fully_funded",
+  mark_repaid: "repaid",
+  cancel: "cancelled",
+};
+
+export interface CtaGuardResult {
+  /** Whether the CTA may be clicked. */
+  enabled: boolean;
+  /** Whether the CTA should be rendered at all. */
+  visible: boolean;
+  /** Reason the CTA is disabled, or null when enabled. */
+  reason: string | null;
+}
+
+/**
+ * Resolves whether a CTA is enabled/visible for the given invoice status.
+ *
+ * Guards against illegal transitions and stale indexer status: when the
+ * caller passes the last-known on-chain status via `onChainStatus`, the
+ * guard uses that authoritative value instead of the possibly-stale
+ * `displayStatus` from the indexer.
+ */
+export function getCtaGuard(
+  cta: InvoiceCta,
+  displayStatus: InvoiceStatus,
+  options: {
+    isOwner?: boolean;
+    walletConnected?: boolean;
+    /** Authoritative on-chain status, if known. Overrides displayStatus. */
+    onChainStatus?: InvoiceStatus | null;
+  } = {}
+): CtaGuardResult {
+  const { isOwner = true, walletConnected = true, onChainStatus = null } = options;
+  const status = onChainStatus ?? displayStatus;
+  const target = CTA_TARGET_STATUS[cta];
+
+  // Hide CTAs that are not part of the state machine for this status at all.
+  if (!isValidTransition(status, target)) {
+    return { enabled: false, visible: false, reason: null };
+  }
+
+  const reason = getBlockedReason(status, target, isOwner, walletConnected);
+  return { enabled: reason === null, visible: true, reason };
+}
+
 // ─── Amendment eligibility (#568) ────────────────────────────────────────────
 
 /**
@@ -259,74 +314,4 @@ export function getAmendBlockedReason(
     return `Amendments are not allowed for invoices with status "${label}". Only listed or partially funded invoices may be amended.`;
   }
   return null;
-}
-
-// ─── Contract method map (#898) ──────────────────────────────────────────────
-
-/**
- * Maps each transition contract method to the contract call it represents.
- *
- * This is the single source of truth for the invoice state machine ↔ contract
- * boundary. `StatusTransitionButtons` routes on-chain calls through this map
- * instead of casting payloads `as any`, so an unsupported transition fails at
- * type-check time rather than at runtime.
- */
-export interface TransitionContractCall {
-  /** Which contract exposes the method. */
-  contract: "invoice" | "marketplace";
-  /** The contract method name to invoke. */
-  method: "cancelInvoice" | "updateStatus" | "repayInvoice";
-}
-
-export const TRANSITION_CONTRACT_METHODS: Record<
-  TransitionContractMethod,
-  TransitionContractCall
-> = {
-  cancel: { contract: "invoice", method: "cancelInvoice" },
-  update_status: { contract: "invoice", method: "updateStatus" },
-  repay: { contract: "marketplace", method: "repayInvoice" },
-};
-
-/**
- * Resolves the contract call for a transition, or `null` when the transition
- * is not part of the state machine.
- */
-export function getTransitionContractCall(
-  transition: StatusTransition
-): TransitionContractCall {
-  return TRANSITION_CONTRACT_METHODS[transition.contractMethod];
-}
-
-/**
- * Exhaustive switch over invoice statuses.
- *
- * The `never` default arm guarantees that adding a new `InvoiceStatus` without
- * handling it here is a compile-time error, keeping the state machine in sync
- * with the status union.
- */
-export function describeStatus(status: InvoiceStatus): string {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "pending_mint":
-      return "Pending mint";
-    case "listed":
-      return "Listed";
-    case "partially_funded":
-      return "Partially funded";
-    case "fully_funded":
-      return "Fully funded";
-    case "active":
-      return "Active";
-    case "repaid":
-      return "Repaid";
-    case "defaulted":
-      return "Defaulted";
-    case "cancelled":
-      return "Cancelled";
-    default: {
-      const exhaustive: never = status;
-      return exhaustive;
-    }
-  }
 }

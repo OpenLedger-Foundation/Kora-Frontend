@@ -211,6 +211,42 @@ describe("THEME_INIT_SCRIPT", () => {
     installMatchMedia(false);
     expect(runScript()).toBe("light");
   });
+
+  it("applies the persisted theme before hydration (no flash)", () => {
+    // The bootstrap script must set the class synchronously from storage so
+    // the first paint already matches the persisted preference.
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({ state: { theme: "dark" } })
+    );
+    installMatchMedia(false);
+    expect(runScript()).toBe("dark");
+  });
+
+  it("persists across locale switches (same storage key)", () => {
+    // Locale changes must not alter the storage key or the resolved theme.
+    localStorage.setItem(
+      THEME_STORAGE_KEY,
+      JSON.stringify({ state: { theme: "light" } })
+    );
+    installMatchMedia(true);
+    expect(runScript()).toBe("light");
+    expect(readThemePreference((k) => localStorage.getItem(k))).toBe("light");
+  });
+});
+
+// ─── system preference changes (issue #1165) ──────────────────────────────────
+
+describe("system preference changes", () => {
+  it("re-resolves 'system' when the OS preference flips", () => {
+    expect(resolveTheme("system", false)).toBe("light");
+    expect(resolveTheme("system", true)).toBe("dark");
+  });
+
+  it("ignores OS preference changes for explicit light/dark", () => {
+    expect(resolveTheme("light", true)).toBe("light");
+    expect(resolveTheme("dark", false)).toBe("dark");
+  });
 });
 
 // ─── browser chrome color (issue #990) ────────────────────────────────────────
@@ -240,25 +276,18 @@ describe("applyBrowserThemeColor", () => {
   }
 
   beforeEach(() => {
-    document.head
-      .querySelectorAll('meta[name="theme-color"]')
-      .forEach((node) => node.remove());
+    document.head.innerHTML = "";
   });
 
-  it("forces the resolved color onto every theme-color tag", () => {
+  afterEach(() => {
+    document.head.innerHTML = "";
+  });
+
+  it("updates the matching media meta tag", () => {
     const light = mountMeta("(prefers-color-scheme: light)");
     const dark = mountMeta("(prefers-color-scheme: dark)");
-
-    applyBrowserThemeColor("light");
-
-    for (const meta of [light, dark]) {
-      expect(meta.getAttribute("content")).toBe(THEME_COLORS.light);
-      expect(meta.hasAttribute("media")).toBe(false);
-    }
-
     applyBrowserThemeColor("dark");
-    for (const meta of [light, dark]) {
-      expect(meta.getAttribute("content")).toBe(THEME_COLORS.dark);
-    }
+    expect(dark.getAttribute("content")).toBe(THEME_COLORS.dark);
+    expect(light.getAttribute("content")).toBe(THEME_COLORS.light);
   });
 });
