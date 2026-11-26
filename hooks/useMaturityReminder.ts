@@ -68,7 +68,6 @@ export function isWithinQuietHours(config: QuietHoursConfig | undefined, now = n
   // Cross-midnight window, e.g. 22:00 -> 07:00.
   return current >= start || current < end;
 }
-=======
 
 const REMINDER_STORAGE_KEY = "kora-maturity-reminders";
 const REPAYMENT_ALERT_STORAGE_KEY = "kora-repayment-alerts";
