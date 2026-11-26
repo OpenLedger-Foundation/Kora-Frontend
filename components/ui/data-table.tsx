@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import type { ColumnDef, DataTableProps, TableSortDirection } from "@/types/table";
 import { Pagination } from "./pagination";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -92,6 +93,18 @@ export function DataTable<T extends { id: string }>({
   pageSizeParamName = "pageSize",
 }: DataTableProps<T>) {
   const t = useTranslations("dataTable");
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  // Sticky header classes: keep the header sticky in both modes, but only
+  // apply motion-related transitions when the user has not requested reduced
+  // motion. The header remains static (no animated shadow/transition) when
+  // prefers-reduced-motion is enabled.
+  const stickyHeaderClasses = cn(
+    "sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+    prefersReducedMotion
+      ? "shadow-none"
+      : "transition-shadow duration-200 shadow-sm"
+  );
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -434,7 +447,7 @@ export function DataTable<T extends { id: string }>({
       </div>
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full text-sm">
-          <thead className="bg-muted/50">
+          <thead className={stickyHeaderClasses}>
             <tr>
               {enableSelection && (
                 <th className="w-10 px-3 py-2">
