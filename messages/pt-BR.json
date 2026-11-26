@@ -1621,6 +1621,10 @@
       }
     }
   },
+  "killSwitch": {
+    "title": "As ações estão pausadas temporariamente",
+    "description": "Esta ação está desativada nesta implantação. Tente novamente mais tarde."
+  },
   "secondaryMarket": {
     "title": "Mercado Secundário",
     "badge": "Posições Transferíveis P2P",
