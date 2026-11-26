@@ -1178,7 +1178,8 @@
     "pickContact": "اختيار جهة اتصال محفوظة",
     "noContacts": "لا توجد جهات اتصال محفوظة بعد",
     "pickFromAddressBook": "اختيار من دفتر العناوين",
-    "verifiedLabel": "Label verified with signature",
+    "verifiedLabel": "تم التحقق من التسمية بالتوقيع",
+    "unverifiedLabel": "لم يتم التحقق من التسمية: التوقيع مفقود أو غير صالح",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"

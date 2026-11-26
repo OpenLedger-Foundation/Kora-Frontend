@@ -1179,6 +1179,7 @@
     "noContacts": "No saved contacts yet",
     "pickFromAddressBook": "Pick from Address Book",
     "verifiedLabel": "Label verified with signature",
+    "unverifiedLabel": "Label not verified: signature missing or invalid",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"

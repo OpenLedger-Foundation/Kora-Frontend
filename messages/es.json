@@ -1178,7 +1178,8 @@
     "pickContact": "Elegir un contacto guardado",
     "noContacts": "Aún no hay contactos guardados",
     "pickFromAddressBook": "Elegir de la Libreta",
-    "verifiedLabel": "Label verified with signature",
+    "verifiedLabel": "Etiqueta verificada con firma",
+    "unverifiedLabel": "Etiqueta no verificada: firma ausente o inválida",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"
