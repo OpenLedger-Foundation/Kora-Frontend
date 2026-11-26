@@ -1055,6 +1055,7 @@
     "kb": "{count} KB"
   },
   "network": {
+    "serviceUnavailable": "Um serviço da Stellar está indisponível. Tente novamente em instantes.",
     "operational": "Operacional",
     "degraded": "Degradado",
     "down": "Indisponível",
