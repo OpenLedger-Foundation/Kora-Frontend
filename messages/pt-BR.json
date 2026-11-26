@@ -352,6 +352,11 @@
     "maturity": "Vencimento",
     "connectToInvest": "Conecte sua carteira Stellar para visualizar rendimentos e começar a investir.",
     "connectWalletToInvest": "Conectar Carteira para Investir",
+    "insufficientUsdc": {
+      "title": "Saldo USDC insuficiente",
+      "description": "Sua carteira tem {available} USDC, mas este investimento exige {required}. Adquira USDC e atualize seu saldo para continuar.",
+      "acquire": "Adquirir USDC"
+    },
     "selfFundBlocked": "Auto-Financiamento Bloqueado",
     "selfFundDesc": "Você não pode financiar sua própria fatura. As regras de escrow de factoring descoupado restringem os proprietários de faturas de participar como provedores de liquidez.",
     "cannotFundOwn": "Você não pode financiar sua própria fatura",

@@ -352,6 +352,11 @@
     "maturity": "Maturity",
     "connectToInvest": "Connect your Stellar wallet to view yields and start investing.",
     "connectWalletToInvest": "Connect Wallet to Invest",
+    "insufficientUsdc": {
+      "title": "Insufficient USDC balance",
+      "description": "Your wallet has {available} USDC, but this investment needs {required}. Acquire USDC, then refresh your balance to continue.",
+      "acquire": "Acquire USDC"
+    },
     "selfFundBlocked": "Self-Funding Blocked",
     "selfFundDesc": "You cannot fund your own invoice. Decoupled factoring escrow rules restrict invoice owners from bidding as liquidity providers.",
     "cannotFundOwn": "You cannot fund your own invoice",

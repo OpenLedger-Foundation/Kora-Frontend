@@ -352,6 +352,11 @@
     "maturity": "تاريخ الاستحقاق",
     "connectToInvest": "ربط محفظة Stellar الخاصة بك لعرض العوائد وبدء الاستثمار.",
     "connectWalletToInvest": "ربط المحفظة للاستثمار",
+    "insufficientUsdc": {
+      "title": "رصيد USDC غير كافٍ",
+      "description": "تحتوي محفظتك على {available} USDC، لكن هذا الاستثمار يتطلب {required}. احصل على USDC ثم حدّث رصيدك للمتابعة.",
+      "acquire": "الحصول على USDC"
+    },
     "selfFundBlocked": "التمويل الذاتي محظور",
     "selfFundDesc": "لا يمكنك تمويل فاتورتك الخاصة. تحظر قواعد الضمان لعزل الفاكتورينج على مالكي الفواتير المشاركة كمزودي سيولة.",
     "cannotFundOwn": "لا يمكنك تمويل فاتورتك الخاصة",

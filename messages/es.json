@@ -352,6 +352,11 @@
     "maturity": "Vencimiento",
     "connectToInvest": "Conecta tu billetera Stellar para ver rendimientos y comenzar a invertir.",
     "connectWalletToInvest": "Conectar Billetera para Invertir",
+    "insufficientUsdc": {
+      "title": "No tienes suficiente USDC",
+      "description": "Tu billetera tiene {available} USDC, pero esta inversión requiere {required}. Adquiere USDC y luego actualiza tu saldo para continuar.",
+      "acquire": "Adquirir USDC"
+    },
     "selfFundBlocked": "Auto-Financiamiento Bloqueado",
     "selfFundDesc": "No puedes financiar tu propia factura. Las reglas de factoring desacoplado restringen a los propietarios de facturas de participar como proveedores de liquidez.",
     "cannotFundOwn": "No puedes financiar tu propia factura",

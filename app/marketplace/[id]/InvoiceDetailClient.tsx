@@ -65,11 +65,8 @@ import {
 } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { FundingYieldCalculator } from "@/components/invoice/FundingYieldCalculator";
-import { TestnetUsdcFaucet } from "@/components/wallet/TestnetUsdcFaucet";
-import {
-  isTestnetUsdcFaucetEnabled,
-  useUsdcBalance,
-} from "@/hooks/useUsdcBalance";
+import { InsufficientUsdcNotice } from "@/components/invoice/InsufficientUsdcNotice";
+import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 import { exportInvoiceCalendarIcs } from "@/lib/export";
 import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
@@ -196,11 +193,17 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       : balance?.usdc
         ? Number(balance.usdc)
         : null;
-  const showTestnetFaucet =
-    isTestnetUsdcFaucetEnabled() &&
+  // Smallest investment the wallet must cover right now: the entered amount
+  // when there is one, otherwise the listing's minimum ticket.
+  const requiredUsdc = Math.min(
+    fundingState.remainingCapacity,
+    Math.max(amountNum, terms.minInvestment)
+  );
+  const hasInsufficientUsdc =
     isConnected &&
     usdcBalance !== null &&
-    (usdcBalance <= 0 || (amountNum > 0 && amountNum > usdcBalance));
+    requiredUsdc > 0 &&
+    usdcBalance < requiredUsdc;
 
   // Precise holding period Expected Return Calculator
   const expectedReturn =
@@ -1111,10 +1114,11 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                       )}
                     </div>
 
-                    {showTestnetFaucet && (
-                      <TestnetUsdcFaucet
-                        compact
-                        onSuccess={async () => {
+                    {hasInsufficientUsdc && (
+                      <InsufficientUsdcNotice
+                        available={usdcBalance ?? 0}
+                        required={requiredUsdc}
+                        onFaucetSuccess={async () => {
                           await refetchUsdcBalance();
                         }}
                       />

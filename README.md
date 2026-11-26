@@ -578,6 +578,17 @@ NEXT_PUBLIC_USDC_ISSUER=G<your_mainnet_usdc_issuer>
 The env var is read in `config/walletAssets.ts` → `resolveUsdcIssuer()` and
 falls back to the testnet issuer when absent.
 
+### Insufficient USDC funding CTA (Issue #1245)
+
+When a connected wallet's USDC balance is below what the selected investment
+needs, the fund panel explains the shortfall instead of silently disabling the
+fund button. On testnet it offers the one-click USDC faucet; on other networks
+it links to the acquisition page configured by:
+
+```bash
+NEXT_PUBLIC_USDC_ACQUIRE_URL=https://stellar.org/products-and-tools/circle-usdc-eurc
+```
+
 ### EURC trustline
 
 An **Add EURC trustline** button is always present in testnet mode.  It follows

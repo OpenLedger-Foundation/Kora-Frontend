@@ -130,6 +130,15 @@ const clientSchema = z.object({
     .transform((v) => parseInt(v, 10))
     .default("10000"),
 
+  /**
+   * Where an investor can acquire or bridge USDC when their wallet balance is
+   * too low to fund an invoice (#1245). Testnet uses the in-app faucet instead.
+   */
+  NEXT_PUBLIC_USDC_ACQUIRE_URL: z
+    .string()
+    .url()
+    .default("https://stellar.org/products-and-tools/circle-usdc-eurc"),
+
   // ─── Secondary market fees (issue #597) ────────────────────────────────────
   // Expressed in basis points so the config carries no rounding of its own:
   // 100 bps = 1%. Both are capped at 10_000 bps (100%) — a fee schedule that
@@ -197,6 +206,7 @@ const clientEnv = {
   NEXT_PUBLIC_ENABLE_DEVTOOLS: process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS,
   NEXT_PUBLIC_KYC_FUND_THRESHOLD: process.env.NEXT_PUBLIC_KYC_FUND_THRESHOLD,
   NEXT_PUBLIC_USDC_ISSUER: process.env.NEXT_PUBLIC_USDC_ISSUER,
+  NEXT_PUBLIC_USDC_ACQUIRE_URL: process.env.NEXT_PUBLIC_USDC_ACQUIRE_URL,
   NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS:
     process.env.NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS,
   NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS:
