@@ -255,7 +255,8 @@
       "copied": "Copied!",
       "clearAriaLabel": "Clear all comparisons",
       "selectAtLeastTwo": "Select at least 2 invoices to compare",
-      "openTable": "Open comparison table"
+      "openTable": "Open comparison table",
+      "maxReached": "Max reached"
     },
     "watchlist": {
       "ariaLabel": "Invoice watchlist",
