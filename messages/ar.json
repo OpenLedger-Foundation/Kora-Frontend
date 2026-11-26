@@ -762,6 +762,9 @@
     "viewStellar": "عرض على Stellar Expert",
     "remove": "إزالة المعاملة",
     "listTitle": "المعاملات",
+    "groups": {
+      "other": "عام"
+    },
     "reason": "السبب:",
     "searchAria": "البحث في المعاملات",
     "typeFilterAria": "تصفية حسب نوع المعاملة",

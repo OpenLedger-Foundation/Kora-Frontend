@@ -16,6 +16,8 @@ import {
   FileText,
   RefreshCw,
   Gift,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +89,41 @@ function TxTypeIcon({ type }: { type: TxType }) {
   );
 }
 
+interface TransactionGroup {
+  key: string;
+  invoiceNumber?: string;
+  transactions: TxRecord[];
+}
+
+/**
+ * Group a flat transaction list by invoice, preserving the order in which each
+ * invoice first appears. Transactions that carry no invoice number land in a
+ * single trailing group rather than being silently dropped (#1243).
+ */
+function groupTransactionsByInvoice(transactions: TxRecord[]): TransactionGroup[] {
+  const groups = new Map<string, TransactionGroup>();
+
+  for (const tx of transactions) {
+    const key = tx.invoiceNumber ? `invoice:${tx.invoiceNumber}` : "other";
+    const existing = groups.get(key);
+    if (existing) {
+      existing.transactions.push(tx);
+    } else {
+      groups.set(key, {
+        key,
+        invoiceNumber: tx.invoiceNumber,
+        transactions: [tx],
+      });
+    }
+  }
+
+  return Array.from(groups.values());
+}
+
+function groupDomId(key: string): string {
+  return `tx-group-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
 function StatusBadge({ status }: { status: TxRecord["status"] }) {
   const t = useTranslations("transactions");
 
@@ -133,21 +170,13 @@ function TxRow({ tx, onRemove }: { tx: TxRecord; onRemove: (hash: string) => voi
             {t(`types.${tx.type}Label` as Parameters<typeof t>[0])}
           </span>
           <StatusBadge status={tx.status} />
-          {tx.invoiceNumber && (
-            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
-              {tx.invoiceNumber}
-            </span>
-          )}
         </div>
 
-        {tx.description && (
-          <p className="text-xs text-muted-foreground">{tx.description}</p>
-        )}
+        {tx.description && <p className="text-xs text-muted-foreground">{tx.description}</p>}
 
         {tx.cancelReason && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-            {t("reason")}{" "}
-            <span className="capitalize">{tx.cancelReason.replace(/_/g, " ")}</span>
+          <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+            {t("reason")} <span className="capitalize">{tx.cancelReason.replace(/_/g, " ")}</span>
             {tx.cancelNotes ? ` — ${tx.cancelNotes}` : ""}
           </p>
         )}
@@ -200,6 +229,7 @@ export default function TransactionHistoryPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<TxType | "all">("all");
   const [statusFilter, setStatusFilter] = useState<TxRecord["status"] | "all">("all");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
 
   // ── Derived stats ──────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -242,6 +272,20 @@ export default function TransactionHistoryPage() {
     return result;
   }, [transactions, typeFilter, statusFilter, search]);
 
+  const groupedTransactions = useMemo(() => groupTransactionsByInvoice(filtered), [filtered]);
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
   // ── CSV export ─────────────────────────────────────────────────────────────
   const handleExport = () => {
     exportCsv(
@@ -267,9 +311,7 @@ export default function TransactionHistoryPage() {
           <History className="h-6 w-6 text-muted-foreground" aria-hidden />
         </div>
         <h2 className="text-xl font-semibold text-foreground">{t("connectTitle")}</h2>
-        <p className="text-sm text-muted-foreground">
-          {t("connectDesc")}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("connectDesc")}</p>
         <Button onClick={() => setWalletModalOpen(true)}>{t("connectTitle")}</Button>
       </div>
     );
@@ -281,9 +323,7 @@ export default function TransactionHistoryPage() {
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t("subtitle")}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -363,7 +403,10 @@ export default function TransactionHistoryPage() {
           <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
             {/* Search */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Search
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
               <Input
                 placeholder={t("searchPlaceholder")}
                 value={search}
@@ -455,15 +498,53 @@ export default function TransactionHistoryPage() {
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Search className="h-8 w-8 text-muted-foreground" aria-hidden />
                   <p className="mt-3 text-sm font-medium text-foreground">{t("noResults")}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t("noResultsDesc")}
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t("noResultsDesc")}</p>
                 </div>
               )
             ) : (
-              filtered.map((tx) => (
-                <TxRow key={tx.hash} tx={tx} onRemove={removeTransaction} />
-              ))
+              groupedTransactions.map((group) => {
+                const label = group.invoiceNumber ?? t("groups.other");
+                const headingId = `${groupDomId(group.key)}-heading`;
+                const bodyId = `${groupDomId(group.key)}-body`;
+                const isCollapsed = collapsedGroups.has(group.key);
+                const count = group.transactions.length;
+
+                return (
+                  <div key={group.key} className="space-y-2">
+                    <h3>
+                      <button
+                        type="button"
+                        id={headingId}
+                        aria-expanded={!isCollapsed}
+                        aria-controls={bodyId}
+                        onClick={() => toggleGroup(group.key)}
+                        className="flex w-full items-center gap-2 rounded-lg border border-border/60 bg-muted/40 px-3 py-2 text-left text-xs font-semibold text-foreground transition-colors hover:bg-muted"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        ) : (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                        )}
+                        <span className="font-mono">{label}</span>
+                        <span className="ml-auto font-normal text-muted-foreground">
+                          {count === 1 ? t("txCount", { count }) : t("txCountPlural", { count })}
+                        </span>
+                      </button>
+                    </h3>
+                    <div
+                      id={bodyId}
+                      role="region"
+                      aria-labelledby={headingId}
+                      hidden={isCollapsed}
+                      className="space-y-3"
+                    >
+                      {group.transactions.map((tx) => (
+                        <TxRow key={tx.hash} tx={tx} onRemove={removeTransaction} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </CardContent>
         </Card>

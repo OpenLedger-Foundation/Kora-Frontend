@@ -762,6 +762,9 @@
     "viewStellar": "Ver en Stellar Expert",
     "remove": "Eliminar transacción",
     "listTitle": "Transacciones",
+    "groups": {
+      "other": "General"
+    },
     "reason": "Motivo:",
     "searchAria": "Buscar transacciones",
     "typeFilterAria": "Filtrar por tipo de transacción",
