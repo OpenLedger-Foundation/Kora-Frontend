@@ -6,6 +6,10 @@ import {
   resolveLocaleFromRequest,
 } from "@/i18n/locale";
 import { locales, defaultLocale } from "@/i18n/config";
+import {
+  isAutomatedClientUserAgent,
+  isBotChallengeBypassed,
+} from "@/lib/botChallenge";
 
 /**
  * Health/uptime probes must never be challenged, redirected or gated.
@@ -68,10 +72,37 @@ export function middleware(req: NextRequest) {
     }
   }
 
+  // ── Bot challenge allowlist (#1228) ───────────────────────────────────────
+  // Opt-in via BOT_CHALLENGE_TOKEN. Health endpoints and recognised uptime
+  // monitors are exempt; auth-protected routes are never exempt.
+  const userAgent = req.headers.get("user-agent");
+  const botBypass = isBotChallengeBypassed({
+    pathname: req.nextUrl.pathname,
+    userAgent,
+  });
+  const challengeToken = process.env.BOT_CHALLENGE_TOKEN;
+  if (
+    challengeToken &&
+    !botBypass &&
+    isAutomatedClientUserAgent(userAgent) &&
+    req.headers.get("x-kora-bot-token") !== challengeToken
+  ) {
+    return NextResponse.json(
+      { error: "bot_challenge_required" },
+      {
+        status: 403,
+        headers: {
+          "x-kora-bot-challenge": "required",
+        },
+      }
+    );
+  }
+
   // ── X-Request-ID (#277) ───────────────────────────────────────────────────
   const requestId = crypto.randomUUID();
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-request-id", requestId);
+  if (botBypass) requestHeaders.set("x-kora-bot-bypass", "true");
 
   // ── CSP nonce (per-request) ───────────────────────────────────────────────
   const nonce = crypto.randomUUID();
@@ -85,6 +116,7 @@ export function middleware(req: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("x-request-id", requestId);
+  if (botBypass) response.headers.set("x-kora-bot-bypass", "true");
   // Override the static script-src from next.config.js with a per-request
   // nonce-scoped one — the CSP directive itself is unaffected, only the
   // Content-Security-Policy header value is replaced.

@@ -188,3 +188,45 @@ The middleware matcher (`config.matcher`) explicitly excludes `_next/static`, `_
 | `app/layout.tsx` | Reads `x-nonce` header and attaches to inline scripts |
 | `__tests__/middleware.test.ts` | Regression tests: nonce UUID format, per-request entropy, prod/dev CSP profiles, matcher exclusions |
 | `e2e/security-headers.spec.ts` | E2E: `Content-Security-Policy` header present on every page |
+
+## Edge Bot Challenge Allowlist (#1228)
+
+The edge challenge is **opt-in**. Set `BOT_CHALLENGE_TOKEN` in the deployment
+environment to enable it; when the variable is unset, no request is challenged
+and behaviour is unchanged.
+
+When enabled, requests whose `User-Agent` looks like an automated client
+(curl, wget, python-requests, Scrapy, PostmanRuntime, etc.) must send the same
+value in an `x-kora-bot-token` header. Missing or mismatched tokens receive
+`403 { "error": "bot_challenge_required" }` with an `x-kora-bot-challenge:
+required` response header. Regular browser traffic is never challenged.
+
+### Exemptions
+
+`lib/botChallenge.ts` defines the allowlist:
+
+- **Health endpoints** — `/api/health`, `/api/healthz`, `/api/status`,
+  `/health`, `/healthz`, `/ready`, `/readyz`, `/live`, `/livez` (and nested
+  paths) are always exempt so uptime probes cannot false-alarm.
+- **Uptime monitors** — known provider user agents (UptimeRobot, Pingdom,
+  Datadog, StatusCake, New Relic, Better Uptime, Grafana Cloud, Site24x7,
+  Healthchecks.io, Checkly, Freshping) are exempt on public routes.
+
+Both forwarded requests and responses carry `x-kora-bot-bypass: true` when an
+exemption is applied, so monitoring decisions are observable in logs.
+
+### Authentication is never weakened
+
+A matching health path or user agent **does not** bypass authentication.
+`isAuthProtectedPath()` returns true for `/api/auth`, `/api/invoice`,
+`/api/upload`, `/invoice/create`, `/dashboard`, `/settings`, `/transactions`,
+and `/analytics`. Those routes can never be exempt from the challenge, and
+their existing wallet/KYB/CSRF checks remain in force. The allowlist only
+skips the optional bot challenge — it never grants access.
+
+| File | Role |
+|------|------|
+| `lib/botChallenge.ts` | Allowlist definitions and pure decision helpers |
+| `middleware.ts` | Applies the challenge and exposes the bypass header |
+| `__tests__/botChallenge.test.ts` | Allowlist unit tests, including auth-path guards |
+| `__tests__/middleware.test.ts` | Middleware integration tests for the 403 path |
