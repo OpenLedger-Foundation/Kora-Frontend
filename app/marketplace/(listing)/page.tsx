@@ -47,7 +47,7 @@ import { buildMarketplaceFilterFingerprint } from "@/lib/marketplaceFilterFinger
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
 import { useLoadMoreFocus } from "@/hooks/useLoadMoreFocus";
-import { buildRangeSelection } from "@/lib/comparison";
+import { buildRangeSelection, MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import { IndexerStaleWatermark } from "@/components/marketplace/IndexerStaleWatermark";
 import {
@@ -756,7 +756,9 @@ function MarketplaceContent() {
             <IndexerStaleWatermark className="mt-2" />
             {comparisonEnabled && (
               <p className="mt-2 text-xs text-zinc-500" aria-live="polite">
-                {t("comparison.selectionHint", { count: comparisonList.length })}
+                {comparisonList.length >= MAX_COMPARISON_INVOICES
+                  ? t("comparison.limitReached", { max: MAX_COMPARISON_INVOICES })
+                  : t("comparison.selectionHint", { count: comparisonList.length })}
               </p>
             )}
           </div>

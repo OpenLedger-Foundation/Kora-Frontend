@@ -269,7 +269,8 @@
       "clearAriaLabel": "Clear all comparisons",
       "selectAtLeastTwo": "Select at least 2 invoices to compare",
       "openTable": "Open comparison table",
-      "maxReached": "Max reached"
+      "maxReached": "Max reached",
+      "limitReached": "Comparison is full: {max} invoices maximum. Remove one to add another."
     },
     "watchlist": {
       "ariaLabel": "Invoice watchlist",
@@ -1390,7 +1391,7 @@
     "fundInvoice": "Fund Invoice",
     "addToCompare": "Add {debtor} to comparison",
     "removeFromCompare": "Remove {debtor} from comparison",
-    "comparisonFull": "Comparison list is full (max 3)",
+    "comparisonFull": "Comparison list is full (max {max})",
     "addToCompareButton": "Add to Compare",
     "removeFromCompareButton": "Remove from Compare",
     "viewDetails": "View Details"

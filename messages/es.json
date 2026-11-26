@@ -330,7 +330,8 @@
       "clearAriaLabel": "Limpiar todas las comparaciones",
       "selectAtLeastTwo": "Selecciona al menos 2 facturas para comparar",
       "openTable": "Abrir tabla de comparación",
-      "maxReached": "Máx alcanzado"
+      "maxReached": "Máx alcanzado",
+      "limitReached": "La comparación está llena: máximo {max} facturas. Quita una para añadir otra."
     },
     "watchlist": {
       "ariaLabel": "Lista de seguimiento de facturas",
@@ -1390,7 +1391,7 @@
     "fundInvoice": "Financiar Factura",
     "addToCompare": "Agregar {debtor} a comparación",
     "removeFromCompare": "Eliminar {debtor} de comparación",
-    "comparisonFull": "La lista de comparación está llena (máx. 3)",
+    "comparisonFull": "La lista de comparación está llena (máx. {max})",
     "addToCompareButton": "Agregar a Comparar",
     "removeFromCompareButton": "Eliminar de Comparar",
     "viewDetails": "Ver Detalles"
