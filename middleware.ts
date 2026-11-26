@@ -8,6 +8,18 @@ import {
 import { locales, defaultLocale } from "@/i18n/config";
 
 /**
+ * Health/uptime probes must never be challenged, redirected or gated.
+ * Keep this list exact — adding a broad prefix here would create an
+ * unauthenticated bypass for unrelated routes.
+ */
+const HEALTH_CHECK_PATHS = new Set([
+  "/api/health",
+  "/health",
+  "/api/healthz",
+  "/healthz",
+]);
+
+/**
  * Detect the best locale from the Accept-Language header.
  * Falls back to the default locale if no match is found.
  */
@@ -37,6 +49,12 @@ function buildNonceCsp(nonce: string): string {
 }
 
 export function middleware(req: NextRequest) {
+  // Uptime monitors hit these paths from outside the app; let them through
+  // before any redirect/gating logic. Normal pages keep the full pipeline.
+  if (HEALTH_CHECK_PATHS.has(req.nextUrl.pathname)) {
+    return NextResponse.next();
+  }
+
   // ── Gate /test-components behind dev-only guard (#725) ─────────────────────
   if (
     req.nextUrl.pathname === "/test-components" ||

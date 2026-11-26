@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useQuery,
   useInfiniteQuery,
@@ -8,6 +8,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/queryKeys";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useQueryTuning } from "@/lib/featureFlags";
 import { MARKETPLACE_CACHE_GC_TIME_MS } from "@/lib/queryPersistence";
 import { useInvoiceStore } from "@/store/invoiceStore";
@@ -113,16 +114,26 @@ export function useInfiniteInvoices(options?: {
   const sortBy = useInvoiceStore((s) => s.sortBy);
   const tuning = useQueryTuning();
 
+  // Filter controls (notably the continuous APR range slider) update the store
+  // on every change. Keep the UI immediate but debounce the values that build
+  // the query key so dragging a filter does not spam the indexer.
+  const [queryFilters, setQueryFilters] = useState(filters);
+  const commitQueryFilters = useDebouncedCallback(setQueryFilters, 400);
+
+  useEffect(() => {
+    commitQueryFilters(filters);
+  }, [filters, commitQueryFilters]);
+
   return useInfiniteQuery({
-    queryKey: queryKeys.invoices.infinite(filters, sortBy, pageSize),
+    queryKey: queryKeys.invoices.infinite(queryFilters, sortBy, pageSize),
     queryFn: ({ pageParam }) =>
       fetchInvoices(
         {
-          categories: filters.categories,
-          jurisdictions: filters.jurisdictions,
-          riskTiers: filters.riskTiers,
-          aprRange: filters.aprRange,
-          activeOnly: filters.activeOnly,
+          categories: queryFilters.categories,
+          jurisdictions: queryFilters.jurisdictions,
+          riskTiers: queryFilters.riskTiers,
+          aprRange: queryFilters.aprRange,
+          activeOnly: queryFilters.activeOnly,
         },
         resolveMarketplaceSort(sortBy),
         pageParam,

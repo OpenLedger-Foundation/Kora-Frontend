@@ -328,6 +328,25 @@ export interface InvoiceSitemapEntry {
   priority: string;
 }
 
+/** Statuses eligible for public indexing / structured data. */
+const PUBLIC_INVOICE_STATUSES = new Set<Invoice["status"]>([
+  "listed",
+  "partially_funded",
+  "fully_funded",
+  "active",
+  "repaid",
+]);
+
+/**
+ * True when an invoice is a public listing. Drafts, pending mints, defaults
+ * and cancelled invoices are private/noindex and must not emit JSON-LD.
+ */
+export function isPublicInvoiceListing(
+  invoice: Pick<Invoice, "status">
+): boolean {
+  return PUBLIC_INVOICE_STATUSES.has(invoice.status);
+}
+
 /**
  * Build sitemap entry pattern for invoice detail pages.
  * Only includes publicly listable statuses.
@@ -335,16 +354,8 @@ export interface InvoiceSitemapEntry {
 export function buildInvoiceSitemapEntries(
   invoices: Pick<Invoice, "id" | "status" | "updatedAt">[]
 ): InvoiceSitemapEntry[] {
-  const publicStatuses = new Set([
-    "listed",
-    "partially_funded",
-    "fully_funded",
-    "active",
-    "repaid",
-  ]);
-
   return invoices
-    .filter((inv) => publicStatuses.has(inv.status))
+    .filter(isPublicInvoiceListing)
     .map((inv) => ({
       path: `/marketplace/${inv.id}`,
       lastmod: (inv.updatedAt || new Date().toISOString()).slice(0, 10),
