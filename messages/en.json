@@ -64,6 +64,11 @@
     "termsLink": "Terms of Service",
     "connectGuardTitle": "Connect your wallet to continue",
     "connectGuardDesc": "This page requires a connected wallet.",
+    "insufficientUsdcTitle": "Not enough USDC to fund",
+    "insufficientUsdcDesc": "You need {shortfall} more USDC to fund this amount. Your balance is {balance}.",
+    "insufficientUsdcEmpty": "Your wallet has no USDC yet. Add USDC to start funding invoices.",
+    "insufficientUsdcCta": "Get USDC",
+    "insufficientUsdcBridge": "Bridge USDC to Stellar",
     "sessionExpiredTitle": "Wallet session inactive",
     "sessionExpiredDesc": "Unlock your wallet extension or reconnect to continue.",
     "reconnect": "Reconnect Wallet",
@@ -194,6 +199,14 @@
     "title": "Invoice Marketplace",
     "subtitle": "Discovering deals...",
     "showing": "Showing {count} listed invoices",
+    "indexerWatermark": {
+      "fresh": "Indexer synced {time}",
+      "stale": "Indexer data stale — last synced {time}"
+    },
+    "indexer": {
+      "synced": "Indexed {time} · ledger {ledger}",
+      "stale": "Availability may be outdated — last indexed {time}"
+    },
     "shareFilters": "Share Filters",
     "shareFiltersCopied": "Filter link copied to clipboard",
     "exportCsv": "Export CSV",
@@ -227,6 +240,8 @@
     "noResults": "No invoices match your filters",
     "noResultsDesc": "We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities.",
     "clearAllFilters": "Clear All Filters",
+    "offlineEmptyTitle": "No cached invoices available offline",
+    "offlineEmptyDesc": "Connect to the internet to load the marketplace. Cached listings will appear here when you are offline after a previous visit.",
     "loadingMore": "Loading more…",
     "allLoaded": "All invoices loaded",
     "newInvoicesAnnouncement": "{count, plural, one {# new invoice loaded} other {# new invoices loaded}} — {total} shown",
@@ -256,7 +271,8 @@
       "clearAriaLabel": "Clear all comparisons",
       "selectAtLeastTwo": "Select at least 2 invoices to compare",
       "openTable": "Open comparison table",
-      "maxReached": "Max reached"
+      "maxReached": "Max reached",
+      "limitReached": "Comparison is full: {max} invoices maximum. Remove one to add another."
     },
     "watchlist": {
       "ariaLabel": "Invoice watchlist",
@@ -344,6 +360,20 @@
     "retryLoading": "Retry loading"
   },
   "invoiceDetail": {
+    "yieldCalculator": {
+      "title": "Yield Projection",
+      "expectedReturn": "Expected Return",
+      "annualisedYield": "Annualised Yield",
+      "breakEvenDate": "Break-even Date",
+      "netYield": "Net Yield",
+      "approxUsd": "Approx. USD",
+      "invalidData": "Yield projection unavailable — funding data is invalid.",
+      "capReached": "Amount exceeds the remaining funding cap. Reduce your investment to see a valid projection.",
+      "zeroApr": "0% APR — this investment will not accrue yield.",
+      "noYield": "No yield will accrue for these terms.",
+      "priceUnavailable": "USD estimate unavailable — oracle price is missing.",
+      "a11yLabel": "Yield projection for your investment"
+    },
     "backToMarketplace": "Back to Marketplace",
     "financingTerms": "Financing Terms",
     "fundingProgress": "Funding Progress",
@@ -829,6 +859,8 @@
       "type": "Type",
       "txHash": "Transaction Hash",
       "copyHashAria": "Copy hash",
+      "hashCopied": "Hash copied",
+      "hashCopyFailed": "Failed to copy hash",
       "status": "Status",
       "amount": "Amount",
       "dateTime": "Date & Time",
@@ -935,7 +967,10 @@
       "button": "Generate Digest",
       "title": "Portfolio Digest",
       "share": "Share Digest"
-    }
+    },
+    "copyLink": "Copy filtered link",
+    "linkCopied": "Link copied",
+    "linkCopyFailed": "Could not copy link"
   },
   "repaymentDialog": {
     "title": "Confirm Repayment",
@@ -1001,6 +1036,9 @@
     "writeBytes": "Write Bytes",
     "simulationError": "Simulation Error",
     "simulationErrorDesc": "This transaction cannot be executed. Please review the error below.",
+    "simulationErrorHint": "Nothing was signed or submitted. Review the amount and try again.",
+    "rpcUnavailable": "Simulation service unavailable",
+    "rpcUnavailableDesc": "The Stellar RPC did not respond. Check the RPC endpoint or try again.",
     "timeout": "Simulation timed out after 10 seconds. Please try again.",
     "simulating": "Simulating transaction…",
     "proceed": "Proceed & Sign",
@@ -1214,6 +1252,18 @@
     "connectCta": "Connect wallet",
     "navLabel": "Settings",
     "openFull": "Open full settings",
+    "transfer": {
+      "title": "Export & import preferences",
+      "description": "Back up your settings and address book as an encrypted file. You'll need the same passphrase to import it.",
+      "passphrase": "Passphrase",
+      "passphraseHint": "At least {min} characters. It is never stored or sent anywhere.",
+      "export": "Export encrypted",
+      "import": "Import file",
+      "exported": "Preferences exported.",
+      "exportFailed": "Couldn't export preferences.",
+      "imported": "Preferences imported.",
+      "importFailed": "Couldn't import. Check the file and passphrase."
+    },
     "notifications": {
       "sectionTitle": "Notification Preferences",
       "sectionDesc": "Control which in-app alerts appear during your workflow.",
@@ -1238,6 +1288,14 @@
       },
       "resetDefaults": "Reset to defaults",
       "toggleAriaLabel": "Toggle {label}",
+      "quietHours": {
+        "label": "Quiet Hours",
+        "description": "Silence maturity reminders during the hours you set.",
+        "toggleAriaLabel": "Toggle quiet hours",
+        "startLabel": "From",
+        "endLabel": "To",
+        "hint": "Reminders are silenced from {start} to {end}."
+      },
       "tourSection": {
         "title": "Onboarding Tour",
         "status": "Status:",
@@ -1365,7 +1423,7 @@
     "fundInvoice": "Fund Invoice",
     "addToCompare": "Add {debtor} to comparison",
     "removeFromCompare": "Remove {debtor} from comparison",
-    "comparisonFull": "Comparison list is full (max 3)",
+    "comparisonFull": "Comparison list is full (max {max})",
     "addToCompareButton": "Add to Compare",
     "removeFromCompareButton": "Remove from Compare",
     "viewDetails": "View Details"
@@ -1516,7 +1574,8 @@
     "totalFeeAria": "How the total is calculated",
     "protocolFeeTooltip": "A {rate} protocol fee funds the Kora Soroban contracts that hold this trade in escrow.",
     "marketFeeTooltip": "A {rate} marketplace fee goes to the venue that hosts this listing.",
-    "totalFeeTooltip": "The position price plus {fees} in fees. You pay {total}."
+    "totalFeeTooltip": "The position price plus {fees} in fees. You pay {total}.",
+    "tooltipTriggerLabel": "Show fee breakdown"
   },
   "concentrationRisk": {
     "title": "Concentration risk",
@@ -1575,6 +1634,10 @@
         "15": "15%+ Yield"
       }
     }
+  },
+  "killSwitch": {
+    "title": "Actions are temporarily paused",
+    "description": "This action is turned off on this deployment. Try again later."
   },
   "secondaryMarket": {
     "title": "Secondary Market",

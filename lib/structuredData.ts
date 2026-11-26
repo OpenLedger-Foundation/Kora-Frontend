@@ -62,9 +62,8 @@ export interface InvoiceSchemaInput {
   riskTier: string;
 }
 
-export function invoiceFinancialProductSchema(invoice: InvoiceSchemaInput) {
+function invoiceFinancialProduct(invoice: InvoiceSchemaInput) {
   return {
-    "@context": "https://schema.org",
     "@type": "FinancialProduct",
     name: `Invoice ${invoice.invoiceNumber} — ${invoice.debtorName}`,
     url: `${APP_URL}/marketplace/${invoice.id}`,
@@ -83,6 +82,72 @@ export function invoiceFinancialProductSchema(invoice: InvoiceSchemaInput) {
     feesAndCommissionsSpecification: `${invoice.apr.toFixed(2)}% APR discount rate`,
     category: invoice.category,
     areaServed: invoice.jurisdiction,
+  };
+}
+
+export function invoiceFinancialProductSchema(invoice: InvoiceSchemaInput) {
+  return {
+    "@context": "https://schema.org",
+    ...invoiceFinancialProduct(invoice),
+  };
+}
+
+// ─── CollectionPage / ItemList (public marketplace listing) ──────────────────
+
+/**
+ * Privacy-safe listing entry. `debtorLabel` must come from
+ * `buildPublicInvoiceSeo()` so anonymized debtors are never exposed.
+ */
+export interface InvoiceListingItem {
+  id: string;
+  invoiceNumber: string;
+  debtorLabel: string;
+  amount: number;
+  currency: string;
+  apr: number;
+  dueDate: string;
+  jurisdiction: string;
+  category: string;
+  riskTier: string;
+}
+
+/**
+ * Structured data for the public invoice listing page. Each invoice is a
+ * `ListItem` whose `item` is the same FinancialProduct shape used on detail
+ * pages, reusing the existing SEO mapping rather than a parallel schema.
+ */
+export function invoiceListingSchema(invoices: readonly InvoiceListingItem[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Public Invoice Listings",
+    url: `${APP_URL}/marketplace`,
+    description:
+      "Browse tokenized SME invoices available for funding on Kora Protocol.",
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: invoices.length,
+      itemListElement: invoices.map((invoice, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        url: `${APP_URL}/marketplace/${invoice.id}`,
+        item: {
+          "@context": "https://schema.org",
+          ...invoiceFinancialProduct({
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            debtorName: invoice.debtorLabel,
+            amount: invoice.amount,
+            currency: invoice.currency,
+            apr: invoice.apr,
+            dueDate: invoice.dueDate,
+            jurisdiction: invoice.jurisdiction,
+            category: invoice.category,
+            riskTier: invoice.riskTier,
+          }),
+        },
+      })),
+    },
   };
 }
 

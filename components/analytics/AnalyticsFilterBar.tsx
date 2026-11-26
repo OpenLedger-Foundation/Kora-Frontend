@@ -5,28 +5,21 @@ import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
-import { DateRangePicker, type PresetRange, type DateRange } from "./DateRangePicker";
+import {
+  DEFAULT_FILTERS,
+  type AnalyticsFilters,
+  type RiskTierFilter,
+  type JurisdictionFilter,
+  type CategoryFilter,
+} from "@/lib/analyticsFilters";
+import { DateRangePicker } from "./DateRangePicker";
+
+// Re-exported for existing component consumers; the canonical definitions now
+// live next to the URL serialization helpers.
+export { DEFAULT_FILTERS };
+export type { AnalyticsFilters, RiskTierFilter, JurisdictionFilter, CategoryFilter };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-export type RiskTierFilter = "all" | "AAA" | "AA" | "A" | "BBB" | "BB" | "B";
-export type JurisdictionFilter = "all" | "NG" | "KE" | "GH" | "ZA" | "IN" | "BR";
-export type CategoryFilter = "all" | "trade" | "services" | "manufacturing" | "retail";
-
-export interface AnalyticsFilters {
-  riskTier: RiskTierFilter;
-  jurisdiction: JurisdictionFilter;
-  category: CategoryFilter;
-  dateRange: PresetRange | "custom";
-  customDateRange?: DateRange;
-}
-
-export const DEFAULT_FILTERS: AnalyticsFilters = {
-  riskTier: "all",
-  jurisdiction: "all",
-  category: "all",
-  dateRange: "30d",
-};
 
 interface AnalyticsFilterBarProps {
   filters: AnalyticsFilters;
@@ -239,7 +232,7 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
       </div>
 
       {/* Row 2: Date range picker */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("filters.periodLabel")}>
         <span className="text-xs text-zinc-500">{t("filters.periodLabel")}</span>
         <DateRangePicker
           value={filters.dateRange}

@@ -28,6 +28,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { toast } from "sonner";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
+import { MutationKillSwitchBanner } from "@/components/marketplace/MutationKillSwitchBanner";
 import { AcceptTransferDialog } from "@/components/invoice/AcceptTransferDialog";
 import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
@@ -283,6 +284,7 @@ function SecondaryMarketplaceContent() {
     return (
       <div className="min-h-screen bg-zinc-950 py-8 text-zinc-100">
         <Container>
+          <MutationKillSwitchBanner flag="secondary-market" />
           <EmptyState
             title={t("disabledTitle")}
             description={t("disabledDesc")}

@@ -68,7 +68,6 @@ export function isWithinQuietHours(config: QuietHoursConfig | undefined, now = n
   // Cross-midnight window, e.g. 22:00 -> 07:00.
   return current >= start || current < end;
 }
-=======
 
 const REMINDER_STORAGE_KEY = "kora-maturity-reminders";
 const REPAYMENT_ALERT_STORAGE_KEY = "kora-repayment-alerts";
@@ -95,6 +94,35 @@ function daysUntilDate(date: string, now = new Date()): number {
   const target = new Date(date);
   const diff = target.getTime() - now.getTime();
   return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Returns `true` when the given `now` falls within the quiet-hours window
+ * [start, end). The window is expressed as 24-hour "HH:MM" strings in the
+ * user's local time zone. When start > end (e.g. "22:00"–"08:00") the window
+ * wraps around midnight.
+ */
+export function isInQuietHours(
+  start: string,
+  end: string,
+  now = new Date()
+): boolean {
+  // Convert "HH:MM" to minutes-since-midnight for straightforward comparison.
+  function toMinutes(hhmm: string): number {
+    const [h = "0", m = "0"] = hhmm.split(":");
+    return parseInt(h, 10) * 60 + parseInt(m, 10);
+  }
+
+  const startMin = toMinutes(start);
+  const endMin = toMinutes(end);
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  if (startMin <= endMin) {
+    // Same-day window, e.g. 08:00–22:00.
+    return nowMin >= startMin && nowMin < endMin;
+  }
+  // Overnight window, e.g. 22:00–08:00.
+  return nowMin >= startMin || nowMin < endMin;
 }
 
 export function isRepaymentDueSoon(invoice: Invoice, now = new Date()): boolean {

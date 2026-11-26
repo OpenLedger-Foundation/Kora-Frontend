@@ -223,15 +223,18 @@ export const MAX_COMPARISON_INVOICES = 4;
 /** @deprecated Prefer MAX_COMPARISON_INVOICES — kept for PR keyboard helpers. */
 export const MAX_COMPARISON = MAX_COMPARISON_INVOICES;
 
+/** Dedupes and caps at MAX_COMPARISON_INVOICES, keeping the earliest selections. */
 export function normalizeComparisonList(ids: string[]): string[] {
   const unique = ids.filter((id, index) => id && ids.indexOf(id) === index);
-  return unique.slice(-MAX_COMPARISON_INVOICES);
+  return unique.slice(0, MAX_COMPARISON_INVOICES);
 }
 
+/** Adding when full is a no-op; the UI shows the limit message instead of evicting. */
 export function toggleComparisonId(ids: string[], id: string): string[] {
   if (ids.includes(id)) {
     return ids.filter((entry) => entry !== id);
   }
+  if (ids.length >= MAX_COMPARISON_INVOICES) return ids;
   return normalizeComparisonList([...ids, id]);
 }
 

@@ -12,6 +12,8 @@ import { defineConfig, devices } from "@playwright/test";
  *                        These cover interactions that are hard to test in jsdom,
  *                        such as drag-and-drop, native range inputs, and Radix
  *                        portalled popovers.
+ *  - visual-regression : Deterministic screenshot baselines for InvoiceCard
+ *                        variants and invoice wizard critical steps (e2e/visual-regression*.spec.ts)
  *
  * CI usage:
  *   npx playwright test --reporter=html
@@ -50,6 +52,9 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
       testMatch: /(?<!components\/).*\.spec\.ts/,
+      // Visual baselines live in their own project so they are never run as
+      // part of the functional suite (different determinism requirements).
+      testIgnore: /visual-regression.*\.spec\.ts/,
     },
 
     /* ── Component-level browser tests ───────────────────────────────────
@@ -70,6 +75,22 @@ export default defineConfig({
      *  Scoped to marketplace-mobile.spec.ts — add further mobile-focused
      *  spec files to the pattern as the suite grows.
      * ─────────────────────────────────────────────────────────────────── */
+    /* ── Visual regression (#1229) ────────────────────────────────────────
+     * Deterministic screenshot baselines. A frozen clock, reduced motion and
+     * a fixed viewport are applied by the specs themselves so the same
+     * anchors can be compared locally and in CI.
+     * ─────────────────────────────────────────────────────────────────── */
+    {
+      name: "visual-regression",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 800 },
+        reducedMotion: "reduce",
+      },
+      testMatch: /visual-regression.*\.spec\.ts/,
+      retries: 0,
+    },
+
     {
       name: "mobile-chrome",
       use: {

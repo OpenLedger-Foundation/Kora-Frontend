@@ -253,6 +253,10 @@ export function clearFeatureFlagOverrides(): void {
   writeOverrides({});
 }
 
+export function resetFeatureFlagOverrides(): void {
+  clearFeatureFlagOverrides();
+}
+
 /**
  * React hook returning the live feature flag state.
  * Re-renders when overrides change (same tab or cross-tab).
@@ -332,4 +336,9 @@ export const QUERY_TUNING: Readonly<Record<NetworkMode, QueryTuning>> = {
 export function useQueryTuning(): QueryTuning {
   const flags = useFeatureFlags();
   return QUERY_TUNING[flags["mock-data"] ? "mock" : "live"];
+}
+
+/** React hook returning whether a single flag is enabled (live, like `useFeatureFlags`). */
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  return useFeatureFlags()[flag] === true;
 }

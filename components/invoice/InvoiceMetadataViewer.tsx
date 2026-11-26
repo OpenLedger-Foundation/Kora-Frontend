@@ -284,14 +284,17 @@ export function InvoiceMetadataViewer({ invoice, isFunded = false }: InvoiceMeta
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
                <Building className="h-4 w-4 text-muted-foreground mt-0.5" />
-               <div className="flex flex-col gap-0.5 overflow-hidden">
+               <div className="flex flex-col gap-0.5 overflow-hidden flex-1 min-w-0">
                  <span className="text-[10px] font-medium uppercase text-muted-foreground">Issuer Address</span>
-                 <span className="truncate text-xs text-foreground" title={metadata.issuerAddress}>{metadata.issuerAddress}</span>
+                 <div className="flex items-center gap-1 overflow-hidden">
+                   <span className="truncate text-xs text-foreground" title={metadata.issuerAddress}>{metadata.issuerAddress}</span>
+                   <CopyButton text={metadata.issuerAddress} className="shrink-0 h-5 w-5 p-1" />
+                 </div>
                </div>
              </div>
              <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
                <User className="h-4 w-4 text-muted-foreground mt-0.5" />
-               <div className="flex flex-col gap-0.5 overflow-hidden">
+               <div className="flex flex-col gap-0.5 overflow-hidden flex-1 min-w-0">
                  <span className="text-[10px] font-medium uppercase text-muted-foreground">Debtor Address</span>
                  <span className="truncate text-xs text-foreground" title={debtorAddress}>{debtorAddress}</span>
                </div>

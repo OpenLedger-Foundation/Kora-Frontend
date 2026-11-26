@@ -13,10 +13,12 @@ import {
   Trash2,
   X,
   Copy,
+  Check,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTransactionDetails } from "@/lib/stellar/client";
@@ -36,6 +38,7 @@ import { safeStellarTxUrl } from "@/lib/security";
 import { exportCsv, formatCsvDate, formatCsvNumber } from "@/lib/export";
 import { useToast } from "@/hooks/useToast";
 import { useLocale, useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 /**
  * TransactionHistoryDrawer
@@ -195,6 +198,16 @@ function TransactionDetail({
 }) {
   const typeConfig = TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other;
   const dateObj = new Date(tx.timestamp);
+  const { copy, copied } = useCopyToClipboard();
+
+  const handleCopyHash = async () => {
+    const ok = await copy(tx.hash);
+    if (ok) {
+      toast.success(t("drawer.hashCopied"));
+    } else {
+      toast.error(t("drawer.hashCopyFailed"));
+    }
+  };
 
   // Only fetch details for confirmed transactions — cache forever (staleTime: Infinity)
   const { data: details, isLoading: loadingDetails } = useQuery({
@@ -246,11 +259,15 @@ function TransactionDetail({
           </span>
           <button
             type="button"
-            onClick={() => navigator.clipboard.writeText(tx.hash)}
-            aria-label={t("drawer.copyHashAria")}
+            onClick={() => void handleCopyHash()}
+            aria-label={copied ? t("drawer.hashCopied") : t("drawer.copyHashAria")}
             className="shrink-0 rounded p-1 hover:bg-muted transition-colors"
           >
-            <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+            )}
           </button>
         </div>
       </div>

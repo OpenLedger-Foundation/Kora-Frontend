@@ -76,6 +76,35 @@ test.describe("Offline marketplace cache", () => {
     ).toBeVisible();
   });
 
+  test("empty cache shows a connectivity message instead of no-results", async ({
+    page,
+    context,
+  }) => {
+    // Simulate a first visit with nothing persisted: clear only the query
+    // cache and local storage, leaving the PWA shell in Cache Storage so the
+    // offline reload still boots the app.
+    const cdp = await context.newCDPSession(page);
+    await cdp.send("Storage.clearDataForOrigin", {
+      origin: new URL(page.url()).origin,
+      storageTypes: "indexeddb,local_storage,session_storage",
+    });
+
+    await context.setOffline(true);
+    await page.reload();
+
+    const emptyState = page.getByTestId("offline-empty-cache");
+    await expect(emptyState).toBeVisible({ timeout: 15_000 });
+    await expect(
+      emptyState.getByText(/no cached invoices available offline/i),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/no invoices match your filters/i),
+    ).toBeHidden();
+    await expect(
+      emptyState.getByRole("button", { name: /retry loading/i }),
+    ).toBeVisible();
+  });
+
   test("dashboard route returns network error offline (not a cached page)", async ({
     page,
     context,

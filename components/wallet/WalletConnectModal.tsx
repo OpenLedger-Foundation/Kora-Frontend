@@ -68,18 +68,43 @@ const WALLETS = [
   },
 ];
 
-type WalletState = "idle" | "connecting" | "success" | "error";
+export type WalletState = "idle" | "connecting" | "success" | "error";
 
-export function WalletConnectModal() {
+/**
+ * Optional seams used by Storybook to pin a state without a browser wallet
+ * extension. Production callers pass nothing, so runtime behaviour is
+ * unchanged. See `WalletConnectModal.stories.tsx` (#1231).
+ */
+export interface WalletConnectModalProps {
+  initialWalletState?: WalletState;
+  initialActiveWallet?: string | null;
+  initialErrorMsg?: string | null;
+  initialProviderHealth?: Record<string, WalletProviderHealth>;
+  initialWaitingForDeepLink?: boolean;
+  connectWalletOverride?: (walletId: string) => Promise<void>;
+  probeProviderHealthOverride?: (
+    walletId: string
+  ) => Promise<WalletProviderHealth>;
+}
+
+export function WalletConnectModal({
+  initialWalletState = "idle",
+  initialActiveWallet = null,
+  initialErrorMsg = null,
+  initialProviderHealth = {},
+  initialWaitingForDeepLink = false,
+  connectWalletOverride,
+  probeProviderHealthOverride,
+}: WalletConnectModalProps = {}) {
   const t = useTranslations("wallet");
   const { walletModalOpen, setWalletModalOpen } = useUIStore();
   const { connectWallet, isConnected } = useWallet();
   const { isMobile } = useBreakpoint();
-  const [walletState, setWalletState] = useState<WalletState>("idle");
-  const [activeWallet, setActiveWallet] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [providerHealth, setProviderHealth] = useState<Record<string, WalletProviderHealth>>({});
-  const [waitingForDeepLink, setWaitingForDeepLink] = useState(false);
+  const [walletState, setWalletState] = useState<WalletState>(initialWalletState);
+  const [activeWallet, setActiveWallet] = useState<string | null>(initialActiveWallet);
+  const [errorMsg, setErrorMsg] = useState<string | null>(initialErrorMsg);
+  const [providerHealth, setProviderHealth] = useState<Record<string, WalletProviderHealth>>(initialProviderHealth);
+  const [waitingForDeepLink, setWaitingForDeepLink] = useState(initialWaitingForDeepLink);
   const firstFocusRef = useRef<HTMLButtonElement>(null);
   const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -95,8 +120,9 @@ export function WalletConnectModal() {
         preloadWalletKit();
       }
       setTimeout(() => firstFocusRef.current?.focus(), 50);
+      const probe = probeProviderHealthOverride ?? probeWalletProviderHealth;
       void Promise.all(
-        WALLETS.map(async (entry) => [entry.id, await probeWalletProviderHealth(entry.id)] as const)
+        WALLETS.map(async (entry) => [entry.id, await probe(entry.id)] as const)
       ).then((entries) => {
         setProviderHealth(Object.fromEntries(entries));
       });
@@ -111,7 +137,7 @@ export function WalletConnectModal() {
         visibilityTimerRef.current = null;
       }
     }
-  }, [walletModalOpen]);
+  }, [walletModalOpen, probeProviderHealthOverride]);
 
   const getHealthBadge = (walletId: string) => {
     const health = providerHealth[walletId];
@@ -160,7 +186,8 @@ export function WalletConnectModal() {
     setErrorMsg(null);
     setWaitingForDeepLink(false);
     try {
-      await connectWallet(walletId);
+      const connect = connectWalletOverride ?? connectWallet;
+      await connect(walletId);
       setWalletState("success");
       setTimeout(() => setWalletModalOpen(false), 1500);
     } catch (err) {

@@ -148,6 +148,27 @@ your change.
 - `npm run build-storybook` — static build
 - `npm run test -- __tests__/stories.snapshot.test.tsx` — Vitest snapshot coverage without a dev server
 
+### Wallet connect states (`components/wallet/WalletConnectModal.stories.tsx`)
+
+`WalletConnectModal` is documented as a state matrix rather than one mockup.
+States are pinned through optional props intended for Storybook — production
+renders `<WalletConnectModal />` with no props and behaves exactly as before.
+
+| Story | State | Accessibility contract |
+| ----- | ----- | ---------------------- |
+| `Idle` | Provider list | Stable tab order; every action has an accessible name (`Connect`/`Install`/`Open …`). Focus moves to the first enabled provider on open. |
+| `Connecting` | `aria-busy=true` | Escape is blocked mid-signature; spinner is `aria-hidden` because `aria-busy` already conveys progress. |
+| `Connected` | Success | Uses the dialog's title/description; the check icon is decorative, so the status is not announced twice. |
+| `ConnectionError` | Failure + retry | Error text sits next to the failing provider (never colour-only); `Retry` has an explicit accessible name. |
+| `ProviderHealthStates` | ready / missing / locked / unsupported network / error | Badge text is readable without colour; `missing` and `unsupported_network` actions are disabled. |
+| `MobileDeepLinkWaiting` | Deep-link hand-off | `role="status"` + `aria-live="polite"` announces the pending connection when the user returns from the wallet app. |
+
+`@storybook/addon-a11y` is configured in `.storybook/main.ts`; each story's
+`parameters.docs.description.story` explains the state for reviewers, and its
+`play` function asserts the ARIA attributes above. When a connect-state change
+alters markup, update the stories and re-check both light and dark backgrounds
+plus the Arabic RTL locale wrapper.
+
 ## Adding new tokens
 
 1. Add the CSS variable to `:root` and `.dark` in `app/globals.css`.

@@ -568,7 +568,35 @@ describe("useTransaction", () => {
 
       expect(hash).toBeNull();
       expect(result.current.status).toBe("failed");
-      expect(result.current.error).toContain("timed out");
+      // next-intl is mocked to return the key, so the localized timeout copy
+      // surfaces as "timeout" here.
+      expect(result.current.error).toContain("timeout");
+    });
+
+    it("turns a simulation RPC outage into an actionable localized error", async () => {
+      mockSimulateTransaction.mockRejectedValue(new Error("fetch failed"));
+      const onSimulationPreview = vi.fn().mockResolvedValue(true);
+
+      const { result } = renderHook(() => useTransaction());
+      const buildFn = vi.fn().mockResolvedValue(MOCK_UNSIGNED_XDR);
+
+      const hash = await act(async () =>
+        result.current.execute(buildFn, { onSimulationPreview })
+      );
+
+      expect(hash).toBeNull();
+      expect(result.current.status).toBe("failed");
+      expect(result.current.error).toContain("rpcUnavailable");
+      expect(result.current.error).toContain("rpcUnavailableDesc");
+
+      // The outage is surfaced in the same blocked preview as a contract
+      // revert so the user gets the actionable "nothing was signed" copy.
+      expect(onSimulationPreview).toHaveBeenCalledTimes(1);
+      const preview = (onSimulationPreview as any).mock.calls[0][0] as SimulationPreview;
+      expect(preview.error).toContain("rpcUnavailable");
+      expect(preview.error).toContain("rpcUnavailableDesc");
+      expect(mockSignTransaction).not.toHaveBeenCalled();
+      expect(mockSubmitTransaction).not.toHaveBeenCalled();
     });
   });
 

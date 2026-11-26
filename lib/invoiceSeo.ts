@@ -13,6 +13,7 @@ import type { Invoice, InvoiceCategory, InvoiceJurisdiction } from "@/types";
 import type { InvoiceMetadataV1 } from "@/lib/invoiceMetadata";
 import { formatApr, formatCurrency } from "@/lib/utils";
 import { safeIpfsUrl } from "@/lib/security";
+import type { InvoiceListingItem } from "@/lib/structuredData";
 
 /** Local CID check — avoids importing `@/lib/ipfs` (pulls `@/lib/env` at module load). */
 const CID_REGEX = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[a-z2-7]{52,})$/;
@@ -362,4 +363,43 @@ export function buildInvoiceSitemapEntries(
       changefreq: "daily" as const,
       priority: "0.8",
     }));
+}
+
+/** Statuses that may appear in public SEO listings and the sitemap. */
+const PUBLIC_LISTING_STATUSES = new Set([
+  "listed",
+  "partially_funded",
+  "fully_funded",
+  "active",
+  "repaid",
+]);
+
+/**
+ * Map publicly listable invoices into privacy-safe JSON-LD listing items.
+ *
+ * Reuses `buildPublicInvoiceSeo()` so anonymized debtors keep their generic
+ * category/jurisdiction label and private addresses never reach structured
+ * data. The same status filter as the sitemap keeps crawlers away from
+ * cancelled/draft invoices.
+ */
+export function buildInvoiceListingSeo(
+  invoices: readonly Invoice[]
+): InvoiceListingItem[] {
+  return invoices
+    .filter((invoice) => PUBLIC_LISTING_STATUSES.has(invoice.status))
+    .map((invoice) => {
+      const seo = buildPublicInvoiceSeo(invoice);
+      return {
+        id: seo.id,
+        invoiceNumber: seo.invoiceNumber,
+        debtorLabel: seo.debtorLabel,
+        amount: seo.amount,
+        currency: seo.currency,
+        apr: seo.apr,
+        dueDate: seo.dueDate,
+        jurisdiction: seo.jurisdiction,
+        category: seo.category,
+        riskTier: seo.riskTier,
+      };
+    });
 }

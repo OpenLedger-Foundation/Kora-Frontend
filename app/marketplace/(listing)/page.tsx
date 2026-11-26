@@ -17,14 +17,8 @@ import {
   Layers,
 } from "lucide-react";
 import EmptyState, { type RecoverySuggestion } from "@/components/ui/EmptyState";
-import {
-  trackMarketplaceLand,
-  trackMarketplaceFundCta,
-} from "@/lib/marketplaceAnalytics";
-import {
-  deriveRecoveryActions,
-  hasRestrictiveFilters,
-} from "@/lib/emptyStateRecovery";
+import { trackMarketplaceLand, trackMarketplaceFundCta } from "@/lib/marketplaceAnalytics";
+import { deriveRecoveryActions, hasRestrictiveFilters } from "@/lib/emptyStateRecovery";
 import { WatchlistDrawer } from "@/components/marketplace/WatchlistDrawer";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -49,23 +43,21 @@ import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
 import { useMarketplaceScrollReset } from "@/hooks/useMarketplaceScrollReset";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { buildMarketplaceFilterFingerprint } from "@/lib/marketplaceFilterFingerprint";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
 import { useLoadMoreFocus } from "@/hooks/useLoadMoreFocus";
-import { buildRangeSelection } from "@/lib/comparison";
+import { buildRangeSelection, MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
+import { IndexerStaleWatermark } from "@/components/marketplace/IndexerStaleWatermark";
 import {
   MarketplaceAprHistogram,
   MarketplaceRiskDistribution,
 } from "@/components/analytics/Charts";
 import { toast } from "sonner";
 import { exportCsv } from "@/lib/export";
-import {
-  marketplaceInvoicesToExportRows,
-  marketplaceExportFilename,
-} from "@/lib/portfolioExport";
-
+import { marketplaceInvoicesToExportRows, marketplaceExportFilename } from "@/lib/portfolioExport";
 
 // ─── Filter Options ──────────────────────────────────────────────────────────
 
@@ -154,7 +146,7 @@ function CheckboxGroup({
           return (
             <label
               key={opt.value}
-              className={`flex items-center gap-2 rounded-lg border p-2 text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
+              className={`flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
                 isChecked
                   ? "border-primary/50 bg-primary/5 text-foreground"
                   : "border-zinc-800 bg-zinc-900/20 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
@@ -201,8 +193,14 @@ function Switch({
   return (
     <div className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/20 p-3 transition-colors hover:border-zinc-700">
       <div className="flex flex-col gap-0.5">
-        <label htmlFor={id} className="text-sm font-semibold text-zinc-200 cursor-pointer">{label}</label>
-        {description && <span className="text-xs text-zinc-500" id={`${id}-desc`}>{description}</span>}
+        <label htmlFor={id} className="cursor-pointer text-sm font-semibold text-zinc-200">
+          {label}
+        </label>
+        {description && (
+          <span className="text-xs text-zinc-500" id={`${id}-desc`}>
+            {description}
+          </span>
+        )}
       </div>
       <input
         id={id}
@@ -237,6 +235,7 @@ function Switch({
 
 function MarketplaceContent() {
   const t = useTranslations("marketplace");
+  const { isOnline } = useNetworkStatus();
   const comparisonEnabled = useFeatureFlag("comparison");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -312,21 +311,20 @@ function MarketplaceContent() {
     const categories = searchParams.get("categories")?.split(",").filter(Boolean) || [];
     const jurisdictions = searchParams.get("jurisdictions")?.split(",").filter(Boolean) || [];
     const riskTiers = searchParams.get("riskTiers")?.split(",").filter(Boolean) || [];
-    
+
     const minApr = searchParams.get("minApr") ? Number(searchParams.get("minApr")) : 0;
     const maxApr = searchParams.get("maxApr") ? Number(searchParams.get("maxApr")) : 50;
-    
+
     const activeOnly = searchParams.get("activeOnly") === "true";
-    const showExpired = searchParams.get("showExpired") === "true" || searchParams.get("showExpired") === "1";
+    const showExpired =
+      searchParams.get("showExpired") === "true" || searchParams.get("showExpired") === "1";
     const sortByParam = searchParams.get("sortBy") || "apr_desc";
     const qParam = sanitizeQueryParam(searchParams.get("q"));
 
     const urlPageSize = Number(searchParams.get("pageSize") || MARKETPLACE_PAGE_SIZE);
 
     setPageSize(
-      Number.isFinite(urlPageSize) && urlPageSize > 0
-        ? urlPageSize
-        : MARKETPLACE_PAGE_SIZE
+      Number.isFinite(urlPageSize) && urlPageSize > 0 ? urlPageSize : MARKETPLACE_PAGE_SIZE
     );
 
     setFilters({
@@ -431,6 +429,12 @@ function MarketplaceContent() {
     );
   }, [allInvoices, debouncedSearchQuery]);
 
+  // Issue #1135: "no cached data while offline" is a connectivity problem, not
+  // an empty result set caused by the user's filters. TanStack reports
+  // dataUpdatedAt === 0 when no persisted page has been restored.
+  const hasEmptyOfflineCache =
+    !isOnline && !isLoading && filteredInvoices.length === 0 && dataUpdatedAt === 0;
+
   // Result-set fingerprint (Issue #1015). Sort order is intentionally excluded
   // so flipping "APR high→low / low→high" reorders in place instead of
   // bouncing the user back to the top of the grid.
@@ -504,7 +508,6 @@ function MarketplaceContent() {
     exportCsv(rows, filename);
   }, [filteredInvoices]);
 
-
   // Responsive grid column count detection for virtual scroller
   const [columns, setColumns] = useState(3);
   useEffect(() => {
@@ -549,10 +552,7 @@ function MarketplaceContent() {
     setScrollMargin((current) => (Math.abs(current - next) > 1 ? next : current));
   }, []);
 
-  const debouncedMeasureScrollMargin = useDebouncedCallback(
-    measureScrollMargin,
-    100
-  );
+  const debouncedMeasureScrollMargin = useDebouncedCallback(measureScrollMargin, 100);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof ResizeObserver === "undefined") {
@@ -664,11 +664,7 @@ function MarketplaceContent() {
       <div className="relative flex w-full flex-col gap-2">
         <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-zinc-400">
           <span id="apr-range-label">{t("aprRange")}</span>
-          <span
-            className="text-primary font-mono lowercase"
-            aria-live="polite"
-            aria-atomic="true"
-          >
+          <span className="font-mono lowercase text-primary" aria-live="polite" aria-atomic="true">
             {(filters.aprRange || [0, 50])[0]}% - {(filters.aprRange || [0, 50])[1]}%
           </span>
         </div>
@@ -703,7 +699,7 @@ function MarketplaceContent() {
       {activeFiltersCount > 0 && (
         <button
           onClick={resetFilters}
-          className="flex items-center justify-center gap-2 rounded-lg border border-zinc-800 py-2.5 text-xs font-semibold text-zinc-350 hover:bg-zinc-900/60 hover:text-zinc-200 transition-colors"
+          className="text-zinc-350 flex items-center justify-center gap-2 rounded-lg border border-zinc-800 py-2.5 text-xs font-semibold transition-colors hover:bg-zinc-900/60 hover:text-zinc-200"
         >
           <RotateCcw className="h-3.5 w-3.5" />
           {t("resetFilters")}
@@ -750,13 +746,13 @@ function MarketplaceContent() {
   return (
     <Container className="relative py-10 lg:px-8">
       {/* Background radial gradient mesh */}
-      <div className="absolute inset-0 bg-mesh pointer-events-none z-0" />
+      <div className="bg-mesh pointer-events-none absolute inset-0 z-0" />
 
       <div className="relative z-10">
         {/* Header Section */}
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-zinc-150 sm:text-4xl bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-transparent">
+            <h1 className="text-zinc-150 bg-gradient-to-r from-zinc-100 via-zinc-200 to-zinc-400 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent sm:text-4xl">
               {t("title")}
             </h1>
             <p className="mt-2 text-sm text-zinc-400">
@@ -764,9 +760,13 @@ function MarketplaceContent() {
             </p>
             {/* Contextual stale badge — visible when offline and cache has data */}
             <StaleDataBadge updatedAt={dataUpdatedAt || null} className="mt-2" />
+            {/* Live indexer freshness — hidden until the indexer has synced */}
+            <IndexerStaleWatermark className="mt-2" />
             {comparisonEnabled && (
               <p className="mt-2 text-xs text-zinc-500" aria-live="polite">
-                {t("comparison.selectionHint", { count: comparisonList.length })}
+                {comparisonList.length >= MAX_COMPARISON_INVOICES
+                  ? t("comparison.limitReached", { max: MAX_COMPARISON_INVOICES })
+                  : t("comparison.selectionHint", { count: comparisonList.length })}
               </p>
             )}
           </div>
@@ -774,7 +774,7 @@ function MarketplaceContent() {
             <button
               onClick={handleExportCsv}
               aria-label={t("exportCsvAria")}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-sm font-medium text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-700 hover:bg-zinc-900"
             >
               <Download className="h-4 w-4 text-emerald-400" />
               <span>{t("exportCsv")}</span>
@@ -792,8 +792,14 @@ function MarketplaceContent() {
             </button>
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => setWatchlistOpen(true)} leftIcon={<Star className="h-4 w-4" />}>
-            {t("watchlist.title")}{watchedCount > 0 ? ` (${watchedCount})` : ""}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setWatchlistOpen(true)}
+            leftIcon={<Star className="h-4 w-4" />}
+          >
+            {t("watchlist.title")}
+            {watchedCount > 0 ? ` (${watchedCount})` : ""}
           </Button>
         </div>
 
@@ -811,12 +817,15 @@ function MarketplaceContent() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowHistory(true)}
                 leftIcon={<Search className="h-4 w-4 text-zinc-500" />}
-                className="bg-zinc-950/40 border-zinc-800/80 focus:border-primary/50"
+                className="border-zinc-800/80 bg-zinc-950/40 focus:border-primary/50"
               />
               {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => { setSearchQuery(""); setShowHistory(false); }}
+                  onClick={() => {
+                    setSearchQuery("");
+                    setShowHistory(false);
+                  }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
                   aria-label={t("clearSearch")}
                 >
@@ -824,9 +833,11 @@ function MarketplaceContent() {
                 </button>
               )}
               {showHistory && searchHistory.length > 0 && !searchQuery && (
-                <div className="absolute top-full left-0 z-50 mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl">
+                <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl">
                   <div className="flex items-center justify-between px-2 py-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{t("recent")}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                      {t("recent")}
+                    </span>
                     <button
                       type="button"
                       onClick={clearSearchHistory}
@@ -839,7 +850,10 @@ function MarketplaceContent() {
                     <button
                       key={h}
                       type="button"
-                      onClick={() => { setSearchQuery(h); setShowHistory(false); }}
+                      onClick={() => {
+                        setSearchQuery(h);
+                        setShowHistory(false);
+                      }}
                       className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
                     >
                       <Clock className="h-3.5 w-3.5 text-zinc-500" />
@@ -850,17 +864,17 @@ function MarketplaceContent() {
               )}
             </div>
           </div>
-          <div className="flex gap-2.5 shrink-0">
+          <div className="flex shrink-0 gap-2.5">
             {/* Filter Toggle for Mobile / Drawer triggers */}
             <Button
               variant="outline"
               onClick={() => setIsMobileDrawerOpen(true)}
-              className="gap-2 border-zinc-850 hover:bg-zinc-900/60 lg:hidden"
+              className="border-zinc-850 gap-2 hover:bg-zinc-900/60 lg:hidden"
             >
               <SlidersHorizontal className="h-4 w-4 text-zinc-400" />
               {t("filters")}
               {activeFiltersCount > 0 && (
-                <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                <span className="h-4.5 min-w-4.5 flex items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                   {activeFiltersCount}
                 </span>
               )}
@@ -870,12 +884,12 @@ function MarketplaceContent() {
             <Button
               variant="outline"
               onClick={() => setShowFilters((v) => !v)}
-              className="hidden lg:flex gap-2 border-zinc-850 hover:bg-zinc-900/60"
+              className="border-zinc-850 hidden gap-2 hover:bg-zinc-900/60 lg:flex"
             >
               <SlidersHorizontal className="h-4 w-4 text-zinc-400" />
               {t("quickFilters")}
               {activeFiltersCount > 0 && (
-                <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground animate-pulse">
+                <span className="h-4.5 min-w-4.5 flex animate-pulse items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
                   {activeFiltersCount}
                 </span>
               )}
@@ -883,13 +897,18 @@ function MarketplaceContent() {
 
             {/* Sort options select */}
             <div className="relative flex items-center">
-              <ArrowUpDown className="absolute left-3 h-4 w-4 text-zinc-400 pointer-events-none" aria-hidden="true" />
-              <label htmlFor="marketplace-sort" className="sr-only">{t("sort.ariaLabel")}</label>
+              <ArrowUpDown
+                className="pointer-events-none absolute left-3 h-4 w-4 text-zinc-400"
+                aria-hidden="true"
+              />
+              <label htmlFor="marketplace-sort" className="sr-only">
+                {t("sort.ariaLabel")}
+              </label>
               <select
                 id="marketplace-sort"
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="h-10 w-48 rounded-lg border border-zinc-850 bg-zinc-950/40 pl-9 pr-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50 appearance-none cursor-pointer transition-all hover:bg-zinc-900/30"
+                className="border-zinc-850 h-10 w-48 cursor-pointer appearance-none rounded-lg border bg-zinc-950/40 pl-9 pr-3 text-sm text-foreground transition-all hover:bg-zinc-900/30 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/50"
               >
                 {sortOptions.map((opt) => (
                   <option key={opt.value} value={opt.value} className="bg-zinc-950">
@@ -898,7 +917,6 @@ function MarketplaceContent() {
                 ))}
               </select>
             </div>
-
           </div>
         </div>
 
@@ -913,7 +931,7 @@ function MarketplaceContent() {
 
         {/* Aggregate APR Histogram & Risk Distribution Summary Bar (#561) */}
         {!isLoading && filteredInvoices.length > 0 && (
-          <div className="mb-6 rounded-2xl border border-zinc-900 bg-zinc-950/40 p-5 backdrop-blur-md grid gap-6 md:grid-cols-2">
+          <div className="mb-6 grid gap-6 rounded-2xl border border-zinc-900 bg-zinc-950/40 p-5 backdrop-blur-md md:grid-cols-2">
             <MarketplaceAprHistogram invoices={filteredInvoices} />
             <MarketplaceRiskDistribution
               invoices={filteredInvoices}
@@ -931,15 +949,15 @@ function MarketplaceContent() {
 
         <div className="flex flex-col gap-8 lg:flex-row">
           {/* A. Sticky Filter Sidebar (Desktop screens) */}
-          <div className="hidden lg:block w-72 shrink-0">
-            <div className="sticky top-24 rounded-2xl border border-zinc-900 bg-zinc-950/50 p-6 backdrop-blur-md shadow-lg space-y-6">
+          <div className="hidden w-72 shrink-0 lg:block">
+            <div className="sticky top-24 space-y-6 rounded-2xl border border-zinc-900 bg-zinc-950/50 p-6 shadow-lg backdrop-blur-md">
               <div className="flex items-center justify-between border-b border-zinc-900 pb-3">
-                <h2 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
+                <h2 className="flex items-center gap-2 text-sm font-bold text-zinc-200">
                   <SlidersHorizontal className="h-4 w-4 text-primary" />
                   {t("marketplaceFilters")}
                 </h2>
                 {activeFiltersCount > 0 && (
-                  <Badge variant="kora" className="text-[10px] py-0">
+                  <Badge variant="kora" className="py-0 text-[10px]">
                     {t("active", { count: activeFiltersCount })}
                   </Badge>
                 )}
@@ -950,7 +968,7 @@ function MarketplaceContent() {
 
           {/* B. Grid listing and states */}
           <div
-            className="flex-1 min-w-0 space-y-6"
+            className="min-w-0 flex-1 space-y-6"
             onClick={(e) => {
               // Analytics: capture Fund Invoice CTA clicks via event delegation (#563)
               const target = e.target as HTMLElement;
@@ -968,6 +986,18 @@ function MarketplaceContent() {
                 {[...Array(8)].map((_, i) => (
                   <InvoiceCardSkeleton key={i} />
                 ))}
+              </div>
+            ) : hasEmptyOfflineCache ? (
+              <div data-testid="offline-empty-cache">
+                <EmptyState
+                  title={t("offlineEmptyTitle")}
+                  description={t("offlineEmptyDesc")}
+                  cta={{
+                    label: t("retryLoading"),
+                    onClick: () => void infinite.refetch(),
+                  }}
+                  variant="marketplace"
+                />
               </div>
             ) : filteredInvoices.length === 0 ? (
               <EmptyState
@@ -1002,19 +1032,25 @@ function MarketplaceContent() {
                         key={virtualRow.key}
                         ref={rowVirtualizer.measureElement}
                         data-index={virtualRow.index}
-                        className="absolute top-0 left-0 w-full"
+                        className="absolute left-0 top-0 w-full"
                         style={{
                           transform: `translateY(${virtualRow.start - rowVirtualizer.options.scrollMargin}px)`,
                         }}
                       >
-                        <div className="grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 mb-5">
+                        <div className="mb-5 grid gap-5 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3">
                           {rowInvoices.map((invoice: Invoice, i: number) => (
                             <InvoiceCard
                               key={invoice.id}
                               invoice={invoice}
                               index={virtualRow.index * columns + i}
                               updatedAt={dataUpdatedAt}
-                              tabIndex={comparisonEnabled ? (activeIndex === virtualRow.index * columns + i ? 0 : -1) : undefined}
+                              tabIndex={
+                                comparisonEnabled
+                                  ? activeIndex === virtualRow.index * columns + i
+                                    ? 0
+                                    : -1
+                                  : undefined
+                              }
                               onCardFocus={() => {
                                 const cardIndex = virtualRow.index * columns + i;
                                 setActiveIndex(cardIndex);
@@ -1048,7 +1084,7 @@ function MarketplaceContent() {
                   <button
                     onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                     aria-label={t("backToTop")}
-                    className="fixed right-4 bottom-12 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
+                    className="fixed bottom-12 right-4 rounded-full bg-primary px-3 py-2 text-sm text-primary-foreground"
                   >
                     {t("backToTop")}
                   </button>
