@@ -117,7 +117,11 @@ export function TxSimulationPreview({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent className="max-w-md" aria-busy={isSimulating}>
+      <DialogContent
+        className="max-w-md"
+        aria-busy={isSimulating}
+        data-testid="tx-simulation-preview"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {isSimulating ? (
@@ -139,6 +143,9 @@ export function TxSimulationPreview({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="flex flex-col items-center justify-center gap-3 py-8"
+              role="status"
+              aria-live="polite"
+              data-testid="tx-simulation-loading"
             >
               <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
               <p className="text-sm text-muted-foreground">{t("simulating")}</p>
@@ -151,13 +158,25 @@ export function TxSimulationPreview({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 space-y-2"
+              role="alert"
+              aria-live="assertive"
+              data-testid="tx-simulation-error"
             >
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-destructive shrink-0" aria-hidden />
                 <p className="text-sm font-semibold text-destructive">{t("simulationError")}</p>
               </div>
               <p className="text-xs text-muted-foreground">{t("simulationErrorDesc")}</p>
-              <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-zinc-900 p-3 font-mono text-xs text-red-400 whitespace-pre-wrap break-all">
+              <p
+                className="text-xs font-medium text-foreground"
+                data-testid="tx-simulation-error-hint"
+              >
+                {t("simulationErrorHint")}
+              </p>
+              <pre
+                className="mt-2 max-h-32 overflow-auto rounded-lg bg-zinc-900 p-3 font-mono text-xs text-red-400 whitespace-pre-wrap break-all"
+                data-testid="tx-simulation-error-details"
+              >
                 {preview.error}
               </pre>
             </motion.div>
@@ -169,9 +188,13 @@ export function TxSimulationPreview({
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
+              data-testid="tx-simulation-success"
             >
               {/* Fee card */}
-              <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <div
+                className="rounded-xl border border-border bg-muted/30 p-4"
+                data-testid="tx-simulation-fee"
+              >
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t("estimatedFee")}
                 </p>
@@ -191,7 +214,10 @@ export function TxSimulationPreview({
               </div>
 
               {/* Resource usage */}
-              <div className="rounded-xl border border-border bg-muted/30 p-4">
+              <div
+                className="rounded-xl border border-border bg-muted/30 p-4"
+                data-testid="tx-simulation-resources"
+              >
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   {t("resourceUsage")}
                 </p>
@@ -230,6 +256,7 @@ export function TxSimulationPreview({
             className="flex-1"
             onClick={onCancel}
             disabled={isSimulating}
+            data-testid="tx-simulation-cancel"
           >
             {t("cancel")}
           </Button>
@@ -237,6 +264,7 @@ export function TxSimulationPreview({
             className="flex-1"
             onClick={onProceed}
             disabled={!canProceed}
+            data-testid="tx-simulation-proceed"
           >
             {isSimulating ? (
               <>

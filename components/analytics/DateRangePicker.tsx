@@ -61,6 +61,7 @@ export function DateRangePicker({ value, customRange, onChange, className }: Dat
           key={p.value}
           type="button"
           onClick={() => handlePreset(p.value)}
+          aria-pressed={value === p.value}
           className={cn(
             "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
             value === p.value
@@ -75,6 +76,8 @@ export function DateRangePicker({ value, customRange, onChange, className }: Dat
       <button
         type="button"
         onClick={() => setShowCustom((v) => !v)}
+        aria-pressed={value === "custom"}
+        aria-expanded={showCustom}
         className={cn(
           "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
           value === "custom"
