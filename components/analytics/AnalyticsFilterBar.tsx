@@ -4,6 +4,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
 import { DateRangePicker, type PresetRange, type DateRange } from "./DateRangePicker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -111,28 +112,95 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
   const translate = t as unknown as AnalyticsTranslator;
   const update = (patch: Partial<AnalyticsFilters>) => onChange({ ...filters, ...patch });
 
+  const chipRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
+  const { getTabIndex, onKeyDown: onRovingKeyDown, focusIndex } = useRovingTabIndex({
+    count: RISK_TIERS.length,
+    orientation: "horizontal",
+  });
+
+  const selectedChipIndex = RISK_TIERS.findIndex((tier) => tier.value === filters.riskTier);
+
+  const selectChip = React.useCallback(
+    (index: number) => {
+      const tier = RISK_TIERS[index];
+      if (!tier) return;
+      update({ riskTier: tier.value });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters]
+  );
+
+  const clearChip = React.useCallback(
+    (index: number) => {
+      const tier = RISK_TIERS[index];
+      if (!tier || tier.value === "all") return;
+      // Reset to "all" and move focus to the "all" chip (index 0).
+      update({ riskTier: "all" });
+      focusIndex(0);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filters, focusIndex]
+  );
+
+  const handleChipKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    switch (event.key) {
+      case "Enter":
+      case " ":
+      case "Spacebar":
+        event.preventDefault();
+        selectChip(index);
+        return;
+      case "Delete":
+      case "Backspace":
+        event.preventDefault();
+        clearChip(index);
+        return;
+      default:
+        onRovingKeyDown(event);
+    }
+  };
+
   return (
     <div className={cn("space-y-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4", className)}>
       {/* Row 1: Risk tiers + dropdowns */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Risk tier chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-zinc-500 mr-1">{t("filters.riskLabel")}</span>
-          {RISK_TIERS.map((tier) => (
-            <button
-              key={tier.value}
-              type="button"
-              onClick={() => update({ riskTier: tier.value })}
-              className={cn(
-                "rounded-md px-2 py-0.5 text-xs font-medium transition-colors",
-                filters.riskTier === tier.value
-                  ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
-                  : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
-              )}
-            >
-              {translate(tier.labelKey)}
-            </button>
-          ))}
+        <div
+          role="toolbar"
+          aria-label={t("a11y.riskTierGroup")}
+          aria-orientation="horizontal"
+          className="flex flex-wrap items-center gap-1.5"
+        >
+          <span className="text-xs text-zinc-500 mr-1" aria-hidden="true">
+            {t("filters.riskLabel")}
+          </span>
+          {RISK_TIERS.map((tier, index) => {
+            const isSelected = filters.riskTier === tier.value;
+            return (
+              <button
+                key={tier.value}
+                ref={(el) => {
+                  chipRefs.current[index] = el;
+                }}
+                type="button"
+                role="button"
+                aria-pressed={isSelected}
+                aria-label={t("a11y.riskTierChip", { tier: translate(tier.labelKey) })}
+                tabIndex={getTabIndex(index)}
+                onClick={() => selectChip(index)}
+                onKeyDown={(event) => handleChipKeyDown(event, index)}
+                className={cn(
+                  "rounded-md px-2 py-0.5 text-xs font-medium transition-colors",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-900",
+                  isSelected
+                    ? "bg-teal-500/20 text-teal-400 border border-teal-500/30"
+                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+                )}
+              >
+                {translate(tier.labelKey)}
+              </button>
+            );
+          })}
         </div>
 
         {/* Jurisdiction dropdown */}
@@ -188,11 +256,14 @@ export function AnalyticsFilterBar({ filters, onChange, className }: AnalyticsFi
           <p className="text-xs text-zinc-400" aria-live="polite">{buildSummary(filters, translate)}</p>
           <button
             type="button"
-            onClick={() => onChange(DEFAULT_FILTERS)}
-            className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-200 transition-colors"
+            onClick={() => {
+              onChange(DEFAULT_FILTERS);
+              focusIndex(0);
+            }}
+            className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-zinc-900"
             aria-label={t("a11y.clearFilters")}
           >
-            <X className="h-3 w-3" />
+            <X className="h-3 w-3" aria-hidden="true" />
             {t("filters.clear")}
           </button>
         </div>

@@ -36,6 +36,82 @@ export type MaturityReminderDays = 1 | 3 | 7;
 export type Persona = "investor" | "sme";
 
 /**
+ * Quiet hours for maturity reminders (#1253).
+ *
+ * `start`/`end` are `HH:mm` strings in the user's local wall clock, and
+ * `timezone` is an IANA zone name (e.g. `Europe/Lisbon`). A window may wrap
+ * midnight (`start > end`), which is the common "22:00 → 08:00" case.
+ */
+export interface QuietHoursSettings {
+  enabled: boolean;
+  start: string;
+  end: string;
+  timezone: string;
+}
+
+export const DEFAULT_QUIET_HOURS: QuietHoursSettings = {
+  // Off by default: enabling quiet hours silently would suppress reminders
+  // users already expect, so the safe default is "no suppression".
+  enabled: false,
+  start: "22:00",
+  end: "08:00",
+  timezone: "UTC",
+};
+
+const HH_MM_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+/** True when `value` is a valid 24-hour `HH:mm` string. */
+export function isValidQuietHoursTime(value: unknown): value is string {
+  return typeof value === "string" && HH_MM_PATTERN.test(value);
+}
+
+/**
+ * Resolve the browser's IANA timezone, falling back to UTC when the runtime
+ * does not expose one (older Safari, some test environments).
+ */
+export function detectQuietHoursTimezone(): string {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof zone === "string" && zone.length > 0 ? zone : "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+/**
+ * Validate an IANA timezone name. Unknown zones fall back to UTC so a stale or
+ * hand-edited value cannot make the quiet-hours check throw.
+ */
+export function sanitizeQuietHoursTimezone(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0) return "UTC";
+  const candidate = value.trim();
+  try {
+    // Throws a RangeError for unknown zones.
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate });
+    return candidate;
+  } catch {
+    return "UTC";
+  }
+}
+
+/** Coerce an arbitrary persisted value into a complete quiet-hours slice. */
+export function sanitizeQuietHours(
+  value: unknown,
+  fallback: QuietHoursSettings = DEFAULT_QUIET_HOURS,
+): QuietHoursSettings {
+  const raw =
+    value !== null && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  return {
+    enabled: typeof raw.enabled === "boolean" ? raw.enabled : fallback.enabled,
+    start: isValidQuietHoursTime(raw.start) ? raw.start : fallback.start,
+    end: isValidQuietHoursTime(raw.end) ? raw.end : fallback.end,
+    timezone: sanitizeQuietHoursTimezone(raw.timezone ?? fallback.timezone),
+  };
+}
+
+/**
  * The union of every notification toggle the app exposes. Keys keep the names
  * their original stores used so call sites and persisted payloads map across
  * without translation.
@@ -123,6 +199,7 @@ interface PersistedWalletSettings {
   notifications?: NotificationPrefs;
   tour?: TourSettings;
   concentration?: ConcentrationSettings;
+  quietHours?: QuietHoursSettings;
   notificationsMigrated?: boolean;
 }
 
@@ -355,7 +432,7 @@ function sanitizeConcentration(
 /** Normalize whatever was read from storage into a complete settings slice. */
 function sanitizeSettings(value: unknown): Pick<
   SettingsStore,
-  "notifications" | "tour" | "concentration"
+  "notifications" | "tour" | "concentration" | "quietHours"
 > {
   const raw = asRecord(value);
   return {
@@ -365,6 +442,7 @@ function sanitizeSettings(value: unknown): Pick<
       raw.concentration,
       DEFAULT_CONCENTRATION_SETTINGS,
     ),
+    quietHours: sanitizeQuietHours(raw.quietHours, DEFAULT_QUIET_HOURS),
   };
 }
 
@@ -383,6 +461,9 @@ interface SettingsStore {
   setTourSettings: (settings: Partial<TourSettings>) => void;
   resetTourSettings: () => void;
   restartTour: (persona?: Persona) => void;
+  quietHours: QuietHoursSettings;
+  setQuietHours: (settings: Partial<QuietHoursSettings>) => void;
+  resetQuietHours: () => void;
   concentration: ConcentrationSettings;
   setConcentrationThresholds: (thresholds: Partial<ConcentrationThresholds>) => void;
   dismissConcentrationAlert: (key: string) => void;
@@ -437,6 +518,7 @@ export const useSettingsStore = create<SettingsStore>()(
             notifications: stored.notifications ?? current.notifications,
             tour: stored.tour ?? current.tour,
             concentration: stored.concentration ?? current.concentration,
+            quietHours: stored.quietHours ?? current.quietHours,
             notificationsMigrated:
               stored.notificationsMigrated ?? current.notificationsMigrated,
             notificationsByWallet: stored.notifications
@@ -503,6 +585,15 @@ export const useSettingsStore = create<SettingsStore>()(
         }
         set({ tour: DEFAULT_TOUR_SETTINGS });
       },
+      quietHours: DEFAULT_QUIET_HOURS,
+      setQuietHours: (settings) =>
+        set((s) => ({
+          quietHours: sanitizeQuietHours(
+            { ...s.quietHours, ...settings },
+            s.quietHours,
+          ),
+        })),
+      resetQuietHours: () => set({ quietHours: DEFAULT_QUIET_HOURS }),
       concentration: DEFAULT_CONCENTRATION_SETTINGS,
       setConcentrationThresholds: (thresholds) =>
         set((s) => ({
@@ -580,6 +671,7 @@ export const useSettingsStore = create<SettingsStore>()(
         notifications: state.notifications,
         tour: state.tour,
         concentration: state.concentration,
+        quietHours: state.quietHours,
         notificationsMigrated: state.notificationsMigrated,
       }),
       /**

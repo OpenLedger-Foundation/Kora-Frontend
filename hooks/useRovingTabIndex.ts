@@ -43,6 +43,34 @@ export function useRovingTabIndex(itemCount: number) {
     [itemCount]
   );
 
+  /**
+   * Focus the nearest remaining item after the item at `removedIndex` is
+   * removed from the group (e.g. deleting a filter chip). Prefers the item
+   * that takes the removed item's place, falling back to the previous item
+   * when the removed item was last. Safe to call when the group becomes
+   * empty (no-op) or when the removed index is out of range (clamped).
+   */
+  const focusAfterRemoval = useCallback(
+    (removedIndex: number) => {
+      const remaining = itemCount - 1;
+      if (remaining <= 0) {
+        setActiveIndex(0);
+        return;
+      }
+      const clampedRemoved = Math.max(0, Math.min(removedIndex, itemCount - 1));
+      const nextIndex = Math.min(clampedRemoved, remaining - 1);
+      setActiveIndex(nextIndex);
+      // Defer focus until React has committed the removal so the ref points
+      // at the surviving element rather than the removed one.
+      if (typeof requestAnimationFrame === "function") {
+        requestAnimationFrame(() => itemRefs.current[nextIndex]?.focus());
+      } else {
+        itemRefs.current[nextIndex]?.focus();
+      }
+    },
+    [itemCount]
+  );
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent, index: number) => {
       switch (event.key) {
@@ -99,5 +127,7 @@ export function useRovingTabIndex(itemCount: number) {
     registerRef,
     handleKeyDown,
     getTabIndex,
+    focusItem,
+    focusAfterRemoval,
   };
 }

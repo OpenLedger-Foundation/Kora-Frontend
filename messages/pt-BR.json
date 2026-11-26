@@ -893,6 +893,11 @@
       "filterJurisdiction": "Filtrar por jurisdição",
       "filterCategory": "Filtrar por categoria",
       "clearFilters": "Limpar todos os filtros",
+      "filterChips": "Filtros ativos",
+      "filterChip": "Filtro {label}",
+      "removeFilterChip": "Remover filtro {label}",
+      "filterChipRemoved": "Filtro {label} removido",
+      "filterChipHint": "Use as setas para navegar entre os filtros, Enter para editar e Delete ou Backspace para remover.",
       "exportPortfolio": "Exportar dados da carteira",
       "exportYield": "Exportar dados de rendimento",
       "exportRisk": "Exportar dados de risco",
@@ -1191,6 +1196,20 @@
         "label": "Lembretes de Vencimento",
         "description": "Lembrar antes da data de vencimento da fatura."
       },
+      "quietHours": {
+        "label": "Horário de silêncio",
+        "description": "Pausar lembretes de vencimento durante o horário escolhido.",
+        "enableLabel": "Ativar horário de silêncio",
+        "enableDesc": "Os lembretes de vencimento serão adiados até o fim do horário de silêncio.",
+        "startLabel": "Início",
+        "endLabel": "Fim",
+        "startAria": "Hora de início do horário de silêncio",
+        "endAria": "Hora de término do horário de silêncio",
+        "timezoneNote": "Usa o fuso horário do seu navegador: {timezone}.",
+        "invalidRange": "O horário de término deve ser diferente do horário de início.",
+        "overnightHint": "O horário de silêncio atravessa a meia-noite.",
+        "deferredNotice": "Um lembrete de vencimento foi adiado até o fim do horário de silêncio."
+      },
       "fundingAlerts": {
         "label": "Alertas de Financiamento",
         "description": "Notificar quando sua fatura atingir marcos de financiamento."
@@ -1376,7 +1395,15 @@
     "onChainWarning": "Esta ação é registrada na blockchain e não pode ser revertida.",
     "goBack": "Voltar",
     "confirm": "Confirmar",
-    "processing": "Processando…"
+    "processing": "Processando…",
+    "illegalTransitionTitle": "Transição de status não permitida",
+    "illegalTransitionBody": "A fatura {invoiceNumber} não pode passar de {from} para {to}.",
+    "illegalTransitionSupportCode": "Código de suporte: {code}",
+    "illegalTransitionHint": "Informe este código ao suporte para que possamos ajudar mais rápido.",
+    "copySupportCode": "Copiar código de suporte",
+    "supportCodeCopied": "Código de suporte copiado",
+    "supportCodeCopyFailed": "Não foi possível copiar o código de suporte",
+    "dismiss": "Fechar"
   },
   "batchToolbar": {
     "invoicesSelected": "{count} Faturas Selecionadas",

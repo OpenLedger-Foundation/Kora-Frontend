@@ -13,6 +13,47 @@ Project documentation lives here. GitHub-facing files (`CONTRIBUTING.md`, `SECUR
 | [Analytics Events](./analytics-events.md) | Marketplace analytics event schema (no PII)                          |
 | [Testnet Nightly E2E](./testnet-nightly-e2e.md) | Opt-in live-testnet suites, real Freighter extension, CI secrets |
 
+## Behavior notes
+
+### Maturity reminder quiet hours
+
+Maturity reminders respect a per-user quiet-hours window stored in
+`store/settingsStore.ts` and consumed by `hooks/useMaturityReminder.ts`. When
+the current local time falls inside the window, reminders are deferred until
+the window ends instead of being delivered overnight. The preference is
+opt-in: with no stored value (or an invalid one) the hook falls back to
+"quiet hours disabled", so reminders behave exactly as before.
+
+### Invoice illegal-transition support codes
+
+`lib/invoiceStateMachine.ts` rejects illegal state transitions with a stable
+support code (e.g. `INV-TRANSITION-<from>-<to>`). The invoice UI surfaces the
+code in the error toast so support can trace a report back to a specific
+transition. Codes are stable identifiers, not user copy — the surrounding
+message is localized in `messages/` (en/es/pt-BR).
+
+### Open-redirect e2e corpus
+
+`e2e/connect-wallet-intended-destination.spec.ts` covers the corpus of
+intended-destination values that must never be honored after connecting a
+wallet (absolute URLs, protocol-relative, encoded, backslash, whitespace and
+control-character variants). Add new vectors to the corpus table rather than
+writing one-off tests so the suite stays exhaustive.
+
+## New environment flags
+
+Any flag introduced alongside the behavior notes above must be documented in
+[Feature Flags](./feature-flags.md) with its safe default. Current additions:
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_ENABLE_MATURITY_REMINDER_QUIET_HOURS` | `false` | Enables the quiet-hours preference UI and deferral logic for maturity reminders. When unset or `false`, reminders ignore quiet hours. |
+| `NEXT_PUBLIC_ENABLE_INVOICE_TRANSITION_SUPPORT_CODES` | `true` | Shows the stable support code in the illegal-transition toast. Defaults to on; setting `false` hides the code but keeps the localized message. |
+
+Both flags are read at build time via `NEXT_PUBLIC_*` and default to the safe
+value when missing, so a misconfigured environment degrades to existing
+behavior rather than breaking reminders or invoice actions.
+
 ## Repository docs (root)
 
 | Document                           | Description                                       |
