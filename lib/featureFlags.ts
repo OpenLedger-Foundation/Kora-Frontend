@@ -27,6 +27,7 @@ import { useSyncExternalStore } from "react";
  * | category-taxonomy-preview | NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW | Developer taxonomy preview panel in marketplace filters |
  * | test-components           | NEXT_PUBLIC_ENABLE_TEST_COMPONENTS           | Render isolated test harness page for component testing  |
  * | hw-wallet-signing         | NEXT_PUBLIC_ENABLE_HW_WALLET_SIGNING         | Hardware wallet signing path (Ledger/Trezor)            |
+ * | pwa-install-analytics      | NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS      | Privacy-safe PWA install prompt analytics (default off) |
  */
 export type FeatureFlag =
   | "mock-data"
@@ -38,7 +39,8 @@ export type FeatureFlag =
   | "secondary-market"
   | "category-taxonomy-preview"
   | "test-components"
-  | "hw-wallet-signing";
+  | "hw-wallet-signing"
+  | "pwa-install-analytics";
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "mock-data",
@@ -51,6 +53,7 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "category-taxonomy-preview",
   "test-components",
   "hw-wallet-signing",
+  "pwa-install-analytics",
 ];
 
 export type FeatureFlagState = Record<FeatureFlag, boolean>;
@@ -85,6 +88,7 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "category-taxonomy-preview": "NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW",
   "test-components": "NEXT_PUBLIC_ENABLE_TEST_COMPONENTS",
   "hw-wallet-signing": "NEXT_PUBLIC_ENABLE_HW_WALLET_SIGNING",
+  "pwa-install-analytics": "NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS",
 };
 
 /**
