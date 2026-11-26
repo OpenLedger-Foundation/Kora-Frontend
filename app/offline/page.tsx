@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ export default function OfflinePage() {
   const t = useTranslations("offline");
   const queryClient = useQueryClient();
   const cachedAt = getLatestMarketplaceDataUpdatedAt(queryClient);
+  const [queueCount, setQueueCount] = useState(0);
 
   return (
     <div className="flex min-h-[80vh] flex-col items-center justify-center px-4 text-center">
@@ -81,11 +83,16 @@ export default function OfflinePage() {
 
       {/* Pending signed-XDR queue — visible online and offline */}
       <div className="mt-8 w-full max-w-sm text-left">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+        <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-zinc-500">
           {t("pendingQueueTitle")}
+          {queueCount > 0 && (
+            <span className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-bold text-amber-400 ring-1 ring-inset ring-amber-500/30">
+              {queueCount}
+            </span>
+          )}
         </p>
         <p className="mb-4 text-xs text-zinc-500">{t("pendingQueueDesc")}</p>
-        <PendingTxQueuePanel />
+        <PendingTxQueuePanel onCountChange={setQueueCount} />
       </div>
 
       <div className="mt-8 flex flex-col gap-3 sm:flex-row">
