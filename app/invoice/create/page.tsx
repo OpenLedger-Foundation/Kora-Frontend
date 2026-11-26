@@ -42,6 +42,7 @@ import { useLocale } from "@/i18n/LocaleProvider";
 import { cn, isValidStellarAddress } from "@/lib/utils";
 import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { usePinataHealth } from "@/hooks/usePinataHealth";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 import { useFeatureFlag } from "@/lib/featureFlags";
@@ -450,14 +451,20 @@ export default function CreateInvoicePage() {
           <div className="mt-8 space-y-4 rounded-xl border border-zinc-800/85 bg-zinc-900/40 p-5 text-left text-sm backdrop-blur-sm">
             <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
               <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
-              <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
-                #{mintedInfo.tokenId}
+              <span className="flex items-center gap-1.5">
+                <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
+                  #{mintedInfo.tokenId}
+                </span>
+                <CopyButton text={mintedInfo.tokenId} />
               </span>
             </div>
 
             <div className="flex justify-between items-start pt-1">
               <div className="space-y-1 w-full">
-                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">{t("success.txHash")}</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">{t("success.txHash")}</span>
+                  <CopyButton text={mintedInfo.txHash} />
+                </div>
                 <span className="font-mono text-xs text-zinc-400 break-all select-all pr-4 block">
                   {mintedInfo.txHash}
                 </span>
@@ -466,8 +473,11 @@ export default function CreateInvoicePage() {
 
             <div className="border-t border-zinc-800/60 pt-3 flex justify-between items-center">
               <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.ipfsCid")}</span>
-              <span className="font-mono text-xs text-kora-400 break-all bg-kora-500/5 border border-kora-500/10 px-2 py-0.5 rounded select-all max-w-[200px] truncate">
-                {mintedInfo.metadataCid}
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="font-mono text-xs text-kora-400 break-all bg-kora-500/5 border border-kora-500/10 px-2 py-0.5 rounded select-all max-w-[200px] truncate">
+                  {mintedInfo.metadataCid}
+                </span>
+                <CopyButton text={mintedInfo.metadataCid} />
               </span>
             </div>
           </div>

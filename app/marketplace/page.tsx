@@ -45,6 +45,7 @@ import ActiveFilterChips from "@/components/marketplace/ActiveFilterChips";
 import { CategoryTaxonomyPreview } from "@/components/marketplace/CategoryTaxonomyPreview";
 import { useFeatureFlag } from "@/lib/featureFlags";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
 import { buildRangeSelection } from "@/lib/comparison";
@@ -274,6 +275,7 @@ function MarketplaceContent() {
   const [showFilters, setShowFilters] = useState(false);
   const [watchlistOpen, setWatchlistOpen] = useState(false);
   const watchedCount = useInvoiceStore((state) => state.watchedInvoiceIds.length);
+  const { copy: copyUrl, copied: linkCopied } = useCopyToClipboard();
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUrlHydrated, setIsUrlHydrated] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -710,14 +712,14 @@ function MarketplaceContent() {
             </button>
             <button
               onClick={() => {
-                navigator.clipboard?.writeText(window.location.href).then(() => {
-                  toast.success(t("shareFiltersCopied"));
+                void copyUrl(window.location.href).then((ok) => {
+                  if (ok) toast.success(t("shareFiltersCopied"));
                 });
               }}
-              aria-label="Copy marketplace filter link to clipboard"
+              aria-label={linkCopied ? t("shareFiltersCopied") : "Copy marketplace filter link to clipboard"}
               className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-900"
             >
-              {t("shareFilters")}
+              {linkCopied ? t("shareFiltersCopied") : t("shareFilters")}
             </button>
           </div>
 

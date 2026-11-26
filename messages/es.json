@@ -651,6 +651,7 @@
       "type": "Tipo",
       "txHash": "Hash de Transacción",
       "copyHashAria": "Copiar hash",
+      "hashCopiedAria": "Hash copiado",
       "status": "Estado",
       "amount": "Monto",
       "dateTime": "Fecha y Hora",
@@ -955,6 +956,7 @@
     "showingResults": "Mostrando {shown} de {total}",
     "savedContacts": "Contactos guardados",
     "addressCopied": "Dirección copiada al portapapeles",
+    "copyFailed": "No se pudo copiar — cópielo manualmente",
     "copyAddress": "Copiar dirección",
     "select": "Seleccionar",
     "selectContact": "Seleccionar {label}",
@@ -1220,8 +1222,12 @@
   "copyButton": {
     "copyAriaLabel": "Copiar",
     "copiedAriaLabel": "Copiado",
+    "failedAriaLabel": "Error al copiar",
     "copyTooltip": "Copiar",
-    "copiedTooltip": "¡Copiado!"
+    "copiedTooltip": "¡Copiado!",
+    "failedTooltip": "Error al copiar",
+    "copiedToast": "¡Copiado!",
+    "failedToast": "Error al copiar — inténtalo de nuevo"
   },
   "contractEvents": {
     "invoiceFunded": "Factura Financiada",

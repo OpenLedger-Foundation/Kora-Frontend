@@ -9,6 +9,7 @@ import { useWalletStore } from "@/store";
 import { isValidStellarAddress, truncateAddress } from "@/lib/utils";
 import { toast } from "sonner";
 import { buildLabelMessage, type SignedLabel } from "@/store/walletStore";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 
 type AddressBookEntry = {
   id: string;
@@ -33,6 +34,10 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
   const [expanded, setExpanded] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [signingId, setSigningId] = useState<string | null>(null);
+  const { copy, copied, error: copyError } = useCopyToClipboard();
+
+  // Track which entry was copied so only that button flips to the check icon.
+  const [copiedEntryId, setCopiedEntryId] = useState<string | null>(null);
 
   const addrInputRef = useRef<HTMLInputElement>(null);
   const editAddrInputRef = useRef<HTMLInputElement>(null);
@@ -193,21 +198,13 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
     }
   };
 
-  const copyAddress = async (address: string) => {
-    try {
-      await navigator.clipboard.writeText(address);
+  const copyAddress = async (address: string, entryId?: string) => {
+    const ok = await copy(address);
+    setCopiedEntryId(ok && entryId ? entryId : null);
+    if (ok) {
       toast.success(t("addressCopied"));
-    } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement("textarea");
-      textarea.value = address;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      toast.success(t("addressCopied"));
+    } else {
+      toast.error(t("copyFailed"));
     }
   };
 
@@ -625,11 +622,15 @@ export function AddressBook({ onClose, onSelect }: { onClose?: () => void; onSel
                             <code className="text-xs text-muted-foreground">{truncateAddress(entry.address, 8)}</code>
                             <button
                               type="button"
-                              onClick={() => copyAddress(entry.address)}
+                              onClick={() => void copyAddress(entry.address, entry.id)}
                               className="rounded p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                              aria-label={t("copyAddress", { address: entry.address })}
+                              aria-label={copiedEntryId === entry.id ? t("addressCopied") : t("copyAddress", { address: entry.address })}
                             >
-                              <Copy className="h-3 w-3" aria-hidden="true" />
+                              {copiedEntryId === entry.id ? (
+                                <Check className="h-3 w-3 text-green-500" aria-hidden="true" />
+                              ) : (
+                                <Copy className="h-3 w-3" aria-hidden="true" />
+                              )}
                             </button>
                           </div>
                           {expanded && (

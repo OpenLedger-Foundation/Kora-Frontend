@@ -12,8 +12,10 @@ import {
   Download,
   Trash2,
   X,
+  Check,
   Copy,
 } from "lucide-react";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
@@ -185,6 +187,7 @@ function TransactionDetail({
 }) {
   const typeConfig = TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other;
   const dateObj = new Date(tx.timestamp);
+  const { copy: copyHash, copied: hashCopied } = useCopyToClipboard();
 
   // Only fetch details for confirmed transactions — cache forever (staleTime: Infinity)
   const { data: details, isLoading: loadingDetails } = useQuery({
@@ -236,11 +239,15 @@ function TransactionDetail({
           </span>
           <button
             type="button"
-            onClick={() => navigator.clipboard.writeText(tx.hash)}
-            aria-label={t("drawer.copyHashAria")}
+            onClick={() => void copyHash(tx.hash)}
+            aria-label={hashCopied ? t("drawer.hashCopiedAria") : t("drawer.copyHashAria")}
             className="shrink-0 rounded p-1 hover:bg-muted transition-colors"
           >
-            <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+            {hashCopied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" aria-hidden="true" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>

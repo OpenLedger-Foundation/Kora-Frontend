@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, GitCompareArrows, Share2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useInvoiceStore } from "@/store/invoiceStore";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { cn } from "@/lib/utils";
 import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { isEnabled } from "@/lib/featureFlags";
@@ -34,7 +35,7 @@ export function ComparisonBar() {
     setComparisonList,
   } = useInvoiceStore();
   const [tableOpen, setTableOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copy: copyUrl, copied } = useCopyToClipboard();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -99,15 +100,7 @@ export function ComparisonBar() {
   const handleShare = async () => {
     const url = new URL(window.location.href);
     url.searchParams.set("compare", comparisonList.join(","));
-    try {
-      await navigator.clipboard.writeText(url.toString());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      router.replace(`${url.pathname}?${url.searchParams.toString()}`, {
-        scroll: false,
-      });
-    }
+    await copyUrl(url.toString());
   };
 
   if (comparisonList.length === 0) return null;
