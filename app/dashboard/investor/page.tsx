@@ -219,16 +219,21 @@ export default function InvestorDashboardPage() {
    * it runs through the same verification gate as funding/claim/repayment
    * (#1123) — previously it called the store directly and skipped it.
    */
-  const handleListSubmit = (askPrice: number) => {
-    if (!listingTarget) return;
+  const handleListSubmit = (askPrice: number, expiresAt?: string) => {
+    if (!listingTarget || !address) return;
     const target = listingTarget;
 
     const runListing = async () => {
       listPosition({
         positionId: target.id,
         askPrice,
-        seller: address ?? "",
+        impliedDiscount: computeImpliedDiscount(askPrice, target.expectedReturn),
+        listedAt: new Date().toISOString(),
+        expiresAt,
+        invoiceTokenId: target.invoice?.tokenId,
+        repaymentDate: target.invoice?.terms.repaymentDate,
       });
+      toast.success(t("listing.success"));
       setListingTarget(null);
     };
 
@@ -240,7 +245,7 @@ export default function InvestorDashboardPage() {
           "Verification required",
           "Verify wallet ownership to list this position.",
           () => {
-            handleListSubmit(askPrice);
+            handleListSubmit(askPrice, expiresAt);
           },
         );
         return;
@@ -248,23 +253,10 @@ export default function InvestorDashboardPage() {
 
       if (result.error && result.error !== "Wallet not connected") {
         toast.error("Listing failed", result.error, () => {
-          handleListSubmit(askPrice);
+          handleListSubmit(askPrice, expiresAt);
         });
       }
     });
-  const handleListSubmit = (askPrice: number, expiresAt?: string) => {
-    if (!listingTarget || !address) return;
-    listPosition({
-      positionId: listingTarget.id,
-      askPrice,
-      impliedDiscount: computeImpliedDiscount(askPrice, listingTarget.expectedReturn),
-      listedAt: new Date().toISOString(),
-      expiresAt,
-      invoiceTokenId: listingTarget.invoice?.tokenId,
-      repaymentDate: listingTarget.invoice?.terms.repaymentDate,
-    });
-    toast.success(t("listing.success"));
-    setListingTarget(null);
   };
 
   /** Export visible positions as a CSV file. Scoped to the connected address. */

@@ -755,6 +755,74 @@ test.describe("Marketplace - Virtualized Grid Mobile Scroll", () => {
   });
 });
 
+// ─── Infinite Scroll Accessibility (aria-live + focus stability) ──────────────
+
+test.describe("Marketplace - Infinite Scroll Accessibility", () => {
+  // Inherits top-level test.use({ ...devices["iPhone 12"] });
+
+  test.beforeEach(async ({ page }) => {
+    await suppressOverlays(page);
+    await page.goto("/marketplace");
+    await waitForCards(page);
+  });
+
+  /** Scroll the window to the bottom of the (growing) virtualized list. */
+  const scrollToBottom = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+  test("exposes a polite, atomic status region for load-more updates", async ({ page }) => {
+    const status = page.getByTestId("marketplace-load-status");
+    await expect(status).toHaveAttribute("role", "status");
+    await expect(status).toHaveAttribute("aria-live", "polite");
+    await expect(status).toHaveAttribute("aria-atomic", "true");
+  });
+
+  test("announces newly loaded invoices after scrolling", async ({ page }) => {
+    const status = page.getByTestId("marketplace-load-status");
+
+    await scrollToBottom(page);
+
+    await expect
+      .poll(async () => (await status.textContent()) ?? "", { timeout: 15_000 })
+      .toMatch(/\d+ new invoices? loaded/i);
+  });
+
+  test("announces and renders the end of the list", async ({ page }) => {
+    const endMarker = page.getByTestId("marketplace-end-of-list");
+    const status = page.getByTestId("marketplace-load-status");
+
+    // Keep scrolling until every page has loaded (mock list is paginated).
+    for (let i = 0; i < 30; i++) {
+      if (await endMarker.isVisible().catch(() => false)) break;
+      await scrollToBottom(page);
+      await page.waitForTimeout(300);
+    }
+
+    await expect(endMarker).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(async () => (await status.textContent()) ?? "", { timeout: 10_000 })
+      .toMatch(/end of list/i);
+  });
+
+  test("does not steal or reset focus when more invoices load", async ({ page }) => {
+    // A control outside the virtualized list — must keep focus across batches.
+    const sortSelect = page.locator("select").first();
+    await sortSelect.focus();
+    await expect(sortSelect).toBeFocused();
+
+    for (let i = 0; i < 3; i++) {
+      await scrollToBottom(page);
+      await page.waitForTimeout(300);
+    }
+
+    await expect(sortSelect).toBeFocused();
+    const focusOnBody = await page.evaluate(
+      () => document.activeElement === document.body,
+    );
+    expect(focusOnBody).toBe(false);
+  });
+});
+
 // ─── Mobile Navigation Menu (Issues #1009, #1010) ────────────────────────────
 
 test.describe("Mobile Nav Menu - Focus Trap and Dismiss", () => {

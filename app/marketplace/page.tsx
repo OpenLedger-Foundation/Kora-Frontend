@@ -42,6 +42,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { RangeSlider } from "@/components/ui/range-slider";
 import { ComparisonBar } from "@/components/marketplace/ComparisonBar";
 import ActiveFilterChips from "@/components/marketplace/ActiveFilterChips";
+import InfiniteScrollStatus from "@/components/marketplace/InfiniteScrollStatus";
 import PresetImportExport from "@/components/marketplace/PresetImportExport";
 import { CategoryTaxonomyPreview } from "@/components/marketplace/CategoryTaxonomyPreview";
 import { useFeatureFlag } from "@/lib/featureFlags";
@@ -51,6 +52,7 @@ import { useMarketplaceScrollReset } from "@/hooks/useMarketplaceScrollReset";
 import { buildMarketplaceFilterFingerprint } from "@/lib/marketplaceFilterFingerprint";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
+import { useLoadMoreFocus } from "@/hooks/useLoadMoreFocus";
 import { buildRangeSelection } from "@/lib/comparison";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import {
@@ -438,6 +440,9 @@ function MarketplaceContent() {
   );
 
   const { activeIndex, setActiveIndex } = useRovingTabIndex(filteredInvoices.length);
+
+  // Keep keyboard focus anchored while further pages append during infinite scroll.
+  useLoadMoreFocus(filteredInvoices.length);
 
   const handleCardKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLAnchorElement>, index: number, invoiceId: string) => {
@@ -898,24 +903,12 @@ function MarketplaceContent() {
         </div>
 
         <div className="mb-8">
-          <ActiveFilterChips
-            filters={filters}
-            sort={sort}
-            presets={savedPresets}
-            onSave={savePreset}
-            onLoad={handleLoadPreset}
-            onRename={renamePreset}
-            onDelete={deletePreset}
-          />
-          <div className="mt-3">
-            <PresetImportExport />
-          </div>
+          <PresetImportExport />
         </div>
 
-        {/* 2-Column Responsive Layout */}
         {/* Active filter chips — shown below the search/sort bar when filters are applied */}
         {activeFiltersCount > 0 && (
-          <ActiveFilterChips className="mb-4" />
+          <ActiveFilterChips className="mb-4" fallbackFocusId="marketplace-search" />
         )}
 
         {/* Aggregate APR Histogram & Risk Distribution Summary Bar (#561) */}
@@ -1045,29 +1038,13 @@ function MarketplaceContent() {
                     aria-hidden="true"
                     className="h-4 w-full"
                   />
-                  {isFetchingNextPage && (
-                    <div className="mt-4 text-center text-sm text-muted-foreground">{t("loadingMore")}</div>
-                  )}
-                  {infinite.isError && (
-                    <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center">
-                      <p className="text-xs font-medium text-destructive">
-                        {t("loadMoreFailed")}
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => infinite.refetch()}
-                        className="gap-2 border-destructive/40 text-xs text-destructive hover:bg-destructive/20"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        {t("retryLoading")}
-                      </Button>
-                    </div>
-                  )}
-
-                  {!hasNextPage && filteredInvoices.length > 0 && (
-                    <div className="mt-4 text-center text-sm text-muted-foreground">{t("allLoaded")}</div>
-                  )}
+                  <InfiniteScrollStatus
+                    loadedCount={filteredInvoices.length}
+                    hasNextPage={hasNextPage}
+                    isFetchingNextPage={isFetchingNextPage}
+                    isError={infinite.isError}
+                    onRetry={() => infinite.refetch()}
+                  />
                   <button
                     onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
                     aria-label={t("backToTop")}
