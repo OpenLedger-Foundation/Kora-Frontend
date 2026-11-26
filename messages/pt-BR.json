@@ -1531,7 +1531,13 @@
     "totalFees": "Taxas totais ({rate})",
     "total": "Total a pagar",
     "noFees": "Esta aquisição não possui taxas.",
-    "listingNote": "O comprador paga {rate} em taxas sobre o preço pedido."
+    "listingNote": "O comprador paga {rate} em taxas sobre o preço pedido.",
+    "protocolFeeAria": "O que é a taxa do protocolo?",
+    "marketFeeAria": "O que é a taxa do mercado?",
+    "totalFeeAria": "Como o total é calculado",
+    "protocolFeeTooltip": "Uma taxa do protocolo de {rate} financia os contratos Soroban da Kora que mantêm esta negociação em custódia.",
+    "marketFeeTooltip": "Uma taxa do mercado de {rate} vai para a plataforma que lista esta fatura.",
+    "totalFeeTooltip": "O preço da posição mais {fees} em taxas. Você paga {total}."
   },
   "concentrationRisk": {
     "title": "Risco de concentração",

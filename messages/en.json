@@ -1486,7 +1486,13 @@
     "totalFees": "Total fees ({rate})",
     "total": "You pay",
     "noFees": "No fees apply to this acquisition.",
-    "listingNote": "Buyer pays {rate} in fees on top of the ask price."
+    "listingNote": "Buyer pays {rate} in fees on top of the ask price.",
+    "protocolFeeAria": "What is the protocol fee?",
+    "marketFeeAria": "What is the marketplace fee?",
+    "totalFeeAria": "How the total is calculated",
+    "protocolFeeTooltip": "A {rate} protocol fee funds the Kora Soroban contracts that hold this trade in escrow.",
+    "marketFeeTooltip": "A {rate} marketplace fee goes to the venue that hosts this listing.",
+    "totalFeeTooltip": "The position price plus {fees} in fees. You pay {total}."
   },
   "concentrationRisk": {
     "title": "Concentration risk",

@@ -1504,7 +1504,13 @@
     "totalFees": "إجمالي الرسوم ({rate})",
     "total": "المبلغ المستحق",
     "noFees": "لا توجد رسوم على هذا الاستحواذ.",
-    "listingNote": "يدفع المشتري {rate} رسومًا فوق السعر المطلوب."
+    "listingNote": "يدفع المشتري {rate} رسومًا فوق السعر المطلوب.",
+    "protocolFeeAria": "ما هي رسوم البروتوكول؟",
+    "marketFeeAria": "ما هي رسوم السوق؟",
+    "totalFeeAria": "كيف يتم احتساب الإجمالي",
+    "protocolFeeTooltip": "تدعم رسوم البروتوكول البالغة {rate} عقود Kora على Soroban التي تحتفظ بهذه الصفقة في الضمان.",
+    "marketFeeTooltip": "تذهب رسوم السوق البالغة {rate} إلى المنصة التي تُدرج هذه الفاتورة.",
+    "totalFeeTooltip": "سعر المركز بالإضافة إلى {fees} رسومًا. تدفع {total}."
   },
   "concentrationRisk": {
     "title": "مخاطر التركّز",

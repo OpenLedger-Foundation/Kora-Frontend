@@ -1504,7 +1504,13 @@
     "totalFees": "Comisiones totales ({rate})",
     "total": "Total a pagar",
     "noFees": "Esta adquisición no tiene comisiones.",
-    "listingNote": "El comprador paga {rate} en comisiones sobre el precio solicitado."
+    "listingNote": "El comprador paga {rate} en comisiones sobre el precio solicitado.",
+    "protocolFeeAria": "¿Qué es la comisión del protocolo?",
+    "marketFeeAria": "¿Qué es la comisión del mercado?",
+    "totalFeeAria": "Cómo se calcula el total",
+    "protocolFeeTooltip": "Una comisión del protocolo del {rate} financia los contratos Soroban de Kora que mantienen esta operación en custodia.",
+    "marketFeeTooltip": "Una comisión del mercado del {rate} se destina a la plataforma que publica esta factura.",
+    "totalFeeTooltip": "El precio de la posición más {fees} en comisiones. Pagas {total}."
   },
   "concentrationRisk": {
     "title": "Riesgo de concentración",
