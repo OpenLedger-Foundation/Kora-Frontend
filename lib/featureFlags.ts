@@ -25,6 +25,9 @@ import { useSyncExternalStore } from "react";
  * | kyb-mint-gate             | NEXT_PUBLIC_ENABLE_KYB_MINT_GATE             | Gate invoice minting behind KYB verification            |
  * | secondary-market          | NEXT_PUBLIC_ENABLE_SECONDARY_MARKET          | Secondary market P2P trading route                      |
  * | category-taxonomy-preview | NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW | Developer taxonomy preview panel in marketplace filters |
+ * | test-components           | NEXT_PUBLIC_ENABLE_TEST_COMPONENTS           | Render isolated test harness page for component testing  |
+ * | hw-wallet-signing         | NEXT_PUBLIC_ENABLE_HW_WALLET_SIGNING         | Hardware wallet signing path (Ledger/Trezor)            |
+ * | pwa-install-analytics      | NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS      | Privacy-safe PWA install prompt analytics (default off) |
  */
 export type FeatureFlag =
   | "mock-data"
@@ -35,7 +38,9 @@ export type FeatureFlag =
   | "kyb-mint-gate"
   | "secondary-market"
   | "category-taxonomy-preview"
-  | "test-components";
+  | "test-components"
+  | "hw-wallet-signing"
+  | "pwa-install-analytics";
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "mock-data",
@@ -47,6 +52,8 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "secondary-market",
   "category-taxonomy-preview",
   "test-components",
+  "hw-wallet-signing",
+  "pwa-install-analytics",
 ];
 
 export type FeatureFlagState = Record<FeatureFlag, boolean>;
@@ -80,7 +87,18 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "secondary-market": "NEXT_PUBLIC_ENABLE_SECONDARY_MARKET",
   "category-taxonomy-preview": "NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW",
   "test-components": "NEXT_PUBLIC_ENABLE_TEST_COMPONENTS",
+  "hw-wallet-signing": "NEXT_PUBLIC_ENABLE_HW_WALLET_SIGNING",
+  "pwa-install-analytics": "NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS",
 };
+
+/**
+ * Public, read-only view of the flag → env var mapping.
+ *
+ * Exposed so the docs-parity test (Issue #1157) can assert that every runtime
+ * flag is documented with the correct env var without duplicating the map.
+ */
+export const FEATURE_FLAG_ENV_MAP: Readonly<Record<FeatureFlag, string>> =
+  FLAG_ENV_MAP;
 
 function readEnvFlag(flag: FeatureFlag): boolean {
   const envVar = FLAG_ENV_MAP[flag];
@@ -198,9 +216,16 @@ function serializeEnvFeatureFlagState(): string {
  *
  * Reads the corresponding NEXT_PUBLIC_* env var at runtime.
  * Only the string `"true"` (case-sensitive) enables a flag.
+ *
+ * Fails safe: any read error (e.g. unavailable env / storage) resolves to
+ * `false` so half-enabled paths (like HW wallet signing) never activate.
  */
 export function isEnabled(flag: FeatureFlag): boolean {
-  return readFeatureFlagState()[flag];
+  try {
+    return readFeatureFlagState()[flag] === true;
+  } catch {
+    return false;
+  }
 }
 
 export function getFeatureFlagState(): FeatureFlagState {
@@ -215,132 +240,92 @@ export function getFeatureFlagOverride(
 
 export function setFeatureFlagOverride(
   flag: FeatureFlag,
-  enabled: boolean | undefined,
+  value: boolean | undefined,
 ): void {
   if (!isFlagOverrideAllowed(flag)) return;
 
   const overrides = readStoredOverrides();
-
-  if (enabled === undefined) {
+  if (value === undefined) {
     delete overrides[flag];
   } else {
-    overrides[flag] = enabled;
+    overrides[flag] = value;
   }
-
   writeOverrides(overrides);
 }
 
-export function resetFeatureFlagOverrides(): void {
+export function clearFeatureFlagOverrides(): void {
   writeOverrides({});
 }
 
+export function resetFeatureFlagOverrides(): void {
+  clearFeatureFlagOverrides();
+}
+
+/**
+ * React hook returning the live feature flag state.
+ * Re-renders when overrides change (same tab or cross-tab).
+ */
 export function useFeatureFlags(): FeatureFlagState {
-  const snapshot = useSyncExternalStore(
+  const serialized = useSyncExternalStore(
     subscribeToFeatureFlags,
     serializeFeatureFlagState,
     serializeEnvFeatureFlagState,
   );
-
-  return JSON.parse(snapshot) as FeatureFlagState;
+  return JSON.parse(serialized) as FeatureFlagState;
 }
 
-export function useFeatureFlag(flag: FeatureFlag): boolean {
-  return useFeatureFlags()[flag];
-}
+// ─── Network mode & query tuning (Issue #436) ────────────────────────────────
 
-// ─── Network mode & query tuning — Issue #436 ────────────────────────────────
-//
-// Kora resolves invoice data in one of two network modes, and they have very
-// different freshness characteristics:
-//
-// - **mock** (`mock-data` flag on) — invoices come from the static
-//   `MOCK_INVOICES` fixture. The data is immutable for the lifetime of the tab,
-//   so any background refetch is pure waste: it burns a render pass and returns
-//   a byte-identical result.
-//
-// - **live** — invoices come from Soroban RPC / the indexer, and
-//   `useContractEvents` streams `invoice_funded` / `invoice_repaid` /
-//   `invoice_cancelled` events, invalidating the affected query keys as they
-//   arrive. Freshness is therefore *event-driven*, not timer-driven.
-//
-// Previously the invoice hooks used a fixed 30 s stale time with 15 s / 30 s
-// poll timers in both modes. In live mode that duplicated work the event stream
-// already does — an event invalidates a key, then the timer refetches the same
-// key seconds later. In mock mode it refetched data that cannot change. The
-// tuning table below replaces those scattered magic constants with one
-// per-mode definition.
-
-/** Whether app data resolves from mock fixtures or the live indexer. */
+/**
+ * Active data source for invoice queries.
+ *
+ * `mock` resolves from the static `MOCK_INVOICES` fixture, `live` talks to the
+ * Soroban indexer/RPC. Driven by the `mock-data` flag so cache-key namespacing
+ * (`lib/queryKeys.ts`) and query tuning can never disagree about which mode is
+ * active.
+ */
 export type NetworkMode = "mock" | "live";
 
-/** Resolve the active network mode from the `mock-data` flag. */
+/** Resolve the active network mode from the `mock-data` feature flag. */
 export function getNetworkMode(): NetworkMode {
   return isEnabled("mock-data") ? "mock" : "live";
 }
 
-export function useNetworkMode(): NetworkMode {
-  return useFeatureFlag("mock-data") ? "mock" : "live";
-}
-
-/** True when cache freshness is driven by the contract event stream. */
-export function isEventDriven(mode: NetworkMode = getNetworkMode()): boolean {
-  return mode === "live";
-}
-
 /**
- * TanStack Query timings for a single network mode.
+ * TanStack Query timings for one network mode.
  *
- * A `false` refetch interval disables timer-based polling for that query;
- * freshness then comes from cache invalidation — contract events, mutation
- * `onSettled` handlers, or an explicit `refetch()`.
+ * `staleTime`/`gcTime` are passed straight to `useQuery`; the refetch fields
+ * are backstop intervals (a hidden tab is skipped by `whenVisible()` in
+ * `hooks/useInvoices.ts`), and `false` disables polling outright.
  */
 export interface QueryTuning {
-  /** How long a fetched result is considered fresh. */
   staleTime: number;
-  /** How long an unused result stays cached before garbage collection. */
   gcTime: number;
-  /**
-   * Backstop poll for marketplace/list queries. In live mode this is a long
-   * safety net for a degraded event stream — not the primary freshness path.
-   */
   listRefetchInterval: number | false;
-  /** Backstop poll for a detail query whose invoice is still fundable. */
   detailRefetchInterval: number | false;
-  /** Backstop poll for owner-scoped ("my invoices") queries. */
   ownerRefetchInterval: number | false;
-  /** Backstop poll for the batched token-id watcher. */
   batchRefetchInterval: number | false;
 }
 
-const GC_5_MIN = 5 * 60 * 1000;
-
 /**
- * Per-mode tuning table.
+ * Single source of truth for per-mode query tuning (see docs/architecture.md).
  *
- * **live** — `staleTime` is short (5 s) because the event stream invalidates
- * keys the moment on-chain state changes; a short stale window means the
- * invalidated query refetches promptly instead of serving a stale entry. Timer
- * intervals are pushed out to 2 min so they act purely as a backstop for a
- * degraded stream (`useContractEvents` already falls back SSE → RPC stream →
- * 5 s polling internally) rather than racing it, which is what produced the
- * duplicate requests.
- *
- * **mock** — the fixture never changes, so `staleTime` is 5 min and every timer
- * is disabled. Mutations still invalidate explicitly, so optimistic updates and
- * the invoice wizard continue to work.
+ * Live mode is event-driven — `useContractEvents` invalidates the affected
+ * keys as events arrive, so these timers are a slow safety net for a degraded
+ * stream. Mock fixtures are immutable, so polling is disabled entirely.
  */
-export const QUERY_TUNING: Record<NetworkMode, QueryTuning> = {
+export const QUERY_TUNING: Readonly<Record<NetworkMode, QueryTuning>> = {
   live: {
     staleTime: 5_000,
-    gcTime: GC_5_MIN,
-    listRefetchInterval: 120_000,
-    detailRefetchInterval: 120_000,
-    ownerRefetchInterval: 120_000,
-    batchRefetchInterval: 120_000,
+    gcTime: 5 * 60_000,
+    listRefetchInterval: 2 * 60_000,
+    detailRefetchInterval: 2 * 60_000,
+    ownerRefetchInterval: 2 * 60_000,
+    batchRefetchInterval: 2 * 60_000,
   },
   mock: {
-    staleTime: GC_5_MIN,
-    gcTime: GC_5_MIN,
+    staleTime: 5 * 60_000,
+    gcTime: 5 * 60_000,
     listRefetchInterval: false,
     detailRefetchInterval: false,
     ownerRefetchInterval: false,
@@ -348,13 +333,16 @@ export const QUERY_TUNING: Record<NetworkMode, QueryTuning> = {
   },
 };
 
-/** Tuning for the active mode, or an explicitly supplied one (used in tests). */
-export function getQueryTuning(
-  mode: NetworkMode = getNetworkMode(),
-): QueryTuning {
-  return QUERY_TUNING[mode];
+/**
+ * React hook returning the query tuning for the active network mode.
+ * Re-renders when the `mock-data` flag flips at runtime.
+ */
+export function useQueryTuning(): QueryTuning {
+  const flags = useFeatureFlags();
+  return QUERY_TUNING[flags["mock-data"] ? "mock" : "live"];
 }
 
-export function useQueryTuning(): QueryTuning {
-  return getQueryTuning(useNetworkMode());
+/** React hook returning whether a single flag is enabled (live, like `useFeatureFlags`). */
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  return useFeatureFlags()[flag] === true;
 }

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Store, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle, Tag } from "lucide-react";
+import { Store, TrendingUp, DollarSign, BarChart3, Clock, AlertTriangle, Tag, Download, FileText } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,6 @@ import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useUIStore, useInvoiceStore, usePositionListingStore, DEFAULT_FILTERS } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
-import { ConcentrationRiskAlerts } from "@/components/analytics/ConcentrationRiskAlerts";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { useVerifiedAction } from "@/hooks/useVerifiedAction";
@@ -23,7 +22,9 @@ import { useTranslations } from "next-intl";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { ListPositionDialog } from "@/components/invoice/ListPositionDialog";
-import type { PortfolioDonutProps, DonutFilter } from "@/components/dashboard/PortfolioDonut";
+import type { DonutFilter } from "@/components/dashboard/PortfolioDonut";
+import type { ConcentrationRiskAlertsProps } from "@/components/analytics/ConcentrationRiskAlerts";
+import type { SellerAnalyticsDashboardProps } from "@/components/analytics/SellerAnalyticsDashboard";
 import {
   marketplacePathForAllocation,
   allocationToMarketplaceFilters,
@@ -38,9 +39,16 @@ import type { ColumnDef, DataTableProps } from "@/types/table";
 import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
 import { KycStatusCard } from "@/components/dashboard/KycStatusCard";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
-import { SellerAnalyticsDashboard } from "@/components/analytics/SellerAnalyticsDashboard";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import EmptyState from "@/components/ui/EmptyState";
+import { exportCsv, exportPdf } from "@/lib/export";
+import { DIGEST_DASHBOARD_SECTION_ID } from "@/lib/portfolioDigest";
+import {
+  PORTFOLIO_EXPORT_HEADERS,
+  positionsToExportRows,
+  portfolioExportFilename,
+  portfolioPdfFilename,
+} from "@/lib/portfolioExport";
 
 const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   () => import("@/components/ui/data-table").then((m) => m.DataTable),
@@ -50,13 +58,55 @@ const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   },
 );
 
+/**
+ * Chart-bearing modules are code-split so the investor dashboard's main bundle
+ * stays small (#1264/#1267). Each falls back to a localized skeleton while its
+ * chunk loads; the surrounding ErrorBoundary handles a failed chunk fetch
+ * (offline / degraded network) without taking the whole page down.
+ */
 const PortfolioDonut = dynamic<PortfolioDonutProps>(
   () => import("@/components/dashboard/PortfolioDonut").then((m) => m.PortfolioDonut),
   {
     ssr: false,
-    loading: () => <div className="h-64 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" />,
+    loading: () => <ChartSkeleton label={tCharts("loading")} />,
   },
 );
+
+const ConcentrationRiskAlerts = dynamic<ConcentrationRiskAlertsProps>(
+  () =>
+    import("@/components/analytics/ConcentrationRiskAlerts").then(
+      (m) => m.ConcentrationRiskAlerts,
+    ),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton label={tCharts("loading")} />,
+  },
+);
+
+const SellerAnalyticsDashboard = dynamic<SellerAnalyticsDashboardProps>(
+  () =>
+    import("@/components/analytics/SellerAnalyticsDashboard").then(
+      (m) => m.SellerAnalyticsDashboard,
+    ),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton label={tCharts("loading")} />,
+  },
+);
+
+/** Localized, a11y-friendly placeholder for a lazily loaded chart module. */
+function ChartSkeleton({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className="flex h-64 w-full animate-pulse items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40"
+    >
+      <span className="text-sm text-zinc-400">{label}</span>
+    </div>
+  );
+}
 
 /** Loading must resolve within 30s or we surface an error state. */
 const INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS = 30_000;
@@ -82,6 +132,7 @@ export default function InvestorDashboardPage() {
   const { setWalletModalOpen } = useUIStore();
   const t = useTranslations("investorDashboard");
   const tCommon = useTranslations("common");
+  const tCharts = useTranslations("charts");
   const router = useRouter();
   const { setFilters, resetFilters } = useInvoiceStore();
   const { formatCurrency, formatDate, formatApr, formatPercentage } = useFormatters();
@@ -160,6 +211,17 @@ export default function InvestorDashboardPage() {
     }
   }, [positionsQuery.isSuccess, positionsQuery.isError]);
 
+  // Digest email deep link (#1225). The card is not mounted during the skeleton,
+  // so native hash scrolling on page load misses it; scroll once it has rendered.
+  const digestLandedRef = useRef(false);
+  useEffect(() => {
+    if (digestLandedRef.current || window.location.hash !== `#${DIGEST_DASHBOARD_SECTION_ID}`) return;
+    const target = document.getElementById(DIGEST_DASHBOARD_SECTION_ID);
+    if (!target) return;
+    digestLandedRef.current = true;
+    target.scrollIntoView({ block: "start" });
+  }, [isConnected, isInitialLoading, loadTimedOut]);
+
   /**
    * Claiming yield moves funds, so it sits behind the same verification session
    * SME repayment does (#681). Previously this called `execute` directly, which
@@ -207,20 +269,65 @@ export default function InvestorDashboardPage() {
     }
   };
 
+  /**
+   * Listing a position commits the seller's assets to the secondary market, so
+   * it runs through the same verification gate as funding/claim/repayment
+   * (#1123) — previously it called the store directly and skipped it.
+   */
   const handleListSubmit = (askPrice: number, expiresAt?: string) => {
     if (!listingTarget || !address) return;
-    listPosition({
-      positionId: listingTarget.id,
-      askPrice,
-      impliedDiscount: computeImpliedDiscount(askPrice, listingTarget.expectedReturn),
-      listedAt: new Date().toISOString(),
-      expiresAt,
-      invoiceTokenId: listingTarget.invoice?.tokenId,
-      repaymentDate: listingTarget.invoice?.terms.repaymentDate,
+    const target = listingTarget;
+
+    const runListing = async () => {
+      listPosition({
+        positionId: target.id,
+        askPrice,
+        impliedDiscount: computeImpliedDiscount(askPrice, target.expectedReturn),
+        listedAt: new Date().toISOString(),
+        expiresAt,
+        invoiceTokenId: target.invoice?.tokenId,
+        repaymentDate: target.invoice?.terms.repaymentDate,
+      });
+      toast.success(t("listing.success"));
+      setListingTarget(null);
+    };
+
+    void executeProtectedAction(runListing, "listing").then((result) => {
+      // No VerificationProvider in the tree to raise the modal — tell the user
+      // why nothing happened instead of failing silently.
+      if (result.requiresVerification) {
+        toast.error(
+          t("listing.verificationRequiredTitle"),
+          t("listing.verificationRequiredDesc"),
+          () => {
+            handleListSubmit(askPrice, expiresAt);
+          },
+        );
+        return;
+      }
+
+      if (result.error && result.error !== "Wallet not connected") {
+        toast.error("Listing failed", result.error, () => {
+          handleListSubmit(askPrice, expiresAt);
+        });
+      }
     });
-    toast.success(t("listing.success"));
-    setListingTarget(null);
   };
+
+  /** Export visible positions as a CSV file. Scoped to the connected address. */
+  const handleExportCsv = useCallback(() => {
+    if (!positionsData.length) return;
+    const rows = positionsToExportRows(positionsData);
+    exportCsv(rows as Record<string, unknown>[], portfolioExportFilename(), [
+      ...PORTFOLIO_EXPORT_HEADERS,
+    ]);
+  }, [positionsData]);
+
+  /** Capture the positions card DOM node as a PDF. Falls back to window.print(). */
+  const handleExportPdf = useCallback(() => {
+    if (!positionsData.length) return;
+    void exportPdf("investor-positions-card", portfolioPdfFilename());
+  }, [positionsData]);
 
   const columns: ColumnDef<InvestorPosition>[] = [
     {
@@ -351,10 +458,37 @@ export default function InvestorDashboardPage() {
           <h1 className="text-2xl font-semibold text-white">{t("title")}</h1>
           <p className="text-sm text-zinc-400">{t("subtitle")}</p>
         </div>
-        <StaleDataBadge
-          updatedAt={positionsQuery.dataUpdatedAt}
-          isFetching={positionsQuery.isFetching}
-        />
+        <div className="flex items-center gap-2">
+          <StaleDataBadge
+            updatedAt={positionsQuery.dataUpdatedAt}
+            isFetching={positionsQuery.isFetching}
+          />
+          {/* Export actions — disabled when loading or no positions */}
+          <button
+            type="button"
+            disabled={!positionsData.length || positionsQuery.isLoading}
+            aria-disabled={!positionsData.length || positionsQuery.isLoading}
+            aria-label={t("export.csvAriaLabel")}
+            title={!positionsData.length ? t("export.emptyTooltip") : undefined}
+            data-testid="export-csv-btn"
+            onClick={handleExportCsv}
+            className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800 print:hidden"
+          >
+            {t("export.csv")}
+          </button>
+          <button
+            type="button"
+            disabled={!positionsData.length || positionsQuery.isLoading}
+            aria-disabled={!positionsData.length || positionsQuery.isLoading}
+            aria-label={t("export.pdfAriaLabel")}
+            title={!positionsData.length ? t("export.emptyTooltip") : undefined}
+            data-testid="export-pdf-btn"
+            onClick={handleExportPdf}
+            className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-zinc-800 print:hidden"
+          >
+            {t("export.pdf")}
+          </button>
+        </div>
       </div>
 
       {/* Stats row — always visible so the user sees zeros, not nothing */}
@@ -392,18 +526,24 @@ export default function InvestorDashboardPage() {
             <ConcentrationRiskAlerts positions={positionsData} />
           </ErrorBoundary>
 
-          {/* Portfolio donut charts */}
+          {/* Portfolio donut charts — lazily loaded, empty data handled inside */}
           <ErrorBoundary>
             <Card>
               <CardHeader>
                 <CardTitle>{t("allocation.title")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <PortfolioDonut
-                  positions={donutPositions}
-                  activeFilter={donutFilter}
-                  onSegmentClick={handleSegmentClick}
-                />
+                {donutPositions.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-zinc-400">
+                    {t("allocation.empty")}
+                  </p>
+                ) : (
+                  <PortfolioDonut
+                    positions={donutPositions}
+                    activeFilter={donutFilter}
+                    onSegmentClick={handleSegmentClick}
+                  />
+                )}
               </CardContent>
             </Card>
           </ErrorBoundary>
@@ -420,7 +560,7 @@ export default function InvestorDashboardPage() {
 
           {/* Positions data table */}
           <ErrorBoundary>
-            <Card>
+            <Card id="investor-positions-card">
               <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <CardTitle>{t("positions.title")}</CardTitle>
                 <Badge variant="secondary">

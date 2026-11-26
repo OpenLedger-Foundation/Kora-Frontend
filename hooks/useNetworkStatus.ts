@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { checkRpcHealth, horizon } from "@/lib/stellar/client";
 
 export type NetworkStatus = "operational" | "degraded" | "down";
+/** Overall status includes the browser-offline state, which is distinct from a service outage. */
+export type OverallNetworkStatus = NetworkStatus | "offline";
 
 export interface ServiceHealth {
   status: NetworkStatus;
@@ -13,6 +15,7 @@ export interface ServiceHealth {
 }
 
 export interface NetworkHealth {
+  /** Last known service health. Kept unchanged while the browser is offline. */
   overall: NetworkStatus;
   soroban: ServiceHealth;
   horizon: ServiceHealth;
@@ -72,7 +75,7 @@ export function useNetworkStatus() {
     };
   }, []);
 
-  const checkSorobanHealth = async (): Promise<ServiceHealth> => {
+  const checkSorobanHealth = useCallback(async (): Promise<ServiceHealth> => {
     const { ok, latencyMs } = await checkRpcHealth();
     if (!ok) {
       return { status: "down", responseTime: latencyMs, lastChecked: new Date(), error: "RPC unreachable" };
@@ -82,9 +85,9 @@ export function useNetworkStatus() {
       responseTime: latencyMs,
       lastChecked: new Date(),
     };
-  };
+  }, []);
 
-  const checkHorizonHealth = async (): Promise<ServiceHealth> => {
+  const checkHorizonHealth = useCallback(async (): Promise<ServiceHealth> => {
     const startTime = Date.now();
     try {
       // Simple health check - get ledger info
@@ -111,14 +114,21 @@ export function useNetworkStatus() {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
-  };
+  }, []);
 
-  const performHealthCheck = async () => {
+  const performHealthCheck = useCallback(async () => {
+    // A failed request while the browser has no connectivity says nothing
+    // about service health. Skip the probes so the last known health is kept.
+    if (typeof window !== "undefined" && !window.navigator.onLine) return;
+
     try {
       const [sorobanHealth, horizonHealth] = await Promise.all([
         checkSorobanHealth(),
         checkHorizonHealth(),
       ]);
+
+      // The connection may have dropped while the probes were in flight.
+      if (typeof window !== "undefined" && !window.navigator.onLine) return;
 
       // Determine overall status
       let overall: NetworkStatus = "operational";
@@ -137,22 +147,29 @@ export function useNetworkStatus() {
     } catch (error) {
       console.error("Health check failed:", error);
     }
-  };
+  }, [checkSorobanHealth, checkHorizonHealth]);
 
   useEffect(() => {
-    // Initial health check
-    performHealthCheck();
+    // No remote checks while offline; re-check immediately on reconnect and
+    // keep the last known service health until then.
+    if (!isOnline) return;
 
-    // Set up interval for periodic checks
-    const interval = setInterval(performHealthCheck, HEALTH_CHECK_INTERVAL);
+    void performHealthCheck();
+    const interval = setInterval(() => {
+      void performHealthCheck();
+    }, HEALTH_CHECK_INTERVAL);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isOnline, performHealthCheck]);
+
+  const status: OverallNetworkStatus = isOnline ? health.overall : "offline";
 
   return {
     health,
     refresh: performHealthCheck,
     isOnline,
     wasOffline,
+    offline: !isOnline,
+    status,
   };
 }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { useQueryClient } from "@tanstack/react-query";
+import { Keypair } from "@stellar/stellar-sdk";
 import type { WalletBalance, WalletNetwork, WalletProvider } from "@/types";
 import { env } from "@/lib/env";
 import { isValidStellarAddress } from "@/lib/utils";
@@ -58,28 +59,112 @@ export type SignedLabel = {
   signedAt: number;
 };
 
-/** Build the message to sign for a label attestation */
+/**
+ * Canonical signed payload format (v1):
+ *
+ *   `kora-label:v1:{address}:{label}:{signedAt}`
+ *
+ * - `address` is the Stellar G-address that owns the label (the signer).
+ * - `label` is the exact contact label text (rejected when empty/whitespace).
+ * - `signedAt` is a unix-ms timestamp binding the signature to one moment.
+ *
+ * The message is UTF-8 encoded and signed with the owning key's Ed25519
+ * secret key; `signature` is the 64-byte signature hex-encoded (128 chars).
+ *
+ * Legacy attestations signed as `kora-label:{address}:{label}` (no version
+ * or timestamp) are still verified cryptographically so genuinely signed
+ * entries keep working. Anything that is not a valid Ed25519 signature
+ * from the claimed address — including the old random-hex placeholders —
+ * fails closed and must be treated as untrusted.
+ */
+export const LABEL_MESSAGE_V1_PREFIX = "kora-label:v1:";
+
+/** Legacy message format (no version/timestamp); verified, not minted. */
 export function buildLabelMessage(address: string, label: string): string {
   return `kora-label:${address}:${label}`;
 }
 
-/** Verify a signed label attestation against an address and label */
-export function verifySignedLabel(attestation: SignedLabel): boolean {
+/**
+ * Check if an address book entry has a cryptographically verified label.
+ * Returns true if signedLabel exists and passes cryptographic verification.
+ */
+export function isLabelVerified(entry: { label: string; signedLabel?: SignedLabel }): boolean {
+  if (!entry.signedLabel) return false;
+  return verifySignedLabel(entry.signedLabel);
+}
+
+/** Verify a single Ed25519 signature over `message` against a G-address. Fails closed. */
+function verifyEd25519(address: string, message: string, signatureHex: string): boolean {
   try {
-    if (!attestation.address || !attestation.label || !attestation.signature) return false;
-    if (!/^G[A-Z2-7]{55}$/.test(attestation.address)) return false;
-    
-    const expectedMessage = buildLabelMessage(attestation.address, attestation.label);
-    const expectedPrefix = `kora-label:${attestation.address}:${attestation.label}`;
-    
-    // Verify the signature matches the expected message
-    // The signature should be a hex-encoded ed25519 signature
-    if (!/^[a-fA-F0-9]{128}$/.test(attestation.signature)) return false;
-    
-    return true;
+    const keypair = Keypair.fromPublicKey(address);
+    return keypair.verify(Buffer.from(message, "utf8"), Buffer.from(signatureHex, "hex"));
   } catch {
     return false;
   }
+}
+
+/** Timestamp-bound v1 message: `kora-label:v1:{address}:{label}:{signedAt}`. */
+export function buildLabelMessageV1(address: string, label: string, signedAt: number): string {
+  return `${LABEL_MESSAGE_V1_PREFIX}${address}:${label}:${signedAt}`;
+}
+
+/** Verify a signed label attestation with Ed25519 against the claimed address.
+ * Tries the v1 payload first, then the legacy payload.
+ *
+ * Fails closed on: missing/whitespace labels, malformed addresses,
+ * non-hex or wrong-length signatures, wrong-key signatures, mutated
+ * labels, non-finite timestamps, and timestamps outside the 30-day window
+ * (1-minute future skew tolerated).
+ */
+export function verifySignedLabel(attestation: SignedLabel): boolean {
+  try {
+    if (!attestation || typeof attestation !== "object") return false;
+    if (!attestation.address || !attestation.label || !attestation.signature) return false;
+    if (!/^G[A-Z2-7]{55}$/.test(attestation.address)) return false;
+    if (!attestation.label.trim()) return false;
+    if (!/^[a-fA-F0-9]{128}$/.test(attestation.signature)) return false;
+    if (!Number.isFinite(attestation.signedAt)) return false;
+
+    const now = Date.now();
+    const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+    const maxFuture = 60 * 1000; // clock skew tolerance
+    if (attestation.signedAt > now + maxFuture || now - attestation.signedAt > maxAge) return false;
+
+    const signature = attestation.signature.toLowerCase();
+    // Current format first; fall back to the legacy format for entries
+    // signed before timestamps were bound into the payload.
+    return (
+      verifyEd25519(
+        attestation.address,
+        buildLabelMessageV1(attestation.address, attestation.label, attestation.signedAt),
+        signature
+      ) ||
+      verifyEd25519(attestation.address, buildLabelMessage(attestation.address, attestation.label), signature)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** True when an attestation predates cryptographic verification (fails real verify). */
+export function isLegacyAttestation(attestation: SignedLabel | undefined): boolean {
+  if (!attestation) return false;
+  return !verifySignedLabel(attestation);
+}
+
+/**
+ * Drop `signedLabel`s that fail cryptographic verification (forged, copied,
+ * or pre-verification placeholders). Returns the pruned entries — call on
+ * load/rehydrate so no production path trusts length-only attestations.
+ */
+export function pruneInvalidSignedLabels<
+  T extends { signedLabel?: SignedLabel },
+>(entries: T[]): T[] {
+  return entries.map((e) =>
+    e.signedLabel && !verifySignedLabel(e.signedLabel)
+      ? { ...e, signedLabel: undefined }
+      : e
+  );
 }
 
 type WalletStoreState = {
@@ -292,10 +377,12 @@ export const useWalletStore = create<WalletStore>()(
           (e) => e.address.toLowerCase() === trimmed.toLowerCase()
         );
         if (existing) return; // silently skip duplicates
+        // Fail closed: never persist a forged or legacy-unverifiable attestation.
+        const cleanSignedLabel = signedLabel && verifySignedLabel(signedLabel) ? signedLabel : undefined;
         set((s) => ({
           addressBook: [
             ...s.addressBook,
-            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim(), signedLabel },
+            { id: crypto.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2, 8), address: trimmed, label: label.trim(), signedLabel: cleanSignedLabel },
           ],
         }));
       },
@@ -309,6 +396,12 @@ export const useWalletStore = create<WalletStore>()(
           );
           if (duplicate) return;
           updates = { ...updates, address: trimmed };
+        }
+        // Fail closed on label-attestation updates as well.
+        if (updates.signedLabel !== undefined && updates.signedLabel !== null) {
+          if (!verifySignedLabel(updates.signedLabel)) {
+            updates = { ...updates, signedLabel: undefined };
+          }
         }
         set((s) => ({
           addressBook: s.addressBook.map((e) => (e.id === id ? { ...e, ...updates, label: updates.label?.trim() ?? e.label } : e)),
@@ -383,6 +476,13 @@ export const useWalletStore = create<WalletStore>()(
         diagnosticsImport: s.diagnosticsImport,
         kycStatus: s.kycStatus,
       }),
+      // Invalidate insecure legacy attestations on load: anything that fails
+      // real Ed25519 verification loses its trusted badge explicitly.
+      onRehydrateStorage: () => (state) => {
+        if (state?.addressBook) {
+          state.addressBook = pruneInvalidSignedLabels(state.addressBook);
+        }
+      },
     }
   )
 );

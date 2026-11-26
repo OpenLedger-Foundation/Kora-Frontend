@@ -114,11 +114,30 @@ const clientSchema = z.object({
     .transform((v) => v !== "false")
     .default("true"),
 
+  /**
+   * Optional USDC issuer address override.
+   * Defaults to Circle's canonical testnet issuer when unset.
+   * Set NEXT_PUBLIC_USDC_ISSUER on mainnet to the live Circle issuer.
+   */
+  NEXT_PUBLIC_USDC_ISSUER: z
+    .string()
+    .optional()
+    .default("GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"),
+
   /** Configurable USDC threshold requiring KYC before funding above this limit. */
   NEXT_PUBLIC_KYC_FUND_THRESHOLD: z
     .string()
     .transform((v) => parseInt(v, 10))
     .default("10000"),
+
+  /**
+   * Where an investor can acquire or bridge USDC when their wallet balance is
+   * too low to fund an invoice (#1245). Testnet uses the in-app faucet instead.
+   */
+  NEXT_PUBLIC_USDC_ACQUIRE_URL: z
+    .string()
+    .url()
+    .default("https://stellar.org/products-and-tools/circle-usdc-eurc"),
 
   // ─── Secondary market fees (issue #597) ────────────────────────────────────
   // Expressed in basis points so the config carries no rounding of its own:
@@ -186,6 +205,8 @@ const clientEnv = {
   NEXT_PUBLIC_ENABLE_MOCK_DATA: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
   NEXT_PUBLIC_ENABLE_DEVTOOLS: process.env.NEXT_PUBLIC_ENABLE_DEVTOOLS,
   NEXT_PUBLIC_KYC_FUND_THRESHOLD: process.env.NEXT_PUBLIC_KYC_FUND_THRESHOLD,
+  NEXT_PUBLIC_USDC_ISSUER: process.env.NEXT_PUBLIC_USDC_ISSUER,
+  NEXT_PUBLIC_USDC_ACQUIRE_URL: process.env.NEXT_PUBLIC_USDC_ACQUIRE_URL,
   NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS:
     process.env.NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS,
   NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS:

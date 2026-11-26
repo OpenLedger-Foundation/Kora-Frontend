@@ -171,6 +171,19 @@ test.describe("FileInput component — browser interactions", () => {
     await expect(page.getByText(/only pdf files are accepted/i)).toBeVisible();
   });
 
+  test("selecting a renamed file with non-PDF magic bytes shows error", async ({
+    page,
+  }) => {
+    await getFileInput(page).setInputFiles({
+      name: "fake-invoice.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]), // JPEG header
+    });
+
+    await expect(page.getByText(/only pdf files are accepted/i)).toBeVisible();
+    await expect(page.getByText("fake-invoice.pdf")).not.toBeVisible();
+  });
+
   test("selecting an oversized PDF shows a size-limit error", async ({
     page,
   }) => {
@@ -183,6 +196,69 @@ test.describe("FileInput component — browser interactions", () => {
     });
 
     await expect(page.getByText(/file is too large/i)).toBeVisible();
+  });
+
+  test("size-limit error names the offending file and the limit", async ({
+    page,
+  }) => {
+    const oversized = Buffer.alloc(6 * 1024 * 1024, 0);
+    await getFileInput(page).setInputFiles({
+      name: "too-big.pdf",
+      mimeType: "application/pdf",
+      buffer: oversized,
+    });
+
+    const error = page.getByText(/file is too large/i);
+    await expect(error).toBeVisible();
+    await expect(error).toContainText(/too-big\.pdf/i);
+    await expect(error).toContainText(/5\s*MB/i);
+  });
+
+  test("type error names the offending file", async ({ page }) => {
+    await getFileInput(page).setInputFiles({
+      name: "document.docx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      buffer: Buffer.from("PK fake docx"),
+    });
+
+    const error = page.getByText(/only pdf files are accepted/i);
+    await expect(error).toBeVisible();
+    await expect(error).toContainText(/document\.docx/i);
+  });
+
+  test("selecting an empty file shows a clear error", async ({ page }) => {
+    await getFileInput(page).setInputFiles({
+      name: "empty.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.alloc(0),
+    });
+
+    await expect(page.getByText(/file is empty/i)).toBeVisible();
+    await expect(page.getByText("empty.pdf")).not.toBeVisible();
+  });
+
+  test("a valid selection clears a previous validation error", async ({
+    page,
+  }) => {
+    await getFileInput(page).setInputFiles({
+      name: "document.docx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      buffer: Buffer.from("PK fake docx"),
+    });
+    await expect(page.getByText(/only pdf files are accepted/i)).toBeVisible();
+
+    await getFileInput(page).setInputFiles({
+      name: "invoice-test.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4 test"),
+    });
+
+    await expect(
+      page.getByText(/only pdf files are accepted/i)
+    ).not.toBeVisible();
+    await expect(page.getByText("invoice-test.pdf")).toBeVisible();
   });
 
   // ── Drag-and-drop ─────────────────────────────────────────────────────────
@@ -228,21 +304,17 @@ test.describe("FileInput component — browser interactions", () => {
     await dropzone.dispatchEvent("drop", {
       dataTransfer: {
         files: [
-          {
-            name: "dropped-invoice.pdf",
-            mimeType: "application/pdf",
-            buffer: Buffer.from("%PDF-1.4 dropped"),
-          },
+          new File(["%PDF-1.4 test"], "dropped.pdf", {
+            type: "application/pdf",
+          }),
         ],
       },
     });
 
-    await expect(page.getByText("dropped-invoice.pdf")).toBeVisible({
-      timeout: 5_000,
-    });
+    await expect(page.getByText("dropped.pdf")).toBeVisible();
   });
 
-  test("dropping a non-PDF file onto the drop zone shows a type error", async ({
+  test("dropping a non-PDF onto the drop zone shows the type error", async ({
     page,
   }) => {
     const dropzone = getDropzone(page);
@@ -250,18 +322,13 @@ test.describe("FileInput component — browser interactions", () => {
     await dropzone.dispatchEvent("drop", {
       dataTransfer: {
         files: [
-          {
-            name: "spreadsheet.xlsx",
-            mimeType:
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            buffer: Buffer.from("PK fake xlsx"),
-          },
+          new File(["PK fake docx"], "dropped.docx", {
+            type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          }),
         ],
       },
     });
 
-    await expect(page.getByText(/only pdf files are accepted/i)).toBeVisible({
-      timeout: 5_000,
-    });
+    await expect(page.getByText(/only pdf files are accepted/i)).toBeVisible();
   });
 });

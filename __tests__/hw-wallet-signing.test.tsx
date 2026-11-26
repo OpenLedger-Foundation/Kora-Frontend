@@ -10,6 +10,7 @@ import { InProgressOverlay } from "@/components/transactions/InProgressOverlay";
 import { useUIStore } from "@/store/uiStore";
 import { useWalletStore } from "@/store/walletStore";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -149,6 +150,23 @@ describe("Hardware-Wallet Friendly Signing Timeouts UX — Issue #579", () => {
       fireEvent.click(extendBtn);
 
       expect(useUIStore.getState().txState.status).toBe("signing");
+    });
+  });
+
+  describe("Hardware-wallet signing feature flag gating — Issue #1122", () => {
+    it("exposes a hardwareWalletSigning flag in featureFlags", () => {
+      expect(typeof isFeatureEnabled).toBe("function");
+      expect(isFeatureEnabled("hardwareWalletSigning")).toBe(false);
+    });
+
+    it("defaults to disabled (safe) when flag fetch fails", () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error("network"));
+      try {
+        expect(isFeatureEnabled("hardwareWalletSigning")).toBe(false);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });

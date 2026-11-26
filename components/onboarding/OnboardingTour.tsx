@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ChevronRight, X } from "lucide-react";
 import { useTranslations } from "next-intl";
 import TourTooltip from "./TourTooltip";
@@ -11,7 +11,20 @@ import { useFeatureFlag } from "@/lib/featureFlags";
 
 export const TOUR_STORAGE_KEY = "kora-tour-done";
 
-const INVESTOR_STEPS = [
+interface TourStep {
+  titleKey: string;
+  bodyKey: string;
+  selector: string;
+  placement: "top" | "bottom" | "left" | "right";
+  /**
+   * Skip the step silently when its DOM target is absent. Both step lists
+   * share this shape: the SME list has no optional steps, which is exactly why
+   * reading `current.optional` off the union used to be a type error.
+   */
+  optional?: boolean;
+}
+
+const INVESTOR_STEPS: TourStep[] = [
   { titleKey: "findOpportunityTitle",  bodyKey: "findOpportunityBody",  selector: "[data-tour='marketplace-search']", placement: "bottom" as const },
   { titleKey: "reviewDetailsTitle",    bodyKey: "reviewDetailsBody",    selector: "[data-tour='invoice-card']",        placement: "right" as const },
   { titleKey: "fundInvoiceTitle",      bodyKey: "fundInvoiceBody",      selector: "[data-tour='fund-button']",         placement: "top" as const },
@@ -19,7 +32,7 @@ const INVESTOR_STEPS = [
   { titleKey: "viewAnalyticsTitle",    bodyKey: "viewAnalyticsBody",    selector: "[data-tour='analytics-header']",   placement: "bottom" as const, optional: true },
 ];
 
-const SME_STEPS = [
+const SME_STEPS: TourStep[] = [
   { titleKey: "mintInvoiceTitle",            bodyKey: "mintInvoiceBody",            selector: "[data-tour='create-invoice-btn']", placement: "bottom" as const },
   { titleKey: "smeDashboardTitle",           bodyKey: "smeDashboardBody",           selector: "[data-tour='dashboard-link']",     placement: "bottom" as const },
   { titleKey: "marketplaceVisibilityTitle",  bodyKey: "marketplaceVisibilityBody",  selector: "[data-tour='marketplace-link']",    placement: "bottom" as const },
@@ -34,6 +47,9 @@ export default function OnboardingTour() {
   const { tour, setTourSettings } = useSettingsStore();
 
   const [open, setOpen] = useState(false);
+  // Motion preference (#1125): the progress bar is the only animation here, and
+  // it must not move for users who asked their OS to reduce motion.
+  const prefersReducedMotion = useReducedMotion();
 
   const persona = tour.persona;
   const steps = persona === "sme" ? SME_STEPS : INVESTOR_STEPS;
@@ -167,6 +183,7 @@ export default function OnboardingTour() {
           className="h-full bg-primary"
           initial={false}
           animate={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
+          transition={prefersReducedMotion ? { duration: 0 } : undefined}
         />
       </div>
 

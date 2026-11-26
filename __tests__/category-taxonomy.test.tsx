@@ -8,49 +8,51 @@ import {
 import { createMockInvoice } from "./fixtures";
 import * as featureFlags from "@/lib/featureFlags";
 
+const translations: Record<string, string> = {
+  title: "Category Taxonomy Preview",
+  badge: "Dev Preview",
+  subtitle: "Developer preview of category taxonomy, inventory distribution, and i18n label parity.",
+  totalCategories: "Total Categories",
+  activeCategories: "Active in Inventory",
+  unusedCategories: "Unused Categories",
+  missingTranslations: "Missing Translations",
+  filterAll: "All",
+  filterActive: "Active Only",
+  filterUnused: "Unused Only",
+  filterMissingI18n: "Missing i18n Only",
+  searchPlaceholder: "Search taxonomy keys or labels...",
+  key: "Key",
+  label: "Label",
+  icon: "Icon",
+  inventoryCount: "Live Inventory",
+  i18nStatus: "Locale Parity",
+  unusedWarning: "0 listings in inventory",
+  copyTaxonomy: "Copy Taxonomy JSON",
+  copied: "Copied to clipboard!",
+  close: "Close Preview",
+  openPreview: "Taxonomy Preview",
+  sources: "Sources",
+  filterSource: "Marketplace Filters",
+  schemaSource: "Metadata Schema",
+  technology: "Technology",
+  manufacturing: "Manufacturing",
+  agriculture: "Agriculture",
+  logistics: "Logistics",
+  healthcare: "Healthcare",
+  retail: "Retail",
+  construction: "Construction",
+  export: "Export",
+  services: "Services",
+  energy: "Energy",
+  finance: "Finance",
+  other: "Other",
+};
+
 vi.mock("next-intl", () => ({
   useTranslations: (namespace?: string) => {
     return (key: string) => {
-      const translations: Record<string, string> = {
-        title: "Category Taxonomy Preview",
-        badge: "Dev Preview",
-        subtitle: "Developer preview of category taxonomy, inventory distribution, and i18n label parity.",
-        totalCategories: "Total Categories",
-        activeCategories: "Active in Inventory",
-        unusedCategories: "Unused Categories",
-        missingTranslations: "Missing Translations",
-        filterAll: "All",
-        filterActive: "Active Only",
-        filterUnused: "Unused Only",
-        filterMissingI18n: "Missing i18n Only",
-        searchPlaceholder: "Search taxonomy keys or labels...",
-        key: "Key",
-        label: "Label",
-        icon: "Icon",
-        inventoryCount: "Live Inventory",
-        i18nStatus: "Locale Parity",
-        unusedWarning: "0 listings in inventory",
-        copyTaxonomy: "Copy Taxonomy JSON",
-        copied: "Copied to clipboard!",
-        close: "Close Preview",
-        openPreview: "Taxonomy Preview",
-        sources: "Sources",
-        filterSource: "Marketplace Filters",
-        schemaSource: "Metadata Schema",
-        technology: "Technology",
-        manufacturing: "Manufacturing",
-        agriculture: "Agriculture",
-        logistics: "Logistics",
-        healthcare: "Healthcare",
-        retail: "Retail",
-        construction: "Construction",
-        export: "Export",
-        services: "Services",
-        energy: "Energy",
-        finance: "Finance",
-        other: "Other",
-      };
-      return translations[key] ?? key;
+      const scopedKey = namespace ? `${namespace}.${key}` : key;
+      return translations[scopedKey] ?? translations[key] ?? key;
     };
   },
 }));
@@ -104,6 +106,29 @@ describe("Category Taxonomy Preview — Issue #565", () => {
         expect(item.i18n.ar).toBe(true);
         expect(item.i18n.ptBR).toBe(true);
       }
+    });
+
+    it("resolves localized labels for known category codes", () => {
+      const data = buildTaxonomyPreviewData([]);
+      const techItem = data.find((i) => i.key === "technology");
+      expect(techItem?.label).toBe("Technology");
+
+      const agriItem = data.find((i) => i.key === "agriculture");
+      expect(agriItem?.label).toBe("Agriculture");
+    });
+
+    it("falls back to the raw category code for unknown categories", () => {
+      const invoices = [
+        createMockInvoice({
+          metadata: { ...createMockInvoice().metadata, category: "unknown-category" },
+        }),
+      ];
+
+      const data = buildTaxonomyPreviewData(invoices);
+      const unknownItem = data.find((i) => i.key === "unknown-category");
+
+      expect(unknownItem).toBeDefined();
+      expect(unknownItem?.label).toBe("unknown-category");
     });
   });
 

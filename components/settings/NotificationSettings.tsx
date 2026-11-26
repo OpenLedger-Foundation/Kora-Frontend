@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { Compass, Download, Keyboard, RotateCcw, Upload } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/store/uiStore";
-import { useSettingsStore, type MaturityReminderDays, type Persona } from "@/store/settingsStore";
+import {
+  useSettingsStore,
+  type MaturityReminderDays,
+  type Persona,
+  type QuietHours,
+} from "@/store/settingsStore";
 import { Button } from "@/components/ui/button";
 import { useWallet } from "@/hooks/useWallet";
 import { env } from "@/lib/env";
@@ -33,7 +38,12 @@ function Toggle({
       <span
         className={[
           "inline-block h-5 w-5 transform rounded-full bg-background shadow transition-transform",
-          checked ? "translate-x-5" : "translate-x-1",
+          // The knob travels along the inline axis: left-to-right in LTR, right-to-left
+          // under dir="rtl". The negative RTL translate mirrors the resting/checked
+          // positions instead of leaving the knob pinned to the start edge.
+          checked
+            ? "translate-x-5 rtl:-translate-x-5"
+            : "translate-x-1 rtl:-translate-x-1",
         ].join(" ")}
       />
     </button>
@@ -43,7 +53,16 @@ function Toggle({
 export function NotificationSettings() {
   const t = useTranslations("settings.notifications");
   const tOnboarding = useTranslations("onboarding");
-  const { notifications, setNotifications, resetNotifications, tour, setTourSettings, restartTour } = useSettingsStore();
+  const {
+    notifications,
+    setNotifications,
+    resetNotifications,
+    tour,
+    setTourSettings,
+    restartTour,
+    quietHours,
+    setQuietHours,
+  } = useSettingsStore();
   const shortcutsEnabled = useUIStore((s) => s.shortcutsEnabled);
   const setShortcutsEnabled = useUIStore((s) => s.setShortcutsEnabled);
   const { address, exportWalletDiagnostics, importWalletDiagnostics } = useWallet();
@@ -147,6 +166,81 @@ export function NotificationSettings() {
         </select>
       </div>
 
+      {/* ── Quiet hours ─────────────────────────────────────────────────── */}
+      <div className="space-y-1 pt-2">
+        <h3 className="text-base font-semibold text-foreground">{t("quietHours.title")}</h3>
+        <p className="text-sm text-muted-foreground">{t("quietHours.description")}</p>
+      </div>
+      <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">{t("quietHours.enableLabel")}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t("quietHours.enableDesc")}</p>
+          </div>
+          <Toggle
+            checked={quietHours.enabled}
+            onChange={(next) => setQuietHours({ enabled: next })}
+            ariaLabel={t("quietHours.toggleAriaLabel")}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label htmlFor="quiet-hours-start" className="block text-xs font-medium text-foreground">
+              {t("quietHours.startLabel")}
+            </label>
+            <input
+              id="quiet-hours-start"
+              type="time"
+              value={quietHours.start}
+              aria-describedby="quiet-hours-start-desc"
+              onChange={(e) => setQuietHours({ start: e.target.value })}
+              disabled={!quietHours.enabled}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            />
+            <p id="quiet-hours-start-desc" className="mt-0.5 text-xs text-muted-foreground">
+              {t("quietHours.startDesc")}
+            </p>
+          </div>
+          <div>
+            <label htmlFor="quiet-hours-end" className="block text-xs font-medium text-foreground">
+              {t("quietHours.endLabel")}
+            </label>
+            <input
+              id="quiet-hours-end"
+              type="time"
+              value={quietHours.end}
+              aria-describedby="quiet-hours-end-desc"
+              onChange={(e) => setQuietHours({ end: e.target.value })}
+              disabled={!quietHours.enabled}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
+            />
+            <p id="quiet-hours-end-desc" className="mt-0.5 text-xs text-muted-foreground">
+              {t("quietHours.endDesc")}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="quiet-hours-timezone" className="block text-xs font-medium text-foreground">
+            {t("quietHours.timezoneLabel")}
+          </label>
+          <input
+            id="quiet-hours-timezone"
+            type="text"
+            value={quietHours.timezone}
+            placeholder={t("quietHours.timezonePlaceholder")}
+            aria-describedby="quiet-hours-timezone-desc"
+            onChange={(e) => setQuietHours({ timezone: e.target.value })}
+            disabled={!quietHours.enabled}
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground disabled:opacity-50"
+          />
+          <p id="quiet-hours-timezone-desc" className="mt-0.5 text-xs text-muted-foreground">
+            {t("quietHours.timezoneDesc")}
+          </p>
+        </div>
+      </div>
+
       <Button
         variant="outline"
         size="sm"
@@ -181,13 +275,13 @@ export function NotificationSettings() {
         </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
-          <span>Status:</span>
+          <span>{t("tourSection.status")}</span>
           <span className="font-medium text-foreground">
             {tour.completed
               ? tOnboarding("tourCompleted")
               : tour.skipped
                 ? tOnboarding("tourSkipped")
-                : `Step ${(tour.stepIndex ?? 0) + 1}`}
+                : t("tourSection.step", { count: (tour.stepIndex ?? 0) + 1 })}
           </span>
         </div>
 

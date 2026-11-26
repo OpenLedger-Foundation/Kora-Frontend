@@ -6,10 +6,22 @@ import { useVerification } from "@/components/wallet/VerificationProvider";
 
 export interface VerificationPromptState {
   isOpen: boolean;
-  actionType: "invoice-creation" | "funding" | "repayment" | "claim" | null;
+  actionType: "invoice-creation" | "funding" | "repayment" | "claim" | "listing" | null;
   onConfirm: (() => Promise<void>) | null;
   onCancel: (() => void) | null;
 }
+
+/**
+ * Every action that moves value or commits a user's assets, and therefore must
+ * sit behind a verification session. Kept as a named union so a new call site
+ * cannot quietly pass an unvalidated string.
+ */
+export type VerifiedActionType =
+  | "invoice-creation"
+  | "funding"
+  | "repayment"
+  | "claim"
+  | "listing";
 
 /**
  * Hook for protecting actions that require wallet verification.
@@ -30,7 +42,7 @@ export function useVerifiedAction() {
   const executeProtectedAction = useCallback(
     async (
       action: () => Promise<void>,
-      actionType: "invoice-creation" | "funding" | "repayment" | "claim"
+      actionType: VerifiedActionType
     ): Promise<{ requiresVerification: boolean; error?: string }> => {
       try {
         // Check if wallet is connected

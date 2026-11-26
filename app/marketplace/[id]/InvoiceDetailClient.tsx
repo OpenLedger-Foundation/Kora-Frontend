@@ -55,6 +55,7 @@ import CountdownTimer from "@/components/ui/CountdownTimer";
 import { InvoiceStatusBadge } from "@/components/invoice/InvoiceStatusBadge";
 import { RiskScoreGauge } from "@/components/invoice/RiskScoreGauge";
 import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
+import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 import { InvoiceMetadataViewer } from "@/components/invoice/InvoiceMetadataViewer";
 import {
   validateRouteId,
@@ -63,12 +64,12 @@ import {
   safeStellarTxUrl,
 } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
-import { FundingYieldCalculator } from "@/components/invoice/FundingYieldCalculator";
-import { TestnetUsdcFaucet } from "@/components/wallet/TestnetUsdcFaucet";
 import {
-  isTestnetUsdcFaucetEnabled,
-  useUsdcBalance,
-} from "@/hooks/useUsdcBalance";
+  FundingYieldCalculator,
+  computeYield,
+} from "@/components/invoice/FundingYieldCalculator";
+import { InsufficientUsdcNotice } from "@/components/invoice/InsufficientUsdcNotice";
+import { useUsdcBalance } from "@/hooks/useUsdcBalance";
 import { PrintLayout, PrintButton } from "@/components/ui/print-layout";
 import { exportInvoiceCalendarIcs } from "@/lib/export";
 import { InvoiceOrderBookDepth } from "@/components/invoice/InvoiceOrderBookDepth";
@@ -76,6 +77,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default function InvoiceDetailClient({ id }: { id: string }) {
   const t = useTranslations("invoiceDetail");
+  const tInvestment = useTranslations("invoiceDetail.investment");
   const { data: invoice, isLoading, error, dataUpdatedAt } = useInvoice(id);
   const { isConnected, address, balance } = useWallet();
   const kycStatus = useWalletKycStatus();
@@ -91,6 +93,9 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
   const [amount, setAmount] = useState("");
   const [funding, setFunding] = useState(false);
   const [fundTxHash, setFundTxHash] = useState<string | null>(null);
+  // Issue #1132: keep the confirmed amount so the success panel can show a
+  // stable principal/payoff summary even after the input is cleared.
+  const [lastFundAmount, setLastFundAmount] = useState<number | null>(null);
   type IframeState = "loading" | "loaded" | "error" | "offline";
   const [iframeState, setIframeState] = useState<IframeState>("loading");
   // Cache-buster incremented on each retry; appended to the gateway URL so the
@@ -195,15 +200,29 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       : balance?.usdc
         ? Number(balance.usdc)
         : null;
-  const showTestnetFaucet =
-    isTestnetUsdcFaucetEnabled() &&
+  // Smallest investment the wallet must cover right now: the entered amount
+  // when there is one, otherwise the listing's minimum ticket.
+  const requiredUsdc = Math.min(
+    fundingState.remainingCapacity,
+    Math.max(amountNum, terms.minInvestment)
+  );
+  const hasInsufficientUsdc =
     isConnected &&
     usdcBalance !== null &&
-    (usdcBalance <= 0 || (amountNum > 0 && amountNum > usdcBalance));
+    requiredUsdc > 0 &&
+    usdcBalance < requiredUsdc;
 
   // Precise holding period Expected Return Calculator
   const expectedReturn =
     amountNum * (1 + (terms.apr / 100) * (daysToMaturity / 365));
+
+  // Confirmed-attempt summary (#1132). Recomputed with the shared calculator so
+  // the success panel and the pre-sign projection can never disagree.
+  const successAmount = lastFundAmount ?? 0;
+  const successProjection =
+    lastFundAmount !== null
+      ? computeYield(lastFundAmount, terms.apr, daysToMaturity)
+      : null;
 
   const documentPreviewUrl =
     metadata.documentUrl && safeExternalUrl(metadata.documentUrl) !== "#"
@@ -278,7 +297,15 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
     } else if (amountNum > fundingState.remainingCapacity) {
       inputError = `Amount exceeds remaining capacity of ${formatCurrency(fundingState.remainingCapacity, metadata.currency)}`;
     } else if (amountNum > kycThreshold && kycStatus !== "verified") {
-      inputError = `Investments above ${formatCurrency(kycThreshold, "USDC")} require KYC identity verification.`;
+      // A pending review is not the same as "never verified" — saying
+      // "please verify" to someone already in the queue reads as an error in
+      // our system rather than a wait (#1123).
+      inputError =
+        kycStatus === "pending"
+          ? `Your identity verification is pending review. Investments above ${formatCurrency(kycThreshold, "USDC")} can be made once it is approved.`
+          : kycStatus === "rejected"
+            ? `Your identity verification was rejected. Investments above ${formatCurrency(kycThreshold, "USDC")} require an approved verification.`
+            : `Investments above ${formatCurrency(kycThreshold, "USDC")} require KYC identity verification.`;
     }
   }
   const insufficientBalanceMessage =
@@ -309,10 +336,24 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       return;
     const kycThreshold = env.NEXT_PUBLIC_KYC_FUND_THRESHOLD;
     if (amountNum > kycThreshold && kycStatus !== "verified") {
-      toast.error(
-        "KYC Verification Required",
-        `Under regulatory compliance rules, investments exceeding ${formatCurrency(kycThreshold, "USDC")} require full identity verification. Please verify your KYC in settings to proceed.`
-      );
+      // Same three-way message as the inline input error, so the toast and the
+      // field never disagree about what the user still has to do (#1123).
+      if (kycStatus === "pending") {
+        toast.error(
+          "Verification pending review",
+          `Your identity verification is being reviewed. Investments exceeding ${formatCurrency(kycThreshold, "USDC")} can be made once it is approved.`
+        );
+      } else if (kycStatus === "rejected") {
+        toast.error(
+          "Verification rejected",
+          `Your identity verification was rejected. Investments exceeding ${formatCurrency(kycThreshold, "USDC")} require an approved verification — resubmit it in settings.`
+        );
+      } else {
+        toast.error(
+          "KYC Verification Required",
+          `Under regulatory compliance rules, investments exceeding ${formatCurrency(kycThreshold, "USDC")} require full identity verification. Please verify your KYC in settings to proceed.`
+        );
+      }
       return;
     }
 
@@ -328,25 +369,9 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
       async () => {
         setFunding(true);
 
-        // Optimistic update: immediately reflect new totals in UI
-        const newTotalRaised = fundingState.totalRaised + amountNum;
-        const optimisticInvoice: Invoice = {
-          ...invoice,
-          status:
-            newTotalRaised >= terms.financingAmount
-              ? "fully_funded"
-              : "partially_funded",
-          funding: {
-            ...fundingState,
-            totalRaised: newTotalRaised,
-            investorCount: fundingState.investorCount + 1,
-            remainingCapacity: Math.max(0, terms.financingAmount - newTotalRaised),
-            fundingProgress: Math.min(1, newTotalRaised / terms.financingAmount),
-          },
-        };
-        useInvoiceStore.getState().updateInvoiceFunding(id, newTotalRaised);
-        queryClient.setQueryData(["invoice", id], optimisticInvoice);
-
+        // Issue #1132: do not mutate funding totals before the simulation
+        // preview is accepted. A canceled preview or a failed simulation must
+        // leave the marketplace exactly as the investor saw it.
         await execute(
           () => prepareFundInvoice(invoice.tokenId, amountNum, address!),
           {
@@ -355,6 +380,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
             onSimulationPreview,
             onSuccess: (txHash) => {
               setFundTxHash(txHash);
+              setLastFundAmount(amountNum);
 
               // Calculate optimistic state changes
               const newTotalRaised = fundingState.totalRaised + amountNum;
@@ -407,9 +433,8 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
               setAmount("");
             },
             onError: (err) => {
-              // Rollback optimistic change
-              useInvoiceStore.getState().rollbackInvoiceFunding(id);
-              queryClient.setQueryData(["invoice", id], invoice);
+              // No optimistic write to roll back — simulation and signing
+              // failures leave the cached invoice untouched (#1132).
               console.error("Fund transaction failed", err);
             },
           },
@@ -439,7 +464,7 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
           {/* ── Left: Invoice Details ─────────────────────────────────────── */}
           <PrintLayout
             title={metadata.invoiceNumber}
-            subtitle={`${metadata.debtorName} · ${metadata.issuerName}`}
+            subtitle={`${getMaskedDebtorName(invoice, isFunded)} · ${metadata.issuerName}`}
             className="space-y-6 lg:col-span-2"
           >
             {/* Header card */}
@@ -1088,25 +1113,27 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                       )}
                     </div>
 
-                    {showTestnetFaucet && (
-                      <TestnetUsdcFaucet
-                        compact
-                        onSuccess={async () => {
+                    {hasInsufficientUsdc && (
+                      <InsufficientUsdcNotice
+                        available={usdcBalance ?? 0}
+                        required={requiredUsdc}
+                        onFaucetSuccess={async () => {
                           await refetchUsdcBalance();
                         }}
                       />
                     )}
 
-                    {/* FundingYieldCalculator — debounced, uses same APR formula */}
-                    {!inputError && (
-                      <FundingYieldCalculator
-                        amountInput={amount}
-                        apr={terms.apr}
-                        daysToMaturity={daysToMaturity}
-                        repaymentDate={terms.repaymentDate}
-                        currency={metadata.currency}
-                      />
-                    )}
+                    {/* FundingYieldCalculator — debounced, uses same APR formula.
+                        Render even when the amount has an inline error so cap and
+                        malformed-data edges show explicit copy (#1131). */}
+                    <FundingYieldCalculator
+                      amountInput={amount}
+                      apr={terms.apr}
+                      daysToMaturity={daysToMaturity}
+                      repaymentDate={terms.repaymentDate}
+                      currency={metadata.currency}
+                      remainingCapacity={fundingState.remainingCapacity}
+                    />
 
                     <Button
                       data-tour="fund-button"
@@ -1180,6 +1207,57 @@ export default function InvoiceDetailClient({ id }: { id: string }) {
                         Escrow deposit completed successfully. Your factoring
                         shares are logged under on-chain token state.
                       </p>
+                      {successProjection && (
+                        <dl
+                          className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-emerald-500/20 bg-zinc-950/40 p-3"
+                          data-testid="fund-success-summary"
+                        >
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-zinc-500">
+                              {tInvestment("principal")}
+                            </dt>
+                            <dd
+                              className="mt-0.5 font-mono text-xs font-semibold text-zinc-200"
+                              data-testid="fund-success-principal"
+                            >
+                              {formatCurrency(successAmount, metadata.currency)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-zinc-500">
+                              {tInvestment("holdingDuration")}
+                            </dt>
+                            <dd
+                              className="mt-0.5 font-mono text-xs font-semibold text-zinc-200"
+                              data-testid="fund-success-duration"
+                            >
+                              {tInvestment("days", { count: daysToMaturity })}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-zinc-500">
+                              {tInvestment("totalPayoff")}
+                            </dt>
+                            <dd
+                              className="mt-0.5 font-mono text-xs font-semibold text-emerald-300"
+                              data-testid="fund-success-payoff"
+                            >
+                              {formatCurrency(
+                                successProjection.expectedReturn,
+                                metadata.currency,
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-[10px] uppercase tracking-wider text-zinc-500">
+                              {tInvestment("netYield")}
+                            </dt>
+                            <dd className="mt-0.5 font-mono text-xs font-semibold text-emerald-300">
+                              +{formatCurrency(successProjection.netYield, metadata.currency)}
+                            </dd>
+                          </div>
+                        </dl>
+                      )}
                       <div className="pt-2">
                         <a
                           href={safeStellarTxUrl(fundTxHash)}

@@ -261,11 +261,101 @@ export function isSameOrigin(url: string): boolean {
 }
 
 /**
- * Validates a redirect target is same-origin. Returns "/" on failure.
+ * Default safe fallback for rejected redirect destinations.
  */
-export function safeRedirectUrl(url: string): string {
-  if (!url || !isSameOrigin(url)) return "/";
-  return url;
+export const SAFE_REDIRECT_FALLBACK = "/";
+
+/**
+ * Returns true if the value contains characters that are commonly used to
+ * smuggle open-redirect payloads past naive validators: control characters,
+ * whitespace, backslashes, and percent-encoded separators.
+ */
+function hasRedirectSmugglingChars(value: string): boolean {
+  // Control chars + whitespace (incl. tabs/newlines used to bypass parsers)
+  if (/[\u0000-\u0020\u007f]/.test(value)) return true;
+  // Backslashes are normalized to "/" by some browsers (e.g. "\\evil.com")
+  if (value.includes("\\")) return true;
+  // Percent-encoded control chars, slashes, backslashes, or scheme colons
+  if (/%(?:0[0-9a-f]|1[0-9a-f]|2f|5c|3a|09|0a|0d)/i.test(value)) return true;
+  return false;
+}
+
+/**
+ * Validates a redirect target is a safe same-origin path. Returns
+ * SAFE_REDIRECT_FALLBACK ("/") on any failure.
+ *
+ * Rejects (open-redirect corpus):
+ * - empty / non-string values
+ * - absolute URLs to any origin (including the current one, to avoid
+ *   ambiguity across environments)
+ * - protocol-relative URLs ("//evil.com", "///evil.com")
+ * - backslash variants ("\\evil.com", "/\\evil.com")
+ * - whitespace / control-character smuggling (" /evil.com", "/\t/evil.com")
+ * - percent-encoded separators ("/%2f%2fevil.com", "/%5cevil.com")
+ * - dangerous schemes ("javascript:", "data:", "vbscript:", "file:")
+ * - anything that does not resolve to a same-origin pathname
+ */
+export function safeRedirectUrl(url: string | null | undefined): string {
+  if (typeof url !== "string") return SAFE_REDIRECT_FALLBACK;
+
+  const candidate = url.trim();
+  if (!candidate) return SAFE_REDIRECT_FALLBACK;
+
+  // Reject smuggling characters before any parsing/normalization.
+  if (hasRedirectSmugglingChars(candidate)) return SAFE_REDIRECT_FALLBACK;
+
+  // Reject protocol-relative and backslash-prefixed destinations.
+  if (candidate.startsWith("//") || candidate.startsWith("/\\")) {
+    return SAFE_REDIRECT_FALLBACK;
+  }
+
+  // Reject explicit dangerous schemes (case-insensitive, optional whitespace).
+  if (/^[a-z][a-z0-9+.-]*:/i.test(candidate)) {
+    return SAFE_REDIRECT_FALLBACK;
+  }
+
+  // Only allow root-relative paths from here on.
+  if (!candidate.startsWith("/")) return SAFE_REDIRECT_FALLBACK;
+
+  // Resolve against the current origin (or a placeholder when unavailable)
+  // and confirm the result stays same-origin.
+  const base =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "https://kora.invalid";
+  try {
+    const parsed = new URL(candidate, base);
+    if (parsed.origin !== base) return SAFE_REDIRECT_FALLBACK;
+    // Reject if normalization introduced a different host or scheme.
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return SAFE_REDIRECT_FALLBACK;
+    }
+    // Reject if the resolved pathname itself is protocol-relative.
+    if (parsed.pathname.startsWith("//")) return SAFE_REDIRECT_FALLBACK;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return SAFE_REDIRECT_FALLBACK;
+  }
+}
+
+/**
+ * Returns the value only when it is a same-origin, root-relative path
+ * (e.g. "/dashboard/sme"). Rejects absolute URLs, protocol-relative and
+ * backslash tricks, scheme payloads and control characters. Returns null
+ * otherwise.
+ */
+export function safeInternalPath(value: string | null | undefined): string | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001F\u007F\\]/.test(value)) return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  try {
+    const parsed = new URL(value, "http://kora.local");
+    if (parsed.origin !== "http://kora.local") return null;
+    return parsed.pathname + parsed.search + parsed.hash;
+  } catch {
+    return null;
+  }
 }
 
 /**

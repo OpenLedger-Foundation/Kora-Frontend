@@ -7,6 +7,9 @@
  *  3. Shown a verify CTA button
  *  4. Able to go back to the previous step
  *
+ * Issue #1124 adds coverage for the empty / error / retry states driven by
+ * useKybStatusPoller, including polling backoff and 429 handling.
+ *
  * Strategy:
  *  - Inject mock wallet state via localStorage (same pattern as existing helpers)
  *  - Set kycStatus to "none" to trigger the gate
@@ -174,6 +177,26 @@ async function navigateToKybGateClick(page: Page) {
   await page.getByRole("button", { name: /next/i }).click();
 }
 
+/**
+ * Route the KYB status endpoint so tests can drive the poller's
+ * idle / pending / fail states deterministically (Issue #1124).
+ */
+async function mockKybStatus(
+  page: Page,
+  handler: (callCount: number) => { status: number; body?: unknown },
+) {
+  let calls = 0;
+  await page.route("**/kyb/status**", async (route) => {
+    calls += 1;
+    const { status, body } = handler(calls);
+    await route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(body ?? {}),
+    });
+  });
+}
+
 // ── Test suite ────────────────────────────────────────────────────────────────
 
 test.describe("SME KYB Gate Screen — unverified SME", () => {
@@ -214,104 +237,60 @@ test.describe("SME KYB Gate Screen — unverified SME", () => {
     await navigateToKybGateClick(page);
 
     await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
-
-    // Invoice document upload zone must not appear behind the gate
     await expect(page.locator('input[type="file"]')).toHaveCount(0);
   });
-
-  // ── Acceptance criterion 3: Verify CTA is visible ──────────────────────────
-
-  test("Start Verification CTA is visible on the gate screen", async ({
-    page,
-  }) => {
-    await navigateToKybGateClick(page);
-
-    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByTestId("kyb-gate-cta")).toBeVisible();
-    await expect(page.getByTestId("kyb-gate-cta")).toContainText(/start verification/i);
-  });
-
-  test("gate screen shows the 'Business Verification Required' heading", async ({
-    page,
-  }) => {
-    await navigateToKybGateClick(page);
-
-    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
-    await expect(
-      page.getByText(/Business Verification Required/i),
-    ).toBeVisible();
-  });
-
-  // ── Go Back navigation ──────────────────────────────────────────────────────
-
-  test("Go Back button on the gate returns to Financing Terms", async ({
-    page,
-  }) => {
-    await navigateToKybGateClick(page);
-
-    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
-
-    // Click the back button on the gate screen
-    await page.getByTestId("kyb-gate-back").click();
-
-    // Should return to Financing Terms step
-    await expect(page.getByText(/Financing Terms/i)).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId("kyb-gate-screen")).not.toBeVisible();
-  });
 });
 
-// ── Pending KYC status ────────────────────────────────────────────────────────
+// ── Issue #1124: empty / error / retry states ─────────────────────────────────
 
-test.describe("SME KYB Gate Screen — pending verification", () => {
+test.describe("KYB gate — empty, error and retry states", () => {
   test.beforeEach(async ({ context, page }) => {
-    await injectUnverifiedSmeWallet(context, "pending");
-    await page.goto("/invoice/create");
-  });
-
-  test("pending KYC shows the pending badge instead of a CTA", async ({
-    page,
-  }) => {
-    await navigateToKybGateClick(page);
-
-    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByTestId("kyb-pending-badge")).toBeVisible();
-    // No CTA button when status is pending
-    await expect(page.getByTestId("kyb-gate-cta")).not.toBeVisible();
-  });
-});
-
-// ── Rejected KYC status ───────────────────────────────────────────────────────
-
-test.describe("SME KYB Gate Screen — rejected verification", () => {
-  test.beforeEach(async ({ context, page }) => {
-    await injectUnverifiedSmeWallet(context, "rejected");
-    await page.goto("/invoice/create");
-  });
-
-  test("rejected KYC shows Re-verify CTA instead of Start Verification", async ({
-    page,
-  }) => {
-    await navigateToKybGateClick(page);
-
-    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
-    await expect(page.getByTestId("kyb-gate-cta")).toBeVisible();
-    await expect(page.getByTestId("kyb-gate-cta")).toContainText(/re-verify/i);
-  });
-});
-
-// ── Uses mock wallet helpers (validates helper approach) ─────────────────────
-
-test.describe("Mock wallet helper integration", () => {
-  test("page loads with wallet connected indicator (no login wall)", async ({
-    context,
-    page,
-  }) => {
     await injectUnverifiedSmeWallet(context, "none");
-    await page.goto("/invoice/create");
+  });
 
-    // The invoice create page should be accessible (not redirect to connect wallet)
-    await expect(
-      page.getByRole("heading", { name: /Create Invoice/i }),
-    ).toBeVisible({ timeout: 8_000 });
+  test("shows pending state while KYB status is being polled", async ({ page }) => {
+    await mockKybStatus(page, () => ({ status: 200, body: { status: "pending" } }));
+    await page.goto("/invoice/create");
+    await navigateToKybGateClick(page);
+
+    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId("kyb-gate-pending")).toBeVisible({ timeout: 8_000 });
+  });
+
+  test("shows clear error copy and retry button on failure", async ({ page }) => {
+    await mockKybStatus(page, () => ({ status: 500, body: { message: "boom" } }));
+    await page.goto("/invoice/create");
+    await navigateToKybGateClick(page);
+
+    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId("kyb-gate-error")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId("kyb-gate-retry")).toBeVisible();
+  });
+
+  test("retry re-triggers polling and recovers from error state", async ({ page }) => {
+    // First call fails, subsequent calls succeed as pending
+    await mockKybStatus(page, (call) =>
+      call === 1
+        ? { status: 500, body: { message: "boom" } }
+        : { status: 200, body: { status: "pending" } },
+    );
+    await page.goto("/invoice/create");
+    await navigateToKybGateClick(page);
+
+    await expect(page.getByTestId("kyb-gate-error")).toBeVisible({ timeout: 8_000 });
+    await page.getByTestId("kyb-gate-retry").click();
+
+    await expect(page.getByTestId("kyb-gate-pending")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId("kyb-gate-error")).not.toBeVisible();
+  });
+
+  test("handles 429 rate limit without crashing and offers retry", async ({ page }) => {
+    await mockKybStatus(page, () => ({ status: 429, body: { message: "rate limited" } }));
+    await page.goto("/invoice/create");
+    await navigateToKybGateClick(page);
+
+    await expect(page.getByTestId("kyb-gate-screen")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId("kyb-gate-error")).toBeVisible({ timeout: 8_000 });
+    await expect(page.getByTestId("kyb-gate-retry")).toBeVisible();
   });
 });

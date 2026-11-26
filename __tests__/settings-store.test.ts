@@ -70,6 +70,118 @@ describe("settingsStore — notification preferences", () => {
   });
 });
 
+describe("settingsStore — persistence & sanitization (#1125)", () => {
+  const KEY = "kora-settings-store";
+
+  beforeEach(() => {
+    localStorage.clear();
+    resetStore();
+  });
+
+  it("writes versioned state with the tour step intact", () => {
+    useSettingsStore.getState().setTourSettings({ stepIndex: 3 });
+
+    const raw = JSON.parse(localStorage.getItem(KEY)!);
+    expect(raw.version).toBe(1);
+    expect(raw.state.tour.stepIndex).toBe(3);
+  });
+
+  it("rehydrates a saved step so the tour resumes after a refresh", async () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        state: {
+          tour: { persona: "sme", stepIndex: 2, completed: false, skipped: false },
+        },
+        version: 1,
+      }),
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    expect(useSettingsStore.getState().tour.stepIndex).toBe(2);
+    expect(useSettingsStore.getState().tour.persona).toBe("sme");
+  });
+
+  it("migrates pre-versioning (v0) data and fills missing slices", async () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        state: {
+          tour: { persona: "investor", stepIndex: 4, completed: false, skipped: false },
+          notifications: { maturityReminder: false },
+        },
+        version: 0,
+      }),
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    expect(useSettingsStore.getState().tour.stepIndex).toBe(4);
+    expect(useSettingsStore.getState().notifications.maturityReminder).toBe(false);
+    // Missing field falls back to its default rather than undefined.
+    expect(useSettingsStore.getState().notifications.maturityReminderDays).toBe(3);
+    expect(useSettingsStore.getState().concentration).toEqual(
+      DEFAULT_CONCENTRATION_SETTINGS,
+    );
+  });
+
+  it("rejects corrupt tour state instead of stranding the tour", async () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        state: { tour: { persona: "admin", stepIndex: "3", completed: "yes" } },
+        version: 1,
+      }),
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    expect(useSettingsStore.getState().tour).toEqual(DEFAULT_TOUR_SETTINGS);
+  });
+
+  it("keeps valid concentration snoozes and drops expired or malformed ones", async () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        state: {
+          concentration: {
+            thresholds: { debtor: 30, jurisdiction: "nope" },
+            dismissedKeys: ["debtor:ACME", 7],
+            snoozes: [
+              { key: "debtor:ACME", until: Date.now() + 60_000 },
+              { key: "expired", until: Date.now() - 60_000 },
+              { key: 123, until: Date.now() + 60_000 },
+            ],
+          },
+        },
+        version: 1,
+      }),
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    const { concentration } = useSettingsStore.getState();
+    expect(concentration.thresholds.debtor).toBe(30);
+    expect(concentration.thresholds.jurisdiction).toBe(
+      DEFAULT_CONCENTRATION_THRESHOLDS.jurisdiction,
+    );
+    expect(concentration.dismissedKeys).toEqual(["debtor:ACME"]);
+    expect(concentration.snoozes.map((s) => s.key)).toEqual(["debtor:ACME"]);
+  });
+
+  it("falls back to defaults when the stored entry is not JSON", async () => {
+    localStorage.setItem(KEY, "{not json");
+
+    await useSettingsStore.persist.rehydrate();
+
+    expect(useSettingsStore.getState().tour).toEqual(DEFAULT_TOUR_SETTINGS);
+    expect(useSettingsStore.getState().notifications).toEqual(
+      DEFAULT_NOTIFICATION_PREFS,
+    );
+  });
+});
+
 describe("settingsStore — onboarding tour settings", () => {
   beforeEach(resetStore);
 

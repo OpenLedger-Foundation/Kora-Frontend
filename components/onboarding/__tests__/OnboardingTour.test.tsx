@@ -150,4 +150,30 @@ describe("OnboardingTour Component", () => {
     expect(await screen.findByText("Mint an invoice", {}, { timeout: 2000 })).toBeInTheDocument();
     expect(screen.getByText("Step 1 of 3")).toBeInTheDocument();
   });
+
+  // ─── #1125 — resume after a refresh ──────────────────────────────────────
+  it("persists each step change to storage", async () => {
+    render(<OnboardingTour />);
+
+    await screen.findByText("Find the right opportunity", {}, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Review invoice details");
+
+    const raw = localStorage.getItem("kora-settings-store");
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw!).state.tour.stepIndex).toBe(1);
+  });
+
+  it("resumes from the persisted step instead of restarting at step 1", async () => {
+    // What a refresh looks like: the store rehydrates from storage before the
+    // component mounts, so stepIndex is already 2 (#1125).
+    useSettingsStore.setState({
+      tour: { ...DEFAULT_TOUR_SETTINGS, stepIndex: 2 },
+    });
+
+    render(<OnboardingTour />);
+
+    expect(await screen.findByText("Fund an invoice", {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(screen.getByText("Step 3 of 5")).toBeInTheDocument();
+  });
 });

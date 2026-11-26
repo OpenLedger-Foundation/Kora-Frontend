@@ -1,24 +1,52 @@
 "use client";
 
 import React from "react";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ChartTooltip from "@/components/analytics/ChartTooltip";
 import { useBreakpoint } from "@/hooks/useBreakpoint";
 import { PieChart as PieChartIcon } from "lucide-react";
+import { useTranslations } from "next-intl";
+
+// Recharts is heavy; load it lazily so it stays out of the main bundle.
+const ResponsiveContainer = dynamic(
+  () => import("recharts").then((m) => m.ResponsiveContainer),
+  { ssr: false }
+);
+const AreaChart = dynamic(() => import("recharts").then((m) => m.AreaChart), {
+  ssr: false,
+});
+const Area = dynamic(() => import("recharts").then((m) => m.Area), {
+  ssr: false,
+});
+const CartesianGrid = dynamic(
+  () => import("recharts").then((m) => m.CartesianGrid),
+  { ssr: false }
+);
+const XAxis = dynamic(() => import("recharts").then((m) => m.XAxis), {
+  ssr: false,
+});
+const YAxis = dynamic(() => import("recharts").then((m) => m.YAxis), {
+  ssr: false,
+});
+const Tooltip = dynamic(() => import("recharts").then((m) => m.Tooltip), {
+  ssr: false,
+});
+const BarChart = dynamic(() => import("recharts").then((m) => m.BarChart), {
+  ssr: false,
+});
+const Bar = dynamic(() => import("recharts").then((m) => m.Bar), {
+  ssr: false,
+});
+const PieChart = dynamic(() => import("recharts").then((m) => m.PieChart), {
+  ssr: false,
+});
+const Pie = dynamic(() => import("recharts").then((m) => m.Pie), {
+  ssr: false,
+});
+const Cell = dynamic(() => import("recharts").then((m) => m.Cell), {
+  ssr: false,
+});
 
 const TOOLTIP_STYLE = {
   contentStyle: {
@@ -70,6 +98,7 @@ export default function Charts({
   onRiskSegmentClick,
 }: ChartsProps) {
   const { isMobile, isTablet } = useBreakpoint();
+  const t = useTranslations("analytics.charts");
 
   const chartHeight = compact ? 180 : isMobile ? 200 : isTablet ? 220 : 240;
   const fontSize = isMobile ? 10 : 11;
@@ -83,7 +112,7 @@ export default function Charts({
           <Card>
             <CardHeader>
               <CardTitle className={isMobile ? "text-sm" : "text-base"}>
-                Portfolio Growth (USDC)
+                {t("portfolioGrowth")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -111,7 +140,10 @@ export default function Charts({
                   <Tooltip
                     {...TOOLTIP_STYLE}
                     content={<ChartTooltip unit="USDC" />}
-                    formatter={(v: number) => [`$${v.toLocaleString()}`, "Portfolio"]}
+                    formatter={(v: number) => [
+                      `$${v.toLocaleString()}`,
+                      t("portfolioLabel"),
+                    ]}
                   />
                   <Area
                     type="monotone"
@@ -130,7 +162,7 @@ export default function Charts({
           <Card>
             <CardHeader>
               <CardTitle className={isMobile ? "text-sm" : "text-base"}>
-                Monthly Yield Earned (USDC)
+                {t("monthlyYield")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -152,7 +184,10 @@ export default function Charts({
                   <Tooltip
                     {...TOOLTIP_STYLE}
                     content={<ChartTooltip unit="USDC" />}
-                    formatter={(v: number) => [`$${v.toLocaleString()}`, "Yield"]}
+                    formatter={(v: number) => [
+                      `$${v.toLocaleString()}`,
+                      t("yieldLabel"),
+                    ]}
                   />
                   <Bar dataKey="yield" fill="#14b8a6" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -169,7 +204,7 @@ export default function Charts({
           <Card>
             <CardHeader>
               <CardTitle className={isMobile ? "text-sm" : "text-base"}>
-                Risk Distribution
+                {t("riskDistribution")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -177,7 +212,7 @@ export default function Charts({
                 <div className="flex h-44 flex-col items-center justify-center gap-2 text-center">
                   <PieChartIcon className="h-8 w-8 text-muted-foreground/40" />
                   <p className="text-xs text-muted-foreground">
-                    No positions to allocate yet
+                    {t("noPositions")}
                   </p>
                 </div>
               ) : (
@@ -212,7 +247,10 @@ export default function Charts({
                       <Tooltip
                         {...TOOLTIP_STYLE}
                         content={<ChartTooltip unit="" />}
-                        formatter={(v: number) => [`${v}%`, "Allocation"]}
+                        formatter={(v: number) => [
+                          `${v}%`,
+                          t("allocationLabel"),
+                        ]}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -246,7 +284,7 @@ export default function Charts({
           <Card>
             <CardHeader>
               <CardTitle className={isMobile ? "text-sm" : "text-base"}>
-                Monthly Return Rate (%)
+                {t("monthlyReturn")}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -274,7 +312,7 @@ export default function Charts({
                   <Tooltip
                     {...TOOLTIP_STYLE}
                     content={<ChartTooltip unit="" />}
-                    formatter={(v: number) => [`${v}%`, "Return"]}
+                    formatter={(v: number) => [`${v}%`, t("returnLabel")]}
                   />
                   <Area
                     type="monotone"
@@ -310,6 +348,7 @@ interface MarketplaceAprHistogramProps {
 }
 
 export function MarketplaceAprHistogram({ invoices }: MarketplaceAprHistogramProps) {
+  const t = useTranslations("analytics.charts");
   const buckets = React.useMemo(() => {
     const counts = { "0-10%": 0, "10-20%": 0, "20-30%": 0, "30-40%": 0, "40-50%": 0 };
     invoices.forEach((inv) => {
@@ -329,16 +368,22 @@ export function MarketplaceAprHistogram({ invoices }: MarketplaceAprHistogramPro
   if (invoices.length === 0) {
     return (
       <div className="flex h-36 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-800 p-4 text-center">
-        <p className="text-xs font-medium text-zinc-500">No APR distribution data available</p>
+        <p className="text-xs font-medium text-zinc-500">
+          {t("noAprDistribution")}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2" aria-label="APR Distribution Histogram">
+    <div className="space-y-2" aria-label={t("aprHistogramAriaLabel")}>
       <div className="flex items-center justify-between text-xs text-zinc-400">
-        <span className="font-semibold text-zinc-300">APR Yield Ranges</span>
-        <span className="font-mono text-[11px] text-zinc-500">{invoices.length} invoices</span>
+        <span className="font-semibold text-zinc-300">
+          {t("aprYieldRanges")}
+        </span>
+        <span className="font-mono text-[11px] text-zinc-500">
+          {t("invoiceCount", { count: invoices.length })}
+        </span>
       </div>
       <ResponsiveContainer width="100%" height={120}>
         <BarChart data={buckets} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -348,7 +393,7 @@ export function MarketplaceAprHistogram({ invoices }: MarketplaceAprHistogramPro
           <Tooltip
             {...TOOLTIP_STYLE}
             content={<ChartTooltip unit="invoices" />}
-            formatter={(v: number) => [`${v}`, "Invoices"]}
+            formatter={(v: number) => [`${v}`, t("invoicesLabel")]}
           />
           <Bar dataKey="count" fill="#14b8a6" radius={[4, 4, 0, 0]} />
         </BarChart>
@@ -368,6 +413,7 @@ export function MarketplaceRiskDistribution({
   onRiskSegmentClick,
   selectedRiskTiers = [],
 }: MarketplaceRiskDistributionProps) {
+  const t = useTranslations("analytics.charts");
   const riskData = React.useMemo(() => {
     if (invoices.length === 0) return [];
     const counts: Record<string, number> = {};
@@ -386,16 +432,22 @@ export function MarketplaceRiskDistribution({
   if (invoices.length === 0) {
     return (
       <div className="flex h-36 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-800 p-4 text-center">
-        <p className="text-xs font-medium text-zinc-500">No Risk Tier data available</p>
+        <p className="text-xs font-medium text-zinc-500">
+          {t("noRiskTierData")}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2" aria-label="Risk Tier Distribution">
+    <div className="space-y-2" aria-label={t("riskTierDistributionAriaLabel")}>
       <div className="flex items-center justify-between text-xs text-zinc-400">
-        <span className="font-semibold text-zinc-300">Risk Tier Allocation</span>
-        <span className="font-mono text-[11px] text-zinc-500">Click to filter</span>
+        <span className="font-semibold text-zinc-300">
+          {t("riskTierAllocation")}
+        </span>
+        <span className="font-mono text-[11px] text-zinc-500">
+          {t("clickToFilter")}
+        </span>
       </div>
       <div className="flex flex-wrap gap-1.5 pt-1">
         {riskData.map((item) => {
@@ -410,7 +462,7 @@ export function MarketplaceRiskDistribution({
                   ? "border-primary bg-primary/10 text-primary"
                   : "border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800/50"
               }`}
-              title={`Filter by Risk Tier ${item.name}`}
+              title={t("filterByRiskTier", { tier: item.name })}
             >
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
               <span>{item.name}</span>

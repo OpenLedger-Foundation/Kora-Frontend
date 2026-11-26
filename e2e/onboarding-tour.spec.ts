@@ -108,5 +108,45 @@ test.describe("Onboarding tour", () => {
       .poll(() => page.evaluate((key) => localStorage.getItem(key), TOUR_STORAGE_KEY))
       .toBeNull();
   });
+
+  // ─── #1125 — resume after a refresh ──────────────────────────────────────
+  test("resumes from the saved step after a page refresh", async ({ page }) => {
+    // The suite's beforeEach wipes kora-settings-store on every load — including
+    // the reload under test — so re-seed it from sessionStorage, which that
+    // cleanup does not touch.
+    await page.addInitScript(() => {
+      const seed = sessionStorage.getItem("kora-tour-seed");
+      if (seed) localStorage.setItem("kora-settings-store", seed);
+    });
+
+    await page.goto("/marketplace");
+
+    const tour = tourDialog(page);
+    await expect(tour).toBeVisible({ timeout: 10_000 });
+    await expect(tour.getByText("Find the right opportunity")).toBeVisible();
+
+    await tour.getByRole("button", { name: "Next" }).click();
+    await expect(tour.getByText("Review invoice details")).toBeVisible();
+    await expect(tour.getByText("Step 2 of 5")).toBeVisible();
+
+    // Capture what a refresh would find in storage, then reload.
+    const seed = await page.evaluate(() =>
+      localStorage.getItem("kora-settings-store"),
+    );
+    expect(seed).toContain('"stepIndex":1');
+    await page.evaluate(
+      (value) => sessionStorage.setItem("kora-tour-seed", value!),
+      seed,
+    );
+
+    await page.reload();
+
+    // The tour is back on step 2, not restarted at step 1.
+    const resumed = tourDialog(page);
+    await expect(resumed).toBeVisible({ timeout: 10_000 });
+    await expect(resumed.getByText("Review invoice details")).toBeVisible();
+    await expect(resumed.getByText("Step 2 of 5")).toBeVisible();
+    await expect(resumed.getByText("Find the right opportunity")).toBeHidden();
+  });
 });
 

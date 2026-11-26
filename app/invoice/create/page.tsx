@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,13 +31,15 @@ import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { useUIStore, useInvoiceStore } from "@/store";
-import { prepareCreateInvoice } from "@/services/invoiceService";
+import { prepareCreateInvoice, fetchInvoiceById, extractMintedTokenId } from "@/services/invoiceService";
+import { waitForTransaction } from "@/lib/stellar/client";
 import {
   buildLocalizedInvoiceSchemas,
   INVOICE_DETAILS_STEP_FIELDS,
   FINANCING_TERMS_STEP_FIELDS,
   type CreateInvoiceSchema,
 } from "@/lib/validations/invoice";
+import { isValidPdfMagicBytes } from "@/lib/pdfValidation";
 import { createLocalizedErrorMap } from "@/lib/validations/locales";
 import { useLocale } from "@/i18n/LocaleProvider";
 import { cn, isValidStellarAddress } from "@/lib/utils";
@@ -44,6 +47,7 @@ import { safeStellarTxUrl } from "@/lib/security";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { usePinataHealth } from "@/hooks/usePinataHealth";
+import { MAX_INVOICE_PDF_BYTES } from "@/lib/validations/upload";
 import ShareInvoiceButton from "@/components/invoice/ShareInvoiceButton";
 import { useFeatureFlag } from "@/lib/featureFlags";
 import { useWalletKycStatus } from "@/store/walletStore";
@@ -51,10 +55,15 @@ import { KybGateScreen } from "@/components/invoice/KybGateScreen";
 
 const TODAY = new Date().toISOString().split("T")[0];
 
+/** sessionStorage key for wizard step persistence (Issue #XXX). */
+const WIZARD_STEP_KEY = "kora-invoice-create-step";
+
 export default function CreateInvoicePage() {
   const t = useTranslations("createInvoice");
   const tMarketplace = useTranslations("marketplace");
   const tCommon = useTranslations("common");
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const STEPS = [t("steps.details"), t("steps.terms"), t("steps.review")];
 
@@ -89,6 +98,10 @@ export default function CreateInvoicePage() {
   ];
 
   const [step, setStep] = useState(0);
+  // ── Step persistence (Issue #XXX): restore from ?step= query param or
+  // sessionStorage on mount. Actual validation happens after isDraftResolved.
+  const [stepRestoredFromStorage, setStepRestoredFromStorage] = useState(false);
+
   const [file, setFile] = useState<File | null>(null);
   const [submitted, setSubmitted] = useState(false);
   // ── KYB gate state (Issue #489) ───────────────────────────────────────────
@@ -117,10 +130,32 @@ export default function CreateInvoicePage() {
   const [isUploading, setIsUploading] = useState(false);
   const queryClient = useQueryClient();
   const [mintedInfo, setMintedInfo] = useState<{
-    tokenId: string;
+    tokenId?: string;
     txHash: string;
     metadataCid: string;
   } | null>(null);
+  const [isIndexed, setIsIndexed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!mintedInfo?.tokenId) return;
+    let active = true;
+    async function checkIndex() {
+      try {
+        const inv = await fetchInvoiceById(mintedInfo!.tokenId!);
+        if (active) {
+          setIsIndexed(Boolean(inv));
+        }
+      } catch {
+        if (active) {
+          setIsIndexed(false);
+        }
+      }
+    }
+    checkIndex();
+    return () => {
+      active = false;
+    };
+  }, [mintedInfo?.tokenId]);
 
   // Pinata health — checked when the user reaches the Upload step.
   // Auto-retries with exponential backoff so the wizard self-heals on recovery.
@@ -198,6 +233,76 @@ export default function CreateInvoicePage() {
     return () => subscription.unsubscribe();
   }, [watch, setCreateDraft, isDraftResolved]);
 
+  // ── Step persistence: restore persisted step once draft is resolved ───────
+  // Priority: ?step= query param > sessionStorage > default (0).
+  // We validate the restored step against form completeness so the user can't
+  // skip ahead to a step their partial form doesn't satisfy.
+  useEffect(() => {
+    if (!isDraftResolved || stepRestoredFromStorage) return;
+
+    const formSnapshot = watch();
+    const { invoiceDetailsStepSchema: dts, financingTermsSchema: fts } = {
+      invoiceDetailsStepSchema,
+      financingTermsSchema,
+    };
+
+    const step0OK = dts.safeParse(formSnapshot).success;
+    const step1OK = fts.safeParse(formSnapshot).success;
+
+    // Max step the form data can actually support
+    const maxAllowedStep = step1OK ? 2 : step0OK ? 1 : 0;
+
+    // 1. ?step= query param takes precedence (support-link sharing)
+    const qpStep = searchParams.get("step");
+    if (qpStep !== null) {
+      const parsed = parseInt(qpStep, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 2) {
+        setStep(Math.min(parsed, maxAllowedStep));
+        setStepRestoredFromStorage(true);
+        return;
+      }
+    }
+
+    // 2. sessionStorage fallback
+    try {
+      const stored = sessionStorage.getItem(WIZARD_STEP_KEY);
+      if (stored !== null) {
+        const parsed = parseInt(stored, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 2) {
+          setStep(Math.min(parsed, maxAllowedStep));
+        }
+      }
+    } catch {
+      // sessionStorage unavailable (private mode, etc.) — silently ignore
+    }
+
+    setStepRestoredFromStorage(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDraftResolved]);
+
+  // ── Step persistence: write step to sessionStorage on change ─────────────
+  useEffect(() => {
+    if (!stepRestoredFromStorage) return;
+    try {
+      sessionStorage.setItem(WIZARD_STEP_KEY, String(step));
+    } catch {
+      // ignore
+    }
+    // Sync ?step= query param for shareable support links
+    const params = new URLSearchParams(searchParams.toString());
+    if (step === 0) {
+      params.delete("step");
+    } else {
+      params.set("step", String(step));
+    }
+    const newSearch = params.toString();
+    const currentSearch = searchParams.toString();
+    if (newSearch !== currentSearch) {
+      router.replace(`?${newSearch}`, { scroll: false });
+    }
+  }, [step, stepRestoredFromStorage, searchParams, router]);
+  // ─────────────────────────────────────────────────────────────────────────
+
   const formValues = watch();
   const step0Valid = useMemo(
     () => invoiceDetailsStepSchema.safeParse(formValues).success,
@@ -251,9 +356,15 @@ export default function CreateInvoicePage() {
     return (d / (1 - d)) * (365 / daysToMaturity) * 100;
   }, [discountRateVal, daysToMaturity]);
 
-  const onDrop = useCallback((acceptedFiles: File[], fileRejections: FileRejection[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[], fileRejections: FileRejection[]) => {
     setFileError(null);
     if (acceptedFiles[0]) {
+      const isValid = await isValidPdfMagicBytes(acceptedFiles[0]);
+      if (!isValid) {
+        setFileError(t("upload.errors.invalidMagicBytes"));
+        setFile(null);
+        return;
+      }
       setFile(acceptedFiles[0]);
     }
     if (fileRejections[0]) {
@@ -273,7 +384,7 @@ export default function CreateInvoicePage() {
     onDrop,
     accept: { "application/pdf": [".pdf"] },
     maxFiles: 1,
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: MAX_INVOICE_PDF_BYTES,
   });
 
   const nextStep = async () => {
@@ -347,6 +458,7 @@ export default function CreateInvoicePage() {
 
   const handleDiscardDraft = () => {
     clearCreateDraft();
+    try { sessionStorage.removeItem(WIZARD_STEP_KEY); } catch { /* ignore */ }
     setShowDraftBanner(false);
     setIsDraftResolved(true);
   };
@@ -362,12 +474,19 @@ export default function CreateInvoicePage() {
       return;
     }
 
+    const isValidPdf = await isValidPdfMagicBytes(file);
+    if (!isValidPdf) {
+      setFileError(t("upload.errors.invalidMagicBytes"));
+      return;
+    }
+
     setFileError(null);
     setIsUploading(true);
     setUploadProgress(0);
     setUploadStage("ipfs");
 
     let tempMetadataCid = "";
+    let preSubmitTokenId: string | undefined = undefined;
 
     await execute(
       async () => {
@@ -387,17 +506,33 @@ export default function CreateInvoicePage() {
         );
 
         tempMetadataCid = result.metadataCid;
+        preSubmitTokenId = result.simulatedTokenId ?? result.tokenId;
         setIsUploading(false);
         return result.unsignedXdr;
       },
       {
         successMessage: "Invoice minted on Soroban!",
         onSimulationPreview,
-        onSuccess: (hash) => {
+        onSuccess: async (hash, txResult) => {
           setUploadStage("done");
-          const mockTokenId = Math.floor(1001 + Math.random() * 8999).toString();
+
+          // Parse token ID from submitted transaction via stellar client helpers
+          let parsedTokenId: string | null = extractMintedTokenId(txResult);
+
+          if (!parsedTokenId && hash && !hash.startsWith("mock_") && !txResult?.mock) {
+            try {
+              const confirmedTx = await waitForTransaction(hash, 5, 1000);
+              parsedTokenId = extractMintedTokenId(confirmedTx);
+            } catch {
+              // Best-effort confirmation check
+            }
+          }
+
+          // Use pre-submit simulation token ID as fallback (especially in mock mode)
+          const finalTokenId = parsedTokenId ?? preSubmitTokenId ?? undefined;
+
           setMintedInfo({
-            tokenId: mockTokenId,
+            tokenId: finalTokenId,
             txHash: hash,
             metadataCid: tempMetadataCid,
           });
@@ -406,6 +541,8 @@ export default function CreateInvoicePage() {
           queryClient.invalidateQueries({ queryKey: ["invoices", "infinite"] });
           queryClient.invalidateQueries({ queryKey: queryKeys.invoices.all });
           clearCreateDraft();
+          // Clear persisted step on successful mint
+          try { sessionStorage.removeItem(WIZARD_STEP_KEY); } catch { /* ignore */ }
           setSubmitted(true);
         },
       }
@@ -449,15 +586,32 @@ export default function CreateInvoicePage() {
           </p>
 
           <div className="mt-8 space-y-4 rounded-xl border border-zinc-800/85 bg-zinc-900/40 p-5 text-left text-sm backdrop-blur-sm">
-            <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
-              <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
-              <span className="flex items-center gap-1.5">
-                <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
-                  #{mintedInfo.tokenId}
+            {mintedInfo.tokenId ? (
+              <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-zinc-200 text-base bg-zinc-800/60 px-2 py-0.5 rounded border border-zinc-700/50">
+                    {t("success.tokenIdFormatted", { id: mintedInfo.tokenId })}
+                  </span>
+                  <CopyButton text={String(mintedInfo.tokenId)} label={t("success.tokenId")} />
+                  {isIndexed === false && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-400 border border-amber-500/20"
+                      title={t("success.indexerLag")}
+                    >
+                      {t("success.syncingBadge")}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex justify-between items-center border-b border-zinc-800/60 pb-3">
+                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">{t("success.tokenId")}</span>
+                <span className="text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded font-medium">
+                  {t("success.tokenPending")}
                 </span>
-                <CopyButton text={mintedInfo.tokenId} />
-              </span>
-            </div>
+              </div>
+            )}
 
             <div className="flex justify-between items-start pt-1">
               <div className="space-y-1 w-full">
@@ -482,24 +636,26 @@ export default function CreateInvoicePage() {
             </div>
           </div>
 
-          <div className="mt-8 rounded-xl border border-kora-500/20 bg-kora-500/5 p-5 text-left">
-            <p className="text-sm font-semibold text-zinc-100" data-testid="post-mint-share-cta">
-              Share your invoice
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">
-              Send a deep link with the on-chain token ID so funders open the correct listing.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <ShareInvoiceButton
-                id={mintedInfo.tokenId}
-                tokenId={mintedInfo.tokenId}
-                invoiceTitle={`Invoice #${mintedInfo.tokenId}`}
-                summary="Newly minted invoice on Kora — ready for funding."
-                variant="default"
-                size="default"
-              />
+          {mintedInfo.tokenId && (
+            <div className="mt-8 rounded-xl border border-kora-500/20 bg-kora-500/5 p-5 text-left">
+              <p className="text-sm font-semibold text-zinc-100" data-testid="post-mint-share-cta">
+                Share your invoice
+              </p>
+              <p className="mt-1 text-xs text-zinc-400">
+                Send a deep link with the on-chain token ID so funders open the correct listing.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <ShareInvoiceButton
+                  id={mintedInfo.tokenId}
+                  tokenId={mintedInfo.tokenId}
+                  invoiceTitle={`Invoice #${mintedInfo.tokenId}`}
+                  summary="Newly minted invoice on Kora — ready for funding."
+                  variant="default"
+                  size="default"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <a
@@ -512,7 +668,7 @@ export default function CreateInvoicePage() {
               <ArrowRight className="h-3.5 w-3.5" />
             </a>
 
-            <Link href={`/marketplace/${mintedInfo.tokenId}`}>
+            <Link href={mintedInfo.tokenId ? `/marketplace/${mintedInfo.tokenId}` : "/marketplace"}>
               <Button className="w-full sm:w-auto bg-gradient-to-r from-kora-500 to-kora-600 hover:from-kora-600 hover:to-kora-700 text-white shadow-lg shadow-kora-500/15">
                 {t("success.viewMarketplace")}
               </Button>
@@ -633,6 +789,7 @@ export default function CreateInvoicePage() {
           {!showKybGate && step === 0 && (
             <motion.div
               key="step0"
+              data-visual-anchor="invoice-details"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -674,10 +831,10 @@ export default function CreateInvoicePage() {
                       type="button"
                       onClick={() => {
                         const val = (document.querySelector('input[name="debtorAddress"]') as HTMLInputElement)?.value;
-                        if (!val) return alert("No address to save");
-                        if (!isValidStellarAddress(val)) return alert("Invalid Stellar address format");
+                        if (!val) return alert(t("fields.addressBook.noAddress"));
+                        if (!isValidStellarAddress(val)) return alert(t("fields.addressBook.invalidAddress"));
                         useWalletStore.getState().addAddressBookEntry(val, "");
-                        alert("Saved to address book");
+                        alert(t("fields.addressBook.saved"));
                       }}
                       className="rounded-lg px-3 py-1 text-sm"
                     >
@@ -801,6 +958,7 @@ export default function CreateInvoicePage() {
           {!showKybGate && step === 1 && (
             <motion.div
               key="step1"
+              data-visual-anchor="financing-terms"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -962,7 +1120,7 @@ export default function CreateInvoicePage() {
                     <div className="flex flex-col justify-between rounded-lg border border-zinc-800/40 bg-zinc-900/60 p-3.5 transition-colors hover:border-zinc-800">
                       <div>
                         <span className="mb-1 block text-xs text-zinc-500">
-                          Net Finance Cost (Yield)
+                          {t("financingPreview.netFinanceCost")}
                         </span>
                         <span className="text-base font-semibold text-emerald-400">
                           +$
@@ -980,9 +1138,9 @@ export default function CreateInvoicePage() {
                     <div className="bg-kora-500/5 border-kora-500/20 hover:border-kora-500/30 group relative flex flex-col justify-between overflow-hidden rounded-lg border p-3.5 transition-colors">
                       <div className="bg-kora-500/10 pointer-events-none absolute right-0 top-0 h-16 w-16 rounded-full blur-xl transition-transform duration-500 group-hover:scale-150" />
                       <div>
-                        <span className="text-kora-300 mb-1 block text-xs">Effective APR</span>
+                        <span className="text-kora-300 mb-1 block text-xs">{t("financingPreview.effectiveApr")}</span>
                         <span className="text-kora-400 bg-clip-text text-xl font-extrabold">
-                          {effectiveAPR > 0 ? `${effectiveAPR.toFixed(2)}%` : "N/A"}
+                          {effectiveAPR > 0 ? `${effectiveAPR.toFixed(2)}%` : t("notAvailable")}
                         </span>
                       </div>
                     </div>
@@ -996,6 +1154,7 @@ export default function CreateInvoicePage() {
           {!showKybGate && step === 2 && (
             <motion.div
               key="step2"
+              data-visual-anchor="upload-review"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -1013,13 +1172,13 @@ export default function CreateInvoicePage() {
                 >
                   <WifiOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold">IPFS storage is temporarily unavailable.</p>
+                    <p className="font-semibold">{t("upload.ipfsUnavailable.title")}</p>
                     <p className="mt-0.5 text-xs text-amber-400/80">
-                      Your invoice cannot be minted right now. All your form data has been saved — you can try again when the service recovers.
+                      {t("upload.ipfsUnavailable.description")}
                     </p>
                     {pinataRetryCount > 0 && (
                       <p className="mt-1 text-[11px] text-amber-400/70" aria-live="polite">
-                        Automatically re-checking… (attempt {pinataRetryCount})
+                        {t("upload.ipfsUnavailable.retrying", { count: pinataRetryCount })}
                       </p>
                     )}
                   </div>
@@ -1027,7 +1186,7 @@ export default function CreateInvoicePage() {
                     type="button"
                     onClick={recheckPinata}
                     className="shrink-0 rounded-lg p-1 text-amber-400 transition-colors hover:bg-amber-500/20"
-                    aria-label="Retry health check"
+                    aria-label={t("upload.ipfsUnavailable.retryAriaLabel")}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
                   </button>
@@ -1037,22 +1196,22 @@ export default function CreateInvoicePage() {
               {pinataChecking && (
                 <div className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 text-xs text-zinc-400" aria-live="polite">
                   <span className="h-1.5 w-1.5 animate-ping rounded-full bg-zinc-400" aria-hidden="true" />
-                  Checking IPFS storage availability…
+                  {t("upload.ipfsUnavailable.checking")}
                 </div>
               )}
 
               <GlassCard className="space-y-4 p-6">
                 <div>
-                  <p className="mb-2 text-sm font-medium text-zinc-300">Invoice Document</p>
-                  
+                  <p className="mb-2 text-sm font-medium text-zinc-300">{t("upload.document")}</p>
+
                   {isUploading ? (
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-8 text-center space-y-4">
                       <div className="flex items-center justify-between text-xs text-zinc-400 px-1">
                         <span className="flex items-center gap-1.5 font-medium text-kora-400">
                           <span className="h-1.5 w-1.5 animate-ping rounded-full bg-kora-500" />
                           {uploadStage === "ipfs"
-                            ? "Uploading invoice to IPFS…"
-                            : "Building on-chain transaction…"}
+                            ? t("upload.progress.uploading")
+                            : t("upload.progress.building")}
                         </span>
                         <span className="font-mono font-semibold text-zinc-300">{uploadProgress}%</span>
                       </div>
@@ -1090,13 +1249,13 @@ export default function CreateInvoicePage() {
                       </div>
                       <p className="text-xs text-zinc-500 leading-normal">
                         {uploadStage === "ipfs"
-                          ? "Pinning your invoice document to IPFS. This anchors the document hash on-chain."
-                          : "Building and simulating the Soroban mint transaction."}
+                          ? t("upload.progress.pinDescription")
+                          : t("upload.progress.chainDescription")}
                       </p>
                     </div>
                   ) : (
                     <FileInput
-                      label="Invoice Document"
+                      label={t("upload.document")}
                       value={file}
                       onChange={(e) => {
                         setFile(e.target.files?.[0] ?? null);
@@ -1120,20 +1279,20 @@ export default function CreateInvoicePage() {
                       <span className="font-medium text-zinc-200">{watch("invoiceNumber")}</span>
                     </div>
                     <div>
-                      <span className="block text-xs text-zinc-500">Debtor Company</span>
+                      <span className="block text-xs text-zinc-500">{t("fields.debtorName")}</span>
                       <span className="font-medium text-zinc-200">{watch("debtorName")}</span>
                     </div>
                   </div>
 
                   <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
                     <div>
-                      <span className="block text-xs text-zinc-500">Invoice Amount</span>
+                      <span className="block text-xs text-zinc-500">{t("fields.invoiceAmount")}</span>
                       <span className="font-semibold text-zinc-200">
                         ${amountVal.toLocaleString()} {watch("currency")}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-xs text-zinc-500">Financing Capital</span>
+                      <span className="block text-xs text-zinc-500">{t("review.financingCapital")}</span>
                       <span className="text-kora-400 font-semibold">
                         ${financingAmount.toLocaleString()} {watch("currency")}
                       </span>
@@ -1142,11 +1301,11 @@ export default function CreateInvoicePage() {
 
                   <div className="border-zinc-850 grid grid-cols-2 gap-x-4 gap-y-2.5 border-b pb-3 text-zinc-400">
                     <div>
-                      <span className="block text-xs text-zinc-500">Discount Rate</span>
+                      <span className="block text-xs text-zinc-500">{t("fields.discountRate")}</span>
                       <span className="font-semibold text-emerald-400">{discountRateVal}%</span>
                     </div>
                     <div>
-                      <span className="block text-xs text-zinc-500">Minimum Investment</span>
+                      <span className="block text-xs text-zinc-500">{t("fields.minInvestment")}</span>
                       <span className="font-medium text-zinc-200">
                         ${minInvestmentVal.toLocaleString()} {watch("currency")}
                       </span>
@@ -1157,13 +1316,13 @@ export default function CreateInvoicePage() {
                     <div>
                       <span className="block text-xs text-zinc-500">{t("fields.listingExpiry")}</span>
                       <span className="font-medium text-zinc-200">
-                        {watch("listingExpiryDate") || "N/A"}
+                        {watch("listingExpiryDate") || t("notAvailable")}
                       </span>
                     </div>
                     <div>
-                      <span className="block text-xs text-zinc-500">Effective APR</span>
+                      <span className="block text-xs text-zinc-500">{t("financingPreview.effectiveApr")}</span>
                       <span className="text-kora-400 font-semibold">
-                        {effectiveAPR > 0 ? `${effectiveAPR.toFixed(2)}%` : "N/A"}
+                        {effectiveAPR > 0 ? `${effectiveAPR.toFixed(2)}%` : t("notAvailable")}
                       </span>
                     </div>
                   </div>
@@ -1220,7 +1379,7 @@ export default function CreateInvoicePage() {
             </h3>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
               {txStatus === "signing"
-                ? "Please open your Stellar browser wallet extension and sign the transaction to authorize minting the invoice NFT on-chain."
+                ? t("transaction.signingDescription")
                 : "Broadcasting your transaction to the Stellar network. Waiting for ledger consensus..."}
             </p>
           </motion.div>
@@ -1237,7 +1396,7 @@ export default function CreateInvoicePage() {
             <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-destructive/10 text-destructive">
               <AlertCircle className="h-10 w-10" />
             </div>
-            <h3 className="text-xl font-bold text-zinc-100">Minting Failed</h3>
+            <h3 className="text-xl font-bold text-zinc-100">{t("transaction.failedTitle")}</h3>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">
               {txError || "Something went wrong while minting your invoice. Please try again."}
             </p>
@@ -1256,7 +1415,7 @@ export default function CreateInvoicePage() {
                   handleSubmit(onSubmit)();
                 }}
               >
-                Retry Mint
+                {t("transaction.retry")}
               </Button>
             </div>
           </motion.div>

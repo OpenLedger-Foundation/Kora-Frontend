@@ -22,6 +22,7 @@ import { MAX_COMPARISON_INVOICES } from "@/lib/comparison";
 import { isEnabled } from "@/lib/featureFlags";
 import { getMaskedDebtorName } from "@/lib/debtorPrivacy";
 import { ComparisonTable } from "./ComparisonTable";
+import { FeatureFlagKillSwitchBanner } from "./FeatureFlagKillSwitchBanner";
 
 export function ComparisonBar() {
   const tInvoiceCard = useTranslations("invoiceCard");
@@ -86,7 +87,14 @@ export function ComparisonBar() {
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [comparisonList, isComparisonEnabled, pathname, router, searchParams]);
 
-  if (!isComparisonEnabled) return null;
+  if (!isComparisonEnabled) {
+    return (
+      <FeatureFlagKillSwitchBanner
+        flag="comparison"
+        className="fixed bottom-4 right-4 z-40 max-w-xs shadow-lg"
+      />
+    );
+  }
 
   // Resolve selected invoices from store list + token map (live indexer shape)
   const invoiceIndex = [
@@ -132,9 +140,21 @@ export function ComparisonBar() {
           <div className="flex shrink-0 items-center gap-2">
             <GitCompareArrows className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold text-foreground">{tMarketplace("comparison.compare")}</span>
-            <span className="text-xs text-muted-foreground">
+            <span className={cn(
+              "text-xs",
+              comparisonList.length >= MAX_COMPARISON_INVOICES ? "text-amber-400 font-semibold" : "text-muted-foreground"
+            )}>
               ({comparisonList.length}/{MAX_COMPARISON_INVOICES})
             </span>
+            {comparisonList.length >= MAX_COMPARISON_INVOICES && (
+              <span
+                className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30"
+                role="status"
+                aria-live="polite"
+              >
+                {tMarketplace("comparison.maxReached")}
+              </span>
+            )}
           </div>
 
           {/* ─── Mobile: show chips in horizontal scroll ────────────────── */}

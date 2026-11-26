@@ -382,7 +382,7 @@ export const InvoiceCard = memo(function InvoiceCard({ invoice, index = 0, updat
               isInComparison
                 ? t("removeFromCompare", { debtor: getMaskedDebtorName(invoice) })
                 : comparisonFull
-                  ? t("comparisonFull")
+                  ? t("comparisonFull", { max: MAX_COMPARISON_INVOICES })
                   : t("addToCompare", { debtor: getMaskedDebtorName(invoice) })
             }
             aria-pressed={isInComparison}

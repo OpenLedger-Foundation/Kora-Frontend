@@ -25,11 +25,13 @@ vi.stubGlobal(
 );
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: () => (key: string) => {
     const map: Record<string, string> = {
       "drawer.txHash": "Transaction Hash",
       "drawer.copyHashAria": "Copy hash",
-      "drawer.hashCopiedAria": "Hash copied",
+      "drawer.hashCopied": "Hash copied",
+      "drawer.hashCopyFailed": "Failed to copy hash",
       "drawer.detailsTitle": "Transaction Details",
       "drawer.closeDetailsAria": "Close transaction details",
       "drawer.type": "Type",

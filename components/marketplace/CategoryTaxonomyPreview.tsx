@@ -89,7 +89,6 @@ export function buildTaxonomyPreviewData(
     if (inSchema) sources.push("schema");
 
     const label =
-      filterDef?.label ||
       translations?.[key] ||
       key.charAt(0).toUpperCase() + key.slice(1);
 

@@ -80,3 +80,107 @@ test.describe("Skip to main content link (#287)", () => {
     }
   });
 });
+
+test.describe("Marketplace card actions keyboard operability (#1176)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/marketplace");
+  });
+
+  test("card actions are reachable via Tab and operable with Enter/Space", async ({
+    page,
+  }) => {
+    // Card actions must be semantic interactive elements (button or link)
+    const actions = page.locator(
+      '[data-testid^="marketplace-card-action"]'
+    );
+    const count = await actions.count();
+    expect(count).toBeGreaterThan(0);
+
+    for (let i = 0; i < count; i++) {
+      const action = actions.nth(i);
+      const tagName = await action.evaluate((el) =>
+        el.tagName.toLowerCase()
+      );
+      // Must be a native interactive element, not a pointer-only div/span
+      expect(["button", "a"]).toContain(tagName);
+
+      // Must be focusable via keyboard
+      await action.focus();
+      await expect(action).toBeFocused();
+
+      // Must expose an accessible name
+      const accessibleName = await action.evaluate(
+        (el) =>
+          el.getAttribute("aria-label") ??
+          el.textContent?.trim() ??
+          ""
+      );
+      expect(accessibleName.length).toBeGreaterThan(0);
+    }
+  });
+
+  test("focused card action shows a visible focus indicator", async ({
+    page,
+  }) => {
+    const firstAction = page
+      .locator('[data-testid^="marketplace-card-action"]')
+      .first();
+    await expect(firstAction).toBeAttached();
+
+    await firstAction.focus();
+    await expect(firstAction).toBeFocused();
+
+    // A visible focus ring must be present (outline or box-shadow)
+    const hasFocusIndicator = await firstAction.evaluate((el) => {
+      const styles = window.getComputedStyle(el);
+      const outlineVisible =
+        styles.outlineStyle !== "none" &&
+        parseFloat(styles.outlineWidth || "0") > 0;
+      const shadowVisible = styles.boxShadow !== "none";
+      return outlineVisible || shadowVisible;
+    });
+    expect(hasFocusIndicator).toBe(true);
+  });
+
+  test("card actions remain keyboard operable on mobile viewport", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/marketplace");
+
+    const firstAction = page
+      .locator('[data-testid^="marketplace-card-action"]')
+      .first();
+    await expect(firstAction).toBeAttached();
+
+    await firstAction.focus();
+    await expect(firstAction).toBeFocused();
+
+    const tagName = await firstAction.evaluate((el) =>
+      el.tagName.toLowerCase()
+    );
+    expect(["button", "a"]).toContain(tagName);
+  });
+
+  test("card actions degrade gracefully when marketplace data is empty", async ({
+    page,
+  }) => {
+    // Intercept the marketplace data request and return an empty list to
+    // exercise the empty/degraded state without crashing the page.
+    await page.route("**/api/**/marketplace**", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ items: [], data: [] }),
+      })
+    );
+
+    await page.goto("/marketplace");
+
+    // Page should still render its main landmark and skip link without errors
+    await expect(page.locator("#main-content")).toBeAttached();
+    await expect(
+      page.locator('a[href="#main-content"]').first()
+    ).toBeAttached();
+  });
+});

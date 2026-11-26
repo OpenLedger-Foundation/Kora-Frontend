@@ -377,4 +377,47 @@ test.describe("Wallet session recovery after page refresh", () => {
       .filter({ hasText: /connect wallet/i });
     await expect(connectButton).toBeVisible();
   });
+
+  // ─── Interrupted signature recovery (#1121) ───────────────────────────────
+  test("offers to resume a signature interrupted before the refresh", async ({
+    page,
+  }) => {
+    // A wallet request that never got an answer leaves no signature and no
+    // submission — only this record, persisted with the rest of the tx store.
+    const recovery = {
+      state: {
+        transactions: [],
+        signatureRecovery: {
+          unsignedXdr: "mock_e2e_interrupted_signature",
+          reason: "interrupted",
+          detail: "User closed the popup",
+          createdAt: Date.now(),
+        },
+      },
+      version: 0,
+    };
+
+    await page.goto("/marketplace/inv_001");
+    await page.evaluate((value) => {
+      localStorage.setItem("kora-tx-history", JSON.stringify(value));
+    }, recovery);
+    await page.reload();
+
+    // The prompt is raised on mount, before the user does anything.
+    const prompt = page.getByRole("alert");
+    await expect(prompt).toBeVisible({ timeout: 10_000 });
+    await expect(prompt).toContainText(/wallet signature interrupted/i);
+    await expect(prompt).toContainText(/nothing was signed or submitted/i);
+
+    // Retrying re-signs the stored envelope and completes the (mock) flow.
+    await prompt.getByRole("button", { name: "Retry" }).click();
+
+    await expect(
+      page.locator("text=/transaction confirmed/i"),
+    ).toBeVisible({ timeout: 10_000 });
+
+    // The pending attempt is consumed, so a second refresh stays quiet.
+    await page.reload();
+    await expect(prompt).toBeHidden({ timeout: 10_000 });
+  });
 });

@@ -1,9 +1,12 @@
 /**
  * Secondary market URL filter helpers (#643).
  *
- * Reads/writes shareable query params (q, tenor, yield, seller, highlight)
- * with the same sanitization rules as sanitizeQueryParam + whitelist fallbacks.
+ * Reads/writes shareable query params (q, tenor, yield, seller, highlight,
+ * sort) with the same sanitization rules as sanitizeQueryParam + whitelist
+ * fallbacks. `sort` is whitelisted against SECONDARY_SORT_OPTIONS (#1136).
  */
+
+import { DEFAULT_SECONDARY_SORT, parseSecondarySort } from "./secondarySort";
 
 /** Mirrors lib/security.sanitizeQueryParam without importing env-bound modules. */
 function sanitizeQueryParam(value: string | undefined | null): string {
@@ -17,6 +20,7 @@ export const SECONDARY_PARAM = {
   YIELD: "yield",
   SELLER: "seller",
   HIGHLIGHT: "highlight",
+  SORT: "sort",
 } as const;
 
 export interface SecondaryUrlFilters {
@@ -25,6 +29,8 @@ export interface SecondaryUrlFilters {
   yield: string;
   seller: string;
   highlight: string;
+  /** Optional so existing callers compile; missing means DEFAULT_SECONDARY_SORT. */
+  sort?: string;
 }
 
 export const DEFAULT_SECONDARY_FILTERS: SecondaryUrlFilters = {
@@ -33,6 +39,7 @@ export const DEFAULT_SECONDARY_FILTERS: SecondaryUrlFilters = {
   yield: "0",
   seller: "",
   highlight: "",
+  sort: DEFAULT_SECONDARY_SORT,
 };
 
 /** Keep in sync with TENOR_OPTIONS / YIELD_OPTIONS in marketplace/filters. */
@@ -66,6 +73,7 @@ export function parseSecondaryFiltersFromSearchParams(
     yield: parseYieldParam(searchParams.get(SECONDARY_PARAM.YIELD)),
     seller: parseTextParam(searchParams.get(SECONDARY_PARAM.SELLER)),
     highlight: parseTextParam(searchParams.get(SECONDARY_PARAM.HIGHLIGHT)),
+    sort: parseSecondarySort(sanitizeQueryParam(searchParams.get(SECONDARY_PARAM.SORT))),
   };
 }
 
@@ -79,6 +87,7 @@ export function secondaryFiltersToQueryString(filters: SecondaryUrlFilters): str
   const highlight = sanitizeQueryParam(filters.highlight);
   const tenor = parseTenorParam(filters.tenor);
   const yieldValue = parseYieldParam(filters.yield);
+  const sort = parseSecondarySort(sanitizeQueryParam(filters.sort));
 
   if (q) params.set(SECONDARY_PARAM.SEARCH, q);
   if (tenor !== DEFAULT_SECONDARY_FILTERS.tenor) params.set(SECONDARY_PARAM.TENOR, tenor);
@@ -87,6 +96,7 @@ export function secondaryFiltersToQueryString(filters: SecondaryUrlFilters): str
   }
   if (seller) params.set(SECONDARY_PARAM.SELLER, seller);
   if (highlight) params.set(SECONDARY_PARAM.HIGHLIGHT, highlight);
+  if (sort !== DEFAULT_SECONDARY_SORT) params.set(SECONDARY_PARAM.SORT, sort);
 
   return params.toString();
 }

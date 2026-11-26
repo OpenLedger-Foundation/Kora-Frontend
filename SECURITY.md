@@ -28,6 +28,41 @@ We support the `main` branch and the latest released tag. If you're unsure wheth
 
 We welcome good-faith security research. Please avoid privacy violations, data destruction, and denial-of-service testing without prior consent.
 
+## Auth Challenge Nonce Store (#1019)
+
+`POST /api/auth/challenge` issues a one-time nonce that the wallet signs to prove key ownership. The nonce is stored in an in-memory `Map` inside `app/api/auth/challenge/store.ts`.
+
+### Limits and eviction policy
+
+| Property | Value | Rationale |
+|----------|-------|-----------|
+| `NONCE_TTL_MS` | 10 minutes | Long enough for a user to read and sign; short enough to limit the replay window. |
+| `MAX_NONCES` | 500 | Prevents unbounded heap growth under a serverless flood. |
+| Eviction strategy | TTL first, then oldest-first | Stale entries are always removed before the size cap is enforced. |
+
+**TTL eviction** — `evictStaleNonces()` is called automatically at the start of every `generateNonceChallenge()` invocation.  No background timer is needed.
+
+**Size cap** — After TTL eviction, if the store still holds ≥ `MAX_NONCES` entries, the oldest nonces (insertion order) are removed until the count is below the cap.  Under a flood, older challenges are invalidated rather than new ones being rejected.
+
+**Single-use** — `consumeNonce(nonce)` marks a nonce as `used: true` on the first successful call.  Any subsequent call with the same nonce returns `false`, preventing replay attacks.
+
+**Expired consumption** — If a nonce passes its TTL between generation and consumption, `consumeNonce` returns `false` and removes the entry.
+
+### Clock skew
+
+`Date.now()` is used on the server.  Sub-second drift between edge instances is acceptable — a nonce that expires a few milliseconds early is safely regenerated.  In a multi-instance deployment, nonces are **not shared** across instances; clients must verify against the same instance that issued the challenge, or a Redis-backed store variant must be used (see `docs/architecture.md`).
+
+### Implementation
+
+| File | Role |
+|------|------|
+| `app/api/auth/challenge/store.ts` | In-memory nonce map, TTL, size cap, single-use logic |
+| `app/api/auth/challenge/route.ts` | `POST` handler — CSRF-guarded, calls `generateNonceChallenge()` |
+| `app/api/auth/challenge/__tests__/store.test.ts` | Unit tests: TTL, single-use, flood, eviction |
+| `app/api/auth/challenge/__tests__/route.test.ts` | Route-level integration tests |
+
+---
+
 ## CSRF Protection
 
 All mutating API routes (`POST /api/auth/challenge`, `POST /api/auth/verify`, `POST /api/feedback`) are protected against Cross-Site Request Forgery using the **double-submit cookie** pattern.
@@ -87,3 +122,111 @@ The CI environment executes `scripts/audit.js` to enforce these checks.
 ## Contact
 
 Create a private GitHub Security Advisory or email security@openledger.foundation.
+
+## CSP Violation Monitoring
+
+Content Security Policy (CSP) violations are automatically reported to `/api/csp-report`, which logs sanitized violation details including:
+
+- `document-uri` (stripped of query params to remove PII)
+- `violated-directive` (e.g., `script-src`, `img-src`)
+- `blocked-uri` (the resource that was blocked)
+- `source-file`, `line-number`, `column-number` (when available)
+
+### Monitoring Expectations
+
+**Production deployments should:**
+
+1. **Monitor CSP report logs** — violations indicate nonce regressions, third-party script breakages, or potential XSS attempts.
+2. **Rate limit enforcement** — the endpoint limits reports to 10 per IP per 5 minutes to prevent abuse.
+3. **PII sanitization** — all `document-uri` fields are stripped of query parameters and fragments before logging. Script samples are truncated to 100 characters.
+4. **Do not execute reported scripts** — the endpoint never evaluates `script-sample` or `blocked-uri` content to prevent reflected XSS through the reporting mechanism itself.
+
+### Report Formats Supported
+
+- **Legacy format** (`application/csp-report`): `{ "csp-report": { ... } }`
+- **Modern Reporting API** (`application/reports+json`): `[{ type: "csp-violation", body: { ... } }]`
+
+### Integration with External Monitoring
+
+For production-grade alerting, integrate the CSP report endpoint with:
+
+- **Sentry** — forward sanitized reports to Sentry's security monitoring.
+- **Datadog / CloudWatch Logs** — centralize violation logs for dashboard visualization.
+- **PagerDuty** — trigger alerts when violation rate exceeds thresholds.
+
+The endpoint currently logs to `console.warn`; replace with `lib/logger` or your logging service in production.
+
+
+## CSP Nonce — Per-Request Inline Script Allow-listing (#1022)
+
+The middleware injects a per-request CSP nonce so inline `<script nonce="…">` tags (used by Next.js for the theme-bootstrap snippet) are allow-listed without requiring `'unsafe-inline'` in production.
+
+### How it works
+
+1. **Generation** — `middleware.ts` calls `crypto.randomUUID()` for each request to produce a cryptographically random UUID nonce.
+2. **Forwarding** — The nonce is set on the forwarded request headers as `x-nonce`. `app/layout.tsx` reads this header and attaches it to inline `<script>` tags.
+3. **CSP injection** — If `next.config.js` has already set a `Content-Security-Policy` header, the middleware replaces the `script-src` directive with a nonce-scoped version, discarding the static placeholder.
+
+### Production vs. development directives
+
+| Environment | `script-src` |
+|-------------|--------------|
+| production | `'self' 'nonce-<uuid>' 'strict-dynamic'` |
+| development | `'self' 'nonce-<uuid>' 'unsafe-inline' 'unsafe-eval'` |
+
+`'unsafe-eval'` and `'unsafe-inline'` are development-only and **gated on `NODE_ENV`** inside `buildNonceCsp()`. They must not appear in production script-src.
+
+### Static asset bypass
+
+The middleware matcher (`config.matcher`) explicitly excludes `_next/static`, `_next/image`, `favicon.ico`, `icons/`, `wallets/`, and `manifest.json` so the nonce injection is never applied to static file responses.
+
+### Implementation
+
+| File | Role |
+|------|------|
+| `middleware.ts` | `buildNonceCsp(nonce)` and injection logic |
+| `app/layout.tsx` | Reads `x-nonce` header and attaches to inline scripts |
+| `__tests__/middleware.test.ts` | Regression tests: nonce UUID format, per-request entropy, prod/dev CSP profiles, matcher exclusions |
+| `e2e/security-headers.spec.ts` | E2E: `Content-Security-Policy` header present on every page |
+
+## Edge Bot Challenge Allowlist (#1228)
+
+The edge challenge is **opt-in**. Set `BOT_CHALLENGE_TOKEN` in the deployment
+environment to enable it; when the variable is unset, no request is challenged
+and behaviour is unchanged.
+
+When enabled, requests whose `User-Agent` looks like an automated client
+(curl, wget, python-requests, Scrapy, PostmanRuntime, etc.) must send the same
+value in an `x-kora-bot-token` header. Missing or mismatched tokens receive
+`403 { "error": "bot_challenge_required" }` with an `x-kora-bot-challenge:
+required` response header. Regular browser traffic is never challenged.
+
+### Exemptions
+
+`lib/botChallenge.ts` defines the allowlist:
+
+- **Health endpoints** — `/api/health`, `/api/healthz`, `/api/status`,
+  `/health`, `/healthz`, `/ready`, `/readyz`, `/live`, `/livez` (and nested
+  paths) are always exempt so uptime probes cannot false-alarm.
+- **Uptime monitors** — known provider user agents (UptimeRobot, Pingdom,
+  Datadog, StatusCake, New Relic, Better Uptime, Grafana Cloud, Site24x7,
+  Healthchecks.io, Checkly, Freshping) are exempt on public routes.
+
+Both forwarded requests and responses carry `x-kora-bot-bypass: true` when an
+exemption is applied, so monitoring decisions are observable in logs.
+
+### Authentication is never weakened
+
+A matching health path or user agent **does not** bypass authentication.
+`isAuthProtectedPath()` returns true for `/api/auth`, `/api/invoice`,
+`/api/upload`, `/invoice/create`, `/dashboard`, `/settings`, `/transactions`,
+and `/analytics`. Those routes can never be exempt from the challenge, and
+their existing wallet/KYB/CSRF checks remain in force. The allowlist only
+skips the optional bot challenge — it never grants access.
+
+| File | Role |
+|------|------|
+| `lib/botChallenge.ts` | Allowlist definitions and pure decision helpers |
+| `middleware.ts` | Applies the challenge and exposes the bypass header |
+| `__tests__/botChallenge.test.ts` | Allowlist unit tests, including auth-path guards |
+| `__tests__/middleware.test.ts` | Middleware integration tests for the 403 path |

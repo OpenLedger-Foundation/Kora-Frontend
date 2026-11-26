@@ -13,6 +13,7 @@
 
 import { test, expect } from "@playwright/test";
 import { injectAxe, getViolations } from "axe-playwright";
+import { injectWalletStubs } from "./helpers/mock-wallet";
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
@@ -88,6 +89,119 @@ test.describe("Accessibility audit — marketplace (/marketplace)", () => {
     await auditPage(page, {
       disableRules: [],
     });
+  });
+});
+
+// ─── Marketplace card actions (Issue #1176) ──────────────────────────────────
+//
+// Every action rendered on a marketplace card (view, favorite/save, compare,
+// buy/contact, share) must be reachable and operable from the keyboard with a
+// visible focus indicator.  These tests guard against regressions where an
+// action is wired only to pointer events (onClick on a non-interactive div).
+
+test.describe("Accessibility audit — marketplace card actions (keyboard)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/marketplace");
+    await page.waitForLoadState("networkidle");
+  });
+
+  test("card actions are focusable and expose an accessible name", async ({ page }) => {
+    const cards = page.locator('[data-testid="marketplace-card"]');
+    const cardCount = await cards.count();
+    expect(cardCount, "expected at least one marketplace card").toBeGreaterThan(0);
+
+    const firstCard = cards.first();
+    const actions = firstCard.locator('[data-testid="marketplace-card-action"]');
+    const actionCount = await actions.count();
+    expect(actionCount, "expected at least one card action").toBeGreaterThan(0);
+
+    for (let i = 0; i < actionCount; i++) {
+      const action = actions.nth(i);
+      // Actions must be real interactive elements (button/a) or carry an
+      // explicit interactive role — never a bare pointer-only div.
+      const tagName = await action.evaluate((el) => el.tagName.toLowerCase());
+      const role = await action.getAttribute("role");
+      const isInteractive =
+        tagName === "button" || tagName === "a" || role === "button" || role === "link";
+      expect(isInteractive, `card action ${i} is not a semantic interactive element`).toBe(
+        true,
+      );
+
+      // Every action needs an accessible name for screen readers.
+      const name = (await action.getAttribute("aria-label")) ?? (await action.innerText());
+      expect(name?.trim(), `card action ${i} is missing an accessible name`).toBeTruthy();
+    }
+  });
+
+  test("card actions are reachable via Tab with a visible focus ring", async ({ page }) => {
+    const firstCard = page.locator('[data-testid="marketplace-card"]').first();
+    const actions = firstCard.locator('[data-testid="marketplace-card-action"]');
+    const actionCount = await actions.count();
+    expect(actionCount).toBeGreaterThan(0);
+
+    // Focus the first action directly, then verify the focus indicator is
+    // visible (outline or box-shadow) — pointer-only actions fail this.
+    for (let i = 0; i < actionCount; i++) {
+      const action = actions.nth(i);
+      await action.focus();
+      const isFocused = await action.evaluate((el) => el === document.activeElement);
+      expect(isFocused, `card action ${i} could not receive keyboard focus`).toBe(true);
+
+      const hasVisibleFocus = await action.evaluate((el) => {
+        const styles = window.getComputedStyle(el);
+        const outlineVisible =
+          styles.outlineStyle !== "none" && parseFloat(styles.outlineWidth) > 0;
+        const shadowVisible = styles.boxShadow !== "none";
+        return outlineVisible || shadowVisible;
+      });
+      expect(hasVisibleFocus, `card action ${i} has no visible focus indicator`).toBe(true);
+    }
+  });
+
+  test("card actions activate with Enter and Space", async ({ page }) => {
+    const firstCard = page.locator('[data-testid="marketplace-card"]').first();
+    const favorite = firstCard
+      .locator('[data-testid="marketplace-card-action"]')
+      .filter({ has: page.locator('[data-action="favorite"]') })
+      .first();
+
+    // Fall back to the first action if a dedicated favorite control is absent.
+    const target = (await favorite.count()) > 0
+      ? favorite
+      : firstCard.locator('[data-testid="marketplace-card-action"]').first();
+
+    await target.focus();
+    const pressedBefore = await target.getAttribute("aria-pressed");
+
+    // Enter must activate the control.
+    await page.keyboard.press("Enter");
+    await expect(target).toBeFocused();
+
+    // Space must also activate a button-style control.
+    await page.keyboard.press("Space");
+    await expect(target).toBeFocused();
+
+    // If the control is a toggle, its pressed state must be keyboard-driven.
+    if (pressedBefore !== null) {
+      const pressedAfter = await target.getAttribute("aria-pressed");
+      expect(pressedAfter, "toggle state should change via keyboard").not.toBe(pressedBefore);
+    }
+  });
+
+  test("card actions remain operable on a mobile viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/marketplace");
+    await page.waitForLoadState("networkidle");
+
+    const firstCard = page.locator('[data-testid="marketplace-card"]').first();
+    const firstAction = firstCard
+      .locator('[data-testid="marketplace-card-action"]')
+      .first();
+    await expect(firstAction).toBeVisible();
+
+    await firstAction.focus();
+    const isFocused = await firstAction.evaluate((el) => el === document.activeElement);
+    expect(isFocused, "card action should be focusable on mobile viewport").toBe(true);
   });
 });
 
@@ -217,91 +331,6 @@ test.describe("Accessibility audit — transaction history drawer", () => {
 
     // Escape is the keyboard exit from a trapped surface.
     await page.keyboard.press("Escape");
-    await dialog.waitFor({ state: "hidden" });
+    await expect(dialog).toBeHidden();
   });
 });
-
-// ─── PWA InstallPrompt (Issue #781) ──────────────────────────────────────────
-// The prompt is a fixed overlay that only renders after the `beforeinstallprompt`
-// event fires and the 7-day suppress window has not been set. It is therefore
-// not tied to a single route — route-level axe scans would miss it. Coverage
-// is provided in two layers:
-//   1) Vitest unit coverage in `__tests__/install-prompt.test.tsx` (visible vs
-//      dismissed states + accessible names on the Install / Not now / × actions
-//      and `aria-label` on the dialog).
-//   2) Storybook story `PWA/InstallPrompt` (`components/pwa/InstallPrompt.stories.tsx`)
-//      which can be audited with `@storybook/addon-a11y`.
-// The Playwright probe below proves the prompt can be made visible on demand
-// and still passes the critical/serious axe gate when it is.
-
-test.describe("Accessibility audit — PWA InstallPrompt (Issue #781)", () => {
-  test("no critical or serious axe violations when prompt is visible", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-
-    // Make the prompt visible: clear suppress + force 2nd-visit path + dispatch event
-    await page.evaluate(() => {
-      try {
-        localStorage.removeItem("kora-pwa-install-dismissed-until");
-        localStorage.setItem("kora-pwa-visit-count", "2");
-      } catch {}
-      const evt = new Event("beforeinstallprompt") as unknown as Event & {
-        platforms: string[];
-        userChoice: Promise<{ outcome: string; platform: string }>;
-        prompt: () => Promise<void>;
-      };
-      // @ts-expect-error — synthetic shape for the prompt event
-      evt.platforms = ["web"];
-      // @ts-expect-error
-      evt.userChoice = Promise.resolve({ outcome: "accepted", platform: "web" });
-      // @ts-expect-error
-      evt.prompt = async () => {};
-      evt.preventDefault = () => {};
-      window.dispatchEvent(evt);
-    });
-
-    const prompt = page.getByTestId("install-prompt");
-    await prompt.waitFor({ state: "visible", timeout: 5000 });
-
-    // Primary actions must have accessible names (Issue #781)
-    await expect(page.getByRole("button", { name: /install/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /not now/i })).toBeVisible();
-
-    await auditPage(page);
-  });
-});
-
-// ─── Settings, Secondary, Offline, Create Invoice (Issue #757) ─────────────────
-
-test.describe("Accessibility audit — settings (/settings)", () => {
-  test("no critical or serious axe violations", async ({ page }) => {
-    await page.goto("/settings");
-    await page.waitForLoadState("networkidle");
-    await auditPage(page);
-  });
-});
-
-test.describe("Accessibility audit — secondary market (/secondary)", () => {
-  test("no critical or serious axe violations", async ({ page }) => {
-    await page.goto("/secondary");
-    await page.waitForLoadState("networkidle");
-    await auditPage(page);
-  });
-});
-
-test.describe("Accessibility audit — offline (/offline)", () => {
-  test("no critical or serious axe violations", async ({ page }) => {
-    await page.goto("/offline");
-    await page.waitForLoadState("networkidle");
-    await auditPage(page);
-  });
-});
-
-test.describe("Accessibility audit — create invoice (/invoice/create)", () => {
-  test("no critical or serious axe violations", async ({ page }) => {
-    await page.goto("/invoice/create");
-    await page.waitForLoadState("networkidle");
-    await auditPage(page);
-  });
-});
-

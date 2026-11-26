@@ -6,6 +6,7 @@ import { createMockInvoice } from "@/__tests__/fixtures";
 import type { AllocatablePosition } from "@/lib/portfolioAllocation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { NextIntlClientProvider } from "next-intl";
 
 // Mock next/dynamic to resolve synchronously
 vi.mock("next/dynamic", () => {
@@ -84,6 +85,7 @@ vi.mock("@/components/ui/select", () => {
 
 // Mock next-intl
 vi.mock("next-intl", () => ({
+  NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
   useTranslations: () => (key: string) => {
     const messages: Record<string, string> = {
       exportSuccess: "Projection exported as PNG",
@@ -103,6 +105,14 @@ vi.mock("next-intl", () => ({
     dateTime: (d: Date, options?: any) => d.toLocaleDateString(),
   }),
 }));
+
+function IntlTestProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <NextIntlClientProvider locale="en" messages={{}}>
+      {children}
+    </NextIntlClientProvider>
+  );
+}
 
 // Mock next/navigation
 const mockReplace = vi.fn();
@@ -220,9 +230,9 @@ describe("YieldProjectionCalculator on Analytics Page", () => {
 
     const queryClient = createTestQueryClient();
     render(
-      <QueryClientProvider client={queryClient}>
+      <IntlTestProvider><QueryClientProvider client={queryClient}>
         <PortfolioAnalyticsPage />
-      </QueryClientProvider>
+      </QueryClientProvider></IntlTestProvider>
     );
 
     // Should render loading fallback first, then the actual component
@@ -257,9 +267,9 @@ describe("YieldProjectionCalculator on Analytics Page", () => {
 
     const queryClient = createTestQueryClient();
     render(
-      <QueryClientProvider client={queryClient}>
+      <IntlTestProvider><QueryClientProvider client={queryClient}>
         <PortfolioAnalyticsPage />
-      </QueryClientProvider>
+      </QueryClientProvider></IntlTestProvider>
     );
 
     await waitFor(() => {
@@ -281,9 +291,9 @@ describe("YieldProjectionCalculator on Analytics Page", () => {
 
     const queryClient = createTestQueryClient();
     render(
-      <QueryClientProvider client={queryClient}>
+      <IntlTestProvider><QueryClientProvider client={queryClient}>
         <PortfolioAnalyticsPage />
-      </QueryClientProvider>
+      </QueryClientProvider></IntlTestProvider>
     );
 
     await waitFor(() => {
@@ -318,9 +328,9 @@ describe("YieldProjectionCalculator on Analytics Page", () => {
 
     const queryClient = createTestQueryClient();
     const { container } = render(
-      <QueryClientProvider client={queryClient}>
+      <IntlTestProvider><QueryClientProvider client={queryClient}>
         <PortfolioAnalyticsPage />
-      </QueryClientProvider>
+      </QueryClientProvider></IntlTestProvider>
     );
 
     await waitFor(() => {
@@ -341,9 +351,9 @@ describe("YieldProjectionCalculator on Analytics Page", () => {
 
     const queryClient = createTestQueryClient();
     render(
-      <QueryClientProvider client={queryClient}>
+      <IntlTestProvider><QueryClientProvider client={queryClient}>
         <PortfolioAnalyticsPage />
-      </QueryClientProvider>
+      </QueryClientProvider></IntlTestProvider>
     );
 
     await waitFor(() => {

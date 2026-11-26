@@ -616,27 +616,367 @@ function parseAddressFromData(val: StellarSdk.xdr.ScVal): string {
 }
 
 /**
- * Parse a raw Soroban event data ScVal to extract a token/invoice ID.
+ * Parse an arbitrary Soroban ScVal to extract a token/invoice ID (u64, u32, i128, string, or map).
  */
-function parseTokenIdFromData(val: StellarSdk.xdr.ScVal): string {
+export function parseTokenIdFromScVal(val: StellarSdk.xdr.ScVal): string | null {
   try {
-    if (val.switch().name === "scvU64") return val.u64().toString();
-    if (val.switch().name === "scvMap") {
+    const sw = val.switch().name;
+    if (sw === "scvU64") {
+      return val.u64().toString();
+    }
+    if (sw === "scvU32") {
+      return String(val.u32());
+    }
+    if (sw === "scvI128") {
+      const parts = val.i128();
+      const hi = BigInt(parts.hi().toString());
+      const lo = BigInt(parts.lo().toString());
+      const shift = BigInt(2) ** BigInt(64);
+      const full = hi * shift + lo;
+      return full.toString();
+    }
+    if (sw === "scvString") {
+      const s = val.str().toString().trim();
+      return s.length > 0 ? s : null;
+    }
+    if (sw === "scvSymbol") {
+      const s = val.sym().toString().trim();
+      return s.length > 0 ? s : null;
+    }
+    if (sw === "scvMap") {
       const map = val.map();
       if (map) {
-        for (const key of ["token_id", "invoice_id", "id"]) {
+        for (const key of ["token_id", "invoice_id", "id", "tokenId"]) {
           const entry = map.find((e) => {
-            try { return e.key().sym().toString() === key; } catch { return false; }
+            try {
+              const k =
+                e.key().switch().name === "scvSymbol"
+                  ? e.key().sym().toString()
+                  : e.key().str().toString();
+              return k.toLowerCase() === key.toLowerCase();
+            } catch {
+              return false;
+            }
           });
           if (entry) {
-            try { return entry.val().u64().toString(); } catch { /* continue */ }
+            const parsed = parseTokenIdFromScVal(entry.val());
+            if (parsed) return parsed;
           }
         }
       }
     }
-    return "";
+    if (sw === "scvVec") {
+      const vec = val.vec();
+      if (vec && vec.length > 0) {
+        for (const item of vec) {
+          const parsed = parseTokenIdFromScVal(item);
+          if (parsed) return parsed;
+        }
+      }
+    }
+    return null;
   } catch {
-    return "";
+    return null;
+  }
+}
+
+/**
+ * Parse a raw Soroban event data ScVal to extract a token/invoice ID.
+ */
+function parseTokenIdFromData(val: StellarSdk.xdr.ScVal): string {
+  return parseTokenIdFromScVal(val) ?? "";
+}
+
+/**
+ * Extract token ID from TransactionMeta XDR object (v3 SorobanMeta return value or events).
+ */
+function extractFromTransactionMeta(meta: StellarSdk.xdr.TransactionMeta): string | null {
+  try {
+    const sw = typeof meta.switch === "function" ? meta.switch() : (meta as any)._switch;
+    const isV3 =
+      (meta as any).arm?.() === "v3" ||
+      sw === 3 ||
+      (typeof sw === "object" && sw !== null && (sw as any).name === "v3");
+
+    if (isV3) {
+      const sorobanMeta = meta.v3().sorobanMeta();
+      if (sorobanMeta) {
+        // 1. Try contract return value
+        const retVal = sorobanMeta.returnValue();
+        if (retVal) {
+          const parsed = parseTokenIdFromScVal(retVal);
+          if (parsed && parsed !== "0") return parsed;
+        }
+
+        // 2. Try contract events
+        const events = sorobanMeta.events();
+        if (events && events.length > 0) {
+          for (const ev of events) {
+            try {
+              const body = ev.body().v0();
+              const topics = body.topics();
+              if (topics.length > 0) {
+                const topic0 = parseTopicToString(topics[0]);
+                if (topic0 === "mint_invoice") {
+                  if (topics.length > 1) {
+                    const fromTopic = parseTokenIdFromScVal(topics[1]);
+                    if (fromTopic && fromTopic !== "0") return fromTopic;
+                  }
+                  const data = body.data();
+                  if (data) {
+                    const fromData = parseTokenIdFromScVal(data);
+                    if (fromData && fromData !== "0") return fromData;
+                  }
+                }
+              }
+            } catch {
+              // continue to next event
+            }
+          }
+        }
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract token ID from TransactionResult XDR object (InvokeHostFunctionSuccess result).
+ */
+function extractFromTransactionResult(res: StellarSdk.xdr.TransactionResult): string | null {
+  try {
+    const innerRes = res.result();
+    const innerSw =
+      typeof innerRes.switch === "function" ? innerRes.switch() : (innerRes as any)._switch;
+    const isSuccess =
+      (innerRes as any).arm?.() === "results" ||
+      innerSw === 0 ||
+      (typeof innerSw === "object" && innerSw !== null && (innerSw as any).name === "txSuccess");
+
+    if (isSuccess) {
+      const results = innerRes.results();
+      for (const opRes of results) {
+        try {
+          const tr = opRes.tr();
+          const trSw = typeof tr.switch === "function" ? tr.switch() : (tr as any)._switch;
+          const isInvokeHost =
+            (tr as any).arm?.() === "invokeHostFunctionResult" ||
+            (typeof trSw === "object" &&
+              trSw !== null &&
+              (trSw as any).name === "invokeHostFunctionResult");
+          if (isInvokeHost) {
+            const hostRes = tr.invokeHostFunctionResult();
+            const hostSw =
+              typeof hostRes.switch === "function" ? hostRes.switch() : (hostRes as any)._switch;
+            const isHostSuccess =
+              (hostRes as any).arm?.() === "success" ||
+              (typeof hostSw === "object" &&
+                hostSw !== null &&
+                (hostSw as any).name === "invokeHostFunctionSuccess");
+            if (isHostSuccess) {
+              const val = (hostRes as any).success?.();
+              if (val) {
+                const parsed = parseTokenIdFromScVal(val);
+                if (parsed && parsed !== "0") return parsed;
+              }
+            }
+          }
+        } catch {
+          // continue
+        }
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseTokenIdFromXdrString(str: string): string | null {
+  try {
+    const scv = StellarSdk.xdr.ScVal.fromXDR(str, "base64");
+    const parsed = parseTokenIdFromScVal(scv);
+    if (parsed) return parsed;
+  } catch {
+    // not ScVal
+  }
+
+  try {
+    const meta = StellarSdk.xdr.TransactionMeta.fromXDR(str, "base64");
+    const parsed = extractFromTransactionMeta(meta);
+    if (parsed) return parsed;
+  } catch {
+    // not TransactionMeta
+  }
+
+  try {
+    const res = StellarSdk.xdr.TransactionResult.fromXDR(str, "base64");
+    const parsed = extractFromTransactionResult(res);
+    if (parsed) return parsed;
+  } catch {
+    // not TransactionResult
+  }
+
+  return null;
+}
+
+/**
+ * Extract minted NFT token ID from a Soroban transaction result, simulation preview,
+ * confirmed transaction response, or Horizon response.
+ *
+ * Handles:
+ *  - Soroban RPC GetTransactionResponse with `returnValue` (ScVal or base64)
+ *  - Soroban RPC response with `resultMetaXdr` (v3 SorobanMeta returnValue or events)
+ *  - Soroban RPC response with `resultXdr` (TransactionResult InvokeHostFunction success)
+ *  - Horizon transaction records with `result_meta_xdr` or `result_xdr`
+ *  - ContractEvent[] or GetContractEventsResult (checks for "mint_invoice" event)
+ *  - Raw ScVal or base64 string
+ *  - Pre-parsed objects with tokenId / token_id
+ *
+ * Returns the parsed token ID as a string, or null if no token ID could be extracted.
+ */
+export function extractMintedTokenId(txResult: unknown): string | null {
+  if (!txResult) return null;
+
+  if (typeof txResult === "string") {
+    const trimmed = txResult.trim();
+    if (!trimmed) return null;
+    return parseTokenIdFromXdrString(trimmed);
+  }
+
+  if (typeof txResult !== "object") {
+    if (typeof txResult === "number" || typeof txResult === "bigint") {
+      return String(txResult);
+    }
+    return null;
+  }
+
+  const record = txResult as Record<string, unknown>;
+
+  // 1. Direct ScVal instance
+  if (typeof (record as any).switch === "function") {
+    return parseTokenIdFromScVal(txResult as StellarSdk.xdr.ScVal);
+  }
+
+  // 2. Pre-parsed tokenId / token_id fields
+  if (record.tokenId !== undefined && record.tokenId !== null) {
+    const s = String(record.tokenId).trim();
+    if (s && s !== "undefined" && s !== "null" && s !== "NaN") return s;
+  }
+  if (record.token_id !== undefined && record.token_id !== null) {
+    const s = String(record.token_id).trim();
+    if (s && s !== "undefined" && s !== "null" && s !== "NaN") return s;
+  }
+
+  // 3. Soroban RPC returnValue (ScVal instance or base64 string)
+  if (record.returnValue) {
+    if (typeof (record.returnValue as any).switch === "function") {
+      const parsed = parseTokenIdFromScVal(record.returnValue as StellarSdk.xdr.ScVal);
+      if (parsed) return parsed;
+    } else if (typeof record.returnValue === "string") {
+      try {
+        const scv = StellarSdk.xdr.ScVal.fromXDR(record.returnValue, "base64");
+        const parsed = parseTokenIdFromScVal(scv);
+        if (parsed) return parsed;
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  // 4. Soroban RPC resultMetaXdr or Horizon result_meta_xdr
+  const metaXdr = (record.resultMetaXdr ?? record.result_meta_xdr) as string | undefined;
+  if (typeof metaXdr === "string" && metaXdr.trim() !== "") {
+    try {
+      const meta = StellarSdk.xdr.TransactionMeta.fromXDR(metaXdr, "base64");
+      const parsed = extractFromTransactionMeta(meta);
+      if (parsed) return parsed;
+    } catch {
+      // continue
+    }
+  }
+
+  // 5. Soroban RPC resultXdr or Horizon result_xdr
+  const resXdr = (record.resultXdr ?? record.result_xdr) as string | undefined;
+  if (typeof resXdr === "string" && resXdr.trim() !== "") {
+    try {
+      const res = StellarSdk.xdr.TransactionResult.fromXDR(resXdr, "base64");
+      const parsed = extractFromTransactionResult(res);
+      if (parsed) return parsed;
+    } catch {
+      // continue
+    }
+  }
+
+  // 6. Contract events array (record.events or Array)
+  const events = Array.isArray(txResult)
+    ? txResult
+    : Array.isArray(record.events)
+    ? record.events
+    : null;
+
+  if (events && events.length > 0) {
+    for (const ev of events) {
+      if (ev && typeof ev === "object") {
+        const e = ev as Partial<ContractEvent> & { topic?: unknown[]; value?: unknown };
+        if (e.type === "mint_invoice" && e.tokenId) {
+          return String(e.tokenId);
+        }
+        if (Array.isArray(e.topic) && e.topic.length > 0) {
+          try {
+            const t0 =
+              typeof e.topic[0] === "string"
+                ? StellarSdk.xdr.ScVal.fromXDR(e.topic[0], "base64")
+                : (e.topic[0] as StellarSdk.xdr.ScVal);
+            const topicName = parseTopicToString(t0);
+            if (topicName === "mint_invoice") {
+              if (e.topic.length > 1) {
+                const t1 =
+                  typeof e.topic[1] === "string"
+                    ? StellarSdk.xdr.ScVal.fromXDR(e.topic[1], "base64")
+                    : (e.topic[1] as StellarSdk.xdr.ScVal);
+                const fromT1 = parseTokenIdFromScVal(t1);
+                if (fromT1) return fromT1;
+              }
+              if (e.value) {
+                const val =
+                  typeof e.value === "string"
+                    ? StellarSdk.xdr.ScVal.fromXDR(e.value, "base64")
+                    : (e.value as StellarSdk.xdr.ScVal);
+                const fromVal = parseTokenIdFromScVal(val);
+                if (fromVal) return fromVal;
+              }
+            }
+          } catch {
+            // continue
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Fetch transaction status and extract the minted token ID by tx hash.
+ */
+export async function fetchMintedTokenId(hash: string): Promise<string | null> {
+  try {
+    const tx = await waitForTransaction(hash, 5, 200);
+    return extractMintedTokenId(tx);
+  } catch {
+    try {
+      const record = await withHorizonRetry(
+        () => horizon.transactions().transaction(hash).call(),
+        { maxAttempts: 1, baseDelayMs: 0 }
+      );
+      return extractMintedTokenId(record);
+    } catch {
+      return null;
+    }
   }
 }
 

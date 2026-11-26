@@ -711,6 +711,35 @@ test.describe("Marketplace - Virtualized Grid Mobile Scroll", () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
+  test("scrollMargin tracks the list offset and refreshes after a resize", async ({ page }) => {
+    const virtualGrid = page.locator('[data-virtualized="true"]');
+    await expect(virtualGrid).toBeVisible();
+
+    // Drift between the measured document offset and the value the virtualizer
+    // is using must stay near zero or row transforms land in the wrong place.
+    const drift = () =>
+      virtualGrid.evaluate((el: HTMLElement) => {
+        const fromState = Number(el.getAttribute("data-scroll-margin"));
+        const measured = Math.round(
+          el.getBoundingClientRect().top + window.scrollY,
+        );
+        return Math.abs(fromState - measured);
+      });
+
+    await expect
+      .poll(drift, { message: "initial scrollMargin should match the list offset" })
+      .toBeLessThanOrEqual(2);
+
+    // Rotation / breakpoint change reflows the filter bar above the list.
+    await page.setViewportSize({ width: 375, height: 667 });
+
+    await expect
+      .poll(drift, {
+        message: "scrollMargin should recalculate after the viewport changes",
+      })
+      .toBeLessThanOrEqual(2);
+  });
+
   test("scrolling down on mobile renders new cards within DOM budget", async ({ page }) => {
     const cards = page.locator("a[href^='/marketplace/']");
 
@@ -723,6 +752,74 @@ test.describe("Marketplace - Virtualized Grid Mobile Scroll", () => {
     // Virtualizer prunes off-screen rows — on mobile overscan=3 gives ≤ 9 cards
     const MOBILE_DOM_BUDGET = 20;
     expect(afterScrollCount).toBeLessThanOrEqual(MOBILE_DOM_BUDGET);
+  });
+});
+
+// ─── Infinite Scroll Accessibility (aria-live + focus stability) ──────────────
+
+test.describe("Marketplace - Infinite Scroll Accessibility", () => {
+  // Inherits top-level test.use({ ...devices["iPhone 12"] });
+
+  test.beforeEach(async ({ page }) => {
+    await suppressOverlays(page);
+    await page.goto("/marketplace");
+    await waitForCards(page);
+  });
+
+  /** Scroll the window to the bottom of the (growing) virtualized list. */
+  const scrollToBottom = (page: import("@playwright/test").Page) =>
+    page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+
+  test("exposes a polite, atomic status region for load-more updates", async ({ page }) => {
+    const status = page.getByTestId("marketplace-load-status");
+    await expect(status).toHaveAttribute("role", "status");
+    await expect(status).toHaveAttribute("aria-live", "polite");
+    await expect(status).toHaveAttribute("aria-atomic", "true");
+  });
+
+  test("announces newly loaded invoices after scrolling", async ({ page }) => {
+    const status = page.getByTestId("marketplace-load-status");
+
+    await scrollToBottom(page);
+
+    await expect
+      .poll(async () => (await status.textContent()) ?? "", { timeout: 15_000 })
+      .toMatch(/\d+ new invoices? loaded/i);
+  });
+
+  test("announces and renders the end of the list", async ({ page }) => {
+    const endMarker = page.getByTestId("marketplace-end-of-list");
+    const status = page.getByTestId("marketplace-load-status");
+
+    // Keep scrolling until every page has loaded (mock list is paginated).
+    for (let i = 0; i < 30; i++) {
+      if (await endMarker.isVisible().catch(() => false)) break;
+      await scrollToBottom(page);
+      await page.waitForTimeout(300);
+    }
+
+    await expect(endMarker).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(async () => (await status.textContent()) ?? "", { timeout: 10_000 })
+      .toMatch(/end of list/i);
+  });
+
+  test("does not steal or reset focus when more invoices load", async ({ page }) => {
+    // A control outside the virtualized list — must keep focus across batches.
+    const sortSelect = page.locator("select").first();
+    await sortSelect.focus();
+    await expect(sortSelect).toBeFocused();
+
+    for (let i = 0; i < 3; i++) {
+      await scrollToBottom(page);
+      await page.waitForTimeout(300);
+    }
+
+    await expect(sortSelect).toBeFocused();
+    const focusOnBody = await page.evaluate(
+      () => document.activeElement === document.body,
+    );
+    expect(focusOnBody).toBe(false);
   });
 });
 

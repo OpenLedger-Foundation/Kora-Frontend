@@ -28,15 +28,28 @@ import {
   pollUsdcBalanceAfterMint,
 } from "@/hooks/useUsdcBalance";
 import { queryKeys } from "@/lib/queryKeys";
+import { getCsrfToken } from "@/lib/csrfClient";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { env } from "@/lib/env";
 import type { WalletProvider } from "@/types";
 import { WALLET_ASSETS, hasTrustline } from "@/config/walletAssets";
 import {
   parseWalletDiagnosticsImport,
+  safeInternalPath,
   sanitizeWalletDiagnosticsExport,
   type WalletDiagnosticsExport,
 } from "@/lib/security";
+import {
+  WalletSigningError,
+  classifySigningError,
+} from "@/lib/walletSigningError";
+
+/**
+ * Signing-error classification (#1121) is defined in `lib/walletSigningError`
+ * so it stays importable without pulling the wallet kit in, and re-exported
+ * here because this is the module that produces those errors.
+ */
+export { WalletSigningError, classifySigningError };
 
 /** Default testnet USDC mint amount in stroops (7 decimals): 10,000 USDC. */
 export const TESTNET_USDC_MINT_AMOUNT = BigInt("100000000000");
@@ -48,7 +61,7 @@ const WALLET_NETWORK =
     ? WalletNetwork.PUBLIC
     : WalletNetwork.TESTNET;
 
-function getKit(): StellarWalletsKit {
+export function getKit(): StellarWalletsKit {
   if (!kit) {
     kit = new StellarWalletsKit({
       network: WALLET_NETWORK,
@@ -470,7 +483,8 @@ export function useWallet() {
         if (intended) {
           // Clear the intended destination after one use to prevent redirect loops
           useUIStore.getState().setIntendedDestination(null);
-          router.push(intended);
+          const safe = safeInternalPath(intended);
+          if (safe) router.push(safe);
         }
         // Fallback: if no intended destination is set, stay on current page
         // (e.g., accessed the page normally while connected)
@@ -552,12 +566,24 @@ export function useWallet() {
       }
 
       const walletKit = getKit();
-      const { result } = await walletKit.signTx({
-        xdr,
-        publicKeys: [address!],
-        network: WALLET_NETWORK,
-      });
-      return result;
+      try {
+        const { result } = await walletKit.signTx({
+          xdr,
+          publicKeys: [address!],
+          network: WALLET_NETWORK,
+        });
+        return result;
+      } catch (err) {
+        if (err instanceof WalletSigningError) throw err;
+        // Providers reject with free-form strings; classify so callers can tell
+        // "the user closed the popup" (recoverable) from "the user said no"
+        // (#1121). The original message is preserved for the toast.
+        throw new WalletSigningError(
+          classifySigningError(err),
+          err instanceof Error ? err.message : String(err),
+          { cause: err }
+        );
+      }
     },
     [isConnected, address, provider, setKitSessionActive, updateActivity],
   );
@@ -691,6 +717,30 @@ export function useWallet() {
     await refreshBalance();
   }, [address, refreshBalance, signTransaction]);
 
+  const addUsdcTrustlineOnTestnet = useCallback(async () => {
+    if (!address) throw new Error("Wallet not connected");
+
+    const raw = await getAccountBalances(address);
+    if (hasTrustline(raw.otherAssets, "USDC", WALLET_ASSETS.usdc.issuer)) {
+      await refreshBalance();
+      return;
+    }
+
+    const trustlineXdr = await buildAddTrustlineTx(address, "usdc");
+    const signedTrustlineXdr = await signTransaction(trustlineXdr);
+    const submit = await submitTransaction(signedTrustlineXdr);
+    if (submit.status === "ERROR") {
+      throw new Error("USDC trustline transaction submission failed");
+    }
+    if (submit.hash) {
+      await waitForTransaction(submit.hash);
+    }
+    await refreshBalance();
+    await queryClient.invalidateQueries({
+      queryKey: queryKeys.account.usdcBalance(address),
+    });
+  }, [address, queryClient, refreshBalance, signTransaction]);
+
   const exportWalletDiagnostics = useCallback((): WalletDiagnosticsExport => {
     return sanitizeWalletDiagnosticsExport({
       exportedAt: new Date().toISOString(),
@@ -721,9 +771,7 @@ export function useWallet() {
 
   const requestChallenge = useCallback(async (): Promise<string> => {
     try {
-      const csrfRes = await fetch("/api/auth/csrf");
-      const csrfData = await csrfRes.json();
-      const csrfToken = csrfData?.token ?? "";
+      const csrfToken = await getCsrfToken();
 
       const res = await fetch("/api/auth/challenge", {
         method: "POST",
@@ -752,9 +800,7 @@ export function useWallet() {
     }
 
     try {
-      const csrfRes = await fetch("/api/auth/csrf");
-      const csrfData = await csrfRes.json();
-      const csrfToken = csrfData?.token ?? "";
+      const csrfToken = await getCsrfToken();
 
       const challenge = await requestChallenge();
       const walletKit = getKit();
@@ -883,6 +929,7 @@ export function useWallet() {
     manualReconnect,
     fundWalletOnTestnet,
     addEurcTrustlineOnTestnet,
+    addUsdcTrustlineOnTestnet,
     mintTestnetUsdc,
     signTransaction,
     refreshBalance,

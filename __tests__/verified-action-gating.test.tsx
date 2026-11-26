@@ -1,4 +1,6 @@
 import React from "react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { renderHook as baseRenderHook, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -33,6 +35,38 @@ vi.mock("@/lib/env", () => ({
     NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015",
   },
 }));
+
+// `config/walletAssets.ts` ships an invalid `TESTNET_EURC_ISSUER`, so
+// `new Asset("EURC", …)` throws while `lib/stellar/contracts` loads and this
+// whole suite fails to collect — a pre-existing failure unrelated to gating.
+// The production constant is deliberately NOT patched here: inventing an
+// issuer address would change on-chain asset identity to make a test file
+// importable. Mocking the module keeps the suite honest about what it covers
+// (#1123).
+vi.mock("@/config/walletAssets", async () => {
+  const StellarSdk =
+    await vi.importActual<typeof import("@stellar/stellar-sdk")>("@stellar/stellar-sdk");
+  const validIssuer = StellarSdk.StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 3));
+  const usdc = new StellarSdk.Asset("USDC", validIssuer);
+  const eurc = new StellarSdk.Asset("EURC", validIssuer);
+
+  return {
+    TESTNET_USDC_ISSUER: validIssuer,
+    TESTNET_EURC_ISSUER: validIssuer,
+    WALLET_ASSETS: {
+      usdc: { code: "USDC", issuer: validIssuer, trustlineLimit: "1000000", asset: usdc },
+      eurc: { code: "EURC", issuer: validIssuer, trustlineLimit: "1000000", asset: eurc },
+    },
+    DEFAULT_WALLET_ASSETS: [
+      { symbol: "XLM", type: "native", decimals: 2 },
+      { symbol: "USDC", type: "credit", code: "USDC", issuer: validIssuer, decimals: 2 },
+      { symbol: "EURC", type: "credit", code: "EURC", issuer: validIssuer, decimals: 2 },
+    ],
+    DEFAULT_FUNDING_ASSET_SYMBOL: "USDC",
+    getAssetBalance: () => "0",
+    hasTrustline: () => false,
+  };
+});
 
 vi.mock("@/components/wallet/VerificationProvider", () => ({
   useVerification: () => ({
@@ -266,6 +300,116 @@ describe("Verified Action Gating Integration Tests", () => {
 
       expect(useWalletStore.getState().isVerified).toBe(true);
       expect(actionSpy).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ─── 4. Position Listing Gate (Issue #1123) ──────────────────────────────
+  //
+  // Listing commits a seller's position to the secondary market, so it needs
+  // the same session as funding/claim/repayment. These pin the "listing" type
+  // itself, which did not exist before the issue and therefore had no coverage.
+  describe("Position listing gating", () => {
+    it("prompts an unverified seller before running the listing", async () => {
+      const { result } = renderHook(() => useVerifiedAction());
+      const listSpy = vi.fn(async () => {});
+
+      expect(useWalletStore.getState().isVerified).toBe(false);
+
+      await act(async () => {
+        await result.current.executeProtectedAction(listSpy, "listing");
+      });
+
+      expect(useWalletStore.getState().isVerified).toBe(true);
+      expect(listSpy).toHaveBeenCalledOnce();
+    });
+
+    it("lists with no extra prompt when the session is already valid", async () => {
+      useWalletStore.getState().setVerified(true, Date.now() + 3_600_000);
+      const verifiedAt = useWalletStore.getState().verifiedAt;
+
+      const { result } = renderHook(() => useVerifiedAction());
+      const listSpy = vi.fn(async () => {});
+
+      let res: any;
+      await act(async () => {
+        res = await result.current.executeProtectedAction(listSpy, "listing");
+      });
+
+      expect(res.requiresVerification).toBe(false);
+      expect(listSpy).toHaveBeenCalledOnce();
+      expect(useWalletStore.getState().verifiedAt).toBe(verifiedAt);
+    });
+
+    it("blocks the listing outright when no wallet is connected", async () => {
+      useWalletStore.getState().disconnect();
+
+      const { result } = renderHook(() => useVerifiedAction());
+      const listSpy = vi.fn(async () => {});
+
+      let res: any;
+      await act(async () => {
+        res = await result.current.executeProtectedAction(listSpy, "listing");
+      });
+
+      expect(res.error).toBe("Wallet not connected");
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("reports a failing listing as an error rather than a verification prompt", async () => {
+      useWalletStore.getState().setVerified(true, Date.now() + 3_600_000);
+
+      const { result } = renderHook(() => useVerifiedAction());
+      const listSpy = vi.fn(async () => {
+        throw new Error("position already listed");
+      });
+
+      let res: any;
+      await act(async () => {
+        res = await result.current.executeProtectedAction(listSpy, "listing");
+      });
+
+      expect(res.requiresVerification).toBe(false);
+      expect(res.error).toBe("position already listed");
+    });
+  });
+
+  // ─── 5. Gating Call Sites (Issue #1123) ───────────────────────────────────
+  //
+  // The pages are far too heavy to render in jsdom, so the contract is checked
+  // where it actually lives: in the source. A regression here is a page that
+  // quietly calls the store/flow directly again, which no hook-level test can
+  // see.
+  describe("Gating call sites (source audit)", () => {
+    const read = (relPath: string) =>
+      readFileSync(join(process.cwd(), relPath), "utf8");
+
+    it("declares 'listing' as a verified action type", () => {
+      expect(read("hooks/useVerifiedAction.ts")).toContain('| "listing"');
+    });
+
+    it("gates the investor position-listing submit", () => {
+      expect(read("app/dashboard/investor/page.tsx")).toContain(
+        'executeProtectedAction(runListing, "listing")'
+      );
+    });
+
+    it("gates the secondary-market acquire-position confirm", () => {
+      expect(read("app/secondary/page.tsx")).toMatch(
+        /executeProtectedAction\(\s*\(\) => acquirePosition[\s\S]{0,200}"funding"/
+      );
+    });
+
+    it("still gates the invoice funding confirm", () => {
+      expect(read("app/marketplace/[id]/InvoiceDetailClient.tsx")).toMatch(
+        /executeProtectedAction\([\s\S]{0,4000}"funding"\s*\)/
+      );
+    });
+
+    it("distinguishes a pending KYC review from a missing one", () => {
+      // Both the inline field error and the blocking toast need it, otherwise
+      // the user is told to "verify" while their verification is in progress.
+      const source = read("app/marketplace/[id]/InvoiceDetailClient.tsx");
+      expect(source.match(/kycStatus === "pending"/g)?.length).toBeGreaterThanOrEqual(2);
     });
   });
 });

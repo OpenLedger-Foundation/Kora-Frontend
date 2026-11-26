@@ -15,19 +15,30 @@ import {
   Check,
   Copy,
 } from "lucide-react";
-import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTransactionDetails } from "@/lib/stellar/client";
 import type { TransactionRecord } from "@/store/transactionHistoryStore";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { safeStellarTxUrl } from "@/lib/security";
-import { exportCsv } from "@/lib/export";
-import { useTranslations } from "next-intl";
+import { exportCsv, formatCsvDate, formatCsvNumber } from "@/lib/export";
+import { useToast } from "@/hooks/useToast";
+import { useLocale, useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 /**
  * TransactionHistoryDrawer
@@ -187,7 +198,16 @@ function TransactionDetail({
 }) {
   const typeConfig = TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other;
   const dateObj = new Date(tx.timestamp);
-  const { copy: copyHash, copied: hashCopied } = useCopyToClipboard();
+  const { copy, copied } = useCopyToClipboard();
+
+  const handleCopyHash = async () => {
+    const ok = await copy(tx.hash);
+    if (ok) {
+      toast.success(t("drawer.hashCopied"));
+    } else {
+      toast.error(t("drawer.hashCopyFailed"));
+    }
+  };
 
   // Only fetch details for confirmed transactions — cache forever (staleTime: Infinity)
   const { data: details, isLoading: loadingDetails } = useQuery({
@@ -239,11 +259,11 @@ function TransactionDetail({
           </span>
           <button
             type="button"
-            onClick={() => void copyHash(tx.hash)}
-            aria-label={hashCopied ? t("drawer.hashCopiedAria") : t("drawer.copyHashAria")}
+            onClick={() => void handleCopyHash()}
+            aria-label={copied ? t("drawer.hashCopied") : t("drawer.copyHashAria")}
             className="shrink-0 rounded p-1 hover:bg-muted transition-colors"
           >
-            {hashCopied ? (
+            {copied ? (
               <Check className="h-3.5 w-3.5 text-green-500" aria-hidden="true" />
             ) : (
               <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
@@ -380,6 +400,7 @@ export function TransactionHistoryDrawer({
   limit = 15,
 }: TransactionHistoryDrawerProps) {
   const t = useTranslations("transactions");
+  const locale = useLocale();
   const allTransactions = useTransactionHistoryStore((s) => s.transactions);
   const filterType = useTransactionHistoryStore((s) => s.filterType);
   const filterStartDate = useTransactionHistoryStore((s) => s.filterStartDate);
@@ -391,6 +412,11 @@ export function TransactionHistoryDrawer({
   const getFilteredTransactions = useTransactionHistoryStore((s) => s.getFilteredTransactions);
   const clearHistory = useTransactionHistoryStore((s) => s.clearHistory);
   const [selectedTx, setSelectedTx] = useState<TransactionRecord | null>(null);
+  // In-app confirmation replaces the old `window.confirm`, whose title,
+  // description and buttons came from the browser's own locale and could not
+  // be translated by the app catalog (#1118).
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const toast = useToast();
 
   const filteredTransactions = getFilteredTransactions();
   const transactions = useMemo(
@@ -406,31 +432,66 @@ export function TransactionHistoryDrawer({
     onEscape: () => onOpenChange(false),
   });
 
+  // #1179: locale-aware export. Headers, type/status labels, numbers and dates
+  // follow the active locale; a raw ISO timestamp column is kept so the file
+  // stays machine-sortable regardless of locale.
   const handleExport = () => {
     if (filteredTransactions.length === 0) return;
 
-    exportCsv(
-      filteredTransactions.map((tx) => ({
-        hash: tx.hash,
-        type: tx.type,
-        status: tx.status,
-        amount: tx.amount || "",
-        asset: tx.assetCode || "",
-        timestamp: new Date(tx.timestamp).toISOString(),
-        description: tx.description || "",
-        error: tx.error || "",
-      })),
-      `kora-transactions-${Date.now()}.csv`
-    );
+    const statusLabel = (status: string) =>
+      status === "confirmed" || status === "failed" || status === "pending"
+        ? t(`statusLabels.${status}`)
+        : status;
+    const columns = [
+      "hash",
+      "type",
+      "status",
+      "amount",
+      "asset",
+      "date",
+      "timestampUtc",
+      "description",
+      "error",
+    ];
+
+    try {
+      exportCsv(
+        filteredTransactions.map((tx) => ({
+          hash: tx.hash,
+          type: t((TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other).labelKey),
+          status: statusLabel(tx.status),
+          amount: formatCsvNumber(tx.amount, locale),
+          asset: tx.assetCode || "",
+          date: formatCsvDate(tx.timestamp, locale),
+          timestampUtc: Number.isNaN(new Date(tx.timestamp).getTime())
+            ? ""
+            : new Date(tx.timestamp).toISOString(),
+          description: tx.description || "",
+          error: tx.error || "",
+        })),
+        `kora-transactions-${Date.now()}.csv`,
+        columns,
+        {
+          locale,
+          headerLabels: Object.fromEntries(
+            columns.map((column) => [column, t(`csv.columns.${column}`)])
+          ),
+        }
+      );
+    } catch {
+      toast.error(t("csv.exportFailed"), undefined, "tx-history-export-failed");
+    }
   };
 
   const handleClearHistory = () => {
-    if (
-      window.confirm(t("drawer.clearConfirm"))
-    ) {
-      clearHistory();
-      setSelectedTx(null);
-    }
+    setConfirmClearOpen(true);
+  };
+
+  const handleConfirmClearHistory = () => {
+    clearHistory();
+    setSelectedTx(null);
+    setConfirmClearOpen(false);
+    toast.success(t("drawer.clearCleared"), undefined, "tx-history-cleared");
   };
 
   return (
@@ -608,6 +669,35 @@ export function TransactionHistoryDrawer({
                 )}
               </div>
             )}
+
+            {/* Clear-history confirmation (#1118) — title, description and
+                actions all come from the app catalog so they follow the
+                selected locale instead of the browser's. */}
+            <Dialog open={confirmClearOpen} onOpenChange={setConfirmClearOpen}>
+              <DialogContent className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>{t("drawer.clearConfirmTitle")}</DialogTitle>
+                  <DialogDescription>{t("drawer.clearConfirm")}</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setConfirmClearOpen(false)}
+                  >
+                    {t("drawer.clearConfirmCancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={handleConfirmClearHistory}
+                    data-testid="confirm-clear-history"
+                  >
+                    {t("drawer.clearConfirmConfirm")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </motion.div>
         </>
       )}

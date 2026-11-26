@@ -37,6 +37,74 @@ test.describe("Analytics page — disconnected", () => {
   });
 });
 
+test.describe("Analytics page — filter chips keyboard", () => {
+  test("creates and removes filter chips using only the keyboard", async ({
+    page,
+    context,
+  }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/analytics");
+
+    await expect(
+      page.getByRole("heading", { name: /connect your wallet/i })
+    ).not.toBeVisible();
+
+    const chipGroup = page.getByRole("toolbar", { name: /filter/i });
+    await expect(chipGroup).toBeVisible();
+
+    // Tab into the chip group and focus the first chip.
+    await chipGroup.focus();
+    const firstChip = chipGroup.getByRole("button").first();
+    await expect(firstChip).toBeFocused();
+
+    // Arrow between chips moves roving focus.
+    const chips = chipGroup.getByRole("button");
+    const chipCount = await chips.count();
+    if (chipCount > 1) {
+      await page.keyboard.press("ArrowRight");
+      await expect(chips.nth(1)).toBeFocused();
+      await page.keyboard.press("ArrowLeft");
+      await expect(chips.nth(0)).toBeFocused();
+    }
+
+    // Enter activates the focused chip (adds it to the active filters).
+    await page.keyboard.press("Enter");
+    await expect(chipGroup.getByRole("button", { pressed: true }).first()).toBeVisible();
+
+    // Space also activates a chip.
+    if (chipCount > 1) {
+      await page.keyboard.press("ArrowRight");
+      await page.keyboard.press(" ");
+      await expect(chipGroup.getByRole("button", { pressed: true })).toHaveCount(2);
+    }
+
+    // Delete removes the focused chip and focus moves to a sibling.
+    await page.keyboard.press("Delete");
+    await expect(chipGroup.getByRole("button", { pressed: true })).toHaveCount(1);
+    await expect(chipGroup.getByRole("button").first()).toBeFocused();
+  });
+
+  test("Backspace clears the focused chip", async ({ page, context }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/analytics");
+
+    await expect(
+      page.getByRole("heading", { name: /connect your wallet/i })
+    ).not.toBeVisible();
+
+    const chipGroup = page.getByRole("toolbar", { name: /filter/i });
+    await expect(chipGroup).toBeVisible();
+
+    await chipGroup.focus();
+    await page.keyboard.press("Enter");
+    await expect(chipGroup.getByRole("button", { pressed: true }).first()).toBeVisible();
+
+    await page.keyboard.press("Backspace");
+    await expect(chipGroup.getByRole("button", { pressed: true })).toHaveCount(0);
+    await expect(chipGroup.getByRole("button").first()).toBeFocused();
+  });
+});
+
 test.describe("Analytics page — connected", () => {
   test("renders analytics once a wallet is connected", async ({ page, context }) => {
     await injectConnectedWallet(context);
@@ -45,6 +113,88 @@ test.describe("Analytics page — connected", () => {
     await expect(
       page.getByRole("heading", { name: /connect your wallet/i })
     ).not.toBeVisible();
+  });
+
+  test("serializes cohort filters to the URL and restores them on reload", async ({
+    page,
+    context,
+  }) => {
+    await injectConnectedWallet(context);
+    await page.goto("/analytics");
+
+    await expect(
+      page.getByRole("heading", { name: /connect your wallet/i })
+    ).not.toBeVisible();
+
+    await page.getByRole("button", { name: "AA", exact: true }).click();
+    await page.getByLabel(/filter by jurisdiction/i).selectOption("KE");
+    await page.getByLabel(/filter by category/i).selectOption("services");
+    await page.getByRole("button", { name: "90 days", exact: true }).click();
+
+    await expect(page).toHaveURL(/risk=AA/);
+    await expect(page).toHaveURL(/jurisdiction=KE/);
+    await expect(page).toHaveURL(/category=services/);
+    await expect(page).toHaveURL(/range=90d/);
+
+    await page.reload();
+
+    await expect(page.getByRole("button", { name: "AA", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByLabel(/filter by jurisdiction/i)).toHaveValue("KE");
+    await expect(page.getByLabel(/filter by category/i)).toHaveValue("services");
+    await expect(page.getByRole("button", { name: "90 days", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
+  test("ignores unsupported cohort params and preserves unrelated params on change", async ({
+    page,
+    context,
+  }) => {
+    await injectConnectedWallet(context);
+    await page.goto(
+      "/analytics?risk=BOGUS&jurisdiction=ZZ&category=other&range=custom&from=2026-02-30&to=2026-03-01&utm_source=email"
+    );
+
+    await expect(page.getByRole("button", { name: "All", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByLabel(/filter by jurisdiction/i)).toHaveValue("all");
+    await expect(page.getByLabel(/filter by category/i)).toHaveValue("all");
+    await expect(page.getByRole("button", { name: "30 days", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    await page.getByRole("button", { name: "B", exact: true }).click();
+
+    await expect(page).toHaveURL(/risk=B(?:$|&)/);
+    await expect(page).toHaveURL(/utm_source=email/);
+    await expect(page).not.toHaveURL(/jurisdiction=ZZ/);
+    await expect(page).not.toHaveURL(/category=other/);
+    await expect(page).not.toHaveURL(/range=custom/);
+  });
+
+  test("copies the canonical filtered URL to the clipboard", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await injectConnectedWallet(context);
+    await page.goto("/analytics");
+
+    await page.getByRole("button", { name: "BB", exact: true }).click();
+    await page.getByLabel(/filter by jurisdiction/i).selectOption("GH");
+    await page.getByTestId("analytics-copy-link").click();
+
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    const copiedUrl = new URL(copied);
+
+    expect(copiedUrl.pathname).toContain("/analytics");
+    expect(copiedUrl.searchParams.get("risk")).toBe("BB");
+    expect(copiedUrl.searchParams.get("jurisdiction")).toBe("GH");
+    await expect(page.getByRole("status")).toContainText(/link copied/i);
   });
 
   test("triggers portfolio PDF digest download", async ({ page, context }) => {

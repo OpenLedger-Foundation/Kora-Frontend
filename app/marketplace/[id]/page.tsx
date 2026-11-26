@@ -10,6 +10,7 @@ import {
 import {
   buildPublicInvoiceSeo,
   fetchIpfsMetadataForSeo,
+  isPublicInvoiceListing,
 } from "@/lib/invoiceSeo";
 
 export { generateMetadata, revalidate } from "./metadata";
@@ -27,12 +28,13 @@ export default async function Page({ params }: Props) {
 
   // Prefetch on the server for JSON-LD (works in mock + live modes).
   // Failures fall back to client-rendered page without structured data.
+  // Private/noindex invoices never receive structured data.
   let jsonLd: string | null = null;
   let breadcrumbLd: string | null = null;
 
   try {
     const invoice = await fetchInvoiceById(safeId);
-    if (invoice) {
+    if (invoice && isPublicInvoiceListing(invoice)) {
       const ipfsMeta = await fetchIpfsMetadataForSeo(invoice.ipfsCid);
       const seo = buildPublicInvoiceSeo(invoice, ipfsMeta);
 

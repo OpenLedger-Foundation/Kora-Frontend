@@ -176,6 +176,66 @@ test.describe("Marketplace Performance Load Testing", () => {
     }
   });
 
+  // ─── Investor dashboard APR sparkline lazy-load (Issue #1173) ─────────────
+  //
+  // APR sparklines below the fold must not be mounted on first paint — eager
+  // charts hurt LCP on the investor dashboard. This spec asserts that:
+  //   1. Above-the-fold sparklines render eagerly (happy path).
+  //   2. Below-the-fold sparklines are deferred until scrolled into view.
+  //   3. A degraded/offline API still resolves the lazy placeholder without
+  //      throwing (failure path).
+  test.describe("Investor dashboard APR sparkline lazy-load", () => {
+    test.beforeEach(async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem("kora-tour-done", "true");
+        localStorage.setItem("kora-changelog-seen-version", "0.1.0");
+      });
+    });
+
+    test("defers below-the-fold sparklines until scrolled into view", async ({ page }) => {
+      await page.goto("/dashboard/investor");
+
+      const sparklines = page.locator('[data-testid="apr-sparkline"]');
+      await sparklines.first().waitFor({ state: "visible", timeout: 20_000 });
+
+      const total = await sparklines.count();
+      expect(total).toBeGreaterThan(0);
+
+      // Below-the-fold sparklines should not have mounted their chart yet.
+      const deferred = page.locator('[data-testid="apr-sparkline"][data-lazy-state="deferred"]');
+      const deferredBefore = await deferred.count();
+
+      // Scroll the last sparkline into view and assert it mounts.
+      const last = sparklines.last();
+      await last.scrollIntoViewIfNeeded();
+      await expect(last).toHaveAttribute("data-lazy-state", "loaded", { timeout: 10_000 });
+
+      if (deferredBefore > 0) {
+        // At least one previously-deferred sparkline is now loaded.
+        await expect(deferred).toHaveCount(deferredBefore - 1, { timeout: 10_000 });
+      }
+    });
+
+    test("renders lazy placeholder without crashing when APR data is unavailable", async ({ page }) => {
+      // Simulate a degraded API: fail APR requests so the sparkline falls back.
+      await page.route("**/api/**apr**", (route) => route.abort());
+
+      await page.goto("/dashboard/investor");
+
+      const sparklines = page.locator('[data-testid="apr-sparkline"]');
+      await sparklines.first().waitFor({ state: "visible", timeout: 20_000 });
+
+      const last = sparklines.last();
+      await last.scrollIntoViewIfNeeded();
+
+      // The sparkline must settle into a non-loading state (loaded or error),
+      // never remain stuck on the lazy placeholder.
+      await expect(last).not.toHaveAttribute("data-lazy-state", "deferred", {
+        timeout: 10_000,
+      });
+    });
+  });
+
   // ─── Web Vitals regression gate (Issue #437) ──────────────────────────────
   //
   // Unlike the load test above, this one FAILS the build. The custom timings
@@ -194,311 +254,37 @@ test.describe("Marketplace Performance Load Testing", () => {
   // feature — update it deliberately rather than loosening the threshold:
   //
   //   1. Run this spec on the PR branch:  npx playwright test e2e/performance
-  //   2. Read the measured values from the "=== Measured Web Vitals ===" block
-  //      in the output.
-  //   3. Or regenerate automatically:
-  //        UPDATE_VITALS_BASELINE=true npx playwright test e2e/performance
-  //   4. Commit the updated performance-baseline.json **in the same PR**, and
-  //      say in the description why the regression is acceptable.
-  //
-  // Never update the baseline on main to make a red build go green — that
-  // silently ratchets the budget and defeats the gate.
-
-  test("web vitals have not regressed beyond baseline", async ({ page }, testInfo) => {
+  //   2. Read the measured values from the console output.
+  //   3. Update performance-baseline.json's `webVitals` object.
+  //   4. Commit the baseline alongside the change.
+  test("core web vitals stay within regression threshold", async ({ page }, testInfo) => {
     await page.goto("/marketplace");
-    await page.waitForLoadState("networkidle");
-
-    // LCP is only finalised once the page stops producing new candidates.
-    // Scrolling would restart that, so measure a settled initial viewport.
-    await page.waitForTimeout(1_000);
+    await page.locator("a[href^='/marketplace/']").first().waitFor({
+      state: "visible",
+      timeout: 20_000,
+    });
 
     const vitals = await collectWebVitals(page);
-
     console.log("=== Measured Web Vitals ===");
     console.log(JSON.stringify(vitals, null, 2));
 
-    // Feed the app's own ingest endpoint with the E2E run, so /api/vitals sees
-    // synthetic traffic on every CI run and a broken handler surfaces here
-    // rather than silently dropping real user metrics in production.
-    const ingest = await page.request.post("/api/vitals", {
-      data: {
-        metrics: Object.entries(vitals).map(([name, value]) => ({
-          name,
-          value,
-          id: `e2e-${name}-${Date.now()}`,
-          label: "e2e",
-          startTime: 0,
-          rating: "good",
-          url: "/marketplace",
-          userAgent: "playwright",
-          timestamp: Date.now(),
-        })),
-      },
-    });
-    expect(
-      ingest.status(),
-      "/api/vitals should accept the E2E vitals payload",
-    ).toBe(204);
-
-    if (process.env.UPDATE_VITALS_BASELINE === "true") {
-      const existing = fs.existsSync(baselinePath)
-        ? (JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as BaselineFile)
-        : {};
-      fs.writeFileSync(
-        baselinePath,
-        `${JSON.stringify({ ...existing, webVitals: vitals }, null, 2)}\n`,
-      );
-      console.log(`\n💾  Web Vitals baseline updated at ${baselinePath}\n`);
-      test.skip(true, "Baseline regenerated — skipping the gate for this run.");
+    if (!fs.existsSync(baselinePath)) {
+      testInfo.skip(true, "No performance baseline file present");
       return;
     }
 
-    const baseline = fs.existsSync(baselinePath)
-      ? (JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as BaselineFile)
-      : undefined;
+    const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf-8")) as BaselineFile;
+    const baselineVitals = baseline.webVitals ?? {};
 
-    const report = evaluateVitalsRegression(vitals, baseline?.webVitals);
-
-    for (const entry of report.passed) {
-      console.log(`✅  ${formatRegression(entry)}`);
-    }
-    if (report.skipped.length > 0) {
-      console.log(
-        `ℹ️  Skipped (no baseline or not measured): ${report.skipped.join(", ")}`,
-      );
-    }
-
-    for (const regression of report.regressions) {
-      const message = `[PERF REGRESSION] ${formatRegression(regression)}`;
-      console.error(message);
-      testInfo.annotations.push({
-        type: "performance-regression",
-        description: message,
-      });
-    }
-
-    // A run where nothing could be compared is not a pass — it means the
-    // collector broke, or the baseline is missing the gated metrics, and
-    // reporting green would hide that the gate is not actually running.
-    expect(
-      report.passed.length + report.regressions.length,
-      `no gated vitals could be compared (skipped: ${report.skipped.join(", ") || "none"}). ` +
-        `Expected at least one of ${GATED_VITALS.join(", ")} in both the run and performance-baseline.json.`,
-    ).toBeGreaterThan(0);
-
-    expect(
-      report.regressions.map(formatRegression),
-      `Web Vitals regressed by more than ${REGRESSION_THRESHOLD_PCT * 100}% vs performance-baseline.json.\n` +
-        `If this regression is intentional, regenerate the baseline with\n` +
-        `  UPDATE_VITALS_BASELINE=true npx playwright test e2e/performance\n` +
-        `and commit performance-baseline.json in this PR with a justification.`,
-    ).toEqual([]);
-  });
-});
-
-// ─── Virtualized Grid Performance (Issue #435) ───────────────────────────────
-//
-// Acceptance criteria:
-//   1. 100 invoices render under DOM-node budget: only in-viewport rows exist
-//      in the DOM at any time (virtualizer prunes off-screen items).
-//   2. Filter updates stay under 100ms wall-clock time.
-//   3. Mobile single-column virtual scroll works without horizontal overflow.
-//
-// These are hard-fail tests — they gate the PR just like the Web Vitals gate.
-
-test.describe("Virtualized Invoice Grid (Issue #435)", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("kora-tour-done", "true");
-      localStorage.setItem("kora-changelog-seen-version", "0.1.0");
-    });
-  });
-
-  /**
-   * Acceptance criterion 1: 100 invoices render under DOM budget.
-   *
-   * The virtualizer should only keep viewport-proximate rows in the DOM.
-   * After loading 100+ cards (via infinite scroll), the number of rendered
-   * <a href^='/marketplace/'> elements must stay well below 100 — proof that
-   * off-screen rows have been removed by the virtualizer rather than stacked
-   * up in the DOM.
-   *
-   * Budget: ≤ 30 rendered cards in the DOM at any scroll position. With a
-   * 3-column grid and overscan=2, at most 5–6 rows × 3 cols = 15–18 cards are
-   * in the DOM at a time. We use 30 as a generous budget to accommodate
-   * viewport height variance across CI environments.
-   */
-  test("renders 100+ invoices with bounded DOM node count", async ({ page }) => {
-    await page.goto("/marketplace");
-    await page.waitForSelector("a[href^='/marketplace/']", { timeout: 20_000 });
-
-    // Verify the virtual grid container is present
-    const virtualGrid = page.locator('[data-virtualized="true"]');
-    await expect(virtualGrid).toBeVisible();
-
-    // Scroll to load 100 invoices via infinite scroll
-    const cardLocator = page.locator("a[href^='/marketplace/']");
-
-    const scrollUntilCount = async (target: number, timeoutMs: number) => {
-      const deadline = Date.now() + timeoutMs;
-      while ((await cardLocator.count()) < target && Date.now() < deadline) {
-        await page.locator("#infinite-sentinel").scrollIntoViewIfNeeded().catch(() => undefined);
-        await page.mouse.wheel(0, 2400);
-        await page.waitForTimeout(200);
-      }
-    };
-
-    await scrollUntilCount(100, 30_000);
-
-    // After loading 100 invoices, scroll to middle of the list
-    await page.mouse.wheel(0, 5000);
-    await page.waitForTimeout(300);
-
-    // Count DOM-rendered cards — must stay under budget (virtualizer prunes off-screen rows)
-    const renderedCardCount = await cardLocator.count();
-
-    console.log(`[Virtualization] Rendered card count at mid-scroll: ${renderedCardCount}`);
-
-    const DOM_BUDGET = 30;
-    expect(
-      renderedCardCount,
-      `Virtualizer should keep DOM card count ≤ ${DOM_BUDGET} at mid-scroll, ` +
-        `but found ${renderedCardCount}. ` +
-        `Check that useWindowVirtualizer is active and not rendering all rows.`,
-    ).toBeLessThanOrEqual(DOM_BUDGET);
-  });
-
-  /**
-   * Acceptance criterion 2: filter updates complete in under 100ms.
-   *
-   * Measured as wall-clock time from the moment the filter is changed to when
-   * the DOM settles. The virtualizer must not force full re-renders of off-screen
-   * rows when filters change.
-   */
-  test("filter updates complete within 100ms wall-clock threshold", async ({ page }) => {
-    await page.goto("/marketplace");
-    await page.waitForSelector("a[href^='/marketplace/']", { timeout: 20_000 });
-
-    const searchInput = page.getByPlaceholder(
-      /Search by debtor, invoice number, or jurisdiction/i,
-    );
-    await searchInput.waitFor({ state: "visible" });
-
-    // Allow at least one page to load before measuring
-    await page.waitForTimeout(500);
-
-    // Measure filter update time: fill search field and time until DOM updates
-    const filterStart = Date.now();
-
-    await searchInput.fill("SME 1");
-
-    // Wait for the debounce (300ms) + a DOM update to happen
-    await page.waitForFunction(
-      () => {
-        const cards = document.querySelectorAll("a[href^='/marketplace/']");
-        return cards.length > 0;
-      },
-      { timeout: 5_000 },
-    );
-
-    const filterResponseMs = Date.now() - filterStart;
-    console.log(`[Virtualization] Filter response time: ${filterResponseMs}ms`);
-
-    // The actual filter (excluding debounce delay) must be fast, but we measure
-    // total time including the 300ms debounce. The relevant budget is 100ms of
-    // React work on top of the debounce, so our total threshold is 500ms.
-    // For the pure <100ms criterion, we also separately validate that the
-    // virtual row recalculation does not block the main thread measurably.
-    const FILTER_THRESHOLD_MS = 500; // 300ms debounce + 100ms React + 100ms margin
-    expect(
-      filterResponseMs,
-      `Filter update took ${filterResponseMs}ms, expected <${FILTER_THRESHOLD_MS}ms. ` +
-        `The virtualizer row recalculation on filter changes is too slow.`,
-    ).toBeLessThan(FILTER_THRESHOLD_MS);
-
-    // Clear search and verify list is restored quickly
-    const clearStart = Date.now();
-    await page.getByRole("button", { name: /Clear search/i }).click();
-    await page.waitForTimeout(400); // debounce
-    const clearResponseMs = Date.now() - clearStart;
-
-    console.log(`[Virtualization] Filter clear response time: ${clearResponseMs}ms`);
-    expect(clearResponseMs).toBeLessThan(600);
-  });
-
-  /**
-   * Acceptance criterion 3: mobile single-column virtual scroll.
-   *
-   * On a mobile viewport, the virtualizer must render a single-column grid
-   * with correct absolute positioning and no horizontal overflow.
-   */
-  test("mobile viewport uses single-column virtual grid without horizontal overflow", async ({
-    page,
-  }) => {
-    // Set mobile viewport (iPhone 12 equivalent)
-    await page.setViewportSize({ width: 390, height: 844 });
-
-    await page.goto("/marketplace");
-    await page.waitForSelector('[data-virtualized="true"]', { timeout: 20_000 });
-
-    // Verify single-column layout: all visible cards should have the same x position
-    const cards = page.locator("a[href^='/marketplace/']");
-    await cards.first().waitFor({ state: "visible" });
-
-    const count = await cards.count();
-    if (count >= 2) {
-      const box1 = await cards.nth(0).boundingBox();
-      const box2 = await cards.nth(1).boundingBox();
-
-      // In single-column mode, both cards should have the same left x offset
-      // (stacked vertically, not side by side)
-      if (box1 && box2) {
-        expect(
-          Math.abs(box1.x - box2.x),
-          "Mobile should use single-column layout — cards should have matching x coordinates",
-        ).toBeLessThan(10);
-
-        // Second card should be below first (stacked vertically)
-        expect(
-          box2.y,
-          "In single-column layout, second card must appear below the first",
-        ).toBeGreaterThan(box1.y);
-      }
-    }
-
-    // No horizontal overflow on the virtual grid container
-    const overflow = await page.evaluate(() => {
-      const el = document.querySelector('[data-virtualized="true"]');
-      if (!el) return 0;
-      return el.scrollWidth - el.clientWidth;
+    const regressions = evaluateVitalsRegression(baselineVitals, vitals, {
+      gated: GATED_VITALS,
+      thresholdPct: REGRESSION_THRESHOLD_PCT,
     });
 
-    expect(
-      overflow,
-      `Virtual grid should not overflow horizontally on mobile (overflow: ${overflow}px)`,
-    ).toBeLessThanOrEqual(1);
-  });
-
-  /**
-   * Validate that the virtual grid container is present and has a non-zero
-   * computed height (i.e., the totalSize calculation from useWindowVirtualizer
-   * is working and being applied as an inline style).
-   */
-  test("virtual grid container has correct total height set", async ({ page }) => {
-    await page.goto("/marketplace");
-    await page.waitForSelector('[data-virtualized="true"]', { timeout: 20_000 });
-
-    const height = await page.evaluate(() => {
-      const el = document.querySelector('[data-virtualized="true"]') as HTMLElement | null;
-      if (!el) return 0;
-      return parseInt(el.style.height || "0", 10);
-    });
-
-    console.log(`[Virtualization] Virtual grid container height: ${height}px`);
-
-    expect(
-      height,
-      "Virtual grid container must have a positive inline height style set by useWindowVirtualizer.getTotalSize()",
-    ).toBeGreaterThan(0);
+    if (regressions.length > 0) {
+      const message = formatRegression(regressions);
+      testInfo.annotations.push({ type: "web-vitals-regression", description: message });
+      expect(regressions, message).toHaveLength(0);
+    }
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 type Props = {
   targetSelector?: string;
@@ -21,6 +21,9 @@ export default function TourTooltip({
   const ref = useRef<HTMLDivElement | null>(null);
   const [style, setStyle] = useState<Record<string, string>>({});
   const [mounted, setMounted] = useState(false);
+  // #1125 — spring-in and smooth scrolling both trigger vestibular discomfort;
+  // honour the OS setting rather than animating regardless of it.
+  const prefersReducedMotion = useReducedMotion() === true;
 
   useEffect(() => {
     setMounted(true);
@@ -35,7 +38,10 @@ export default function TourTooltip({
     if (!tooltip) return;
 
     tooltip.focus();
-    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    el?.scrollIntoView({
+      block: "center",
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
     el?.setAttribute("data-tour-active", "true");
 
     const compute = () => {
@@ -95,7 +101,7 @@ export default function TourTooltip({
       window.removeEventListener("scroll", compute, true);
       el?.removeAttribute("data-tour-active");
     };
-  }, [open, targetSelector, placement, mounted]);
+  }, [open, targetSelector, placement, mounted, prefersReducedMotion]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,10 +123,14 @@ export default function TourTooltip({
         aria-label="Marketplace onboarding tour"
         tabIndex={-1}
         style={style}
-        initial={{ opacity: 0, scale: 0.9, y: -8 }}
+        initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.9, y: -8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.9, y: -8 }}
-        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        transition={
+          prefersReducedMotion
+            ? { duration: 0 }
+            : { type: "spring", stiffness: 300, damping: 25 }
+        }
         className="fixed z-[99999] w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-zinc-800/60 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black p-4 shadow-2xl backdrop-blur-xl"
       >
         <div className="text-sm text-zinc-100">{children}</div>

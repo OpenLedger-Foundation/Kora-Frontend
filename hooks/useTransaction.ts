@@ -13,6 +13,7 @@ import { mapSimulationError } from "@/lib/stellar/simulationErrors";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { useUIStore } from "@/store/uiStore";
 import { useTransactionStore } from "@/store/transactionStore";
+import { classifySigningError } from "@/lib/walletSigningError";
 import { useTransactionHistoryStore, type TxType } from "@/store/transactionHistoryStore";
 import type { TxState as UITxState } from "@/types";
 import { enqueueSignedXdr, flushQueuedXdrDrafts, type QueuedXdrDraft } from "@/lib/xdrDraftQueue";
@@ -104,18 +105,27 @@ export interface SimulationPreview {
 }
 
 const TOAST_ID = "kora-tx";
+/** Toast id for the "your signature was interrupted" retry prompt (#1121). */
+const RECOVERY_TOAST_ID = "kora-signature-recovery";
+/**
+ * Unsigned XDRs already offered back to the user as a retry prompt, so a
+ * route change that remounts a consumer does not re-raise the same toast.
+ */
+const surfacedRecoveries = new Set<string>();
 const MAX_POLL_ATTEMPTS = 30;
 const POLL_TIMEOUT_MS = 5 * 60 * 1000;
 const SIMULATION_TIMEOUT_MS = 10_000;
 
-async function pollWithBackoff(hash: string): Promise<string> {
+async function pollWithBackoff(
+  hash: string
+): Promise<{ hash: string; txResult?: StellarSdk.rpc.Api.GetTransactionResponse }> {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
 
   for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
     if (Date.now() > deadline) throw new Error("Transaction timed out after 5 minutes");
 
     const result = await rpc.getTransaction(hash);
-    if (result.status === "SUCCESS") return hash;
+    if (result.status === "SUCCESS") return { hash, txResult: result };
     if (result.status === "FAILED") throw new Error("Transaction failed on-chain");
 
     const delay = Math.min(1000 * 2 ** attempt, 16_000);
@@ -162,6 +172,20 @@ function parseSimulationPreview(
   }
 
   return { feeStroops, feeXlm, resourceFee: feeStroops, cpuInstructions, memoryBytes, readBytes, writeBytes };
+}
+
+/** Preview shape used when the RPC cannot simulate at all (#1132). */
+function failedSimulationPreview(error: string): SimulationPreview {
+  return {
+    feeStroops: 0,
+    feeXlm: 0,
+    resourceFee: 0,
+    cpuInstructions: 0,
+    memoryBytes: 0,
+    readBytes: 0,
+    writeBytes: 0,
+    error,
+  };
 }
 
 export interface ProviderSigningConfig {
@@ -252,6 +276,7 @@ export function useTransaction() {
   const { isNetworkMismatch, errorMessage } = useNetworkValidation();
   const toast = useToast();
   const t = useTranslations("transaction");
+  const tSim = useTranslations("txSimulation");
   const setTxState = useUIStore((s) => s.setTxState);
   const addTransaction = useTransactionHistoryStore((s) => s.addTransaction);
   const updateTransactionStatus = useTransactionHistoryStore((s) => s.updateTransactionStatus);
@@ -335,11 +360,50 @@ export function useTransaction() {
     [clearSigningTimer, provider, setTxState]
   );
 
+  /**
+   * Latest `execute`, written by an effect below. `resumeInterruptedSignature`
+   * is declared *before* `execute` so `execute`'s catch block can offer it as
+   * the failure toast's retry action; it calls back through this ref rather
+   * than a dependency, which would otherwise be a use-before-declaration.
+   */
+  const executeRef = useRef<((buildFn: () => Promise<string>) => Promise<string | null>) | null>(
+    null
+  );
+  /** Stops a double-clicked retry from signing the same XDR twice. */
+  const resumeInFlightRef = useRef(false);
+
+  /**
+   * Resume an interrupted signature (#1121).
+   *
+   * The stored XDR is re-signed verbatim — no rebuild, no new sequence number
+   * — so the retry produces the same transaction the wallet never answered
+   * for. Because the interrupted attempt never reached the network, that
+   * re-sign cannot duplicate a submission; the in-flight guard covers the
+   * remaining case of two retries racing each other.
+   *
+   * Returns the transaction hash, or null when there was nothing to resume or
+   * the attempt failed (the failure path already raised its own toast).
+   */
+  const resumeInterruptedSignature = useCallback(async (): Promise<string | null> => {
+    const recovery = useTransactionStore.getState().signatureRecovery;
+    if (!recovery || resumeInFlightRef.current) return null;
+
+    // Clear first: if this attempt is interrupted too, the catch below records
+    // it again with the same XDR instead of losing it.
+    useTransactionStore.getState().clearSignatureRecovery();
+    resumeInFlightRef.current = true;
+    try {
+      return await executeRef.current?.(async () => recovery.unsignedXdr);
+    } finally {
+      resumeInFlightRef.current = false;
+    }
+  }, []);
+
   const execute = useCallback(
     async (
       buildFn: () => Promise<string>,
       options?: {
-        onSuccess?: (hash: string) => void;
+        onSuccess?: (hash: string, txResult?: any) => void;
         successMessage?: string;
         successNotificationType?: NotificationPreferenceType;
         onError?: (err: unknown) => void;
@@ -362,6 +426,13 @@ export function useTransaction() {
     ): Promise<string | null> => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
+      /**
+       * Unsigned XDR of the attempt currently in flight, kept only between the
+       * signing prompt and a successful signature — once signed, the envelope
+       * (not the unsigned XDR) is what must be retried, so recovery is cleared
+       * to prevent a re-sign of an already-submitted transaction (#1121).
+       */
+      let unsignedForRecovery: string | null = null;
 
       try {
         // Check network first
@@ -386,19 +457,48 @@ export function useTransaction() {
             env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE
           );
 
-          // Race simulation against a 10-second timeout
-          const simPromise = rpc.simulateTransaction(tx);
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error("Simulation timed out after 10 seconds. Please try again.")),
+          // Race simulation against a 10-second timeout. A dead RPC must not
+          // surface as a raw "fetch failed" — callers (and users) need an
+          // actionable, localized reason (#1132). The timer is always cleared
+          // so a late resolution cannot keep a Node test/worker alive.
+          const simPromise = rpc.simulateTransaction(tx).catch(() => {
+            throw new Error(`${tSim("rpcUnavailable")}: ${tSim("rpcUnavailableDesc")}`);
+          });
+          let simulationTimeout: ReturnType<typeof setTimeout> | null = null;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            simulationTimeout = setTimeout(
+              () => reject(new Error(tSim("timeout"))),
               SIMULATION_TIMEOUT_MS
-            )
-          );
+            );
+          });
 
-          const sim = await Promise.race([simPromise, timeoutPromise]);
+          let sim: Awaited<ReturnType<typeof rpc.simulateTransaction>> | null = null;
+          let simulationError: string | null = null;
+          try {
+            sim = await Promise.race([simPromise, timeoutPromise]);
+          } catch (err) {
+            simulationError =
+              err instanceof Error ? err.message : tSim("simulationError");
+          } finally {
+            if (simulationTimeout) clearTimeout(simulationTimeout);
+          }
 
           if (abortController.signal.aborted) {
             throw new Error("SIGNING_CANCELLED");
+          }
+
+          // An RPC outage or timeout has no simulation result to inspect, but
+          // the user still needs the same blocked preview as a contract revert:
+          // Cancel/close is the only way forward, and signing never starts.
+          if (simulationError || !sim) {
+            const preview = failedSimulationPreview(
+              simulationError ?? tSim("rpcUnavailableDesc")
+            );
+            setSimulationPreview(preview);
+            if (options?.onSimulationPreview) {
+              await options.onSimulationPreview(preview);
+            }
+            throw new Error(preview.error);
           }
 
           if (StellarSdk.rpc.Api.isSimulationError(sim)) {
@@ -448,6 +548,8 @@ export function useTransaction() {
           canExtend: true,
         });
 
+        unsignedForRecovery = unsignedXdr;
+
         let signedXdr: string;
         if (unsignedXdr.startsWith("mock_")) {
           await new Promise((r) => setTimeout(r, 600));
@@ -474,6 +576,10 @@ export function useTransaction() {
           signedXdr = await Promise.race([signPromise, timeoutPromise]);
           clearSigningTimer();
         }
+
+        // Signature in hand: from here the *signed* envelope is what could be
+        // retried (see the offline queue below), never the unsigned XDR.
+        unsignedForRecovery = null;
 
         if (abortController.signal.aborted) {
           throw new Error("SIGNING_CANCELLED");
@@ -539,10 +645,13 @@ export function useTransaction() {
 
         // 5. Poll
         setStage("polling", { txHash: hash });
+        let txResult: any = null;
         if (!signedXdr.startsWith("mock_")) {
-          await pollWithBackoff(hash);
+          const pollRes = await pollWithBackoff(hash);
+          txResult = pollRes.txResult;
         } else {
           await new Promise((r) => setTimeout(r, 1000));
+          txResult = { status: "SUCCESS", txHash: hash, mock: true };
         }
 
         // Phase 5: confirmed
@@ -556,7 +665,7 @@ export function useTransaction() {
           options?.successNotificationType ?? "txConfirmed"
         );
 
-        options?.onSuccess?.(hash);
+        options?.onSuccess?.(hash, txResult);
         return hash;
       } catch (err: unknown) {
         clearSigningTimer();
@@ -568,6 +677,24 @@ export function useTransaction() {
           return null;
         }
 
+        const kind = classifySigningError(err);
+        // Only an interruption *during the signature prompt* leaves an unsigned
+        // XDR worth resuming; anything after it (submit/poll) is already
+        // covered by the offline queue and must not trigger a re-sign.
+        const recoverable = kind === "interrupted" && unsignedForRecovery !== null;
+
+        if (recoverable && unsignedForRecovery) {
+          useTransactionStore.getState().setSignatureRecovery({
+            unsignedXdr: unsignedForRecovery,
+            reason: kind,
+            detail: errMessage,
+            createdAt: Date.now(),
+          });
+          // This session already showed the retry prompt above — mark it so the
+          // rehydrate effect does not raise a second, duplicate toast.
+          surfacedRecoveries.add(unsignedForRecovery);
+        }
+
         const message = err instanceof Error ? err.message : t("failed");
         setState({ status: "failed", error: message });
         setTxState({ status: "failed", error: { code: "TRANSACTION_FAILED", message } });
@@ -576,10 +703,15 @@ export function useTransaction() {
           updateTransactionStatus(state.txHash, "failed", message);
         }
 
+        // An interrupted signature failed silently — nothing was signed or
+        // submitted — so say that and offer the re-sign instead of reporting
+        // a failed transaction (#1121).
         toast.error(
-          t("failed"),
-          message,
-          options?.onRetry ?? (() => setState({ status: "idle" })),
+          recoverable ? t("signatureInterrupted") : t("failed"),
+          recoverable ? t("signatureInterruptedHint") : message,
+          recoverable
+            ? () => resumeInterruptedSignature()
+            : options?.onRetry ?? (() => setState({ status: "idle" })),
           TOAST_ID,
           "txConfirmed"
         );
@@ -602,12 +734,38 @@ export function useTransaction() {
       updateTransactionStatus,
       toast,
       t,
+      tSim,
+      resumeInterruptedSignature,
     ]
   );
 
   const reset = useCallback(() => {
     cancel();
   }, [cancel]);
+
+  // Expose the latest `execute` to `resumeInterruptedSignature` (declared
+  // above it) without turning `execute` into a dependency of that callback.
+  useEffect(() => {
+    executeRef.current = execute;
+  });
+
+  /**
+   * An interruption that happened before a refresh is rehydrated from the
+   * persisted store, so offer the retry once per pending attempt (#1121).
+   */
+  useEffect(() => {
+    const recovery = useTransactionStore.getState().signatureRecovery;
+    if (!recovery || surfacedRecoveries.has(recovery.unsignedXdr)) return;
+    surfacedRecoveries.add(recovery.unsignedXdr);
+    toast.error(
+      t("signatureInterrupted"),
+      t("signatureInterruptedHint"),
+      // Returns the attempt's promise so callers (and tests) can await it.
+      () => resumeInterruptedSignature(),
+      RECOVERY_TOAST_ID,
+      undefined
+    );
+  }, [resumeInterruptedSignature, toast, t]);
 
   // Auto-flush the offline queue when the connection comes back online.
   // We use a stable submit helper so the effect doesn't need to close over
@@ -635,6 +793,11 @@ export function useTransaction() {
 
   return {
     execute,
+    /**
+     * Re-signs the stored unsigned XDR after an interrupted signature (#1121).
+     * No-op (returns null) when there is no pending attempt.
+     */
+    resumeInterruptedSignature,
     reset,
     cancel,
     extendTimeout,

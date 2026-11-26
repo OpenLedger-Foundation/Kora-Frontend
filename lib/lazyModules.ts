@@ -155,6 +155,153 @@ export function preloadStellarSdk(): void {
   loadStellarSdk().catch(() => undefined);
 }
 
+// ─── 5. Analytics chart components ───────────────────────────────────────────
+//
+// These components render recharts internally. Importing them eagerly pulls
+// recharts (and the component tree) into the main bundle. Each loader below
+// returns the component's default export via a cached, retry-on-failure
+// dynamic import so callers can feed it to Next.js `dynamic()` or render it
+// imperatively.
+
+type AnalyticsChartsModule =
+  typeof import("@/components/analytics/AnalyticsCharts");
+
+let _analyticsChartsPromise: Promise<AnalyticsChartsModule> | null = null;
+
+/**
+ * Lazily loads the AnalyticsCharts component module.
+ */
+export function loadAnalyticsCharts(): Promise<AnalyticsChartsModule> {
+  if (!_analyticsChartsPromise) {
+    _analyticsChartsPromise = import("@/components/analytics/AnalyticsCharts").catch(
+      (err) => {
+        _analyticsChartsPromise = null;
+        throw err;
+      }
+    );
+  }
+  return _analyticsChartsPromise;
+}
+
+/**
+ * Pre-warm the analytics charts bundle (e.g. on nav hover).
+ */
+export function preloadAnalyticsCharts(): void {
+  loadAnalyticsCharts().catch(() => undefined);
+}
+
+type YieldVarianceChartModule =
+  typeof import("@/components/analytics/YieldVarianceChart");
+
+let _yieldVarianceChartPromise: Promise<YieldVarianceChartModule> | null = null;
+
+/**
+ * Lazily loads the YieldVarianceChart component module.
+ */
+export function loadYieldVarianceChart(): Promise<YieldVarianceChartModule> {
+  if (!_yieldVarianceChartPromise) {
+    _yieldVarianceChartPromise = import(
+      "@/components/analytics/YieldVarianceChart"
+    ).catch((err) => {
+      _yieldVarianceChartPromise = null;
+      throw err;
+    });
+  }
+  return _yieldVarianceChartPromise;
+}
+
+/**
+ * Pre-warm the yield variance chart bundle.
+ */
+export function preloadYieldVarianceChart(): void {
+  loadYieldVarianceChart().catch(() => undefined);
+}
+
+type SellerAnalyticsDashboardModule =
+  typeof import("@/components/analytics/SellerAnalyticsDashboard");
+
+let _sellerAnalyticsDashboardPromise: Promise<SellerAnalyticsDashboardModule> | null =
+  null;
+
+/**
+ * Lazily loads the SellerAnalyticsDashboard component module.
+ */
+export function loadSellerAnalyticsDashboard(): Promise<SellerAnalyticsDashboardModule> {
+  if (!_sellerAnalyticsDashboardPromise) {
+    _sellerAnalyticsDashboardPromise = import(
+      "@/components/analytics/SellerAnalyticsDashboard"
+    ).catch((err) => {
+      _sellerAnalyticsDashboardPromise = null;
+      throw err;
+    });
+  }
+  return _sellerAnalyticsDashboardPromise;
+}
+
+/**
+ * Pre-warm the seller analytics dashboard bundle.
+ */
+export function preloadSellerAnalyticsDashboard(): void {
+  loadSellerAnalyticsDashboard().catch(() => undefined);
+}
+
+// ─── 6. Dashboard chart components ───────────────────────────────────────────
+
+type PortfolioDonutModule =
+  typeof import("@/components/dashboard/PortfolioDonut");
+
+let _portfolioDonutPromise: Promise<PortfolioDonutModule> | null = null;
+
+/**
+ * Lazily loads the PortfolioDonut component module.
+ */
+export function loadPortfolioDonut(): Promise<PortfolioDonutModule> {
+  if (!_portfolioDonutPromise) {
+    _portfolioDonutPromise = import("@/components/dashboard/PortfolioDonut").catch(
+      (err) => {
+        _portfolioDonutPromise = null;
+        throw err;
+      }
+    );
+  }
+  return _portfolioDonutPromise;
+}
+
+/**
+ * Pre-warm the portfolio donut chart bundle.
+ */
+export function preloadPortfolioDonut(): void {
+  loadPortfolioDonut().catch(() => undefined);
+}
+
+type YieldProjectionCalculatorModule =
+  typeof import("@/components/dashboard/YieldProjectionCalculator");
+
+let _yieldProjectionCalculatorPromise: Promise<YieldProjectionCalculatorModule> | null =
+  null;
+
+/**
+ * Lazily loads the YieldProjectionCalculator component module.
+ */
+export function loadYieldProjectionCalculator(): Promise<YieldProjectionCalculatorModule> {
+  if (!_yieldProjectionCalculatorPromise) {
+    _yieldProjectionCalculatorPromise = import(
+      "@/components/dashboard/YieldProjectionCalculator"
+    ).catch((err) => {
+      _yieldProjectionCalculatorPromise = null;
+      throw err;
+    });
+  }
+  return _yieldProjectionCalculatorPromise;
+}
+
+/**
+ * Pre-warm the yield projection calculator bundle.
+ */
+export function preloadYieldProjectionCalculator(): void {
+  loadYieldProjectionCalculator().catch(() => undefined);
+}
+
 // ─── Utility: reset all cached promises (useful in tests) ────────────────────
 
 export function _resetLazyModuleCache(): void {
@@ -162,4 +309,9 @@ export function _resetLazyModuleCache(): void {
   _rechartsPromise = null;
   _pdfExportPromise = null;
   _stellarSdkPromise = null;
+  _analyticsChartsPromise = null;
+  _yieldVarianceChartPromise = null;
+  _sellerAnalyticsDashboardPromise = null;
+  _portfolioDonutPromise = null;
+  _yieldProjectionCalculatorPromise = null;
 }

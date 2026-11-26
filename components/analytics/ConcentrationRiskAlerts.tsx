@@ -25,6 +25,7 @@ import {
 import { marketplacePathForConcentration } from "@/lib/concentrationMarketplaceLink";
 import { useSettingsStore } from "@/store/settingsStore";
 import { Button } from "@/components/ui/button";
+import { useFormatters } from "@/hooks/useFormatters";
 
 interface ConcentrationRiskAlertsProps {
   positions: ConcentrationPosition[];
@@ -36,6 +37,7 @@ export function ConcentrationRiskAlerts({
   className,
 }: ConcentrationRiskAlertsProps) {
   const t = useTranslations("concentrationRisk");
+  const { formatPercentage, formatNumber } = useFormatters();
   const concentration = useSettingsStore((s) => s.concentration);
   const dismiss = useSettingsStore((s) => s.dismissConcentrationAlert);
   const snooze = useSettingsStore((s) => s.snoozeConcentrationAlert);
@@ -82,11 +84,11 @@ export function ConcentrationRiskAlerts({
               <p className="text-sm text-zinc-100">
                 {t(alert.dimension, {
                   name: alert.name,
-                  percent: alert.percent.toFixed(1),
+                  percent: formatPercentage(alert.percent, 1),
                 })}
               </p>
               <p className="text-xs text-zinc-400">
-                {t("thresholdNote", { threshold: alert.threshold })}
+                {t("thresholdNote", { threshold: formatNumber(alert.threshold) })}
               </p>
 
               <div className="mt-2 flex flex-wrap gap-2">

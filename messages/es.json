@@ -1,4 +1,24 @@
 {
+  "metadata": {
+    "investorDashboard": {
+      "title": "Panel del inversor",
+      "description": "Sigue tus posiciones, rendimiento y el desempeño de tu cartera en Kora Protocol.",
+      "ogDescription": "Supervisa tus inversiones, rendimiento y actividad de reembolso en Kora Protocol.",
+      "ogImageAlt": "Panel del inversor de Kora Protocol"
+    },
+    "smeDashboard": {
+      "title": "Panel de pymes",
+      "description": "Gestiona tus facturas, financiación y reembolsos en Kora Protocol.",
+      "ogDescription": "Sigue la financiación de facturas y los reembolsos desde tu panel de pymes de Kora Protocol.",
+      "ogImageAlt": "Panel de pymes de Kora Protocol"
+    },
+    "settings": {
+      "title": "Configuración",
+      "description": "Gestiona tus notificaciones, umbrales y preferencias de Kora Protocol.",
+      "ogDescription": "Configura notificaciones, umbrales de concentración y preferencias en Kora Protocol.",
+      "ogImageAlt": "Configuración de Kora Protocol"
+    }
+  },
   "nav": {
     "marketplace": "Mercado",
     "invest": "Invertir",
@@ -44,17 +64,67 @@
     "termsLink": "Términos de Servicio",
     "connectGuardTitle": "Conecta tu billetera para continuar",
     "connectGuardDesc": "Esta página requiere una billetera conectada.",
+    "insufficientUsdcTitle": "USDC insuficiente para financiar",
+    "insufficientUsdcDesc": "Necesitas {shortfall} USDC más para financiar este monto. Tu saldo es {balance}.",
+    "insufficientUsdcEmpty": "Tu billetera aún no tiene USDC. Agrega USDC para empezar a financiar facturas.",
+    "insufficientUsdcCta": "Obtener USDC",
+    "insufficientUsdcBridge": "Transferir USDC a Stellar",
     "sessionExpiredTitle": "Sesión de billetera inactiva",
     "sessionExpiredDesc": "Desbloquea tu extensión de billetera o reconéctate para continuar.",
     "reconnect": "Reconectar Billetera",
     "reconnecting": "Reconectando...",
     "restoringSession": "Restaurando sesión de billetera...",
     "balanceLoadFailed": "No se pudieron cargar los saldos",
+    "unfundedAccountTitle": "Activa tu cuenta de Stellar",
+    "unfundedAccountDescription": "Esta cuenta aún no tiene XLM. Fúndala para activarla y cargar los saldos.",
+    "fundWithXlm": "Añadir XLM con Friendbot",
     "walletConnected": "Billetera conectada",
     "redirecting": "Te estamos llevando a tu panel…",
     "mobileApp": "Aplicación móvil",
     "openInApp": "Abrir en la aplicación",
-    "deepLinkWaiting": "Esperando a que se abra la aplicación de billetera…"
+    "deepLinkWaiting": "Esperando a que se abra la aplicación de billetera…",
+    "networkMismatch": "Conectado a {current}, pero la aplicación requiere {expected}{passphrase}. Cambia la red de tu billetera para continuar.",
+    "passphraseMismatch": " (incompatibilidad de frase de contraseña)",
+    "watchOnly": "Solo Lectura",
+    "exitWatchMode": "Salir del Modo de Solo Lectura",
+    "switchAccount": "Cambiar Cuenta",
+    "accountSettings": {
+      "title": "Configuración de Cuenta",
+      "description": "Configura las notificaciones y verifica tus límites de identidad.",
+      "notifications": "Notificaciones",
+      "identityVerification": "Verificación de Identidad (KYC)"
+    },
+    "kyc": {
+      "status": "Estado de KYC",
+      "verified": "Verificada",
+      "pending": "Revisión Pendiente",
+      "rejected": "Rechazada",
+      "unverified": "Sin Verificar",
+      "unlimited": "Ilimitado",
+      "limit": "Límite: $10.000",
+      "noneDescription": "Verifica tu identidad para aumentar tu capacidad de financiamiento por encima de $10.000 USDC y desbloquear operaciones secundarias.",
+      "pendingDescription": "Tus documentos se enviaron a Synaps y están en revisión. El proceso suele completarse en 5 minutos.",
+      "rejectedDescription": "Tu solicitud de verificación fue rechazada. Vuelve a enviar tus documentos.",
+      "verifiedDescription": "¡Tu identidad está completamente verificada! Tienes acceso a límites de financiamiento ilimitados y mercados secundarios globales.",
+      "resubmit": "Volver a Enviar Documentos",
+      "verify": "Verificar con Synaps"
+    },
+    "trustline": {
+      "eurc": {
+        "cta": "Agregar línea de confianza EURC",
+        "adding": "Agregando EURC…",
+        "loading": "Agregando línea de confianza EURC…",
+        "success": "Línea de confianza EURC añadida correctamente",
+        "error": "Error al agregar la línea de confianza EURC"
+      },
+      "usdc": {
+        "cta": "Agregar línea de confianza USDC",
+        "adding": "Agregando USDC…",
+        "loading": "Agregando línea de confianza USDC…",
+        "success": "Línea de confianza USDC añadida — el saldo se actualizará pronto",
+        "error": "Error al agregar la línea de confianza USDC"
+      }
+    }
   },
   "transaction": {
     "building": "Construyendo transacción…",
@@ -64,6 +134,8 @@
     "polling": "Esperando confirmación…",
     "confirmed": "¡Transacción confirmada!",
     "failed": "Transacción fallida",
+    "signatureInterrupted": "Firma de la billetera interrumpida",
+    "signatureInterruptedHint": "No se firmó ni se envió nada. Reintenta para firmar la misma transacción de nuevo.",
     "retry": "Reintentar",
     "dismiss": "Descartar",
     "cancelSigningSafely": "Cancelar la firma de forma segura",
@@ -127,8 +199,18 @@
     "title": "Mercado de Facturas",
     "subtitle": "Descubriendo oportunidades...",
     "showing": "Mostrando {count} facturas listadas",
+    "indexerWatermark": {
+      "fresh": "Indexador sincronizado {time}",
+      "stale": "Datos del indexador desactualizados — última sincronización {time}"
+    },
+    "indexer": {
+      "synced": "Indexado {time} · ledger {ledger}",
+      "stale": "La disponibilidad puede estar desactualizada — último indexado {time}"
+    },
     "shareFilters": "Compartir Filtros",
     "shareFiltersCopied": "Enlace de filtro copiado al portapapeles",
+    "exportCsv": "Exportar CSV",
+    "exportCsvAria": "Exportar los resultados activos del mercado a CSV",
     "searchPlaceholder": "Buscar por deudor, número de factura o jurisdicción…",
     "clearSearch": "Limpiar búsqueda",
     "filters": "Filtros",
@@ -138,6 +220,14 @@
     "active": "{count} activos",
     "resetFilters": "Restablecer Filtros",
     "activeOnly": "Solo Activas",
+    "activeFilters": "Filtros activos",
+    "filterRemoved": "Filtro \"{label}\" eliminado",
+    "activeFilterRiskTier": "Riesgo: {tier}",
+    "activeFilterAprRange": "APR: {min}%–{max}%",
+    "removeFilterAria": "Quitar filtro: {label}",
+    "clearAllFiltersAria": "Limpiar todos los filtros activos",
+    "allFiltersCleared": "Se limpiaron todos los filtros",
+    "activeFiltersKeyboardHint": "Usa las teclas de flecha para moverte entre los filtros activos. Pulsa Suprimir o Retroceso para quitar el filtro enfocado.",
     "activeOnlyDesc": "Ocultar facturas totalmente financiadas o en mora",
     "showExpired": "Mostrar expiradas",
     "showExpiredDesc": "Incluir listados cuya fecha de vencimiento ya pasó",
@@ -150,6 +240,8 @@
     "noResults": "Ninguna factura coincide con tus filtros",
     "noResultsDesc": "No encontramos listados activos que coincidan con tu selección actual. Intenta restablecer los filtros para explorar otras oportunidades.",
     "clearAllFilters": "Limpiar Todos los Filtros",
+    "offlineEmptyTitle": "No hay facturas en caché disponibles sin conexión",
+    "offlineEmptyDesc": "Conéctate a internet para cargar el mercado. Las listas en caché aparecerán aquí cuando estés sin conexión después de una visita anterior.",
     "recovery": {
       "clearRiskTiers": "Limpiar niveles de riesgo",
       "widenApr": "Ampliar rango de APR",
@@ -159,10 +251,13 @@
     },
     "loadingMore": "Cargando más…",
     "allLoaded": "Todas las facturas cargadas",
+    "newInvoicesAnnouncement": "{count, plural, one {# factura nueva cargada} other {# facturas nuevas cargadas}} — {total} mostradas",
+    "allLoadedAnnouncement": "Todas las facturas cargadas — fin de la lista",
     "backToTop": "↑ Arriba",
     "recent": "Reciente",
     "clear": "Limpiar",
     "sort": {
+      "ariaLabel": "Ordenar facturas",
       "aprDesc": "APR: Mayor a Menor",
       "aprAsc": "APR: Menor a Mayor",
       "amountDesc": "Monto: Mayor a Menor",
@@ -170,6 +265,18 @@
       "dueSoonest": "Vencimiento: Más Próximo",
       "dueLatest": "Vencimiento: Más Lejano",
       "newest": "Más Reciente"
+    },
+    "jurisdictionLabels": {
+      "US": "Estados Unidos",
+      "EU": "Unión Europea",
+      "UK": "Reino Unido",
+      "NG": "Nigeria",
+      "KE": "Kenia",
+      "GH": "Ghana",
+      "ZA": "Sudáfrica",
+      "OTHER": "Otro",
+      "IN": "India",
+      "BR": "Brasil"
     },
     "categoryLabels": {
       "manufacturing": "Manufactura",
@@ -214,6 +321,7 @@
       "marketplaceSource": "Marketplace"
     },
     "comparison": {
+      "selectionHint": "Selección de comparación: {count} seleccionadas. Usa las flechas para moverte, espacio para alternar y Shift más flechas para seleccionar un rango.",
       "barAriaLabel": "Barra de comparación de facturas",
       "compare": "Comparar",
       "loading": "Cargando {id}…",
@@ -223,7 +331,9 @@
       "copied": "¡Copiado!",
       "clearAriaLabel": "Limpiar todas las comparaciones",
       "selectAtLeastTwo": "Selecciona al menos 2 facturas para comparar",
-      "openTable": "Abrir tabla de comparación"
+      "openTable": "Abrir tabla de comparación",
+      "maxReached": "Máx alcanzado",
+      "limitReached": "La comparación está llena: máximo {max} facturas. Quita una para añadir otra."
     },
     "watchlist": {
       "ariaLabel": "Lista de seguimiento de facturas",
@@ -237,13 +347,33 @@
       "fundingProgress": "Progreso de financiamiento",
       "statusChanges": "Cambios de estado",
       "aprChanges": "Cambios de TAE",
-      "alertsPaused": "Las alertas están pausadas."
+      "alertsPaused": "Las alertas están pausadas.",
+      "alerts": {
+        "statusChanged": "El estado de {invoiceNumber} cambió a {status}.",
+        "fundingProgress": "La financiación de {invoiceNumber} alcanzó el {percent}.",
+        "aprChanged": "La TAE de {invoiceNumber} cambió al {apr}.",
+        "statuses": { "draft": "Borrador", "pending_mint": "Mint pendiente", "listed": "Publicada", "partially_funded": "Financiada parcialmente", "active": "Activa", "fully_funded": "Financiada por completo", "repaid": "Pagada", "defaulted": "Incumplida", "cancelled": "Cancelada" }
+      }
     },
     "searchAria": "Buscar en el mercado",
     "loadMoreFailed": "No se pudieron cargar más facturas.",
     "retryLoading": "Reintentar carga"
   },
   "invoiceDetail": {
+    "yieldCalculator": {
+      "title": "Proyección de rendimiento",
+      "expectedReturn": "Rendimiento esperado",
+      "annualisedYield": "Rendimiento anualizado",
+      "breakEvenDate": "Fecha de equilibrio",
+      "netYield": "Rendimiento neto",
+      "approxUsd": "Aprox. USD",
+      "invalidData": "Proyección de rendimiento no disponible: los datos de financiamiento no son válidos.",
+      "capReached": "El monto supera el límite de financiamiento restante. Reduce tu inversión para ver una proyección válida.",
+      "zeroApr": "APR del 0 %: esta inversión no generará rendimiento.",
+      "noYield": "No se generará rendimiento con estas condiciones.",
+      "priceUnavailable": "Estimación en USD no disponible: falta el precio del oráculo.",
+      "a11yLabel": "Proyección de rendimiento de tu inversión"
+    },
     "backToMarketplace": "Volver al Mercado",
     "financingTerms": "Términos de Financiamiento",
     "fundingProgress": "Progreso de Financiamiento",
@@ -253,6 +383,11 @@
     "maturity": "Vencimiento",
     "connectToInvest": "Conecta tu billetera Stellar para ver rendimientos y comenzar a invertir.",
     "connectWalletToInvest": "Conectar Billetera para Invertir",
+    "insufficientUsdc": {
+      "title": "No tienes suficiente USDC",
+      "description": "Tu billetera tiene {available} USDC, pero esta inversión requiere {required}. Adquiere USDC y luego actualiza tu saldo para continuar.",
+      "acquire": "Adquirir USDC"
+    },
     "selfFundBlocked": "Auto-Financiamiento Bloqueado",
     "selfFundDesc": "No puedes financiar tu propia factura. Las reglas de factoring desacoplado restringen a los propietarios de facturas de participar como proveedores de liquidez.",
     "cannotFundOwn": "No puedes financiar tu propia factura",
@@ -325,6 +460,11 @@
       "review": "Subir y Revisar"
     },
     "fields": {
+      "addressBook": {
+        "noAddress": "No hay una dirección para guardar",
+        "invalidAddress": "Formato de dirección Stellar inválido",
+        "saved": "Guardada en la libreta de direcciones"
+      },
       "invoiceNumber": "Número de Factura",
       "invoiceNumberPlaceholder": "FAC-2024-0001",
       "debtorName": "Nombre de la Empresa Deudora",
@@ -368,9 +508,28 @@
       "youReceive": "Monto de Financiamiento (Recibes)",
       "investorPayout": "Pago al Inversor al Vencimiento",
       "capitalSeek": "Capital Buscado ({percent}%)",
-      "yieldCost": "Costo de Rendimiento ({percent}%)"
+      "yieldCost": "Costo de Rendimiento ({percent}%)",
+      "netFinanceCost": "Costo Financiero Neto (Rendimiento)",
+      "effectiveApr": "APR Efectivo"
     },
+    "notAvailable": "N/D",
     "upload": {
+      "document": "Documento de Factura",
+      "progress": {
+        "uploading": "Subiendo factura a IPFS…",
+        "building": "Construyendo transacción en cadena…",
+        "ipfsPin": "Anclaje IPFS",
+        "onChainMint": "Acuñación en cadena",
+        "pinDescription": "Anclando tu documento de factura en IPFS. Esto fija el hash del documento en la cadena.",
+        "chainDescription": "Construyendo y simulando la transacción de acuñación de Soroban."
+      },
+      "ipfsUnavailable": {
+        "title": "El almacenamiento IPFS no está disponible temporalmente.",
+        "description": "Tu factura no puede acuñarse ahora. Todos los datos del formulario se guardaron; puedes intentarlo cuando el servicio se recupere.",
+        "retrying": "Comprobando de nuevo automáticamente… (intento {count})",
+        "retryAriaLabel": "Reintentar comprobación de estado",
+        "checking": "Comprobando disponibilidad del almacenamiento IPFS…"
+      },
       "dragDrop": "Arrastra y suelta tu PDF de factura aquí",
       "orClick": "o haz clic para explorar",
       "maxSize": "Solo PDF · Máx 10MB",
@@ -380,6 +539,7 @@
       "errors": {
         "tooLarge": "El archivo es demasiado grande. El tamaño máximo es exactamente 10MB.",
         "invalidType": "Tipo de archivo inválido. Solo se permiten documentos PDF.",
+        "invalidMagicBytes": "El archivo seleccionado no es un documento PDF válido (falta el encabezado %PDF-).",
         "required": "Por favor sube el PDF de la factura antes de acuñar.",
         "virusScanRejected": "Archivo rechazado por escaneo de seguridad",
         "virusScanRejectedDescription": "{reason} Por favor selecciona un archivo diferente e intenta de nuevo.",
@@ -387,6 +547,8 @@
       }
     },
     "review": {
+      "summary": "Resumen",
+      "financingCapital": "Capital de Financiamiento",
       "title": "Revisar y Acuñar",
       "subtitle": "Confirma los detalles de tu factura antes de acuñar en Soroban",
       "mintButton": "Acuñar NFT de Factura",
@@ -397,6 +559,10 @@
       "title": "¡Factura Acuñada!",
       "subtitle": "Tu factura ha sido tokenizada como NFT en la red Stellar Soroban y está lista para financiamiento.",
       "tokenId": "ID del Token NFT",
+      "tokenIdFormatted": "#{id}",
+      "tokenPending": "Pendiente de confirmación",
+      "syncingBadge": "Sincronizando",
+      "indexerLag": "Indexación en progreso",
       "txHash": "Hash de Transacción",
       "ipfsCid": "CID de Metadatos IPFS",
       "verifyStellar": "Verificar en Stellar Expert",
@@ -413,26 +579,40 @@
       "anonymized": "Anonimizado (Industria + País)"
     },
     "discountRateDesc": "El descuento ofrecido a los inversores. Una tasa más alta atrae financiamiento más rápido pero aumenta el costo de financiamiento.",
+    "transaction": {
+      "signingTitle": "Firma Requerida",
+      "submittingTitle": "Enviando Transacción",
+      "signingDescription": "Abre la extensión de tu billetera Stellar y firma la transacción para autorizar la acuñación del NFT de factura en la cadena.",
+      "submittingDescription": "Transmitiendo tu transacción a la red Stellar. Esperando el consenso del libro mayor…",
+      "failedTitle": "Acuñación Fallida",
+      "failedDescription": "Algo salió mal al acuñar tu factura. Inténtalo de nuevo.",
+      "retry": "Reintentar Acuñación"
+    },
     "kybGate": {
-      "title": "Business Verification Required",
-      "subtitleNone": "To mint an invoice on Kora, your SME account must complete KYB verification. The process takes about 2 minutes.",
-      "subtitlePending": "Your verification documents are under review. We'll automatically continue once approved — this page will refresh for you.",
-      "subtitleRejected": "Your previous verification attempt was unsuccessful. Please re-submit with a clear, uncropped document.",
-      "ctaNone": "Start Verification",
-      "ctaRejected": "Re-verify Business",
-      "ctaPending": "Checking verification status…",
-      "backToWizard": "Go Back",
-      "whatYouNeed": "What you will need:",
-      "needIdDoc": "Government-issued ID or business registration document",
-      "needProofAddress": "Proof of business address",
-      "needTime": "Takes approximately 2 minutes",
-      "complianceNote": "Verification is powered by Synaps and required under global AML/KYB compliance standards."
+      "title": "Verificación Comercial Requerida",
+      "subtitleNone": "Para acuñar una factura en Kora, tu cuenta de PYME debe completar la verificación KYB. El proceso tarda unos 2 minutos.",
+      "subtitlePending": "Tus documentos de verificación están en revisión. Continuaremos automáticamente cuando se aprueben; esta página se actualizará.",
+      "subtitleRejected": "Tu intento de verificación anterior no tuvo éxito. Vuelve a enviarlo con un documento claro y sin recortar.",
+      "ctaNone": "Iniciar Verificación",
+      "ctaRejected": "Verificar Empresa de Nuevo",
+      "ctaPending": "Comprobando estado de verificación…",
+      "backToWizard": "Volver al Asistente",
+      "whatYouNeed": "Necesitarás:",
+      "needIdDoc": "Identificación oficial o documento de registro comercial",
+      "needProofAddress": "Comprobante de domicilio comercial",
+      "needTime": "Tarda aproximadamente 2 minutos",
+      "complianceNote": "La verificación funciona con Synaps y es obligatoria según los estándares globales de cumplimiento AML/KYB."
     },
     "draftRecovery": {
       "title": "Tienes un borrador de factura sin terminar",
       "description": "Encontramos un borrador guardado de tu sesión anterior. ¿Quieres continuar donde lo dejaste?",
       "resume": "Continuar Borrador",
       "discard": "Descartar"
+    },
+    "errors": {
+      "partialIpfsCleanup": "La creación de la factura falló. Los archivos ya subidos a IPFS fueron eliminados.",
+      "partialIpfsCleanupFailed": "La creación de la factura falló. Algunos archivos subidos no pudieron eliminarse; caducarán automáticamente.",
+      "mintFailed": "No se pudo preparar la factura para firmarla. Inténtalo de nuevo."
     }
   },
   "smeDashboard": {
@@ -564,9 +744,30 @@
       "description": "Financia facturas en el mercado para comenzar a construir tu portafolio.",
       "message": "Financia facturas en el mercado para construir tu portafolio."
     },
-    "fundTestnet": "Financiar Cuenta Testnet"
+    "fundTestnet": "Financiar Cuenta Testnet",
+    "export": {
+      "csv": "Exportar CSV",
+      "pdf": "Exportar PDF",
+      "csvAriaLabel": "Exportar posiciones como CSV",
+      "pdfAriaLabel": "Exportar posiciones como PDF",
+      "emptyTooltip": "No hay posiciones para exportar"
+    }
   },
   "transactions": {
+    "csv": {
+      "columns": {
+        "hash": "Hash de la transacción",
+        "type": "Tipo",
+        "status": "Estado",
+        "amount": "Importe",
+        "asset": "Activo",
+        "date": "Fecha",
+        "timestampUtc": "Marca de tiempo (UTC, ISO 8601)",
+        "description": "Descripción",
+        "error": "Error"
+      },
+      "exportFailed": "No se pudieron exportar las transacciones. Inténtalo de nuevo."
+    },
     "title": "Historial de Transacciones",
     "subtitle": "Tu actividad completa en cadena en Kora Protocol",
     "exportCsv": "Exportar CSV",
@@ -611,6 +812,9 @@
     "viewStellar": "Ver en Stellar Expert",
     "remove": "Eliminar transacción",
     "listTitle": "Transacciones",
+    "groups": {
+      "other": "General"
+    },
     "reason": "Motivo:",
     "searchAria": "Buscar transacciones",
     "typeFilterAria": "Filtrar por tipo de transacción",
@@ -646,12 +850,17 @@
       "exportAria": "Exportar transacciones a CSV",
       "clearAria": "Limpiar historial de transacciones",
       "clearConfirm": "¿Limpiar todo el historial de transacciones? Esta acción no se puede deshacer.",
+      "clearConfirmTitle": "¿Borrar el historial de transacciones?",
+      "clearConfirmCancel": "Cancelar",
+      "clearConfirmConfirm": "Borrar historial",
+      "clearCleared": "Historial de transacciones borrado",
       "detailsTitle": "Detalles de la Transacción",
       "closeDetailsAria": "Cerrar detalles de la transacción",
       "type": "Tipo",
       "txHash": "Hash de Transacción",
       "copyHashAria": "Copiar hash",
-      "hashCopiedAria": "Hash copiado",
+      "hashCopied": "Hash copiado",
+      "hashCopyFailed": "Error al copiar el hash",
       "status": "Estado",
       "amount": "Monto",
       "dateTime": "Fecha y Hora",
@@ -673,13 +882,49 @@
     "connectTitle": "Conecta tu billetera",
     "connectDesc": "Conéctate para ver el análisis de tu portafolio",
     "range": "Rango:",
+  "filters": {
+    "all": "Todos",
+    "allRegions": "Todas las regiones",
+    "allCategories": "Todas las categorías",
+    "riskLabel": "Riesgo:",
+    "regionLabel": "Región:",
+    "categoryLabel": "Categoría:",
+    "periodLabel": "Periodo:",
+    "clear": "Limpiar",
+    "riskTiers": { "AAA": "AAA", "AA": "AA", "A": "A", "BBB": "BBB", "BB": "BB", "B": "B" },
+    "jurisdictions": { "NG": "Nigeria", "KE": "Kenia", "GH": "Ghana", "ZA": "Sudáfrica", "IN": "India", "BR": "Brasil" },
+    "categories": { "trade": "Comercio", "services": "Servicios", "manufacturing": "Manufactura", "retail": "Venta minorista" }
+  },
+  "filterSummary": {
+    "riskTier": "Riesgo {tier}",
+    "customRange": "rango personalizado",
+    "ytd": "año hasta la fecha",
+    "allTime": "todo el periodo",
+    "lastDays": "últimos {days, plural, one {# día} other {# días}}",
+    "allData": "tu portafolio",
+    "separator": ", ",
+    "summary": "Datos de {filters} ({period})"
+  },
+  "presets": { "days7": "7 días", "days30": "30 días", "days90": "90 días", "year": "1 año", "ytd": "Año hasta la fecha", "all": "Todo el periodo", "custom": "Personalizado", "apply": "Aplicar" },
+  "validation": { "invalidRange": "La fecha inicial debe ser anterior a la fecha final" },
+  "chartA11y": { "empty": "{title}. No hay datos disponibles.", "series": "{title}. {count, plural, one {# punto de datos} other {# puntos de datos}}: {points}.", "distribution": "{title}. {count, plural, one {# segmento} other {# segmentos}}: {segments}.", "segment": "{name}: {value}", "separator": "; ", "variancePoint": "{month}: esperado {expected}, realizado {realized}", "treemapSummary": "{title}. Total: {total} en {count, plural, one {# nivel de riesgo} other {# niveles de riesgo}}. {groups}.", "treemapGroup": "{group}: {value}, {percent} de la cartera, incluidos {children}", "treemapLeaf": "{name} {value} ({percent} del grupo)" },
+  "charts": {
+    "titles": { "portfolio": "Crecimiento de la cartera", "yield": "Rendimiento a lo largo del tiempo", "risk": "Distribución del riesgo", "monthly": "Rendimientos mensuales", "allocation": "Mapa de asignación", "benchmark": "Comparación con referencia" },
+    "series": { "value": "Valor", "yield": "Rendimiento", "allocation": "Asignación", "return": "Retorno", "portfolio": "Cartera" },
+    "empty": { "portfolio": "No hay datos de cartera", "yield": "No hay datos de rendimiento", "risk": "No hay datos de riesgo", "monthly": "No hay datos de rendimiento mensual", "allocation": "No hay datos de asignación", "benchmark": "No hay datos de referencia" }
+  },
     "exportPortfolio": "Exportar CSV de Portafolio",
     "exportYield": "Exportar CSV de Rendimiento",
     "stats": {
       "totalDeployed": "Total Desplegado",
       "totalYield": "Rendimiento Total Ganado",
       "annualisedReturn": "Retorno Anualizado",
-      "defaultRate": "Tasa de Mora"
+      "defaultRate": "Tasa de Mora",
+      "activePositions": "Posiciones activas",
+      "averageApr": "TAE promedio",
+      "acrossFilteredPositions": "En las posiciones filtradas",
+      "positionsCount": "{count, plural, one {# posición} other {# posiciones}}",
+      "return": "retorno del {percent}"
     },
     "treemap": {
       "title": "Asignación por riesgo y jurisdicción",
@@ -705,6 +950,9 @@
       "title": "Resumen de cartera",
       "share": "Compartir resumen"
     },
+    "copyLink": "Copiar enlace filtrado",
+    "linkCopied": "Enlace copiado",
+    "linkCopyFailed": "No se pudo copiar el enlace",
     "a11y": {
       "filterJurisdiction": "Filtrar por jurisdicción",
       "filterCategory": "Filtrar por categoría",
@@ -713,6 +961,7 @@
       "exportYield": "Exportar datos de rendimiento",
       "exportRisk": "Exportar datos de riesgo",
       "exportReturn": "Exportar datos de retorno",
+      "exportMonthly": "Exportar datos de rendimiento mensual",
       "exportVariance": "Exportar CSV de variación",
       "exportSellerMetrics": "Exportar métricas de vendedor como CSV",
       "sellerMetricsTable": "Tabla de métricas de vendedor",
@@ -787,6 +1036,9 @@
     "writeBytes": "Bytes de Escritura",
     "simulationError": "Error de Simulación",
     "simulationErrorDesc": "Esta transacción no puede ejecutarse. Por favor revisa el error a continuación.",
+    "simulationErrorHint": "No se firmó ni envió nada. Revisa el importe y vuelve a intentarlo.",
+    "rpcUnavailable": "Servicio de simulación no disponible",
+    "rpcUnavailableDesc": "El RPC de Stellar no respondió. Revisa el endpoint del RPC o vuelve a intentarlo.",
     "timeout": "La simulación expiró después de 10 segundos. Por favor intenta de nuevo.",
     "simulating": "Simulando transacción…",
     "proceed": "Proceder y Firmar",
@@ -798,6 +1050,7 @@
     "kb": "{count} KB"
   },
   "network": {
+    "serviceUnavailable": "Un servicio de Stellar no está disponible. Vuelve a intentarlo en breve.",
     "operational": "Operacional",
     "degraded": "Degradado",
     "down": "Caído",
@@ -925,7 +1178,9 @@
     "title": "Red Incorrecta",
     "message": "Red Incorrecta: Conectado a {current}, pero esta aplicación requiere {expected}{passphrase}. Por favor cambia la red de tu billetera para continuar.",
     "passphraseMismatch": " (incompatibilidad de frase de contraseña)",
-    "dismiss": "Cerrar aviso de red incorrecta"
+    "dismiss": "Cerrar aviso de red incorrecta",
+    "fix": "Corregir",
+    "switchNetwork": "Cambiar Red"
   },
   "addressBook": {
     "title": "Libreta de Direcciones",
@@ -964,7 +1219,8 @@
     "pickContact": "Elegir un contacto guardado",
     "noContacts": "Aún no hay contactos guardados",
     "pickFromAddressBook": "Elegir de la Libreta",
-    "verifiedLabel": "Label verified with signature",
+    "verifiedLabel": "Etiqueta verificada con firma",
+    "unverifiedLabel": "Etiqueta no verificada: firma ausente o inválida",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"
@@ -987,6 +1243,10 @@
     "gotIt": "Entendido"
   },
   "settings": {
+    "error": {
+      "title": "No se pudo cargar la configuración",
+      "description": "Algo salió mal al cargar tu configuración. Inténtalo de nuevo."
+    },
     "title": "Configuración",
     "subtitle": "Administra las preferencias de notificaciones y el recorrido del producto.",
     "connectTitle": "Conecta tu billetera",
@@ -994,6 +1254,18 @@
     "connectCta": "Conectar billetera",
     "navLabel": "Configuración",
     "openFull": "Abrir configuración completa",
+    "transfer": {
+      "title": "Exportar e importar preferencias",
+      "description": "Respalda tu configuración y libreta de direcciones como un archivo cifrado. Necesitarás la misma frase de contraseña para importarlo.",
+      "passphrase": "Frase de contraseña",
+      "passphraseHint": "Al menos {min} caracteres. Nunca se guarda ni se envía.",
+      "export": "Exportar cifrado",
+      "import": "Importar archivo",
+      "exported": "Preferencias exportadas.",
+      "exportFailed": "No se pudieron exportar las preferencias.",
+      "imported": "Preferencias importadas.",
+      "importFailed": "No se pudo importar. Revisa el archivo y la frase de contraseña."
+    },
     "notifications": {
       "sectionTitle": "Preferencias de Notificaciones",
       "sectionDesc": "Controla qué alertas aparecen durante tu flujo de trabajo.",
@@ -1018,8 +1290,18 @@
       },
       "resetDefaults": "Restablecer valores predeterminados",
       "toggleAriaLabel": "Activar/desactivar {label}",
+      "quietHours": {
+        "label": "Horas de Silencio",
+        "description": "Silencia los recordatorios de vencimiento durante las horas que configures.",
+        "toggleAriaLabel": "Activar/desactivar horas de silencio",
+        "startLabel": "Desde",
+        "endLabel": "Hasta",
+        "hint": "Los recordatorios se silencian de {start} a {end}."
+      },
       "tourSection": {
-        "title": "Recorrido de Incorporación"
+        "title": "Recorrido de Incorporación",
+        "status": "Estado:",
+        "step": "Paso {count}"
       },
       "shortcutsSection": {
         "title": "Atajos de Teclado",
@@ -1143,7 +1425,7 @@
     "fundInvoice": "Financiar Factura",
     "addToCompare": "Agregar {debtor} a comparación",
     "removeFromCompare": "Eliminar {debtor} de comparación",
-    "comparisonFull": "La lista de comparación está llena (máx. 3)",
+    "comparisonFull": "La lista de comparación está llena (máx. {max})",
     "addToCompareButton": "Agregar a Comparar",
     "removeFromCompareButton": "Eliminar de Comparar",
     "viewDetails": "Ver Detalles"
@@ -1310,7 +1592,14 @@
     "totalFees": "Comisiones totales ({rate})",
     "total": "Total a pagar",
     "noFees": "Esta adquisición no tiene comisiones.",
-    "listingNote": "El comprador paga {rate} en comisiones sobre el precio solicitado."
+    "listingNote": "El comprador paga {rate} en comisiones sobre el precio solicitado.",
+    "protocolFeeAria": "¿Qué es la comisión del protocolo?",
+    "marketFeeAria": "¿Qué es la comisión del mercado?",
+    "totalFeeAria": "Cómo se calcula el total",
+    "protocolFeeTooltip": "Una comisión del protocolo del {rate} financia los contratos Soroban de Kora que mantienen esta operación en custodia.",
+    "marketFeeTooltip": "Una comisión del mercado del {rate} se destina a la plataforma que publica esta factura.",
+    "totalFeeTooltip": "El precio de la posición más {fees} en comisiones. Pagas {total}.",
+    "tooltipTriggerLabel": "Ver desglose de comisiones"
   },
   "concentrationRisk": {
     "title": "Riesgo de concentración",
@@ -1353,6 +1642,27 @@
     "noData": "Aún no hay posiciones financiadas para agrupar.",
     "export": "Exportar cohortes"
   },
+  "secondary": {
+    "filters": {
+      "tenor": {
+        "all": "Todos los Plazos",
+        "0-30": "0 - 30 días",
+        "31-60": "31 - 60 días",
+        "61-90": "61 - 90 días",
+        "90+": "90+ días"
+      },
+      "yield": {
+        "0": "Cualquier Rendimiento",
+        "5": "5%+ de Rendimiento",
+        "10": "10%+ de Rendimiento",
+        "15": "15%+ de Rendimiento"
+      }
+    }
+  },
+  "killSwitch": {
+    "title": "Las acciones están pausadas temporalmente",
+    "description": "Esta acción está desactivada en esta instancia. Vuelve a intentarlo más tarde."
+  },
   "secondaryMarket": {
     "title": "Mercado Secundario",
     "badge": "Posiciones Transferibles P2P",
@@ -1393,6 +1703,7 @@
     "sellerAddress": "Dirección del Vendedor",
     "acquirePosition": "Adquirir Posición",
     "connectWalletToAcquire": "Conectar Billetera para Adquirir",
+    "connectWalletDescription": "Conecta tu billetera primero.",
     "acceptTransfer": "Aceptar Transferencia",
     "listingAria": "Listado secundario para {invoiceNumber}",
     "listingAriaStale": "Listado secundario para {invoiceNumber} — no disponible, posición transferida",
@@ -1540,5 +1851,8 @@
       "optionsLoaded": "{count, plural, =0 {No hay opciones disponibles} one {# opción disponible} other {# opciones disponibles}}",
       "loadError": "No se pudieron cargar las opciones"
     }
+  },
+  "featureFlags": {
+    "featureDisabled": "Esta función está desactivada actualmente ({flag})."
   }
 }

@@ -8,13 +8,23 @@
  *  - "Clear all" removes all active filters at once
  *  - Must NOT cause full-page re-render — only the grid updates via store subscription
  *  - Chip removals are announced to screen readers via aria-live="polite"
+ *
+ * Keyboard model (#440):
+ *  - The chip remove buttons form a single roving-tabindex group (one Tab stop,
+ *    arrow keys / Home / End to move within it) via `useRovingTabIndex`.
+ *  - `Delete` and `Backspace` dismiss the focused chip and move focus to the
+ *    chip that slides into its slot (or the previous chip); when the last chip
+ *    is dismissed focus falls back to `fallbackFocusId` so it is never dropped
+ *    onto `<body>`.
  */
 
-import React, { useId } from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { useInvoiceStore } from "@/store/invoiceStore";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useRovingTabIndex } from "@/hooks/useRovingTabIndex";
 import { cn } from "@/lib/utils";
 
 export interface FilterChip {
@@ -34,6 +44,11 @@ interface ActiveFilterChipsProps {
   chips?: FilterChip[];
   /** Additional className for the wrapper */
   className?: string;
+  /**
+   * Element id to focus when the last remaining chip is dismissed (the chip
+   * group itself unmounts, so focus would otherwise drop to `<body>`).
+   */
+  fallbackFocusId?: string;
 }
 
 /**
@@ -42,14 +57,19 @@ interface ActiveFilterChipsProps {
  */
 export function deriveChips(
   filters: import("@/store/invoiceStore").FilterState,
-  t?: (key: string) => string
+  t?: (key: string, values?: Record<string, string | number>) => string
 ): FilterChip[] {
   const chips: FilterChip[] = [];
+
+  const translateOr = (key: string, fallback: string, values?: Record<string, string | number>) => {
+    const translated = t?.(key, values);
+    return translated && translated !== key ? translated : fallback;
+  };
 
   for (const cat of filters.categories) {
     chips.push({
       key: `category:${cat}`,
-      label: cat.charAt(0).toUpperCase() + cat.slice(1),
+      label: translateOr(`categoryLabels.${cat}`, cat.charAt(0).toUpperCase() + cat.slice(1)),
       filterKey: "categories",
       value: cat,
     });
@@ -58,7 +78,7 @@ export function deriveChips(
   for (const jur of filters.jurisdictions) {
     chips.push({
       key: `jurisdiction:${jur}`,
-      label: jur,
+      label: translateOr(`jurisdictionLabels.${jur}`, jur),
       filterKey: "jurisdictions",
       value: jur,
     });
@@ -67,7 +87,7 @@ export function deriveChips(
   for (const tier of filters.riskTiers) {
     chips.push({
       key: `riskTier:${tier}`,
-      label: `Risk: ${tier}`,
+      label: translateOr("activeFilterRiskTier", `Risk: ${tier}`, { tier }),
       filterKey: "riskTiers",
       value: tier,
     });
@@ -76,7 +96,11 @@ export function deriveChips(
   if (filters.aprRange[0] > 0 || filters.aprRange[1] < 50) {
     chips.push({
       key: "aprRange",
-      label: `APR: ${filters.aprRange[0]}%–${filters.aprRange[1]}%`,
+      label: translateOr(
+        "activeFilterAprRange",
+        `APR: ${filters.aprRange[0]}%–${filters.aprRange[1]}%`,
+        { min: filters.aprRange[0], max: filters.aprRange[1] }
+      ),
       filterKey: "aprRange",
     });
   }
@@ -100,40 +124,151 @@ export function deriveChips(
   return chips;
 }
 
+/**
+ * Motion props for an individual chip. Extracted so the reduced-motion branch
+ * is unit-testable without depending on Framer's animation timing in jsdom.
+ *
+ * When reduced motion is requested the chip still mounts/unmounts — it just
+ * does so with zero-duration opacity changes instead of a scaled translate,
+ * and the "Clear all" layout animation is dropped by the caller.
+ */
+export function getChipMotionProps(prefersReducedMotion: boolean) {
+  if (prefersReducedMotion) {
+    return {
+      initial: false as const,
+      animate: { opacity: 1, scale: 1, y: 0 },
+      exit: { opacity: 1, scale: 1, y: 0 },
+      transition: { duration: 0 },
+    };
+  }
+
+  return {
+    initial: { opacity: 0, scale: 0.9, y: -4 },
+    animate: { opacity: 1, scale: 1, y: 0 },
+    exit: { opacity: 0, scale: 0.9, y: -4 },
+    transition: { duration: 0.15 },
+  };
+}
+
 export default function ActiveFilterChips({
   chips: externalChips,
   className,
+  fallbackFocusId,
 }: ActiveFilterChipsProps) {
   const t = useTranslations("marketplace");
   const { filters, updateSingleFilter, resetFilters } = useInvoiceStore();
   const announcerId = useId();
+  const hintId = useId();
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const chipMotion = getChipMotionProps(prefersReducedMotion);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Derive chips from store if not provided externally
   const chips = externalChips ?? deriveChips(filters, t);
 
-  const handleRemove = (chip: FilterChip) => {
-    const key = chip.filterKey;
+  // One Tab stop for the whole chip group; arrow keys move within it.
+  const { registerRef, handleKeyDown, getTabIndex, setActiveIndex } =
+    useRovingTabIndex(chips.length);
 
-    if (key === "categories" || key === "jurisdictions" || key === "riskTiers") {
-      const current = filters[key] as string[];
-      updateSingleFilter(key, current.filter((v) => v !== chip.value));
+  // Where focus should land once the store update has re-rendered the group:
+  // the chip key that takes the removed chip's slot (or the previous chip), or
+  // "fallback" when no chips remain. Keys (not indices) are used because
+  // AnimatePresence keeps the exiting chip in the DOM until its exit animation
+  // finishes, so positional indices would still point at the dismissed button.
+  const [pendingFocus, setPendingFocus] = useState<{ key: string } | "fallback" | null>(
+    null
+  );
+
+  const announce = useCallback(
+    (message: string) => {
+      const el = document.getElementById(announcerId);
+      if (el) el.textContent = message;
+    },
+    [announcerId]
+  );
+
+  const handleRemove = useCallback(
+    (chip: FilterChip) => {
+      const key = chip.filterKey;
+
+      if (key === "categories" || key === "jurisdictions" || key === "riskTiers") {
+        const current = filters[key] as string[];
+        updateSingleFilter(key, current.filter((v) => v !== chip.value));
+        return;
+      }
+
+      if (key === "aprRange") {
+        updateSingleFilter("aprRange", [0, 50]);
+        return;
+      }
+
+      if (key === "activeOnly") {
+        updateSingleFilter("activeOnly", false);
+        return;
+      }
+
+      if (key === "showExpired") {
+        updateSingleFilter("showExpired", false);
+      }
+    },
+    [filters, updateSingleFilter]
+  );
+
+  /** Remove the chip at `index` and queue predictable focus for after re-render. */
+  const dismissAt = useCallback(
+    (index: number) => {
+      const chip = chips[index];
+      if (!chip) return;
+
+      handleRemove(chip);
+
+      const remaining = chips.filter((_, i) => i !== index);
+      if (remaining.length === 0) {
+        // The whole group unmounts — hand focus to the configured fallback.
+        setPendingFocus("fallback");
+      } else {
+        // Prefer the chip that slides into this slot; otherwise the previous one.
+        const target = remaining[Math.min(index, remaining.length - 1)];
+        setPendingFocus({ key: target.key });
+      }
+
+      const translated = t?.("filterRemoved", { label: chip.label });
+      announce(
+        translated && translated !== "filterRemoved"
+          ? translated
+          : `Filter "${chip.label}" removed`
+      );
+    },
+    [announce, chips, handleRemove, t]
+  );
+
+  // Apply queued focus after the DOM reflects the removal. Runs even when the
+  // group unmounts (chips.length === 0) so the fallback still receives focus.
+  useEffect(() => {
+    if (pendingFocus === null) return;
+    setPendingFocus(null);
+
+    const focusFallback = () => {
+      const fallback = fallbackFocusId ? document.getElementById(fallbackFocusId) : null;
+      fallback?.focus();
+    };
+
+    if (pendingFocus === "fallback") {
+      focusFallback();
       return;
     }
 
-    if (key === "aprRange") {
-      updateSingleFilter("aprRange", [0, 50]);
-      return;
+    // Resolve by chip key, not position — the exiting chip is still mounted.
+    const selector = `[data-chip-key="${pendingFocus.key}"]`;
+    const target = containerRef.current?.querySelector<HTMLElement>(selector);
+    if (target) {
+      const nextIndex = chips.findIndex((c) => c.key === pendingFocus.key);
+      if (nextIndex >= 0) setActiveIndex(nextIndex);
+      target.focus();
+    } else {
+      focusFallback();
     }
-
-    if (key === "activeOnly") {
-      updateSingleFilter("activeOnly", false);
-      return;
-    }
-
-    if (key === "showExpired") {
-      updateSingleFilter("showExpired", false);
-    }
-  };
+  }, [pendingFocus, fallbackFocusId, setActiveIndex, chips]);
 
   if (chips.length === 0) return null;
 
@@ -150,30 +285,46 @@ export default function ActiveFilterChips({
       />
 
       <div
+        ref={containerRef}
         className={cn("mt-3 flex flex-wrap items-center gap-2", className)}
         role="group"
-        aria-label="Active filters"
+        aria-label={t ? t("activeFilters") : "Active filters"}
+        aria-describedby={hintId}
         data-testid="active-filter-chips"
+        data-reduced-motion={prefersReducedMotion}
       >
+        <p id={hintId} className="sr-only" data-testid="filter-chips-hint">
+          {t
+            ? t("activeFiltersKeyboardHint")
+            : "Use arrow keys to move between filters and press Delete or Backspace to remove one."}
+        </p>
+
         <AnimatePresence initial={false}>
-          {chips.map((chip) => (
+          {chips.map((chip, index) => (
             <motion.div
               key={chip.key}
-              initial={{ opacity: 0, scale: 0.9, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: -4 }}
-              transition={{ duration: 0.15 }}
+              {...chipMotion}
               className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
             >
               <span>{chip.label}</span>
               <button
                 type="button"
-                aria-label={`Remove filter: ${chip.label}`}
-                onClick={() => {
-                  handleRemove(chip);
-                  // Announce to screen readers via the live region
-                  const el = document.getElementById(announcerId);
-                  if (el) el.textContent = `Filter "${chip.label}" removed`;
+                ref={registerRef(index)}
+                tabIndex={getTabIndex(index)}
+                aria-label={
+                  t ? t("removeFilterAria", { label: chip.label }) : `Remove filter: ${chip.label}`
+                }
+                data-chip-remove
+                data-chip-key={chip.key}
+                onFocus={() => setActiveIndex(index)}
+                onClick={() => dismissAt(index)}
+                onKeyDown={(event) => {
+                  if (event.key === "Delete" || event.key === "Backspace") {
+                    event.preventDefault();
+                    dismissAt(index);
+                    return;
+                  }
+                  handleKeyDown(event, index);
                 }}
                 className={cn(
                   "flex h-4 w-4 items-center justify-center rounded-full",
@@ -191,12 +342,16 @@ export default function ActiveFilterChips({
 
         {/* Clear all */}
         <motion.button
-          layout
+          layout={!prefersReducedMotion}
           type="button"
           onClick={() => {
             resetFilters();
-            const el = document.getElementById(announcerId);
-            if (el) el.textContent = "All filters cleared";
+            const translated = t?.("allFiltersCleared");
+            announce(
+              translated && translated !== "allFiltersCleared"
+                ? translated
+                : "All filters cleared"
+            );
           }}
           className={cn(
             "rounded-md px-3 py-1 text-xs font-medium",
@@ -204,7 +359,7 @@ export default function ActiveFilterChips({
             "hover:bg-destructive/20 transition-colors",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive/50"
           )}
-          aria-label="Clear all active filters"
+          aria-label={t ? t("clearAllFiltersAria") : "Clear all active filters"}
           data-testid="clear-all-filters"
         >
           Clear all

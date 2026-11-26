@@ -417,10 +417,15 @@ another buyer (P2P). It is gated behind the `secondary-market` feature flag
   acquire/accept dialogs into one client component.
 - `/dashboard/investor` — where a seller marks a position "for sale" via
   `listPosition` (and can unlist it).
-- Shareable filter/sort state (`q`, `tenor`, `yield`, `seller`, `highlight`)
-  is read from and written to the URL via
-  [`lib/secondaryUrlFilters.ts`](lib/secondaryUrlFilters.ts) (#643);
+- Shareable filter/sort state (`q`, `tenor`, `yield`, `seller`, `highlight`,
+  `sort`) is read from and written to the URL via
+  [`lib/secondaryUrlFilters.ts`](lib/secondaryUrlFilters.ts) (#643, #1136);
   pure sort logic lives in [`lib/secondarySort.ts`](lib/secondarySort.ts).
+  - `sort` accepts only values from `SECONDARY_SORT_OPTIONS`; anything else
+    (after stripping non-printable characters) falls back to `listed_desc`,
+    which is omitted from the URL like every other default.
+  - Fees are disclosed per listing at acquisition time and are not a URL
+    filter, so there is no `fee` param to round-trip.
 
 ### Stores
 

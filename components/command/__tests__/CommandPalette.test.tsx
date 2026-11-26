@@ -37,7 +37,7 @@ import enMessages from "@/messages/en.json";
 vi.mock("next-intl", () => ({
   useTranslations: (namespace?: string) => {
     const ns = namespace ? (enMessages as Record<string, any>)[namespace] : enMessages;
-    return (key: string, values?: Record<string, string>) => {
+    const translate = (key: string, values?: Record<string, string>) => {
       let str = ns?.[key] ?? key;
       if (values) {
         for (const [k, v] of Object.entries(values)) {
@@ -46,6 +46,9 @@ vi.mock("next-intl", () => ({
       }
       return str;
     };
+    translate.raw = (key: string) =>
+      key === "synonyms" ? localeSynonyms : ns?.[key];
+    return translate;
   },
 }));
 
@@ -64,13 +67,6 @@ let localeSynonyms = [
   "shortcuts",
   "keyboard shortcuts",
 ];
-
-vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => {
-    if (key === "synonyms") return localeSynonyms;
-    return key;
-  },
-}));
 
 let paletteOpen = true;
 const setOpenMock = vi.fn((v: boolean) => {
@@ -148,9 +144,9 @@ vi.mock("@/hooks/useFormatters", () => ({
 vi.stubGlobal(
   "ResizeObserver",
   class ResizeObserverMock {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() { }
+    unobserve() { }
+    disconnect() { }
   }
 );
 
@@ -493,6 +489,7 @@ describe("CommandPalette — localized action synonyms", () => {
   });
 
   it("matches Connect Wallet via Spanish synonym", async () => {
+    walletConnected = false;
     localeSynonyms = ["conectar billetera", "crear factura", "desconectar billetera", "atajos", "atajos de teclado"];
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<CommandPalette />);
@@ -533,6 +530,7 @@ describe("CommandPalette — localized action synonyms", () => {
   });
 
   it("matches Connect Wallet via Portuguese synonym", async () => {
+    walletConnected = false;
     localeSynonyms = ["conectar carteira", "criar fatura", "desconectar carteira", "atalhos", "atalhos de teclado"];
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<CommandPalette />);

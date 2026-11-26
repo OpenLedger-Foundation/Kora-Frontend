@@ -30,6 +30,7 @@ describe("lib/secondaryUrlFilters - Constants", () => {
       YIELD: "yield",
       SELLER: "seller",
       HIGHLIGHT: "highlight",
+      SORT: "sort",
     });
   });
 
@@ -40,6 +41,7 @@ describe("lib/secondaryUrlFilters - Constants", () => {
       yield: "0",
       seller: "",
       highlight: "",
+      sort: "listed_desc",
     });
   });
 });
@@ -165,6 +167,7 @@ describe("lib/secondaryUrlFilters - parseSecondaryFiltersFromSearchParams", () =
       yield: "10",
       seller: "GBQXFQ2PVCFP2LOJ3XPMBLM5R2LSCVJKGHGXAWWVQCLDWKZVKKPFDANJ",
       highlight: "pos-42",
+      sort: "listed_desc",
     });
   });
 
@@ -183,6 +186,7 @@ describe("lib/secondaryUrlFilters - parseSecondaryFiltersFromSearchParams", () =
       yield: "0",
       seller: "seller123",
       highlight: "hl99",
+      sort: "listed_desc",
     });
   });
 });

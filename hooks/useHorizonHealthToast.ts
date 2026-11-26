@@ -8,8 +8,11 @@
  * This hook watches the Horizon service status and raises a dismissible toast
  * when it transitions into `degraded` or `down`.
  *
- * - **Throttled** — each severity toasts at most once per browser session, so
- *   the 60s polling interval and operational ⇄ degraded flapping cannot spam.
+ * - **Deduped** — a single toast id is reused, so repeated warnings replace the
+ *   existing toast instead of stacking duplicates.
+ * - **Coalesced** — offline/online flaps and operational ⇄ degraded flapping are
+ *   debounced: a severity must persist for a short window before it toasts, and
+ *   a long outage collapses into one toast rather than flickering.
  * - **Self-clearing** — returning to `operational` dismisses the toast, so a
  *   recovered network never leaves a stale error on screen.
  * - **Offline-aware** — while the browser is offline every health check fails;
@@ -25,49 +28,19 @@ import { useToast } from "@/hooks/useToast";
 import type { NetworkStatus } from "@/hooks/useNetworkStatus";
 
 export const HORIZON_HEALTH_TOAST_ID = "horizon-health";
-const STORAGE_KEY = "kora-horizon-health-toasted";
+
+/** How long a severity must persist before it is surfaced (coalesces flaps). */
+export const HORIZON_HEALTH_COALESCE_MS = 4000;
 
 type Severity = Exclude<NetworkStatus, "operational">;
 
-// Module state is the source of truth; sessionStorage only carries it across
-// reloads within the same tab session and may be unavailable (private mode).
-const notified = new Set<Severity>();
-let hydrated = false;
+// Module state is the source of truth for the currently surfaced severity so
+// repeated renders/remounts do not re-toast the same warning (dedupe).
+let surfaced: Severity | null = null;
 
-function hydrate() {
-  if (hydrated) return;
-  hydrated = true;
-  try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    if (Array.isArray(parsed)) {
-      for (const s of parsed) {
-        if (s === "degraded" || s === "down") notified.add(s);
-      }
-    }
-  } catch {
-    // Storage blocked — fall back to in-memory throttling only.
-  }
-}
-
-function markNotified(severity: Severity) {
-  notified.add(severity);
-  try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(notified)));
-  } catch {
-    // Storage blocked — in-memory throttling still applies.
-  }
-}
-
-/** Clears the per-session throttle. Exposed for tests. */
+/** Clears the dedupe state. Exposed for tests. */
 export function resetHorizonHealthToastThrottle() {
-  notified.clear();
-  hydrated = false;
-  try {
-    window.sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // ignore
-  }
+  surfaced = null;
 }
 
 export function useHorizonHealthToast(
@@ -78,6 +51,7 @@ export function useHorizonHealthToast(
   const t = useTranslations("network");
   const toast = useToast();
   const previous = useRef<NetworkStatus>("operational");
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Keep the latest callbacks without re-running the transition effect.
   const toastRef = useRef(toast);
@@ -89,22 +63,49 @@ export function useHorizonHealthToast(
     const prev = previous.current;
     previous.current = status;
 
+    const clearTimer = () => {
+      if (timer.current !== null) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+    };
+
     if (status === "operational") {
-      if (prev !== "operational") toastRef.current.dismiss(HORIZON_HEALTH_TOAST_ID);
+      clearTimer();
+      if (prev !== "operational") {
+        toastRef.current.dismiss(HORIZON_HEALTH_TOAST_ID);
+        surfaced = null;
+      }
       return;
     }
 
-    if (!isOnline || status === prev) return;
+    // Offline: the indicator already shows "Offline"; do not raise a Horizon
+    // toast, and cancel any pending coalesced toast.
+    if (!isOnline) {
+      clearTimer();
+      return;
+    }
 
-    hydrate();
-    if (notified.has(status)) return;
-    markNotified(status);
+    if (status === prev) return;
 
-    toastRef.current.error(
-      status === "down" ? t("horizonDownToast") : t("horizonDegradedToast"),
-      t("horizonToastHint"),
-      onRetryRef.current ? () => onRetryRef.current?.() : undefined,
-      HORIZON_HEALTH_TOAST_ID,
-    );
+    // Dedupe: this severity is already on screen.
+    if (surfaced === status) return;
+
+    // Coalesce: wait for the severity to persist before surfacing it. A flap
+    // back to operational (or offline) clears the pending timer above.
+    clearTimer();
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      if (surfaced === status) return;
+      surfaced = status;
+      toastRef.current.error(
+        status === "down" ? t("horizonDownToast") : t("horizonDegradedToast"),
+        t("horizonToastHint"),
+        onRetryRef.current ? () => onRetryRef.current?.() : undefined,
+        HORIZON_HEALTH_TOAST_ID,
+      );
+    }, HORIZON_HEALTH_COALESCE_MS);
+
+    return clearTimer;
   }, [status, isOnline, t]);
 }

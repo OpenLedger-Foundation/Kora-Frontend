@@ -13,14 +13,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  ResponsiveContainer,
-  Sector,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { PieChart as PieChartIcon } from "lucide-react";
@@ -33,6 +26,37 @@ import {
   type AllocationFilter,
   type AllocationSlice,
 } from "@/lib/portfolioAllocation";
+
+// ─── Lazy-loaded recharts donut (code-split, client-only) ─────────────────────
+//
+// recharts is a heavy dependency; loading it eagerly inflates the main bundle.
+// The interactive donut is split into its own chunk and only fetched when a
+// panel actually renders a chart. SSR is disabled because recharts relies on
+// DOM measurement APIs (ResponsiveContainer) that are unavailable on the server.
+
+function DonutChartSkeleton() {
+  const t = useTranslations("portfolioDonut");
+  return (
+    <div
+      className="flex w-full flex-col items-center justify-center gap-3"
+      style={{ height: 180 }}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="h-[144px] w-[144px] animate-pulse rounded-full border-[20px] border-muted" />
+      <span className="sr-only">{t("chartLoading")}</span>
+    </div>
+  );
+}
+
+const LazyDonutChart = dynamic(
+  () => import("./PortfolioDonutChart").then((mod) => mod.PortfolioDonutChart),
+  {
+    ssr: false,
+    loading: () => <DonutChartSkeleton />,
+  }
+);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,102 +79,6 @@ function useDimensionLabels(): Record<DonutDimension, string> {
     jurisdiction: t("dimensions.jurisdiction"),
     category: t("dimensions.category"),
   };
-}
-
-// ─── Custom active shape (highlighted segment) ───────────────────────────────
-
-function ActiveShape(props: {
-  cx?: number;
-  cy?: number;
-  innerRadius?: number;
-  outerRadius?: number;
-  startAngle?: number;
-  endAngle?: number;
-  fill?: string;
-  payload?: AllocationSlice;
-  percent?: number;
-}) {
-  const { formatPercentage } = useFormatters();
-  const {
-    cx = 0,
-    cy = 0,
-    innerRadius = 0,
-    outerRadius = 0,
-    startAngle = 0,
-    endAngle = 0,
-    fill,
-    payload,
-    percent = 0,
-  } = props;
-
-  return (
-    <g>
-      <Sector
-        cx={cx}
-        cy={cy}
-        innerRadius={innerRadius - 4}
-        outerRadius={outerRadius + 8}
-        startAngle={startAngle}
-        endAngle={endAngle}
-        fill={fill}
-        opacity={1}
-      />
-      <text
-        x={cx}
-        y={cy - 8}
-        textAnchor="middle"
-        fill="#e4e4e7"
-        fontSize={13}
-        fontWeight={700}
-      >
-        {payload?.name}
-      </text>
-      <text
-        x={cx}
-        y={cy + 10}
-        textAnchor="middle"
-        fill="#14b8a6"
-        fontSize={12}
-        fontWeight={600}
-      >
-        {formatPercentage(percent * 100, 1)}
-      </text>
-    </g>
-  );
-}
-
-// ─── Custom tooltip ───────────────────────────────────────────────────────────
-
-function DonutTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload: AllocationSlice }>;
-}) {
-  const { formatCurrency, formatPercentage } = useFormatters();
-  if (!active || !payload?.length) return null;
-  const { name, value, percent } = payload[0].payload;
-  return (
-    <div
-      style={{
-        background: "rgba(24,24,27,0.95)",
-        border: "1px solid #27272a",
-        borderRadius: 8,
-        padding: "8px 12px",
-        color: "#e4e4e7",
-        fontSize: 12,
-        minWidth: 160,
-      }}
-    >
-      <p style={{ fontWeight: 700, marginBottom: 4, color: "#f4f4f5" }}>{name}</p>
-      <p style={{ color: "#14b8a6", fontWeight: 600 }}>
-        {formatCurrency(value, "USDC", true)}
-      </p>
-      <p style={{ color: "#71717a" }}>{formatPercentage(percent * 100, 1)} of portfolio</p>
-      <p style={{ color: "#a1a1aa", marginTop: 4 }}>Click to browse marketplace</p>
-    </div>
-  );
 }
 
 // ─── Legend ───────────────────────────────────────────────────────────────────
@@ -244,20 +172,16 @@ function DonutPanel({
   onSegmentClick,
 }: DonutPanelProps) {
   const t = useTranslations("portfolioDonut");
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const activeValue =
     activeFilter?.dimension === dimension ? activeFilter.value : null;
 
-  const handleClick = useCallback(
-    (data: AllocationSlice) => {
-      if (
-        activeFilter?.dimension === dimension &&
-        activeFilter.value === data.name
-      ) {
+  const handleSegmentClick = useCallback(
+    (value: string) => {
+      if (activeFilter?.dimension === dimension && activeFilter.value === value) {
         onSegmentClick(null);
       } else {
-        onSegmentClick({ dimension, value: data.name });
+        onSegmentClick({ dimension, value });
       }
     },
     [activeFilter, dimension, onSegmentClick]
@@ -290,48 +214,17 @@ function DonutPanel({
         {slices.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
             <PieChartIcon className="h-8 w-8 text-muted-foreground/40" />
-            <p className="text-xs text-muted-foreground">No data</p>
+            <p className="text-xs text-muted-foreground">{t("noData")}</p>
           </div>
         ) : (
           <>
-            <div className="w-full" style={{ height: 180 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={slices}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={52}
-                    outerRadius={72}
-                    paddingAngle={2}
-                    dataKey="value"
-                    activeIndex={hoverIndex ?? undefined}
-                    activeShape={ActiveShape}
-                    onMouseEnter={(_, index) => setHoverIndex(index)}
-                    onMouseLeave={() => setHoverIndex(null)}
-                    onClick={(_, index) => {
-                      const slice = slices[index];
-                      if (slice) handleClick(slice);
-                    }}
-                    style={{ cursor: "pointer" }}
-                    aria-label={t("chartAria", { title })}
-                  >
-                    {slices.map((slice) => (
-                      <Cell
-                        key={slice.name}
-                        fill={slice.color}
-                        opacity={cellOpacity(slice.name)}
-                        stroke={
-                          activeValue === slice.name ? slice.color : "transparent"
-                        }
-                        strokeWidth={activeValue === slice.name ? 2 : 0}
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<DonutTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            <LazyDonutChart
+              slices={slices}
+              title={title}
+              activeValue={activeValue}
+              cellOpacity={cellOpacity}
+              onSegmentClick={handleSegmentClick}
+            />
 
             <DonutLegend
               slices={slices}
@@ -349,6 +242,7 @@ function DonutPanel({
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function EmptyState() {
+  const t = useTranslations("portfolioDonut");
   return (
     <div className="col-span-full flex flex-col items-center justify-center gap-4 py-16 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
@@ -356,10 +250,10 @@ function EmptyState() {
       </div>
       <div>
         <p className="text-sm font-semibold text-foreground">
-          No portfolio data yet
+          {t("emptyTitle")}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Fund invoices on the marketplace to see your portfolio composition.
+          {t("emptyDescription")}
         </p>
       </div>
     </div>
@@ -428,7 +322,7 @@ export function PortfolioDonut({
             {t("title")}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Click a segment to browse matching invoices on the marketplace
+            {t("subtitle")}
           </p>
         </div>
         {activeFilter && (

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { SigningErrorKind } from "@/lib/walletSigningError";
 
 // 🎯 Types ────────────────────────────────────────────────────────────
 
@@ -34,6 +35,29 @@ export interface TxRecord {
 // 🧩 Types ────────────────────────────────────────────────────────────
 
 export type EscrowStep = "idle" | "buyer_funding" | "buyer_funded" | "seller_transferring" | "seller_transferred" | "settled";
+
+/**
+ * Interrupted-signature recovery (#1121).
+ *
+ * Recorded only when a wallet request never got an answer (popup closed,
+ * timeout, no response) — i.e. the transaction was **not** signed and **not**
+ * submitted. The exact unsigned XDR is kept verbatim so the retry re-signs
+ * the same transaction rather than building a second one, which is what stops
+ * a re-attempt from producing two on-chain transactions.
+ *
+ * Persisted with the rest of the store so the recovery affordance survives a
+ * page refresh.
+ */
+export interface SignatureRecovery {
+  /** The exact unsigned XDR that failed to sign — re-signed verbatim. */
+  unsignedXdr: string;
+  /** Classified cause from `lib/walletSigningError` (`interrupted`, …). */
+  reason: SigningErrorKind;
+  /** Original provider message, surfaced as the toast description. */
+  detail?: string;
+  /** Epoch ms of the interruption. */
+  createdAt: number;
+}
 
 export interface EscrowStepAttempt {
   step: "buyer_funding" | "seller_transferring";
@@ -193,6 +217,15 @@ interface TransactionStore {
 
   /** Set the current escrow context (position/buyer/seller/amount) */
   setEscrowContext: (context: { positionId: string; buyerAddress: string; sellerAddress: string; amount: number } | null) => void;
+
+  /** Pending interrupted-signature attempt (#1121), or null when none. */
+  signatureRecovery: SignatureRecovery | null;
+
+  /** Record an interrupted signing attempt so it can be resumed. */
+  setSignatureRecovery: (recovery: SignatureRecovery) => void;
+
+  /** Drop the pending attempt (resumed, abandoned, or superseded). */
+  clearSignatureRecovery: () => void;
 }
 
 // 🏪 Store ────────────────────────────────────────────────────────────
@@ -287,6 +320,12 @@ export const useTransactionStore = create<TransactionStore>()(
             currentContext: context ?? undefined,
           },
         })),
+
+      signatureRecovery: null,
+
+      setSignatureRecovery: (recovery) => set({ signatureRecovery: recovery }),
+
+      clearSignatureRecovery: () => set({ signatureRecovery: null }),
     }),
     {
       name: "kora-tx-history",
@@ -294,6 +333,8 @@ export const useTransactionStore = create<TransactionStore>()(
       partialize: (state) => ({
         transactions: state.transactions,
         escrowState: state.escrowState,
+        // #1121 — a refresh mid-signature must not lose the pending attempt.
+        signatureRecovery: state.signatureRecovery ?? null,
       }),
     }
   )

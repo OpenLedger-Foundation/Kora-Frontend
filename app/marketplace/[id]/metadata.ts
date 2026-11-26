@@ -14,6 +14,7 @@ import {
   buildInvoicePageMetadata,
   buildPublicInvoiceSeo,
   fetchIpfsMetadataForSeo,
+  isPublicInvoiceListing,
 } from "@/lib/invoiceSeo";
 
 /** ISR: revalidate invoice SEO every hour so OG tags stay fresh. */
@@ -39,6 +40,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     if (!invoice) {
       return {
         title: "Invoice Not Found | Kora Protocol",
+        robots: { index: false, follow: false },
+      };
+    }
+
+    // Drafts, cancelled/defaulted invoices and pending mints are not public
+    // listings: keep them out of the index (and out of the page's JSON-LD).
+    if (!isPublicInvoiceListing(invoice)) {
+      return {
+        title: "Invoice Details | Kora Protocol",
         robots: { index: false, follow: false },
       };
     }

@@ -31,8 +31,7 @@ vi.mock("@/hooks/useWallet", () => ({
 }));
 
 vi.mock("@/lib/security", () => ({
-  safeStellarTxUrl: (hash: string) =>
-    `https://stellar.expert/explorer/testnet/tx/${hash}`,
+  safeStellarTxUrl: (hash: string) => `https://stellar.expert/explorer/testnet/tx/${hash}`,
 }));
 
 vi.mock("next-intl", () => ({
@@ -52,8 +51,10 @@ vi.mock("next-intl", () => ({
       noResults: "No results",
       noResultsDesc: "Try adjusting your search or filters",
       listTitle: "Transactions",
+      "groups.other": "General",
       "empty.title": "No transactions yet",
-      "empty.description": "Your on-chain activity will appear here once you mint, fund, or repay invoices.",
+      "empty.description":
+        "Your on-chain activity will appear here once you mint, fund, or repay invoices.",
       all: "All Types",
       mint: "Mints",
       fund: "Funding",
@@ -85,8 +86,7 @@ vi.mock("@/store", async () => {
 
   const useTransactionStore = create<any>()((set: any) => ({
     transactions: [],
-    addTransaction: (tx: any) =>
-      set((s: any) => ({ transactions: [tx, ...s.transactions] })),
+    addTransaction: (tx: any) => set((s: any) => ({ transactions: [tx, ...s.transactions] })),
     removeTransaction: (hash: string) =>
       set((s: any) => ({
         transactions: s.transactions.filter((t: any) => t.hash !== hash),
@@ -201,6 +201,32 @@ describe("TransactionHistoryPage", () => {
       expect(screen.getByText("INV-002")).toBeInTheDocument();
     });
 
+    it("groups transactions by invoice and exposes accessible expand/collapse", () => {
+      useTransactionStore.setState({
+        transactions: [
+          MINT_TX,
+          { ...MINT_TX, hash: "hash_mint_002", type: "fund", description: "Fund invoice #1" },
+          FUND_TX,
+        ],
+      });
+
+      render(<TransactionHistoryPage />);
+
+      const group = screen.getByRole("button", { name: /INV-001/i });
+      expect(group).toHaveAttribute("aria-expanded", "true");
+
+      const bodyId = group.getAttribute("aria-controls")!;
+      const region = document.getElementById(bodyId)!;
+      expect(region).not.toHaveAttribute("hidden");
+      expect(region).toHaveTextContent("Mint invoice #1");
+      expect(region).toHaveTextContent("Fund invoice #1");
+
+      fireEvent.click(group);
+
+      expect(group).toHaveAttribute("aria-expanded", "false");
+      expect(region).toHaveAttribute("hidden");
+    });
+
     it("filters to mint type only", () => {
       render(<TransactionHistoryPage />);
 
@@ -259,11 +285,13 @@ describe("TransactionHistoryPage", () => {
       render(
         <ErrorBoundary compact>
           <ThrowingChild />
-        </ErrorBoundary>,
+        </ErrorBoundary>
       );
 
       // Compact fallback: shows a short error label, not a full blank page
-      expect(screen.getByText(/connection error|contract error|something went wrong/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/connection error|contract error|something went wrong/i)
+      ).toBeInTheDocument();
       // Retry button available
       expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
     });
@@ -279,7 +307,7 @@ describe("TransactionHistoryPage", () => {
       const { rerender } = render(
         <ErrorBoundary compact>
           <MaybeThrow />
-        </ErrorBoundary>,
+        </ErrorBoundary>
       );
 
       // Fallback is shown
@@ -293,7 +321,7 @@ describe("TransactionHistoryPage", () => {
       rerender(
         <ErrorBoundary compact>
           <MaybeThrow />
-        </ErrorBoundary>,
+        </ErrorBoundary>
       );
 
       expect(screen.getByText("Recovered")).toBeInTheDocument();

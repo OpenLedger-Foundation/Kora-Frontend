@@ -39,8 +39,9 @@ export interface IInvoiceService {
   createInvoice(
     formData: CreateInvoiceFormData,
     ownerAddress: string,
-    onProgress?: (progress: number) => void
-  ): Promise<Result<{ unsignedXdr: string; metadataCid: string }>>;
+    onProgress?: (progress: number) => void,
+    signal?: AbortSignal
+  ): Promise<Result<{ unsignedXdr: string; metadataCid: string; simulatedTokenId?: string; tokenId?: string }>>;
 
   fundInvoice(
     tokenId: string,

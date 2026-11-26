@@ -1,4 +1,24 @@
 {
+  "metadata": {
+    "investorDashboard": {
+      "title": "Investor Dashboard",
+      "description": "Track your positions, yield and portfolio performance on Kora Protocol.",
+      "ogDescription": "Monitor your Kora Protocol investments, yield and repayment activity.",
+      "ogImageAlt": "Kora Protocol investor dashboard"
+    },
+    "smeDashboard": {
+      "title": "SME Dashboard",
+      "description": "Manage your invoices, financing and repayments on Kora Protocol.",
+      "ogDescription": "Track invoice financing and repayments from your Kora Protocol SME dashboard.",
+      "ogImageAlt": "Kora Protocol SME dashboard"
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Manage your Kora Protocol notifications, thresholds and preferences.",
+      "ogDescription": "Configure notifications, concentration thresholds and preferences on Kora Protocol.",
+      "ogImageAlt": "Kora Protocol settings"
+    }
+  },
   "nav": {
     "marketplace": "Marketplace",
     "invest": "Invest",
@@ -44,17 +64,67 @@
     "termsLink": "Terms of Service",
     "connectGuardTitle": "Connect your wallet to continue",
     "connectGuardDesc": "This page requires a connected wallet.",
+    "insufficientUsdcTitle": "Not enough USDC to fund",
+    "insufficientUsdcDesc": "You need {shortfall} more USDC to fund this amount. Your balance is {balance}.",
+    "insufficientUsdcEmpty": "Your wallet has no USDC yet. Add USDC to start funding invoices.",
+    "insufficientUsdcCta": "Get USDC",
+    "insufficientUsdcBridge": "Bridge USDC to Stellar",
     "sessionExpiredTitle": "Wallet session inactive",
     "sessionExpiredDesc": "Unlock your wallet extension or reconnect to continue.",
     "reconnect": "Reconnect Wallet",
     "reconnecting": "Reconnecting...",
     "restoringSession": "Restoring wallet session...",
     "balanceLoadFailed": "Failed to load balances",
+    "unfundedAccountTitle": "Activate your Stellar account",
+    "unfundedAccountDescription": "This account has no XLM yet. Fund it to activate the wallet and load balances.",
+    "fundWithXlm": "Fund with XLM using Friendbot",
     "walletConnected": "Wallet connected",
     "redirecting": "Taking you to your dashboard…",
     "mobileApp": "Mobile app",
     "openInApp": "Open in app",
-    "deepLinkWaiting": "Waiting for wallet app to open…"
+    "deepLinkWaiting": "Waiting for wallet app to open…",
+    "networkMismatch": "Connected to {current} but app requires {expected}{passphrase}. Switch your wallet network to continue.",
+    "passphraseMismatch": " (passphrase mismatch)",
+    "watchOnly": "Watch Only",
+    "exitWatchMode": "Exit Watch Mode",
+    "switchAccount": "Switch Account",
+    "accountSettings": {
+      "title": "Account Settings",
+      "description": "Configure notifications and verify your identity limits.",
+      "notifications": "Notifications",
+      "identityVerification": "Identity Verification (KYC)"
+    },
+    "kyc": {
+      "status": "KYC Status",
+      "verified": "Verified",
+      "pending": "Pending Review",
+      "rejected": "Rejected",
+      "unverified": "Unverified",
+      "unlimited": "Unlimited",
+      "limit": "Limit: $10,000",
+      "noneDescription": "Verify your identity to increase your funding capacity above $10,000 USDC and unlock secondary trade capabilities.",
+      "pendingDescription": "Your documents have been submitted to Synaps and are currently under review. This process usually completes within 5 minutes.",
+      "rejectedDescription": "Your verification request was rejected. Please re-submit your verification documents.",
+      "verifiedDescription": "Your identity is fully verified! You have access to unlimited funding thresholds and global secondary markets.",
+      "resubmit": "Re-submit Documents",
+      "verify": "Verify with Synaps"
+    },
+    "trustline": {
+      "eurc": {
+        "cta": "Add EURC trustline",
+        "adding": "Adding EURC…",
+        "loading": "Adding EURC trustline…",
+        "success": "EURC trustline added successfully",
+        "error": "Failed to add EURC trustline"
+      },
+      "usdc": {
+        "cta": "Add USDC trustline",
+        "adding": "Adding USDC…",
+        "loading": "Adding USDC trustline…",
+        "success": "USDC trustline added — balance will update shortly",
+        "error": "Failed to add USDC trustline"
+      }
+    }
   },
   "transaction": {
     "building": "Building transaction…",
@@ -64,6 +134,8 @@
     "polling": "Waiting for confirmation…",
     "confirmed": "Transaction confirmed!",
     "failed": "Transaction failed",
+    "signatureInterrupted": "Wallet signature interrupted",
+    "signatureInterruptedHint": "Nothing was signed or submitted. Retry to sign the same transaction again.",
     "retry": "Retry",
     "dismiss": "Dismiss",
     "cancelSigningSafely": "Cancel signing safely",
@@ -127,8 +199,18 @@
     "title": "Invoice Marketplace",
     "subtitle": "Discovering deals...",
     "showing": "Showing {count} listed invoices",
+    "indexerWatermark": {
+      "fresh": "Indexer synced {time}",
+      "stale": "Indexer data stale — last synced {time}"
+    },
+    "indexer": {
+      "synced": "Indexed {time} · ledger {ledger}",
+      "stale": "Availability may be outdated — last indexed {time}"
+    },
     "shareFilters": "Share Filters",
     "shareFiltersCopied": "Filter link copied to clipboard",
+    "exportCsv": "Export CSV",
+    "exportCsvAria": "Export active marketplace results to CSV",
     "searchPlaceholder": "Search by debtor, invoice number, or jurisdiction…",
     "clearSearch": "Clear search",
     "filters": "Filters",
@@ -138,6 +220,14 @@
     "active": "{count} active",
     "resetFilters": "Reset All Filters",
     "activeOnly": "Active Only",
+    "activeFilters": "Active filters",
+    "filterRemoved": "Filter \"{label}\" removed",
+    "activeFilterRiskTier": "Risk: {tier}",
+    "activeFilterAprRange": "APR: {min}%–{max}%",
+    "removeFilterAria": "Remove filter: {label}",
+    "clearAllFiltersAria": "Clear all active filters",
+    "allFiltersCleared": "All filters cleared",
+    "activeFiltersKeyboardHint": "Use the arrow keys to move between active filters. Press Delete or Backspace to remove the focused filter.",
     "activeOnlyDesc": "Hide fully funded or defaulted invoices",
     "showExpired": "Show Expired",
     "showExpiredDesc": "Include listings whose expiry date has passed",
@@ -150,12 +240,17 @@
     "noResults": "No invoices match your filters",
     "noResultsDesc": "We couldn't find any active listings matching your current selection. Try resetting your filters to explore other opportunities.",
     "clearAllFilters": "Clear All Filters",
+    "offlineEmptyTitle": "No cached invoices available offline",
+    "offlineEmptyDesc": "Connect to the internet to load the marketplace. Cached listings will appear here when you are offline after a previous visit.",
     "loadingMore": "Loading more…",
     "allLoaded": "All invoices loaded",
+    "newInvoicesAnnouncement": "{count, plural, one {# new invoice loaded} other {# new invoices loaded}} — {total} shown",
+    "allLoadedAnnouncement": "All invoices loaded — end of list",
     "backToTop": "↑ Top",
     "recent": "Recent",
     "clear": "Clear",
     "sort": {
+      "ariaLabel": "Sort invoices",
       "aprDesc": "APR: High to Low",
       "aprAsc": "APR: Low to High",
       "amountDesc": "Amount: High to Low",
@@ -165,6 +260,7 @@
       "newest": "Newest Listed"
     },
     "comparison": {
+      "selectionHint": "Comparison selection: {count} selected. Use arrow keys to move, space to toggle, and Shift plus arrows to select a range.",
       "barAriaLabel": "Invoice comparison bar",
       "compare": "Compare",
       "loading": "Loading {id}…",
@@ -174,7 +270,9 @@
       "copied": "Copied!",
       "clearAriaLabel": "Clear all comparisons",
       "selectAtLeastTwo": "Select at least 2 invoices to compare",
-      "openTable": "Open comparison table"
+      "openTable": "Open comparison table",
+      "maxReached": "Max reached",
+      "limitReached": "Comparison is full: {max} invoices maximum. Remove one to add another."
     },
     "watchlist": {
       "ariaLabel": "Invoice watchlist",
@@ -188,7 +286,13 @@
       "fundingProgress": "Funding progress",
       "statusChanges": "Status changes",
       "aprChanges": "APR changes",
-      "alertsPaused": "Alerts are paused."
+      "alertsPaused": "Alerts are paused.",
+      "alerts": {
+        "statusChanged": "{invoiceNumber} status changed to {status}.",
+        "fundingProgress": "{invoiceNumber} funding reached {percent}.",
+        "aprChanged": "{invoiceNumber} APR changed to {apr}.",
+        "statuses": { "draft": "Draft", "pending_mint": "Pending mint", "listed": "Listed", "partially_funded": "Partially funded", "active": "Active", "fully_funded": "Fully funded", "repaid": "Repaid", "defaulted": "Defaulted", "cancelled": "Cancelled" }
+      }
     },
     "searchAria": "Search marketplace",
     "recovery": {
@@ -197,6 +301,18 @@
       "clearJurisdictions": "Clear Jurisdictions",
       "clearCategories": "Clear Categories",
       "showAllStatuses": "Show All Statuses"
+    },
+    "jurisdictionLabels": {
+      "US": "United States",
+      "EU": "European Union",
+      "UK": "United Kingdom",
+      "NG": "Nigeria",
+      "KE": "Kenya",
+      "GH": "Ghana",
+      "ZA": "South Africa",
+      "OTHER": "Other",
+      "IN": "India",
+      "BR": "Brazil"
     },
     "categoryLabels": {
       "manufacturing": "Manufacturing",
@@ -244,6 +360,20 @@
     "retryLoading": "Retry loading"
   },
   "invoiceDetail": {
+    "yieldCalculator": {
+      "title": "Yield Projection",
+      "expectedReturn": "Expected Return",
+      "annualisedYield": "Annualised Yield",
+      "breakEvenDate": "Break-even Date",
+      "netYield": "Net Yield",
+      "approxUsd": "Approx. USD",
+      "invalidData": "Yield projection unavailable — funding data is invalid.",
+      "capReached": "Amount exceeds the remaining funding cap. Reduce your investment to see a valid projection.",
+      "zeroApr": "0% APR — this investment will not accrue yield.",
+      "noYield": "No yield will accrue for these terms.",
+      "priceUnavailable": "USD estimate unavailable — oracle price is missing.",
+      "a11yLabel": "Yield projection for your investment"
+    },
     "backToMarketplace": "Back to Marketplace",
     "financingTerms": "Financing Terms",
     "fundingProgress": "Funding Progress",
@@ -253,6 +383,11 @@
     "maturity": "Maturity",
     "connectToInvest": "Connect your Stellar wallet to view yields and start investing.",
     "connectWalletToInvest": "Connect Wallet to Invest",
+    "insufficientUsdc": {
+      "title": "Insufficient USDC balance",
+      "description": "Your wallet has {available} USDC, but this investment needs {required}. Acquire USDC, then refresh your balance to continue.",
+      "acquire": "Acquire USDC"
+    },
     "selfFundBlocked": "Self-Funding Blocked",
     "selfFundDesc": "You cannot fund your own invoice. Decoupled factoring escrow rules restrict invoice owners from bidding as liquidity providers.",
     "cannotFundOwn": "You cannot fund your own invoice",
@@ -325,6 +460,11 @@
       "review": "Upload & Review"
     },
     "fields": {
+      "addressBook": {
+        "noAddress": "No address to save",
+        "invalidAddress": "Invalid Stellar address format",
+        "saved": "Saved to address book"
+      },
       "invoiceNumber": "Invoice Number",
       "invoiceNumberPlaceholder": "INV-2024-0001",
       "debtorName": "Debtor Company Name",
@@ -368,9 +508,28 @@
       "youReceive": "Financing Amount (You Receive)",
       "investorPayout": "Investor Payout at Maturity",
       "capitalSeek": "Capital Seek ({percent}%)",
-      "yieldCost": "Yield Cost ({percent}%)"
+      "yieldCost": "Yield Cost ({percent}%)",
+      "netFinanceCost": "Net Finance Cost (Yield)",
+      "effectiveApr": "Effective APR"
     },
+    "notAvailable": "N/A",
     "upload": {
+      "document": "Invoice Document",
+      "progress": {
+        "uploading": "Uploading invoice to IPFS…",
+        "building": "Building on-chain transaction…",
+        "ipfsPin": "IPFS Pin",
+        "onChainMint": "On-chain Mint",
+        "pinDescription": "Pinning your invoice document to IPFS. This anchors the document hash on-chain.",
+        "chainDescription": "Building and simulating the Soroban mint transaction."
+      },
+      "ipfsUnavailable": {
+        "title": "IPFS storage is temporarily unavailable.",
+        "description": "Your invoice cannot be minted right now. All your form data has been saved — you can try again when the service recovers.",
+        "retrying": "Automatically re-checking… (attempt {count})",
+        "retryAriaLabel": "Retry health check",
+        "checking": "Checking IPFS storage availability…"
+      },
       "dragDrop": "Drag & drop your invoice PDF here",
       "orClick": "or click to browse",
       "maxSize": "PDF only · Max 10MB",
@@ -380,6 +539,7 @@
       "errors": {
         "tooLarge": "File is too large. Max size is exactly 10MB.",
         "invalidType": "Invalid file type. Only PDF documents are allowed.",
+        "invalidMagicBytes": "Selected file is not a valid PDF document (missing %PDF- header).",
         "required": "Please upload the invoice PDF before minting.",
         "virusScanRejected": "File rejected by security scan",
         "virusScanRejectedDescription": "{reason} Please select a different file and try again.",
@@ -387,6 +547,8 @@
       }
     },
     "review": {
+      "summary": "Summary",
+      "financingCapital": "Financing Capital",
       "title": "Review & Mint",
       "subtitle": "Confirm your invoice details before minting on Soroban",
       "mintButton": "Mint Invoice NFT",
@@ -397,6 +559,10 @@
       "title": "Invoice Minted!",
       "subtitle": "Your invoice has been tokenized as an NFT on the Stellar Soroban network and is ready for funding.",
       "tokenId": "NFT Token ID",
+      "tokenIdFormatted": "#{id}",
+      "tokenPending": "Pending confirmation",
+      "syncingBadge": "Syncing",
+      "indexerLag": "Indexing in progress",
       "txHash": "Transaction Hash",
       "ipfsCid": "IPFS Metadata CID",
       "verifyStellar": "Verify on Stellar Expert",
@@ -433,6 +599,20 @@
       "description": "We found a saved draft from your previous session. Would you like to pick up where you left off?",
       "resume": "Resume Draft",
       "discard": "Discard"
+    },
+    "errors": {
+      "partialIpfsCleanup": "Invoice creation failed. Any files already uploaded to IPFS have been removed.",
+      "partialIpfsCleanupFailed": "Invoice creation failed. Some uploaded files could not be removed — they will expire automatically.",
+      "mintFailed": "Failed to prepare the invoice for signing. Please try again."
+    },
+    "transaction": {
+      "signingTitle": "Signature Required",
+      "submittingTitle": "Submitting Transaction",
+      "signingDescription": "Please open your Stellar browser wallet extension and sign the transaction to authorize minting the invoice NFT on-chain.",
+      "submittingDescription": "Broadcasting your transaction to the Stellar network. Waiting for ledger consensus...",
+      "failedTitle": "Minting Failed",
+      "failedDescription": "Something went wrong while minting your invoice. Please try again.",
+      "retry": "Retry Mint"
     }
   },
   "smeDashboard": {
@@ -564,9 +744,30 @@
       "description": "Fund invoices on the marketplace to start building your portfolio.",
       "message": "Fund invoices on the marketplace to build your portfolio."
     },
-    "fundTestnet": "Fund Testnet Account"
+    "fundTestnet": "Fund Testnet Account",
+    "export": {
+      "csv": "Export CSV",
+      "pdf": "Export PDF",
+      "csvAriaLabel": "Export portfolio positions as CSV",
+      "pdfAriaLabel": "Export portfolio positions as PDF",
+      "emptyTooltip": "No positions to export"
+    }
   },
   "transactions": {
+    "csv": {
+      "columns": {
+        "hash": "Transaction hash",
+        "type": "Type",
+        "status": "Status",
+        "amount": "Amount",
+        "asset": "Asset",
+        "date": "Date",
+        "timestampUtc": "Timestamp (UTC, ISO 8601)",
+        "description": "Description",
+        "error": "Error"
+      },
+      "exportFailed": "Could not export transactions. Please try again."
+    },
     "title": "Transaction History",
     "subtitle": "Your complete on-chain activity on Kora Protocol",
     "exportCsv": "Export CSV",
@@ -611,6 +812,9 @@
     "viewStellar": "View on Stellar Expert",
     "remove": "Remove transaction",
     "listTitle": "Transactions",
+    "groups": {
+      "other": "General"
+    },
     "reason": "Reason:",
     "searchAria": "Search transactions",
     "typeFilterAria": "Filter by transaction type",
@@ -646,12 +850,17 @@
       "exportAria": "Export transactions to CSV",
       "clearAria": "Clear transaction history",
       "clearConfirm": "Clear all transaction history? This cannot be undone.",
+      "clearConfirmTitle": "Clear transaction history?",
+      "clearConfirmCancel": "Cancel",
+      "clearConfirmConfirm": "Clear history",
+      "clearCleared": "Transaction history cleared",
       "detailsTitle": "Transaction Details",
       "closeDetailsAria": "Close transaction details",
       "type": "Type",
       "txHash": "Transaction Hash",
       "copyHashAria": "Copy hash",
-      "hashCopiedAria": "Hash copied",
+      "hashCopied": "Hash copied",
+      "hashCopyFailed": "Failed to copy hash",
       "status": "Status",
       "amount": "Amount",
       "dateTime": "Date & Time",
@@ -673,13 +882,49 @@
     "connectTitle": "Connect your wallet",
     "connectDesc": "Connect to view your portfolio analytics",
     "range": "Range:",
+  "filters": {
+    "all": "All",
+    "allRegions": "All regions",
+    "allCategories": "All categories",
+    "riskLabel": "Risk:",
+    "regionLabel": "Region:",
+    "categoryLabel": "Category:",
+    "periodLabel": "Period:",
+    "clear": "Clear",
+    "riskTiers": { "AAA": "AAA", "AA": "AA", "A": "A", "BBB": "BBB", "BB": "BB", "B": "B" },
+    "jurisdictions": { "NG": "Nigeria", "KE": "Kenya", "GH": "Ghana", "ZA": "South Africa", "IN": "India", "BR": "Brazil" },
+    "categories": { "trade": "Trade", "services": "Services", "manufacturing": "Manufacturing", "retail": "Retail" }
+  },
+  "filterSummary": {
+    "riskTier": "Risk {tier}",
+    "customRange": "custom range",
+    "ytd": "year to date",
+    "allTime": "all time",
+    "lastDays": "last {days, plural, one {# day} other {# days}}",
+    "allData": "your portfolio",
+    "separator": ", ",
+    "summary": "Showing data for {filters} ({period})"
+  },
+  "presets": { "days7": "7 days", "days30": "30 days", "days90": "90 days", "year": "1 year", "ytd": "Year to date", "all": "All time", "custom": "Custom", "apply": "Apply" },
+  "validation": { "invalidRange": "Start date must be before end date" },
+  "chartA11y": { "empty": "{title}. No data available.", "series": "{title}. {count, plural, one {# data point} other {# data points}}: {points}.", "distribution": "{title}. {count, plural, one {# segment} other {# segments}}: {segments}.", "segment": "{name}: {value}", "separator": "; ", "variancePoint": "{month}: expected {expected}, realized {realized}", "treemapSummary": "{title}. Total {total} across {count, plural, one {# risk tier} other {# risk tiers}}. {groups}.", "treemapGroup": "{group}: {value}, {percent} of portfolio, including {children}", "treemapLeaf": "{name} {value} ({percent} of group)" },
+  "charts": {
+    "titles": { "portfolio": "Portfolio growth", "yield": "Yield over time", "risk": "Risk distribution", "monthly": "Monthly returns", "allocation": "Allocation treemap", "benchmark": "Benchmark comparison" },
+    "series": { "value": "Value", "yield": "Yield", "allocation": "Allocation", "return": "Return", "portfolio": "Portfolio" },
+    "empty": { "portfolio": "No portfolio data available", "yield": "No yield data available", "risk": "No risk data available", "monthly": "No monthly return data available", "allocation": "No allocation data available", "benchmark": "No benchmark data available" }
+  },
     "exportPortfolio": "Export Portfolio CSV",
     "exportYield": "Export Yield CSV",
     "stats": {
       "totalDeployed": "Total Deployed",
       "totalYield": "Total Yield Earned",
       "annualisedReturn": "Annualised Return",
-      "defaultRate": "Default Rate"
+      "defaultRate": "Default Rate",
+      "activePositions": "Active positions",
+      "averageApr": "Average APR",
+      "acrossFilteredPositions": "Across filtered positions",
+      "positionsCount": "{count, plural, one {# position} other {# positions}}",
+      "return": "{percent} return"
     },
     "a11y": {
       "filterJurisdiction": "Filter by jurisdiction",
@@ -689,6 +934,7 @@
       "exportYield": "Export yield data",
       "exportRisk": "Export risk data",
       "exportReturn": "Export return data",
+      "exportMonthly": "Export monthly return data",
       "exportVariance": "Export variance CSV",
       "exportSellerMetrics": "Export seller listing metrics as CSV",
       "sellerMetricsTable": "Seller listing metrics table",
@@ -721,7 +967,10 @@
       "button": "Generate Digest",
       "title": "Portfolio Digest",
       "share": "Share Digest"
-    }
+    },
+    "copyLink": "Copy filtered link",
+    "linkCopied": "Link copied",
+    "linkCopyFailed": "Could not copy link"
   },
   "repaymentDialog": {
     "title": "Confirm Repayment",
@@ -787,6 +1036,9 @@
     "writeBytes": "Write Bytes",
     "simulationError": "Simulation Error",
     "simulationErrorDesc": "This transaction cannot be executed. Please review the error below.",
+    "simulationErrorHint": "Nothing was signed or submitted. Review the amount and try again.",
+    "rpcUnavailable": "Simulation service unavailable",
+    "rpcUnavailableDesc": "The Stellar RPC did not respond. Check the RPC endpoint or try again.",
     "timeout": "Simulation timed out after 10 seconds. Please try again.",
     "simulating": "Simulating transaction…",
     "proceed": "Proceed & Sign",
@@ -798,6 +1050,7 @@
     "kb": "{count} KB"
   },
   "network": {
+    "serviceUnavailable": "A Stellar service is unavailable. Try again shortly.",
     "operational": "Operational",
     "degraded": "Degraded",
     "down": "Down",
@@ -925,7 +1178,9 @@
     "title": "Wrong Network",
     "message": "Wrong Network: Connected to {current}, but this app requires {expected}{passphrase}. Please switch your wallet network to continue.",
     "passphraseMismatch": " (passphrase mismatch)",
-    "dismiss": "Dismiss wrong network warning"
+    "dismiss": "Dismiss wrong network warning",
+    "fix": "Fix",
+    "switchNetwork": "Switch Network"
   },
   "addressBook": {
     "title": "Address Book",
@@ -965,6 +1220,7 @@
     "noContacts": "No saved contacts yet",
     "pickFromAddressBook": "Pick from Address Book",
     "verifiedLabel": "Label verified with signature",
+    "unverifiedLabel": "Label not verified: signature missing or invalid",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"
@@ -987,6 +1243,10 @@
     "gotIt": "Got it"
   },
   "settings": {
+    "error": {
+      "title": "Couldn't load settings",
+      "description": "Something went wrong while loading your settings. Please try again."
+    },
     "title": "Settings",
     "subtitle": "Manage notification preferences and your product tour.",
     "connectTitle": "Connect your wallet",
@@ -994,6 +1254,18 @@
     "connectCta": "Connect wallet",
     "navLabel": "Settings",
     "openFull": "Open full settings",
+    "transfer": {
+      "title": "Export & import preferences",
+      "description": "Back up your settings and address book as an encrypted file. You'll need the same passphrase to import it.",
+      "passphrase": "Passphrase",
+      "passphraseHint": "At least {min} characters. It is never stored or sent anywhere.",
+      "export": "Export encrypted",
+      "import": "Import file",
+      "exported": "Preferences exported.",
+      "exportFailed": "Couldn't export preferences.",
+      "imported": "Preferences imported.",
+      "importFailed": "Couldn't import. Check the file and passphrase."
+    },
     "notifications": {
       "sectionTitle": "Notification Preferences",
       "sectionDesc": "Control which in-app alerts appear during your workflow.",
@@ -1018,8 +1290,18 @@
       },
       "resetDefaults": "Reset to defaults",
       "toggleAriaLabel": "Toggle {label}",
+      "quietHours": {
+        "label": "Quiet Hours",
+        "description": "Silence maturity reminders during the hours you set.",
+        "toggleAriaLabel": "Toggle quiet hours",
+        "startLabel": "From",
+        "endLabel": "To",
+        "hint": "Reminders are silenced from {start} to {end}."
+      },
       "tourSection": {
-        "title": "Onboarding Tour"
+        "title": "Onboarding Tour",
+        "status": "Status:",
+        "step": "Step {count}"
       },
       "shortcutsSection": {
         "title": "Keyboard Shortcuts",
@@ -1143,7 +1425,7 @@
     "fundInvoice": "Fund Invoice",
     "addToCompare": "Add {debtor} to comparison",
     "removeFromCompare": "Remove {debtor} from comparison",
-    "comparisonFull": "Comparison list is full (max 3)",
+    "comparisonFull": "Comparison list is full (max {max})",
     "addToCompareButton": "Add to Compare",
     "removeFromCompareButton": "Remove from Compare",
     "viewDetails": "View Details"
@@ -1292,7 +1574,14 @@
     "totalFees": "Total fees ({rate})",
     "total": "You pay",
     "noFees": "No fees apply to this acquisition.",
-    "listingNote": "Buyer pays {rate} in fees on top of the ask price."
+    "listingNote": "Buyer pays {rate} in fees on top of the ask price.",
+    "protocolFeeAria": "What is the protocol fee?",
+    "marketFeeAria": "What is the marketplace fee?",
+    "totalFeeAria": "How the total is calculated",
+    "protocolFeeTooltip": "A {rate} protocol fee funds the Kora Soroban contracts that hold this trade in escrow.",
+    "marketFeeTooltip": "A {rate} marketplace fee goes to the venue that hosts this listing.",
+    "totalFeeTooltip": "The position price plus {fees} in fees. You pay {total}.",
+    "tooltipTriggerLabel": "Show fee breakdown"
   },
   "concentrationRisk": {
     "title": "Concentration risk",
@@ -1335,6 +1624,27 @@
     "noData": "No funded positions to group yet.",
     "export": "Export cohorts"
   },
+  "secondary": {
+    "filters": {
+      "tenor": {
+        "all": "All Tenors",
+        "0-30": "0 - 30 days",
+        "31-60": "31 - 60 days",
+        "61-90": "61 - 90 days",
+        "90+": "90+ days"
+      },
+      "yield": {
+        "0": "Any Yield",
+        "5": "5%+ Yield",
+        "10": "10%+ Yield",
+        "15": "15%+ Yield"
+      }
+    }
+  },
+  "killSwitch": {
+    "title": "Actions are temporarily paused",
+    "description": "This action is turned off on this deployment. Try again later."
+  },
   "secondaryMarket": {
     "title": "Secondary Market",
     "badge": "P2P Transferable Positions",
@@ -1375,6 +1685,7 @@
     "sellerAddress": "Seller Address",
     "acquirePosition": "Acquire Position",
     "connectWalletToAcquire": "Connect Wallet to Acquire",
+    "connectWalletDescription": "Please connect your wallet first.",
     "acceptTransfer": "Accept Transfer",
     "listingAria": "Secondary listing for {invoiceNumber}",
     "listingAriaStale": "Secondary listing for {invoiceNumber} — stale, position transferred",
@@ -1540,5 +1851,8 @@
       "optionsLoaded": "{count, plural, =0 {No options available} one {# option available} other {# options available}}",
       "loadError": "Could not load options"
     }
+  },
+  "featureFlags": {
+    "featureDisabled": "This feature is currently disabled ({flag})."
   }
 }

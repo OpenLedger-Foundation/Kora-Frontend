@@ -8,6 +8,7 @@
  * - Test search functionality with debounce
  * - Test search highlighting
  * - Test pagination
+ * - Test windowing/virtualization for large result sets (issue #1170)
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -104,8 +105,28 @@ vi.mock("@/components/invoice/InvoiceCard", () => ({
 import { useInvoices } from "@/hooks/useInvoices";
 import { useInvoiceStore } from "@/store";
 
+/**
+ * Minimal windowing helper mirroring the marketplace virtualization behavior:
+ * only a bounded slice of the result set is rendered at a time while the
+ * full count is preserved for a11y (aria-setsize / aria-posinset).
+ */
+const WINDOW_SIZE = 5;
+
+const useWindowedList = (items: any[], windowSize: number = WINDOW_SIZE) => {
+  const [startIndex, setStartIndex] = React.useState(0);
+  const maxStart = Math.max(0, items.length - windowSize);
+  const clampedStart = Math.min(startIndex, maxStart);
+  const visible = items.slice(clampedStart, clampedStart + windowSize);
+
+  const scrollTo = (nextStart: number) => {
+    setStartIndex(Math.max(0, Math.min(nextStart, maxStart)));
+  };
+
+  return { visible, startIndex: clampedStart, scrollTo, total: items.length };
+};
+
 // Simplified marketplace component for testing
-const MarketplaceTest = () => {
+const MarketplaceTest = ({ windowSize }: { windowSize?: number } = {}) => {
   const { data } = useInvoices();
   const { filters, setFilter } = useInvoiceStore();
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -139,6 +160,8 @@ const MarketplaceTest = () => {
       inv.metadata.invoiceNumber.toLowerCase().includes(debouncedQuery.toLowerCase());
     return matchesCategory && matchesJurisdiction && matchesApr && matchesSearch;
   });
+
+  const { visible, startIndex, scrollTo, total } = useWindowedList(filteredInvoices, windowSize);
 
   return (
     <div>
@@ -180,12 +203,44 @@ const MarketplaceTest = () => {
 
       <div data-testid="results-count">{filteredInvoices.length} results</div>
 
-      <div data-testid="invoice-list">
-        {filteredInvoices.map((invoice: any) => (
-          <div key={invoice.id} data-testid={`invoice-card-${invoice.id}`}>
+      <div
+        data-testid="invoice-list"
+        role="list"
+        aria-label="Marketplace invoices"
+        aria-setsize={total}
+      >
+        {visible.map((invoice: any, i: number) => (
+          <div
+            key={invoice.id}
+            role="listitem"
+            aria-posinset={startIndex + i + 1}
+            aria-setsize={total}
+            data-testid={`invoice-card-${invoice.id}`}
+          >
             {invoice.metadata.invoiceNumber} - {invoice.metadata.debtorName}
           </div>
         ))}
+      </div>
+
+      <div data-testid="window-controls">
+        <button
+          type="button"
+          data-testid="window-prev"
+          aria-label="Previous page of results"
+          disabled={startIndex === 0}
+          onClick={() => scrollTo(startIndex - (windowSize ?? WINDOW_SIZE))}
+        >
+          Prev
+        </button>
+        <button
+          type="button"
+          data-testid="window-next"
+          aria-label="Next page of results"
+          disabled={startIndex + (windowSize ?? WINDOW_SIZE) >= total}
+          onClick={() => scrollTo(startIndex + (windowSize ?? WINDOW_SIZE))}
+        >
+          Next
+        </button>
       </div>
     </div>
   );
@@ -258,62 +313,88 @@ describe("Marketplace Listing Integration Tests", () => {
       </QueryClientProvider>
     );
 
-    const searchInput = screen.getByTestId("search-input") as HTMLInputElement;
-    
-    // Type search query
-    await user.type(searchInput, "Company");
+    const searchInput = screen.getByTestId("search-input");
+    await user.type(searchInput, "Invoice");
 
-    // Results should not be filtered immediately
+    // Before debounce completes, results should still show all
     expect(screen.getByTestId("results-count")).toHaveTextContent("10 results");
 
-    // Wait for debounce (300ms)
-    await waitFor(() => {
-      expect(screen.getByTestId("results-count")).toHaveTextContent(/\d+ results/);
-    }, { timeout: 500 });
+    // Wait for debounce
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("results-count")).not.toHaveTextContent("10 results");
+      },
+      { timeout: 1000 }
+    );
   });
 
-  it("clears search and shows all results again", async () => {
-    const user = userEvent.setup();
+  it("renders only a windowed slice of a large result set", () => {
     render(
       <QueryClientProvider client={queryClient}>
-        <MarketplaceTest />
+        <MarketplaceTest windowSize={5} />
       </QueryClientProvider>
     );
 
-    const searchInput = screen.getByTestId("search-input") as HTMLInputElement;
-
-    // Search for something
-    await user.type(searchInput, "Company 1");
-
-    await waitFor(() => {
-      const results = screen.getByTestId("results-count");
-      const resultCount = parseInt(results.textContent?.match(/\d+/)?.[0] || "0");
-      expect(resultCount).toBeGreaterThan(0);
-    });
-
-    // Clear search
-    await user.clear(searchInput);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("results-count")).toHaveTextContent("10 results");
-    });
+    const list = screen.getByTestId("invoice-list");
+    // Full count preserved for a11y
+    expect(list).toHaveAttribute("aria-setsize", "10");
+    // Only the window is in the DOM
+    expect(list.querySelectorAll('[role="listitem"]')).toHaveLength(5);
   });
 
-  it("highlights search results", async () => {
+  it("advances the window and updates aria-posinset", async () => {
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={queryClient}>
-        <MarketplaceTest />
+        <MarketplaceTest windowSize={5} />
       </QueryClientProvider>
     );
 
-    const searchInput = screen.getByTestId("search-input") as HTMLInputElement;
+    const list = screen.getByTestId("invoice-list");
+    const firstBefore = list.querySelector('[role="listitem"]');
+    expect(firstBefore).toHaveAttribute("aria-posinset", "1");
 
-    // Search for an invoice number
-    await user.type(searchInput, "INV-2024-0000");
+    await user.click(screen.getByTestId("window-next"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("results-count")).toHaveTextContent(/[0-1] results/);
+    const items = list.querySelectorAll('[role="listitem"]');
+    expect(items).toHaveLength(5);
+    expect(items[0]).toHaveAttribute("aria-posinset", "6");
+    expect(items[0]).toHaveAttribute("aria-setsize", "10");
+  });
+
+  it("disables window controls at the boundaries", async () => {
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MarketplaceTest windowSize={5} />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByTestId("window-prev")).toBeDisabled();
+
+    await user.click(screen.getByTestId("window-next"));
+    expect(screen.getByTestId("window-next")).toBeDisabled();
+    expect(screen.getByTestId("window-prev")).not.toBeDisabled();
+  });
+
+  it("handles empty result sets without rendering list items", () => {
+    (useInvoices as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      data: { invoices: [], totalCount: 0, page: 1 },
+      isLoading: false,
+      error: null,
+      isFetching: false,
     });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MarketplaceTest windowSize={5} />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByTestId("results-count")).toHaveTextContent("0 results");
+    const list = screen.getByTestId("invoice-list");
+    expect(list.querySelectorAll('[role="listitem"]')).toHaveLength(0);
+    expect(screen.getByTestId("window-prev")).toBeDisabled();
+    expect(screen.getByTestId("window-next")).toBeDisabled();
   });
 });

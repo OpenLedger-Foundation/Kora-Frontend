@@ -28,10 +28,13 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { toast } from "sonner";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { AcquirePositionDialog } from "@/components/invoice/AcquirePositionDialog";
+import { MutationKillSwitchBanner } from "@/components/marketplace/MutationKillSwitchBanner";
 import { AcceptTransferDialog } from "@/components/invoice/AcceptTransferDialog";
 import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
+import { DebtorDisplay } from "@/components/invoice/DebtorDisplay";
 import { useAcquirePositionFlow, useTransferPositionFlow } from "@/hooks/useTransaction";
 import { useWallet } from "@/hooks/useWallet";
+import { useVerifiedAction } from "@/hooks/useVerifiedAction";
 import { env } from "@/lib/env";
 import { computeAcquisitionFees, getFeeSchedule } from "@/lib/secondaryFees";
 import { usePositionListingStore } from "@/store/positionListingStore";
@@ -54,7 +57,6 @@ import {
 } from "@/lib/secondaryUrlFilters";
 import {
   SECONDARY_SORT_OPTIONS,
-  DEFAULT_SECONDARY_SORT,
   parseSecondarySort,
   sortSecondaryItems,
   type SecondarySortBy,
@@ -73,6 +75,7 @@ export interface SecondaryMarketItem {
 
 function SecondaryMarketplaceContent() {
   const t = useTranslations("secondaryMarket");
+  const tFilters = useTranslations("secondary.filters");
   const { formatCurrency, formatPercentage } = useFormatters();
   const secondaryEnabled = useFeatureFlag("secondary-market");
 
@@ -88,10 +91,21 @@ function SecondaryMarketplaceContent() {
     simulationDialogProps: acceptSimulationDialogProps,
   } = useTransferPositionFlow();
   const { publicKey } = useWallet();
+  // Issue #1123: acquiring a position spends the buyer's funds, so it is gated
+  // exactly like funding an invoice — same session, same prompt.
+  const { executeProtectedAction } = useVerifiedAction();
 
   // Issue #597: one schedule, read from validated env, shared by every figure
   // on this page.
   const feeSchedule = useMemo(() => getFeeSchedule(env), []);
+  const tenorOptions = TENOR_OPTIONS.map(({ labelKey, ...option }) => ({
+    ...option,
+    label: tFilters(`tenor.${labelKey}`),
+  }));
+  const yieldOptions = YIELD_OPTIONS.map(({ labelKey, ...option }) => ({
+    ...option,
+    label: tFilters(`yield.${labelKey}`),
+  }));
 
   const { listings: storeListings } = usePositionListingStore();
   const { invoices } = useInvoiceStore();
@@ -125,7 +139,9 @@ function SecondaryMarketplaceContent() {
   const { copy: copyUrl, copied } = useCopyToClipboard();
   const [acquireItem, setAcquireItem] = useState<SecondaryMarketItem | null>(null);
   const [acceptItem, setAcceptItem] = useState<SecondaryMarketItem | null>(null);
-  const [sortBy, setSortBy] = useState<SecondarySortBy>(DEFAULT_SECONDARY_SORT);
+  const [sortBy, setSortBy] = useState<SecondarySortBy>(() =>
+    parseSecondarySort(initialFilters.sort)
+  );
 
   // Debounce free-text inputs (seller + search) before committing to the URL.
   const debouncedSearch = useDebounce(searchQuery, 350);
@@ -139,6 +155,7 @@ function SecondaryMarketplaceContent() {
       yield: yieldFilter,
       seller: debouncedSeller,
       highlight: highlightId,
+      sort: sortBy,
     });
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -154,6 +171,7 @@ function SecondaryMarketplaceContent() {
     yieldFilter,
     debouncedSeller,
     highlightId,
+    sortBy,
     pathname,
     router,
   ]);
@@ -264,6 +282,7 @@ function SecondaryMarketplaceContent() {
     return (
       <div className="min-h-screen bg-zinc-950 py-8 text-zinc-100">
         <Container>
+          <MutationKillSwitchBanner flag="secondary-market" />
           <EmptyState
             title={t("disabledTitle")}
             description={t("disabledDesc")}
@@ -304,12 +323,12 @@ function SecondaryMarketplaceContent() {
           >
             {copied ? (
               <>
-                <Check className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
+                <Check className="me-1.5 h-3.5 w-3.5 text-emerald-400" />
                 {t("copied")}
               </>
             ) : (
               <>
-                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                <Copy className="me-1.5 h-3.5 w-3.5" />
                 {t("shareView")}
               </>
             )}
@@ -330,270 +349,270 @@ function SecondaryMarketplaceContent() {
         {/* Filter Controls Bar */}
         <ErrorBoundary compact>
           <div className="mb-6 flex flex-col gap-4 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 backdrop-blur-md">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            {/* Search Input */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <Input
-                placeholder={t("searchPlaceholder")}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(sanitizeQueryParam(e.target.value))}
-                className="pl-9 bg-zinc-950/80 border-zinc-800 text-sm focus:border-primary"
-                aria-label={t("searchAria")}
-              />
-            </div>
-
-            {/* Desktop Filters */}
-            <div className="hidden lg:flex lg:items-center lg:gap-3">
-              {/* Tenor Filter */}
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-zinc-400" />
-                <Select
-                  value={tenorFilter}
-                  onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
-                  options={TENOR_OPTIONS}
-                  loading={myPositionsQuery.isLoading}
-                  className="w-40 bg-zinc-950/80 border-zinc-800 text-xs"
-                  aria-label={t("tenorAria")}
-                />
-              </div>
-
-              {/* Yield Filter */}
-              <div className="flex items-center gap-2">
-                <Percent className="h-4 w-4 text-zinc-400" />
-                <Select
-                  value={yieldFilter}
-                  onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
-                  options={YIELD_OPTIONS}
-                  loading={myPositionsQuery.isLoading}
-                  className="w-36 bg-zinc-950/80 border-zinc-800 text-xs"
-                  aria-label={t("yieldAria")}
-                />
-              </div>
-
-              {/* Seller Filter */}
-              <div className="relative w-44">
-                <User className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              {/* Search Input */}
+              <div className="relative flex-1">
+                <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 <Input
-                  placeholder={t("sellerPlaceholder")}
-                  value={sellerFilter}
-                  onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
-                  className="pl-8 bg-zinc-950/80 border-zinc-800 text-xs h-9"
-                  aria-label={t("sellerAria")}
+                  placeholder={t("searchPlaceholder")}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(sanitizeQueryParam(e.target.value))}
+                  className="ps-9 bg-zinc-950/80 border-zinc-800 text-sm focus:border-primary"
+                  aria-label={t("searchAria")}
                 />
               </div>
 
-              <div className="flex items-center gap-2">
-                <ArrowUpDown className="h-4 w-4 text-zinc-400" aria-hidden />
-                <Select
-                  value={sortBy}
-                  onChange={(value) => setSortBy(parseSecondarySort(value))}
-                  options={[...SECONDARY_SORT_OPTIONS]}
-                  loading={myPositionsQuery.isLoading}
-                  className="w-52 border-zinc-800 bg-zinc-950/80 text-xs"
-                  aria-label="Sort secondary market listings"
-                />
-              </div>
+              {/* Desktop Filters */}
+              <div className="hidden lg:flex lg:items-center lg:gap-3">
+                {/* Tenor Filter */}
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-zinc-400" />
+                  <Select
+                    value={tenorFilter}
+                    onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
+                    options={tenorOptions}
+                    loading={myPositionsQuery.isLoading}
+                    className="w-40 bg-zinc-950/80 border-zinc-800 text-xs"
+                    aria-label={t("tenorAria")}
+                  />
+                </div>
 
-              {hasActiveFilters && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={resetFilters}
-                  className="text-xs text-zinc-400 hover:text-white"
-                  aria-label={t("resetAria")}
-                >
-                  <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                  {t("reset")}
-                </Button>
-              )}
-            </div>
+                {/* Yield Filter */}
+                <div className="flex items-center gap-2">
+                  <Percent className="h-4 w-4 text-zinc-400" />
+                  <Select
+                    value={yieldFilter}
+                    onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
+                    options={yieldOptions}
+                    loading={myPositionsQuery.isLoading}
+                    className="w-36 bg-zinc-950/80 border-zinc-800 text-xs"
+                    aria-label={t("yieldAria")}
+                  />
+                </div>
 
-            {/* Mobile Filter Toggle */}
-            <div className="flex items-center justify-between lg:hidden">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setMobileFilterOpen(true)}
-                className="w-full border-zinc-800 bg-zinc-950/80 text-xs"
-              >
-                <SlidersHorizontal className="mr-2 h-3.5 w-3.5 text-primary" />
-                {t("filterPositions")}
+                {/* Seller Filter */}
+                <div className="relative w-44">
+                  <User className="absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                  <Input
+                    placeholder={t("sellerPlaceholder")}
+                    value={sellerFilter}
+                    onChange={(e) => setSellerFilter(sanitizeQueryParam(e.target.value))}
+                    className="ps-8 bg-zinc-950/80 border-zinc-800 text-xs h-9"
+                    aria-label={t("sellerAria")}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="h-4 w-4 text-zinc-400" aria-hidden />
+                  <Select
+                    value={sortBy}
+                    onChange={(value) => setSortBy(parseSecondarySort(value))}
+                    options={[...SECONDARY_SORT_OPTIONS]}
+                    loading={myPositionsQuery.isLoading}
+                    className="w-52 border-zinc-800 bg-zinc-950/80 text-xs"
+                    aria-label="Sort secondary market listings"
+                  />
+                </div>
+
                 {hasActiveFilters && (
-                  <Badge variant="outline" className="ml-2 bg-primary/20 text-primary text-[10px]">
-                    {t("active")}
-                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={resetFilters}
+                    className="text-xs text-zinc-400 hover:text-white"
+                    aria-label={t("resetAria")}
+                  >
+                    <RotateCcw className="me-1 h-3.5 w-3.5" />
+                    {t("reset")}
+                  </Button>
                 )}
-              </Button>
+              </div>
+
+              {/* Mobile Filter Toggle */}
+              <div className="flex items-center justify-between lg:hidden">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMobileFilterOpen(true)}
+                  className="w-full border-zinc-800 bg-zinc-950/80 text-xs"
+                >
+                  <SlidersHorizontal className="me-2 h-3.5 w-3.5 text-primary" />
+                  {t("filterPositions")}
+                  {hasActiveFilters && (
+                    <Badge variant="outline" className="ms-2 bg-primary/20 text-primary text-[10px]">
+                      {t("active")}
+                    </Badge>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
         </ErrorBoundary>
 
         {/* Position Listings Grid */}
         <ErrorBoundary>
-        {sortedItems.length === 0 ? (
-          allItems.length === 0 ? (
-            /* True empty market — no listings at all */
-            <EmptyState
-              title={t("emptyTitle")}
-              description={t("emptyDesc")}
-              variant="no-positions"
-            />
+          {sortedItems.length === 0 ? (
+            allItems.length === 0 ? (
+              /* True empty market — no listings at all */
+              <EmptyState
+                title={t("emptyTitle")}
+                description={t("emptyDesc")}
+                variant="no-positions"
+              />
+            ) : (
+              /* Filters produced zero results — offer to clear */
+              <EmptyState
+                title={t("emptyTitle")}
+                description={t("emptyDesc")}
+                cta={{ label: t("clearFilters"), onClick: resetFilters }}
+                variant="no-results"
+              />
+            )
           ) : (
-            /* Filters produced zero results — offer to clear */
-            <EmptyState
-              title={t("emptyTitle")}
-              description={t("emptyDesc")}
-              cta={{ label: t("clearFilters"), onClick: resetFilters }}
-              variant="no-results"
-            />
-          )
-        ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {sortedItems.map((item) => {
-              const riskColor = RISK_TIER_COLORS[item.invoice.riskTier] ?? "text-zinc-400 border-zinc-700";
-              const isHighlighted = Boolean(highlightId && item.positionId === highlightId);
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {sortedItems.map((item) => {
+                const riskColor = RISK_TIER_COLORS[item.invoice.riskTier] ?? "text-zinc-400 border-zinc-700";
+                const isHighlighted = Boolean(highlightId && item.positionId === highlightId);
 
-              return (
-                <Card
-                  key={item.positionId}
-                  id={`listing-${item.positionId}`}
-                  aria-label={
-                    item.listing.impliedDiscount != null && item.listing.impliedDiscount < 0
-                      ? t("listingAriaStale", { invoiceNumber: item.invoice.metadata.invoiceNumber })
-                      : t("listingAria", { invoiceNumber: item.invoice.metadata.invoiceNumber })
-                  }
-                  className={cn(
-                    "group relative overflow-hidden border border-zinc-800/80 bg-zinc-900/40 backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-zinc-900/80 hover:shadow-lg hover:shadow-primary/5",
-                    isHighlighted && "ring-2 ring-primary/60 border-primary/60"
-                  )}
-                >
-                  <CardHeader className="p-5 pb-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-medium text-zinc-400">
-                            {item.invoice.metadata.invoiceNumber}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[10px] uppercase", riskColor)}
-                          >
-                            {item.invoice.riskTier}
-                          </Badge>
-                        </div>
-                        <CardTitle className="mt-1 text-base font-semibold text-white">
-                          {item.invoice.metadata.debtorName || "Debtor Account"}
-                        </CardTitle>
-                      </div>
-                      <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-semibold">
-                        {t("yieldBadge", { yield: item.yieldPercent.toFixed(1) })}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="p-5 pt-2">
-                    <div className="space-y-3">
-                      {/* Financial Metrics */}
-                      <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/60 p-3 text-xs">
+                return (
+                  <Card
+                    key={item.positionId}
+                    id={`listing-${item.positionId}`}
+                    aria-label={
+                      item.listing.impliedDiscount != null && item.listing.impliedDiscount < 0
+                        ? t("listingAriaStale", { invoiceNumber: item.invoice.metadata.invoiceNumber })
+                        : t("listingAria", { invoiceNumber: item.invoice.metadata.invoiceNumber })
+                    }
+                    className={cn(
+                      "group relative overflow-hidden border border-zinc-800/80 bg-zinc-900/40 backdrop-blur-sm transition-all duration-200 hover:border-primary/50 hover:bg-zinc-900/80 hover:shadow-lg hover:shadow-primary/5",
+                      isHighlighted && "ring-2 ring-primary/60 border-primary/60"
+                    )}
+                  >
+                    <CardHeader className="p-5 pb-3">
+                      <div className="flex items-start justify-between">
                         <div>
-                          <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
-                            {t("askPrice")}
-                          </span>
-                          <span className="text-sm font-semibold text-white">
-                            {formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-medium text-zinc-400">
+                              {item.invoice.metadata.invoiceNumber}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px] uppercase", riskColor)}
+                            >
+                              {item.invoice.riskTier}
+                            </Badge>
+                          </div>
+                          <CardTitle className="mt-1 text-base font-semibold text-white">
+                            <DebtorDisplay invoice={item.invoice} variant="compact" />
+                          </CardTitle>
                         </div>
-                        <div>
-                          <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
-                            {t("expectedReturn")}
-                          </span>
-                          <span className="font-medium text-zinc-300">
-                            {formatCurrency(item.expectedReturn, item.invoice.metadata.currency)}
-                          </span>
-                        </div>
+                        <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-semibold">
+                          {t("yieldBadge", { yield: item.yieldPercent.toFixed(1) })}
+                        </Badge>
                       </div>
+                    </CardHeader>
 
-                      {/* Position Details */}
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex items-center justify-between text-zinc-400">
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="h-3.5 w-3.5 text-primary/80" />
-                            {t("remainingTenor")}:
-                          </span>
-                          <span className="font-medium text-white">
-                            {t("daysRemaining", { days: item.remainingTenor })}
-                          </span>
+                    <CardContent className="p-5 pt-2">
+                      <div className="space-y-3">
+                        {/* Financial Metrics */}
+                        <div className="grid grid-cols-2 gap-2 rounded-lg border border-zinc-800/60 bg-zinc-950/60 p-3 text-xs">
+                          <div>
+                            <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
+                              {t("askPrice")}
+                            </span>
+                            <span className="text-sm font-semibold text-white">
+                              {formatCurrency(item.listing.askPrice, item.invoice.metadata.currency)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-zinc-400 block text-[10px] uppercase tracking-wider">
+                              {t("expectedReturn")}
+                            </span>
+                            <span className="font-medium text-zinc-300">
+                              {formatCurrency(item.expectedReturn, item.invoice.metadata.currency)}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-zinc-400">
-                          <span className="flex items-center gap-1.5">
-                            <Tag className="h-3.5 w-3.5 text-emerald-400" />
-                            {t("impliedDiscount")}:
-                          </span>
-                          <span className="font-medium text-emerald-400">
-                            {formatPercentage((item.listing.impliedDiscount ?? 0) * 100, 1)}
-                          </span>
+                        {/* Position Details */}
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="h-3.5 w-3.5 text-primary/80" />
+                              {t("remainingTenor")}:
+                            </span>
+                            <span className="font-medium text-white">
+                              {t("daysRemaining", { days: item.remainingTenor })}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span className="flex items-center gap-1.5">
+                              <Tag className="h-3.5 w-3.5 text-emerald-400" />
+                              {t("impliedDiscount")}:
+                            </span>
+                            <span className="font-medium text-emerald-400">
+                              {formatPercentage((item.listing.impliedDiscount ?? 0) * 100, 1)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-zinc-400">
+                            <span className="flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-zinc-400" />
+                              {t("sellerAddress")}:
+                            </span>
+                            <span className="font-mono text-[11px] text-zinc-300">
+                              {item.sellerAddress.slice(0, 4)}...{item.sellerAddress.slice(-4)}
+                            </span>
+                          </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-zinc-400">
-                          <span className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-zinc-400" />
-                            {t("sellerAddress")}:
-                          </span>
-                          <span className="font-mono text-[11px] text-zinc-300">
-                            {item.sellerAddress.slice(0, 4)}...{item.sellerAddress.slice(-4)}
-                          </span>
-                        </div>
+                        {/* Issue #597: disclose fees before the buyer confirms. */}
+                        <FeeDisclosure
+                          className="mt-3 rounded-md border border-zinc-800 bg-zinc-900/40 p-2.5"
+                          fees={computeAcquisitionFees(item.listing.askPrice, feeSchedule)}
+                        />
+
+                        {/* Action Buttons */}
+                        <Button
+                          className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
+                          onClick={() => {
+                            if (!publicKey) {
+                              toast.info(t("connectWalletToAcquire"), {
+                                description: t("connectWalletDescription"),
+                              });
+                              return;
+                            }
+                            setAcquireItem(item);
+                          }}
+                        >
+                          {publicKey ? t("acquirePosition") : t("connectWalletToAcquire")}
+                          <ArrowRight className="ms-1.5 h-3.5 w-3.5 rtl:rotate-180" />
+                        </Button>
+
+                        {/* Issue #732: buyer accept-position transfer dialog shell */}
+                        <Button
+                          variant="outline"
+                          className="w-full mt-2 border-zinc-700 bg-zinc-950/60 text-xs text-zinc-300 hover:text-white h-9"
+                          onClick={() => {
+                            if (!publicKey) {
+                              toast.info(t("connectWalletToAcquire"), {
+                                description: t("connectWalletDescription"),
+                              });
+                              return;
+                            }
+                            setAcceptItem(item);
+                          }}
+                        >
+                          {t("acceptTransfer")}
+                        </Button>
                       </div>
-
-                      {/* Issue #597: disclose fees before the buyer confirms. */}
-                      <FeeDisclosure
-                        className="mt-3 rounded-md border border-zinc-800 bg-zinc-900/40 p-2.5"
-                        fees={computeAcquisitionFees(item.listing.askPrice, feeSchedule)}
-                      />
-
-                      {/* Action Buttons */}
-                      <Button
-                        className="w-full mt-3 bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-xs h-9"
-                        onClick={() => {
-                          if (!publicKey) {
-                            toast.info(t("connectWalletToAcquire"), {
-                              description: "Please connect your wallet first.",
-                            });
-                            return;
-                          }
-                          setAcquireItem(item);
-                        }}
-                      >
-                        {publicKey ? t("acquirePosition") : t("connectWalletToAcquire")}
-                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                      </Button>
-
-                      {/* Issue #732: buyer accept-position transfer dialog shell */}
-                      <Button
-                        variant="outline"
-                        className="w-full mt-2 border-zinc-700 bg-zinc-950/60 text-xs text-zinc-300 hover:text-white h-9"
-                        onClick={() => {
-                          if (!publicKey) {
-                            toast.info(t("connectWalletToAcquire"), {
-                              description: "Please connect your wallet first.",
-                            });
-                            return;
-                          }
-                          setAcceptItem(item);
-                        }}
-                      >
-                        {t("acceptTransfer")}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </ErrorBoundary>
 
         {/* Issue #594: preview before signing; the dialog blocks proceed when
@@ -610,11 +629,24 @@ function SecondaryMarketplaceContent() {
           }}
           onConfirm={() => {
             if (acquireItem && publicKey) {
-              void acquirePosition(
-                acquireItem.positionId,
-                publicKey,
-                acquireItem.sellerAddress
-              );
+              const item = acquireItem;
+              void executeProtectedAction(
+                () => acquirePosition(item.positionId, publicKey, item.sellerAddress),
+                "funding"
+              ).then((result) => {
+                if (result.requiresVerification) {
+                  toast.error("Verification required", {
+                    description:
+                      "Verify wallet ownership before acquiring this position.",
+                  });
+                  return;
+                }
+                if (result.error && result.error !== "Wallet not connected") {
+                  toast.error("Could not start acquisition", {
+                    description: result.error,
+                  });
+                }
+              });
             }
           }}
         />
@@ -648,7 +680,7 @@ function SecondaryMarketplaceContent() {
                 <Select
                   value={tenorFilter}
                   onChange={(val) => setTenorFilter(sanitizeQueryParam(val))}
-                  options={TENOR_OPTIONS}
+                  options={tenorOptions}
                   loading={myPositionsQuery.isLoading}
                   className="w-full border-zinc-800 bg-zinc-900 text-xs"
                 />
@@ -659,7 +691,7 @@ function SecondaryMarketplaceContent() {
                 <Select
                   value={yieldFilter}
                   onChange={(val) => setYieldFilter(sanitizeQueryParam(val))}
-                  options={YIELD_OPTIONS}
+                  options={yieldOptions}
                   loading={myPositionsQuery.isLoading}
                   className="w-full border-zinc-800 bg-zinc-900 text-xs"
                 />

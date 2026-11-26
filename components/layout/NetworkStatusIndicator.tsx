@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useNetworkStatus, type NetworkStatus } from "@/hooks/useNetworkStatus";
+import {
+  useNetworkStatus,
+  type NetworkStatus,
+  type OverallNetworkStatus,
+} from "@/hooks/useNetworkStatus";
 import { useHorizonHealthToast } from "@/hooks/useHorizonHealthToast";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import { TooltipRoot, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -29,7 +33,7 @@ const STATUS_COLOR: Record<NetworkStatus, string> = {
 export function NetworkStatusIndicator() {
   const t = useTranslations("network");
   const queryClient = useQueryClient();
-  const { health, isOnline, refresh } = useNetworkStatus();
+  const { health, isOnline, refresh, status } = useNetworkStatus();
   useHorizonHealthToast(health.horizon.status, isOnline, refresh);
   const [latestMarketplaceUpdatedAt, setLatestMarketplaceUpdatedAt] = useState<number | null>(() =>
     getLatestMarketplaceDataUpdatedAt(queryClient),
@@ -65,24 +69,32 @@ export function NetworkStatusIndicator() {
     };
   }, [isOnline]);
 
-  const color = isOnline ? STATUS_COLOR[health.overall] : "bg-amber-500";
+  // The hook reports "offline" separately from "down": offline means the
+  // browser has no connection; down means the API itself is unavailable.
+  const currentStatus: OverallNetworkStatus =
+    status ?? (isOnline ? health.overall : "offline");
+  const isOffline = currentStatus === "offline";
+  const color =
+    currentStatus === "offline" ? "bg-amber-500" : STATUS_COLOR[currentStatus];
   const networkLabel = health.network === "testnet" ? t("testnet") : t("mainnet");
 
-  const statusLabel: Record<NetworkStatus, string> = {
+  const statusLabel: Record<OverallNetworkStatus, string> = {
     operational: t("operational"),
     degraded: t("degraded"),
     down: t("down"),
+    offline: t("offline"),
   };
 
-  const statusDesc: Record<NetworkStatus, string> = {
+  const statusDesc: Record<OverallNetworkStatus, string> = {
     operational: t("operationalDesc"),
     degraded: t("degradedDesc"),
     down: t("downDesc"),
+    offline: t("offlineDesc"),
   };
 
   // Show "RPC Degraded" inline label when Soroban RPC is not operational
   const rpcDegraded = health.soroban.status !== "operational";
-  const badgeLabel = !isOnline
+  const badgeLabel = isOffline
     ? t("offline")
     : rpcDegraded
       ? health.soroban.status === "down"
@@ -103,7 +115,7 @@ export function NetworkStatusIndicator() {
               role="status"
               aria-live="polite"
               aria-label={t("statusAriaLabel", {
-                status: isOnline ? statusLabel[health.overall] : t("offline"),
+                status: statusLabel[currentStatus],
                 network: networkLabel,
               })}
             >
@@ -111,7 +123,7 @@ export function NetworkStatusIndicator() {
               <span
                 className={cn(
                   "font-medium",
-                  !isOnline || rpcDegraded ? "text-amber-500" : "text-muted-foreground",
+                  isOffline || rpcDegraded ? "text-amber-500" : "text-muted-foreground",
                 )}
               >
                 {badgeLabel}
@@ -137,11 +149,11 @@ export function NetworkStatusIndicator() {
               <div className="flex items-center gap-2">
                 <div className={cn("h-2 w-2 rounded-full", color)} />
                 <span className="font-semibold">
-                  {isOnline ? statusLabel[health.overall] : t("offline")}
+                  {statusLabel[currentStatus]}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {isOnline ? statusDesc[health.overall] : t("offlineDesc")}
+                {statusDesc[currentStatus]}
               </p>
 
               <div className="space-y-1 border-t pt-2">

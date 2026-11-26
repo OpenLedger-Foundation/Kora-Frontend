@@ -10,6 +10,7 @@
  *  - Albedo is always available (web-based, no extension needed)
  *  - Modal closes when the Escape key is pressed
  *  - Modal closes when clicking outside the dialog
+ *  - Wrong-network banner shows a one-click switch CTA before any mutate
  */
 
 import { test, expect } from "@playwright/test";
@@ -129,5 +130,38 @@ test.describe("Wallet connect modal", () => {
         page.getByRole("heading", { name: /Connect Wallet/i })
       ).toBeVisible();
     }
+  });
+
+  test.describe("network mismatch banner", () => {
+    test("shows a switch CTA when the wallet is on the wrong network", async ({
+      page,
+    }) => {
+      // Simulate a connected wallet reporting a non-app network before load.
+      await page.addInitScript(() => {
+        (window as unknown as { __KORA_TEST_WALLET_NETWORK__?: string })
+          .__KORA_TEST_WALLET_NETWORK__ = "PUBLIC";
+      });
+      await page.goto("/");
+
+      const banner = page.getByRole("alert").filter({
+        hasText: /wrong network|network mismatch/i,
+      });
+      // Banner only appears when a wallet is connected on a mismatched chain.
+      if (await banner.isVisible()) {
+        const switchBtn = banner.getByRole("button", {
+          name: /switch network/i,
+        });
+        await expect(switchBtn).toBeVisible();
+        await expect(switchBtn).toBeEnabled();
+      }
+    });
+
+    test("banner is not shown when networks match", async ({ page }) => {
+      await page.goto("/");
+      const banner = page.getByRole("alert").filter({
+        hasText: /wrong network|network mismatch/i,
+      });
+      await expect(banner).toHaveCount(0);
+    });
   });
 });

@@ -149,6 +149,9 @@ test.describe("Invoice Fund Simulation Preview — cancel without submit", () =>
     async ({ context, page }) => {
       await gotoFixtureInvoice(context, page);
 
+      const progressText = page.getByText(/\d+% of/i).first();
+      const initialProgress = await progressText.textContent();
+
       await page
         .getByRole("spinbutton", { name: /Investment Amount/i })
         .fill(VALID_FUND_AMOUNT);
@@ -163,10 +166,13 @@ test.describe("Invoice Fund Simulation Preview — cancel without submit", () =>
       // Dialog should be gone
       await expect(dialog).toBeHidden({ timeout: 5_000 });
 
-      // Funding success banner must NOT appear
+      // Funding success banner and summary must NOT appear, and the progress
+      // indicator must be exactly what it was before the preview (#1132).
       await expect(
         page.getByText("Factoring escrow deposits funded!"),
       ).toBeHidden();
+      await expect(page.getByTestId("fund-success-summary")).toBeHidden();
+      expect(await progressText.textContent()).toBe(initialProgress);
     },
   );
 
@@ -324,6 +330,14 @@ test.describe("Invoice Fund Simulation Preview — mock fund success path", () =
       await expect(
         page.getByText("Factoring escrow deposits funded!"),
       ).toBeVisible({ timeout: 10_000 });
+
+      // The confirmed amount and expected payoff are summarized (#1132).
+      const summary = page.getByTestId("fund-success-summary");
+      await expect(summary).toBeVisible();
+      await expect(page.getByTestId("fund-success-principal")).toContainText(
+        "$10,000.00 USDC",
+      );
+      await expect(page.getByTestId("fund-success-payoff")).toBeVisible();
     },
   );
 

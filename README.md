@@ -336,13 +336,23 @@ NEXT_PUBLIC_ENABLE_DEVTOOLS=true
 NEXT_PUBLIC_ENABLE_COMPARISON=true  # Invoice comparison bar (marketplace); share via ?compare=id1,id2
 NEXT_PUBLIC_ENABLE_ONBOARDING_TOUR=false
 NEXT_PUBLIC_ENABLE_BATCH_ACTIONS=false
+NEXT_PUBLIC_ENABLE_MATURITY_REMINDER_QUIET_HOURS=true  # Respect quiet hours for maturity reminders (default: true)
+NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS=false  # Privacy-safe install prompt analytics (default off)
 
 # Redis / Shared State (Optional for multi-instance deployments — see docs/architecture.md)
 # REDIS_URL=redis://default:password@127.0.0.1:6379
 # REDIS_TOKEN=your_redis_token_for_rest_endpoints
+
+# Nightly E2E (test-only — read by e2e/testnet-nightly.spec.ts, not by the app)
+# NIGHTLY_CONSOLE_ERROR_ALLOWLIST=ResizeObserver loop limit exceeded,Download the React DevTools
+# NIGHTLY_CONSOLE_ERROR_STRICT=true
 ```
 
 > **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.
+
+> **Maturity reminder quiet hours:** When `NEXT_PUBLIC_ENABLE_MATURITY_REMINDER_QUIET_HOURS` is unset or `true`, maturity reminder notifications are suppressed during the user's configured quiet hours (stored in `store/settingsStore.ts` and consumed by `hooks/useMaturityReminder.ts`). Reminders that fall inside the window are deferred to the first moment after quiet hours end rather than dropped. Set the flag to `false` to disable quiet-hours handling entirely (e.g. for debugging reminder delivery). The flag defaults to enabled so missing configuration never causes night-time notification spam.
+
+> **PWA install analytics:** When `NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS=true`, install prompt outcomes are reported (see [PWA install prompt analytics](#pwa-install-prompt-analytics)). The flag defaults to `false`; when unset or `false` no events are emitted.
 
 ---
 
@@ -471,6 +481,21 @@ const NETWORK_CONTRACTS = {
 | `repay_invoice(token_id)` | SME repays; triggers yield distribution |
 | `get_positions(investor)` | Returns all investor positions |
 
+### Invoice State Transitions
+
+Invoice status changes are validated by `lib/invoiceStateMachine.ts`. When a user
+attempts an illegal transition (e.g. funding a `repaid` invoice), the UI shows a
+toast that includes a **stable support code** (e.g. `INV-TRANSITION-<from>-<to>`)
+alongside the localized explanation. Support can use that code to identify the
+exact transition without needing the user's full session details.
+
+- Codes are generated deterministically from the `(from, to)` status pair, so the
+  same illegal attempt always yields the same code.
+- Toast copy is localized (en/es/pt-BR) under `messages/`; the support code is
+  rendered verbatim and is not translated.
+- The toast is announced via an ARIA live region so screen-reader users hear the
+  failure and the code.
+
 ### Transaction Flow
 
 ```typescript
@@ -525,3 +550,169 @@ MIT © 2025 Kora Protocol Contributors
 
 <!-- handsoff-issue-871 -->
 - #871: i18n: WalletButton reconnect/EURC trustline toasts English-only
+
+## Wallet — Trustline Setup
+
+Stellar requires each account to establish a **trustline** before it can hold
+any non-native asset (USDC, EURC, etc.).  New wallets therefore start with a
+zero USDC balance and cannot fund invoices until a trustline is added.
+
+### USDC trustline
+
+The wallet dropdown shows an **Add USDC trustline** button whenever the
+connected wallet has a USDC balance of `0`.  Clicking it:
+
+1. Checks whether the trustline already exists (via `hasTrustline` in
+   `config/walletAssets.ts`) — if so, just refreshes the balance and returns.
+2. Calls `buildAddTrustlineTx(address, "usdc")` in `lib/stellar/contracts.ts`
+   to build a `changeTrust` Soroban XDR.
+3. Signs it through the connected wallet extension.
+4. Submits to the network and polls for confirmation.
+5. Refreshes the balance query so the displayed USDC balance updates immediately.
+
+The CTA is hidden once the USDC balance is non-zero (trustline established and
+funded).
+
+#### Mainnet / custom issuer
+
+By default the USDC issuer is Circle's canonical address.  For mainnet or
+custom deployments, override it with:
+
+```bash
+NEXT_PUBLIC_USDC_ISSUER=G<your_mainnet_usdc_issuer>
+```
+
+The env var is read in `config/walletAssets.ts` → `resolveUsdcIssuer()` and
+falls back to the testnet issuer when absent.
+
+### Insufficient USDC funding CTA (Issue #1245)
+
+When a connected wallet's USDC balance is below what the selected investment
+needs, the fund panel explains the shortfall instead of silently disabling the
+fund button. On testnet it offers the one-click USDC faucet; on other networks
+it links to the acquisition page configured by:
+
+```bash
+NEXT_PUBLIC_USDC_ACQUIRE_URL=https://stellar.org/products-and-tools/circle-usdc-eurc
+```
+
+### EURC trustline
+
+An **Add EURC trustline** button is always present in testnet mode.  It follows
+the identical flow above using `buildAddTrustlineTx(address, "eurc")`.
+
+### Edge cases
+
+| Scenario | Behaviour |
+|----------|-----------|
+| Trustline exists, balance zero | CTA hidden (balance is non-zero internally) — user must fund via testnet faucet |
+| User rejects wallet signing | `addUsdcTrustlineOnTestnet` throws; error toast shown via `wallet.trustline.usdc.error` |
+| Network mismatch (wrong chain) | CTA is disabled via `hasNetworkMismatch` guard |
+| Mainnet vs testnet issuer mismatch | Set `NEXT_PUBLIC_USDC_ISSUER` to the correct mainnet issuer |
+
+<!-- handsoff-issue-1117 -->
+- #1117: Dashboard investor and SME role chrome localization
+
+<!-- handsoff-issue-1167 -->
+- #1167: Auth challenge/verify flow error localization and rate-limit UX
+
+<!-- handsoff-issue-1168 -->
+- #1168: Upload API client progress and cancel for large invoice docs
+
+<!-- handsoff-issue-1169 -->
+- #1169: Feedback widget attach context (route, locale, wallet truncated)
+
+<!-- handsoff-issue-1175 -->
+- #1175: i18n: localize KYB gate and Synaps error bodies fully
+
+<!-- handsoff-issue-1259 -->
+- #1259: Invoice illegal transition toast with stable support code
+
+<!-- handsoff-issue-1261 -->
+- #1261: PWA install prompt analytics events (privacy-safe)
+
+<!-- handsoff-issue-1265 -->
+- #1265: Feedback widget 429 rate-limit UX
+
+<!-- handsoff-issue-1266 -->
+- #1266: Testnet nightly console-error assertion
+
+## Invoice — Illegal Transition Support Codes
+
+Invoice status changes are validated by the state machine in
+`lib/invoiceStateMachine.ts`. When a transition is not allowed (for example
+attempting to `repay` an invoice that is still `listed`), the UI shows a toast
+instead of a generic error.
+
+The toast includes a **stable support code** so support can identify the exact
+failure without reproducing it. The code is derived deterministically from the
+transition attempt:
+
+```
+KORA-INV-<FROM>-<TO>
+```
+
+- `<FROM>` / `<TO>` are the upper-cased source and target statuses
+  (`DRAFT`, `LISTED`, `FUNDED`, `REPAID`, `DEFAULTED`, `CANCELLED`).
+- Example: `KORA-INV-LISTED-REPAID` — a repay was attempted on a listed invoice.
+
+The user-facing message is localized (`messages/{en,es,pt-BR}.json` →
+`invoice.errors.illegalTransition.*`); the support code is rendered verbatim
+and is not translated. The code is also attached to the toast description so it
+can be copied from the UI.
+
+## PWA install prompt analytics
+
+`lib/installPromptAnalytics.ts` emits privacy-safe events for the install
+prompt funnel. Events are only sent when
+`NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS=true`; the default is **off**.
+
+| Event | When |
+|-------|------|
+| `pwa_install_prompt_shown` | The install prompt UI is displayed |
+| `pwa_install_prompt_accepted` | The user accepts the prompt |
+| `pwa_install_prompt_dismissed` | The user dismisses the prompt |
+| `pwa_install_prompt_unavailable` | The browser does not support installation |
+
+Privacy guarantees:
+
+- No wallet address, IP, or user identifier is included.
+- No free-form text is included.
+- Payloads are limited to the event name, a coarse platform bucket
+  (`desktop` / `mobile`), and the app locale.
+
+If the analytics endpoint is unreachable (offline / degraded API), events are
+dropped silently — the install prompt itself never blocks on analytics.
+
+## Feedback — 429 rate-limit UX
+
+`POST /api/feedback` returns `429 Too Many Requests` when a client exceeds the
+submit budget. The feedback widget (`components/feedback/`) handles this
+gracefully instead of showing a hard failure:
+
+- The form stays filled in so the user does not lose their report.
+- A localized message (`feedback.errors.rateLimited`) explains the limit and
+  shows the wait time when available.
+- The submit button is disabled until the retry window elapses.
+
+**`Retry-After` contract:** the API sets a `Retry-After` response header in
+seconds. The client reads it and counts down; if the header is missing or
+unparseable, the client falls back to a safe default (60s) and still shows the
+localized message. Offline / network errors are treated separately from 429s.
+
+## Testnet nightly — console error assertion
+
+`e2e/testnet-nightly.spec.ts` runs the critical paths (marketplace browse,
+invoice detail, funding flow, dashboards) against testnet and **fails the run
+if any `console.error` is emitted** on those paths.
+
+- Console errors are collected per test via a `page.on("console")` listener.
+- Known-benign noise is filtered through an explicit allowlist in the spec;
+  anything else fails the test with the captured message and stack.
+- The check runs on both desktop and mobile viewports.
+
+Run it locally with:
+
+```bash
+npm run test:e2e -- e2e/testnet-nightly.spec.ts
+```

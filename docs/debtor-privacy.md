@@ -72,3 +72,28 @@ Every surface touching debtor data must satisfy:
 1. **Zero PII Leaks under Anonymization**: No real debtor names or street addresses present in DOM text, HTML attributes, tooltips, or ARIA labels when `debtorPrivacy === "anonymized"` and `isFunded === false`.
 2. **Deterministic Monikers**: Anonymized listings deterministically display category and jurisdiction descriptors.
 3. **Automated Unit Tests**: Maintained in `__tests__/debtor-privacy.test.tsx`.
+
+
+## Print redaction (#1182)
+
+Printed pages and saved PDFs leave the app's access controls behind, so print output follows stricter rules than the screen (`getPrintDebtorPrivacy` / `getPrintDebtorName` / `getPrintDebtorAddress` in `lib/debtorPrivacy.ts`):
+
+| Declared privacy | Screen (unfunded → funded) | Print |
+| --- | --- | --- |
+| `anonymized` | moniker → full | moniker (`Technology Company (Kenya)`) |
+| `partial` | name, address hidden → full | name, `Address hidden · <country>` |
+| `full` | full | name, `Address hidden · <country>` |
+
+- The post-funding reveal never applies to print, and a street address is never printed.
+- `DebtorDisplay` wraps its screen rendering in `[data-print-redact]` and renders a print-only twin (`[data-print-only]`, `hidden print:block`). The `PrintLayout` stylesheet swaps them with attribute selectors and `!important`, so no utility class can bring the screen version back into print.
+- A missing `debtorPrivacy` defaults to `anonymized`.
+
+## Address redaction in stored UI history (#1181)
+
+`redactStellarAddresses()` truncates every full Stellar strkey (G…/C…/M…, including 69-char muxed addresses) in free text to `GABC…WXYZ`. Command palette recents (`localStorage` key `kora-cmd-recent`) apply it on write *and* on read:
+
+- labels are redacted;
+- destinations whose URL embeds a full address are not stored, because the URL can't be truncated without breaking navigation;
+- malformed or legacy entries are dropped or redacted when loaded.
+
+No feature flag is involved; redaction is always on.
