@@ -1,26 +1,7 @@
 "use client";
 
 import React from "react";
-import {
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Tooltip,
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  ComposedChart,
-  Treemap,
-  ReferenceLine,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, useReducedMotion } from "framer-motion";
@@ -40,18 +21,23 @@ import type {
   YieldPoint,
 } from "@/lib/portfolioAllocation";
 import { BENCHMARK_DISCLOSURE, getBenchmarkConfig, type BenchmarkConfig } from "@/lib/benchmarks";
+import { TOOLTIP_STYLE } from "@/components/analytics/chartPrimitives";
 
-const TOOLTIP_STYLE = {
-  contentStyle: {
-    backgroundColor: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
-    borderRadius: "8px",
-    color: "hsl(var(--foreground))",
-    fontSize: "12px",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-  },
-  cursor: { fill: "hsl(var(--muted))" },
-};
+// ─── Code-splitting (Issue #1264) ────────────────────────────────────────────
+//
+// Recharts is one of the heaviest dependencies in the app and is only needed
+// once a chart actually renders. The chart primitives live in a dedicated
+// module (`chartPrimitives.tsx`) which is loaded lazily via next/dynamic with
+// `ssr: false`, keeping recharts out of the main bundle and out of the
+// server-rendered HTML. The loading fallback is a localized skeleton so the
+// card keeps its layout while the chunk streams in.
+const ChartPrimitives = dynamic(
+  () => import("@/components/analytics/chartPrimitives"),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+  }
+);
 
 interface AnalyticsChartsProps {
   portfolio: PortfolioValuePoint[];
@@ -77,9 +63,17 @@ interface AnalyticsChartsProps {
 }
 
 function ChartSkeleton({ height = 220 }: { height?: number }) {
+  const t = useTranslations("analytics");
   return (
-    <div style={{ height }} className="flex items-center justify-center">
+    <div
+      style={{ height }}
+      className="flex items-center justify-center"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
       <Skeleton className="h-full w-full" />
+      <span className="sr-only">{t("charts.loading")}</span>
     </div>
   );
 }
@@ -141,7 +135,24 @@ function ChartFigure({ label, children }: { label: string; children: React.React
 function EmptyState({ message }: { message: string }) {
   return (
     <div className="flex h-56 flex-col items-center justify-center gap-2 text-center">
-      <TrendingUp className="h-8 w-8 text-muted-foreground" />
+      <TrendingUp className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
+      <p className="text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+/**
+ * Fallback shown when the lazily-loaded chart chunk fails to load (offline,
+ * flaky network, stale deploy). Keeps the card usable instead of leaving a
+ * blank skeleton spinning forever.
+ */
+function ChartLoadError({ message }: { message: string }) {
+  return (
+    <div
+      className="flex h-56 flex-col items-center justify-center gap-2 text-center"
+      role="alert"
+    >
+      <TrendingDown className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
       <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   );
@@ -178,6 +189,39 @@ export default function AnalyticsCharts({
     () => benchmarkConfig ?? getBenchmarkConfig(),
     [benchmarkConfig]
   );
+
+  // Guard against a failed dynamic import (offline / degraded network). The
+  // chart primitives are only fetched when a chart is actually rendered, so a
+  // failure here must degrade gracefully rather than crash the page.
+  const [chartsFailed, setChartsFailed] = React.useState(false);
+  React.useEffect(() => {
+    let cancelled = false;
+    import("@/components/analytics/chartPrimitives").catch(() => {
+      if (!cancelled) setChartsFailed(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (chartsFailed) {
+    return (
+      <motion.div
+        initial={reducedMotion ? false : { opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: reducedMotion ? 0 : 0.3 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("charts.titles.portfolio")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChartLoadError message={t("charts.loadError")} />
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
@@ -217,46 +261,15 @@ export default function AnalyticsCharts({
                   (v) => formatCurrency(v, "USDC"), t, formatMonth
                 )}
               >
-                <ResponsiveContainer width="100%" height={chartHeight}>
-                  <AreaChart
-                    data={portfolio}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                    accessibilityLayer
-                  >
-                    <defs>
-                      <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis
-                      dataKey="month"
-                      tickFormatter={formatMonth}
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => formatCurrency(v, "USDC")}
-                    />
-                    <Tooltip
-                      {...TOOLTIP_STYLE}
-                      formatter={(v: number) => [formatCurrency(v, "USDC"), t("charts.series.value")]}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="hsl(var(--primary))"
-                      fill="url(#portfolioGrad)"
-                      strokeWidth={2}
-                      isAnimationActive={!reducedMotion}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <ChartPrimitives
+                  kind="portfolio"
+                  data={portfolio}
+                  height={chartHeight}
+                  reducedMotion={!!reducedMotion}
+                  formatCurrency={(v) => formatCurrency(v, "USDC")}
+                  formatMonth={formatMonth}
+                  valueLabel={t("charts.series.value")}
+                />
               </ChartFigure>
             )}
           </CardContent>
@@ -292,39 +305,14 @@ export default function AnalyticsCharts({
                   (v) => formatPercentage(v), t, formatMonth
                 )}
               >
-                <ResponsiveContainer width="100%" height={chartHeight}>
-                  <LineChart
-                    data={yieldData}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                    accessibilityLayer
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => formatPercentage(v)}
-                    />
-                    <Tooltip
-                      {...TOOLTIP_STYLE}
-                      formatter={(v: number) => [formatPercentage(v), t("charts.series.yield")]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="yield"
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={!reducedMotion}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ChartPrimitives
+                  kind="yield"
+                  data={yieldData}
+                  height={chartHeight}
+                  reducedMotion={!!reducedMotion}
+                  formatPercentage={formatPercentage}
+                  valueLabel={t("charts.series.yield")}
+                />
               </ChartFigure>
             )}
           </CardContent>
@@ -355,28 +343,16 @@ export default function AnalyticsCharts({
               <EmptyState message={t("charts.empty.risk")} />
             ) : (
               <ChartFigure label={describeDistribution(t("charts.titles.risk"), risk, formatPercentage, t)}>
-                <ResponsiveContainer width="100%" height={chartHeight}>
-                  <PieChart accessibilityLayer>
-                    <Pie
-                      data={risk}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      label={({ name, value }) => t("chartA11y.segment", { name, value: formatPercentage(value) })}
-                      onClick={(entry) => onRiskSegmentClick?.(entry.name)}
-                      style={{ cursor: onRiskSegmentClick ? "pointer" : "default" }}
-                      isAnimationActive={!reducedMotion}
-                    >
-                      {risk.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [formatPercentage(v), t("charts.series.allocation")]} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+                <ChartPrimitives
+                  kind="risk"
+                  data={risk}
+                  height={chartHeight}
+                  reducedMotion={!!reducedMotion}
+                  formatPercentage={formatPercentage}
+                  onRiskSegmentClick={onRiskSegmentClick}
+                  segmentLabel={(name, value) => t("chartA11y.segment", { name, value })}
+                  allocationLabel={t("charts.series.allocation")}
+                />
               </ChartFigure>
             )}
           </CardContent>
@@ -412,44 +388,14 @@ export default function AnalyticsCharts({
                   (v) => formatPercentage(v), t, formatMonth
                 )}
               >
-                <ResponsiveContainer width="100%" height={chartHeight}>
-                  <BarChart
-                    data={monthly}
-                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                    accessibilityLayer
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={(v) => formatPercentage(v)}
-                    />
-                    <Tooltip
-                      {...TOOLTIP_STYLE}
-                      formatter={(v: number) => [formatPercentage(v), t("charts.series.return")]}
-                    />
-                    <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                    <Bar dataKey="return" radius={[4, 4, 0, 0]} isAnimationActive={!reducedMotion}>
-                      {monthly.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={
-                            entry.return >= 0
-                              ? "hsl(var(--primary))"
-                              : "hsl(var(--destructive))"
-                          }
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <ChartPrimitives
+                  kind="monthly"
+                  data={monthly}
+                  height={chartHeight}
+                  reducedMotion={!!reducedMotion}
+                  formatPercentage={formatPercentage}
+                  valueLabel={t("charts.series.return")}
+                />
               </ChartFigure>
             )}
           </CardContent>
@@ -474,19 +420,12 @@ export default function AnalyticsCharts({
                 formatPercentage,
                 (key, values) => (t as unknown as (key: string, values?: Record<string, string | number>) => string)(key, values)
               )}>
-                <ResponsiveContainer width="100%" height={chartHeight}>
-                  <Treemap
-                    data={treemapSeries}
-                    dataKey="size"
-                    stroke="hsl(var(--background))"
-                    fill="hsl(var(--primary))"
-                    aspectRatio={4 / 3}
-                  >
-                    {treemapSeries.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Treemap>
-                </ResponsiveContainer>
+                <ChartPrimitives
+                  kind="treemap"
+                  data={treemapSeries}
+                  height={chartHeight}
+                  reducedMotion={!!reducedMotion}
+                />
               </ChartFigure>
             )}
             {concentration !== null && (
@@ -501,7 +440,7 @@ export default function AnalyticsCharts({
       {/* Benchmark Comparison (#603) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Benchmark Comparison</CardTitle>
+          <CardTitle className="text-base">{t("charts.titles.benchmark")}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -518,51 +457,16 @@ export default function AnalyticsCharts({
                 (v) => formatCurrency(v, "USDC"), t, formatMonth
               )}
             >
-              <ResponsiveContainer width="100%" height={chartHeight}>
-                <ComposedChart
-                  data={portfolio}
-                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
-                  accessibilityLayer
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v) => formatCurrency(v, "USDC")}
-                  />
-                  <Tooltip
-                    {...TOOLTIP_STYLE}
-                    formatter={(v: number) => [formatCurrency(v, "USDC"), t("charts.series.value")]}
-                  />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    name={t("charts.series.portfolio")}
-                    stroke="hsl(var(--primary))"
-                    fill="hsl(var(--primary))"
-                    fillOpacity={0.15}
-                    strokeWidth={2}
-                    isAnimationActive={!reducedMotion}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey={benchmarks.primary.key}
-                    name={benchmarks.primary.label}
-                    stroke={benchmarks.primary.color}
-                    strokeWidth={2}
-                    isAnimationActive={!reducedMotion}
-                    dot={false}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
+              <ChartPrimitives
+                kind="benchmark"
+                data={portfolio}
+                height={chartHeight}
+                reducedMotion={!!reducedMotion}
+                formatCurrency={(v) => formatCurrency(v, "USDC")}
+                valueLabel={t("charts.series.value")}
+                portfolioLabel={t("charts.series.portfolio")}
+                benchmark={benchmarks.primary}
+              />
             </ChartFigure>
           )}
           <p className="mt-2 text-xs text-muted-foreground">{BENCHMARK_DISCLOSURE}</p>

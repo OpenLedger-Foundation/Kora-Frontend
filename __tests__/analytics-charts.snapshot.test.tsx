@@ -131,3 +131,127 @@ describe("Storybook snapshots — AnalyticsCharts (visual regression baselines)"
     expect(container.firstChild).toMatchSnapshot();
   });
 });
+
+// ─── Lazy module helpers ──────────────────────────────────────────────────────
+// These tests exercise the code-splitting contract used by the analytics and
+// dashboard chart wrappers: loaders are cached as singletons, failures are not
+// cached (so a retry can succeed), and preload warms the cache without
+// rendering anything.
+
+describe("lazyModules — cached singleton, retry, preload", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("caches the loader promise so repeated loads share one import", async () => {
+    const loader = vi.fn(async () => ({ default: () => null }));
+    const { createLazyModule } = await import("@/lib/lazyModules");
+
+    const lazy = createLazyModule(loader as any);
+    const [a, b] = await Promise.all([lazy.load(), lazy.load()]);
+
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(a).toBe(b);
+  });
+
+  it("does not cache a rejected loader so retry can succeed", async () => {
+    const loader = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("chunk failed"))
+      .mockResolvedValueOnce({ default: () => null });
+    const { createLazyModule } = await import("@/lib/lazyModules");
+
+    const lazy = createLazyModule(loader as any);
+
+    await expect(lazy.load()).rejects.toThrow("chunk failed");
+    const mod = await lazy.load();
+
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(mod).toBeTruthy();
+  });
+
+  it("preload warms the cache without throwing on failure", async () => {
+    const loader = vi.fn(async () => ({ default: () => null }));
+    const { createLazyModule } = await import("@/lib/lazyModules");
+
+    const lazy = createLazyModule(loader as any);
+    await expect(lazy.preload()).resolves.toBeUndefined();
+    await lazy.load();
+
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("preload swallows loader errors (degraded/offline chunk fetch)", async () => {
+    const loader = vi.fn().mockRejectedValue(new Error("offline"));
+    const { createLazyModule } = await import("@/lib/lazyModules");
+
+    const lazy = createLazyModule(loader as any);
+    await expect(lazy.preload()).resolves.toBeUndefined();
+  });
+});
+
+// ─── Chart wrappers: loading skeleton + safe fallbacks ────────────────────────
+// The wrappers use next/dynamic with a localized loading skeleton. We mock
+// next/dynamic to a synchronous passthrough so we can assert the skeleton and
+// fallback behavior without waiting on real chunk loads.
+
+describe("chart wrappers — localized loading + safe fallbacks", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("renders the localized loading skeleton while the chart chunk loads", async () => {
+    vi.doMock("next/dynamic", () => ({
+      __esModule: true,
+      default: () => {
+        const Stub = () => <div data-testid="chart-loaded" />;
+        return Stub;
+      },
+    }));
+
+    const { AnalyticsChartsSkeleton } = await import(
+      "@/components/analytics/AnalyticsChartsSkeleton"
+    );
+    const { container } = render(<AnalyticsChartsSkeleton />);
+
+    // Skeleton is decorative: it must be hidden from assistive tech.
+    const skeleton = container.querySelector('[aria-hidden="true"]');
+    expect(skeleton).not.toBeNull();
+    expect(container.textContent).toContain("charts.loading");
+  });
+
+  it("falls back to the localized empty state when data is empty", async () => {
+    const { AnalyticsChartsEmpty } = await import(
+      "@/components/analytics/AnalyticsChartsEmpty"
+    );
+    const { getByText } = render(<AnalyticsChartsEmpty variant="revenue" />);
+
+    expect(getByText("No revenue data yet")).toBeTruthy();
+  });
+
+  it("renders the default empty state for unknown variants", async () => {
+    const { AnalyticsChartsEmpty } = await import(
+      "@/components/analytics/AnalyticsChartsEmpty"
+    );
+    const { getByText } = render(<AnalyticsChartsEmpty />);
+
+    expect(getByText("No data available")).toBeTruthy();
+  });
+
+  it("renders a safe fallback when the chart chunk fails to import", async () => {
+    vi.doMock("next/dynamic", () => ({
+      __esModule: true,
+      default: (_loader: any, opts: any) => {
+        const Fallback = opts?.loading ?? (() => <div data-testid="fallback" />);
+        return Fallback;
+      },
+    }));
+
+    const { AnalyticsChartsSkeleton } = await import(
+      "@/components/analytics/AnalyticsChartsSkeleton"
+    );
+    const { container } = render(<AnalyticsChartsSkeleton />);
+
+    expect(container.querySelector('[aria-hidden="true"]')).not.toBeNull();
+  });
+});

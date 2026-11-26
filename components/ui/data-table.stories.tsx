@@ -104,3 +104,49 @@ export const SmallPageSize: Story = {
     syncToUrl: false,
   },
 };
+
+/**
+ * Sticky header with `prefers-reduced-motion: reduce` emulated.
+ *
+ * The header stays pinned while scrolling, but the smooth scroll/transition
+ * motion is suppressed so users who opt out of animation get an instant,
+ * non-animated sticky header. Use this story to capture screenshots for the
+ * a11y review of the sticky-header reduced-motion behavior.
+ */
+export const ReducedMotion: Story = {
+  args: {
+    data: INVOICE_ROWS,
+    columns: COLUMNS,
+    pageSize: 5,
+    stickyHeader: true,
+    syncToUrl: false,
+  },
+  decorators: [
+    (Story) => (
+      <div>
+        <style>{`
+          /* Emulate prefers-reduced-motion: reduce for this story only. */
+          .sb-reduced-motion * {
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+          }
+        `}</style>
+        <div className="sb-reduced-motion">
+          <Story />
+        </div>
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Sticky header rendered with reduced motion emulated. The header remains pinned on scroll but motion-based effects are disabled, matching `prefers-reduced-motion: reduce`.',
+      },
+    },
+    // Hint for screenshot tooling / reviewers that this story targets a11y.
+    a11y: { config: { rules: [] } },
+  },
+};

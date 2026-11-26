@@ -342,6 +342,10 @@ NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS=false  # Privacy-safe install prompt an
 # Redis / Shared State (Optional for multi-instance deployments — see docs/architecture.md)
 # REDIS_URL=redis://default:password@127.0.0.1:6379
 # REDIS_TOKEN=your_redis_token_for_rest_endpoints
+
+# Nightly E2E (test-only — read by e2e/testnet-nightly.spec.ts, not by the app)
+# NIGHTLY_CONSOLE_ERROR_ALLOWLIST=ResizeObserver loop limit exceeded,Download the React DevTools
+# NIGHTLY_CONSOLE_ERROR_STRICT=true
 ```
 
 > **Invoice comparison:** When `NEXT_PUBLIC_ENABLE_COMPARISON=true`, marketplace cards show **Add to Compare**. Select up to **4** invoices, open the comparison table, and share the URL (`?compare=…`) to restore the selection. See `lib/featureFlags.ts` and `lib/comparison.ts`.

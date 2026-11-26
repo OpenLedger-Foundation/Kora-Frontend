@@ -27,6 +27,11 @@ const YieldProjectionCalculator = dynamic(
 );
 import { BarChart3, DollarSign, TrendingUp, Shield } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/ui/skeleton";
+import {
+  AnalyticsCharts,
+  YieldVarianceChart,
+  YieldProjectionCalculator,
+} from "@/lib/lazyModules";
 import { StatCard } from "@/components/ui/stat-card";
 import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
@@ -402,7 +407,7 @@ function PortfolioAnalyticsInner() {
             ))}
           </div>
 
-          {/* Yield Projection Calculator */}
+          {/* Yield Projection Calculator — code-split via lib/lazyModules */}
           <div className="mb-6 print-hidden">
             <YieldProjectionCalculator defaultTier={defaultTier} />
           </div>

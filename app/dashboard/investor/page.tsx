@@ -14,7 +14,6 @@ import { useWallet } from "@/hooks/useWallet";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useUIStore, useInvoiceStore, usePositionListingStore, DEFAULT_FILTERS } from "@/store";
 import { usePositions } from "@/hooks/usePositions";
-import { ConcentrationRiskAlerts } from "@/components/analytics/ConcentrationRiskAlerts";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
 import { useVerifiedAction } from "@/hooks/useVerifiedAction";
@@ -23,7 +22,9 @@ import { useTranslations } from "next-intl";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { prepareClaimPosition } from "@/services/invoiceService";
 import { ListPositionDialog } from "@/components/invoice/ListPositionDialog";
-import type { PortfolioDonutProps, DonutFilter } from "@/components/dashboard/PortfolioDonut";
+import type { DonutFilter } from "@/components/dashboard/PortfolioDonut";
+import type { ConcentrationRiskAlertsProps } from "@/components/analytics/ConcentrationRiskAlerts";
+import type { SellerAnalyticsDashboardProps } from "@/components/analytics/SellerAnalyticsDashboard";
 import {
   marketplacePathForAllocation,
   allocationToMarketplaceFilters,
@@ -38,7 +39,6 @@ import type { ColumnDef, DataTableProps } from "@/types/table";
 import { InvestorDashboardSkeleton } from "@/components/ui/skeleton";
 import { KycStatusCard } from "@/components/dashboard/KycStatusCard";
 import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
-import { SellerAnalyticsDashboard } from "@/components/analytics/SellerAnalyticsDashboard";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import EmptyState from "@/components/ui/EmptyState";
 import { exportCsv, exportPdf } from "@/lib/export";
@@ -58,13 +58,55 @@ const DataTable = dynamic<DataTableProps<InvestorPosition>>(
   },
 );
 
+/**
+ * Chart-bearing modules are code-split so the investor dashboard's main bundle
+ * stays small (#1264/#1267). Each falls back to a localized skeleton while its
+ * chunk loads; the surrounding ErrorBoundary handles a failed chunk fetch
+ * (offline / degraded network) without taking the whole page down.
+ */
 const PortfolioDonut = dynamic<PortfolioDonutProps>(
   () => import("@/components/dashboard/PortfolioDonut").then((m) => m.PortfolioDonut),
   {
     ssr: false,
-    loading: () => <div className="h-64 w-full animate-pulse rounded-xl bg-zinc-900/40 border border-zinc-800" />,
+    loading: () => <ChartSkeleton label={tCharts("loading")} />,
   },
 );
+
+const ConcentrationRiskAlerts = dynamic<ConcentrationRiskAlertsProps>(
+  () =>
+    import("@/components/analytics/ConcentrationRiskAlerts").then(
+      (m) => m.ConcentrationRiskAlerts,
+    ),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton label={tCharts("loading")} />,
+  },
+);
+
+const SellerAnalyticsDashboard = dynamic<SellerAnalyticsDashboardProps>(
+  () =>
+    import("@/components/analytics/SellerAnalyticsDashboard").then(
+      (m) => m.SellerAnalyticsDashboard,
+    ),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton label={tCharts("loading")} />,
+  },
+);
+
+/** Localized, a11y-friendly placeholder for a lazily loaded chart module. */
+function ChartSkeleton({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      className="flex h-64 w-full animate-pulse items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40"
+    >
+      <span className="text-sm text-zinc-400">{label}</span>
+    </div>
+  );
+}
 
 /** Loading must resolve within 30s or we surface an error state. */
 const INVESTOR_DASHBOARD_LOAD_TIMEOUT_MS = 30_000;
@@ -90,6 +132,7 @@ export default function InvestorDashboardPage() {
   const { setWalletModalOpen } = useUIStore();
   const t = useTranslations("investorDashboard");
   const tCommon = useTranslations("common");
+  const tCharts = useTranslations("charts");
   const router = useRouter();
   const { setFilters, resetFilters } = useInvoiceStore();
   const { formatCurrency, formatDate, formatApr, formatPercentage } = useFormatters();
@@ -254,8 +297,8 @@ export default function InvestorDashboardPage() {
       // why nothing happened instead of failing silently.
       if (result.requiresVerification) {
         toast.error(
-          "Verification required",
-          "Verify wallet ownership to list this position.",
+          t("listing.verificationRequiredTitle"),
+          t("listing.verificationRequiredDesc"),
           () => {
             handleListSubmit(askPrice, expiresAt);
           },
@@ -483,18 +526,24 @@ export default function InvestorDashboardPage() {
             <ConcentrationRiskAlerts positions={positionsData} />
           </ErrorBoundary>
 
-          {/* Portfolio donut charts */}
+          {/* Portfolio donut charts — lazily loaded, empty data handled inside */}
           <ErrorBoundary>
             <Card>
               <CardHeader>
                 <CardTitle>{t("allocation.title")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <PortfolioDonut
-                  positions={donutPositions}
-                  activeFilter={donutFilter}
-                  onSegmentClick={handleSegmentClick}
-                />
+                {donutPositions.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-zinc-400">
+                    {t("allocation.empty")}
+                  </p>
+                ) : (
+                  <PortfolioDonut
+                    positions={donutPositions}
+                    activeFilter={donutFilter}
+                    onSegmentClick={handleSegmentClick}
+                  />
+                )}
               </CardContent>
             </Card>
           </ErrorBoundary>

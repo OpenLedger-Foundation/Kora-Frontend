@@ -22,17 +22,7 @@
  */
 
 import React from "react";
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Legend,
-  Line,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { AlertCircle, Download, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,15 +39,22 @@ import {
 import EmptyState from "@/components/ui/EmptyState";
 import type { InvestorPosition } from "@/types/invoice";
 
-const TOOLTIP_STYLE = {
-  contentStyle: {
-    backgroundColor: "hsl(var(--background))",
-    border: "1px solid hsl(var(--border))",
-    borderRadius: "8px",
-    color: "hsl(var(--foreground))",
-    fontSize: "12px",
-  },
-};
+/**
+ * Recharts is heavy (~100kB gzipped) and only needed once we have 2+ data
+ * points. Load the chart body lazily so the main bundle stays lean; the
+ * skeleton below doubles as the Suspense fallback.
+ */
+const YieldVarianceChartBody = dynamic(
+  () => import("@/components/analytics/YieldVarianceChartBody"),
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{ height: 240 }} data-testid="yield-variance-chart-loading">
+        <Skeleton className="h-full w-full" />
+      </div>
+    ),
+  }
+);
 
 export interface YieldVarianceChartProps {
   positions: InvestorPosition[];
@@ -145,24 +142,24 @@ export default function YieldVarianceChart({
   const AggregateReadout = (
     <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
       <div>
-        <dt className="text-xs text-muted-foreground">Expected</dt>
+        <dt className="text-xs text-muted-foreground">{t("variance.expected")}</dt>
         <dd className="text-sm font-medium">{money(totals.totalExpectedYield)}</dd>
       </div>
       <div>
-        <dt className="text-xs text-muted-foreground">Realized</dt>
+        <dt className="text-xs text-muted-foreground">{t("variance.realized")}</dt>
         <dd className="text-sm font-medium">{money(totals.totalRealizedYield)}</dd>
       </div>
       <div>
-        <dt className="text-xs text-muted-foreground">Variance</dt>
+        <dt className="text-xs text-muted-foreground">{t("variance.variance")}</dt>
         <dd
           className={`flex items-center gap-1 text-sm font-medium ${
             varianceIsPositive ? "text-emerald-500" : "text-red-500"
           }`}
         >
           {varianceIsPositive ? (
-            <TrendingUp className="h-3.5 w-3.5" />
+            <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
           ) : (
-            <TrendingDown className="h-3.5 w-3.5" />
+            <TrendingDown className="h-3.5 w-3.5" aria-hidden="true" />
           )}
           {money(totals.totalVariance)}
           {totals.totalVariancePercent !== null && (
@@ -173,7 +170,7 @@ export default function YieldVarianceChart({
         </dd>
       </div>
       <div>
-        <dt className="text-xs text-muted-foreground">Settled</dt>
+        <dt className="text-xs text-muted-foreground">{t("variance.settled")}</dt>
         <dd className="text-sm font-medium">
           {totals.settledCount} / {totals.settledCount + totals.pendingCount}
         </dd>
@@ -184,7 +181,7 @@ export default function YieldVarianceChart({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Realized vs Expected Yield</CardTitle>
+        <CardTitle className="text-base">{t("variance.title")}</CardTitle>
         {onExport && rows.length > 0 && !error && (
           <button
             type="button"
@@ -215,7 +212,7 @@ export default function YieldVarianceChart({
                 className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
               >
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-                Retry
+                {t("variance.retry")}
               </button>
             )}
           </div>
@@ -231,8 +228,8 @@ export default function YieldVarianceChart({
         {/* ── Empty state ───────────────────────────────────────────────── */}
         {!error && !isLoading && safeSeries.length === 0 && (
           <EmptyState
-            title="No yield data yet"
-            description="Yield variance will populate once you have settled positions."
+            title={t("variance.emptyTitle")}
+            description={t("variance.emptyDescription")}
             variant="analytics"
           />
         )}
@@ -241,7 +238,7 @@ export default function YieldVarianceChart({
         {!error && !isLoading && safeSeries.length === 1 && (
           <div data-testid="yield-variance-single-point">
             <p className="mb-3 text-xs text-muted-foreground">
-              Only one data point available — a variance line requires at least two months of data.
+              {t("variance.singlePointHint")}
             </p>
             {AggregateReadout}
           </div>
@@ -250,63 +247,22 @@ export default function YieldVarianceChart({
         {/* ── Full chart (2+ points) ────────────────────────────────────── */}
         {!error && !isLoading && safeSeries.length >= 2 && (
           <>
-            <div role="img" aria-label={description}>
-              <ResponsiveContainer width="100%" height={compact ? 180 : 240}>
-                <ComposedChart
-                  data={safeSeries}
-                  margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-                  accessibilityLayer
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="month"
-                    tickFormatter={formatMonth}
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(v: number) => money(v)}
-                  />
-                  <Tooltip
-                    {...TOOLTIP_STYLE}
-                    formatter={(value: number, name: string) => [money(value), name]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar
-                    dataKey="expected"
-                    name={t("variance.expected")}
-                    fill="hsl(var(--muted-foreground))"
-                    fillOpacity={0.35}
-                    radius={[4, 4, 0, 0]}
-                    isAnimationActive={false}
-                  />
-                  {/* Only render the variance line when values differ */}
-                  {!allValuesIdentical && (
-                    <Line
-                      type="monotone"
-                      dataKey="realized"
-                      name={t("variance.realized")}
-                      stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                      isAnimationActive={false}
-                    />
-                  )}
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
+            <YieldVarianceChartBody
+              series={safeSeries}
+              description={description}
+              compact={compact}
+              allValuesIdentical={allValuesIdentical}
+              formatMonth={formatMonth}
+              money={money}
+              expectedLabel={t("variance.expected")}
+              realizedLabel={t("variance.realized")}
+            />
 
             {AggregateReadout}
 
             {totals.pendingCount > 0 && (
               <p className="mt-2 text-[11px] text-muted-foreground">
-                {totals.pendingCount} position
-                {totals.pendingCount === 1 ? " is" : "s are"} still active and counted as expected
-                only — variance is reported for settled positions.
+                {t("variance.pendingNote", { count: totals.pendingCount })}
               </p>
             )}
           </>

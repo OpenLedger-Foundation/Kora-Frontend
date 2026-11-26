@@ -108,6 +108,7 @@ export function DataTable<T extends { id: string }>({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<TableSortDirection>(null);
@@ -379,7 +380,12 @@ export function DataTable<T extends { id: string }>({
   if (isMobileView) {
     return (
       <div className={cn("space-y-4", className)}>
-        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-border/50 pb-4">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-4 flex-wrap border-b border-border/50 pb-4",
+            stickyHeaderClasses
+          )}
+        >
           {enableSelection && (
             <label className="inline-flex items-center gap-2 text-xs text-muted-foreground select-none cursor-pointer">
               <input

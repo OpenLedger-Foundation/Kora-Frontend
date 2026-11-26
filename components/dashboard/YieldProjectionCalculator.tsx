@@ -1,16 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -25,9 +16,25 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useFormatters } from "@/hooks/useFormatters";
 import { useLocale } from "@/i18n/LocaleProvider";
-import { isRTL } from "@/i18n/config";
 
 const RISK_TIERS = ["AAA", "AA", "A", "BBB", "BB", "B", "CCC"];
+
+const ChartSkeleton = () => (
+  <div
+    className="h-[350px] w-full animate-pulse rounded-lg bg-muted/40"
+    role="status"
+    aria-busy="true"
+    data-testid="yield-projection-chart-skeleton"
+  />
+);
+
+const YieldProjectionChart = dynamic(
+  () => import("./YieldProjectionChart").then((mod) => mod.YieldProjectionChart),
+  {
+    ssr: false,
+    loading: () => <ChartSkeleton />,
+  }
+);
 
 export interface YieldProjectionCalculatorProps {
   defaultTier?: string;
@@ -186,69 +193,22 @@ export function YieldProjectionCalculator({ defaultTier = "A" }: YieldProjection
             </div>
 
             <div className="h-[350px] w-full" ref={chartRef}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={projection.data} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorPortfolio" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#27272a" />
-                  <XAxis 
-                    dataKey="monthName" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: "#71717a", fontSize: 12 }}
-                    dy={10}
-                    reversed={isRTL(locale)}
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: "#71717a", fontSize: 12 }}
-                    tickFormatter={(v) => `${formatNumber(v / 1000, { maximumFractionDigits: 0 })}k`}
-                    orientation={isRTL(locale) ? "right" : "left"}
-                  />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: "#18181b", border: "1px solid #27272a", borderRadius: "8px" }}
-                    itemStyle={{ fontSize: "12px" }}
-                    labelStyle={{ color: "#71717a", marginBottom: "4px" }}
-                    formatter={(value: number) => [formatCurrency(value, "USDC"), ""]}
-                  />
-                  <Legend verticalAlign="top" height={40} iconType="circle" wrapperStyle={{ fontSize: "12px", color: "#71717a" }} />
-                  <Area
-                    name="Projected Portfolio"
-                    type="monotone"
-                    dataKey="portfolio"
-                    stroke="#14b8a6"
-                    strokeWidth={2}
-                    fillOpacity={1}
-                    fill="url(#colorPortfolio)"
-                    animationDuration={1000}
-                  />
-                  <Area
-                    name="T-Bills (5%)"
-                    type="monotone"
-                    dataKey="tbills"
-                    stroke="#818cf8"
-                    strokeWidth={2}
-                    fill="transparent"
-                    strokeDasharray="5 5"
-                    animationDuration={1000}
-                  />
-                  <Area
-                    name="Savings (4%)"
-                    type="monotone"
-                    dataKey="savings"
-                    stroke="#94a3b8"
-                    strokeWidth={2}
-                    fill="transparent"
-                    strokeDasharray="5 5"
-                    animationDuration={1000}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              {projection.data.length > 0 ? (
+                <YieldProjectionChart
+                  data={projection.data}
+                  locale={locale}
+                  formatCurrency={formatCurrency}
+                  formatNumber={formatNumber}
+                />
+              ) : (
+                <div
+                  className="flex h-full w-full items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground"
+                  role="status"
+                  data-testid="yield-projection-chart-empty"
+                >
+                  {t("noData")}
+                </div>
+              )}
             </div>
           </div>
         </div>
