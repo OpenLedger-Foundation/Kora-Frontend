@@ -194,6 +194,10 @@
     "title": "سوق الفواتير",
     "subtitle": "جارٍ اكتشاف الصفقات...",
     "showing": "عرض {count} فاتورة مدرجة",
+    "indexerWatermark": {
+      "fresh": "تمت مزامنة المفهرس {time}",
+      "stale": "بيانات المفهرس قديمة — آخر مزامنة {time}"
+    },
     "shareFilters": "مشاركة الفلاتر",
     "shareFiltersCopied": "تم نسخ رابط الفلتر إلى الحافظة",
     "exportCsv": "تصدير CSV",

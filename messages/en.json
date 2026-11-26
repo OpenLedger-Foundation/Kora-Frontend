@@ -194,6 +194,10 @@
     "title": "Invoice Marketplace",
     "subtitle": "Discovering deals...",
     "showing": "Showing {count} listed invoices",
+    "indexerWatermark": {
+      "fresh": "Indexer synced {time}",
+      "stale": "Indexer data stale — last synced {time}"
+    },
     "shareFilters": "Share Filters",
     "shareFiltersCopied": "Filter link copied to clipboard",
     "exportCsv": "Export CSV",

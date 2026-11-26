@@ -5,7 +5,13 @@
  * and provides paginated, filtered, and sorted query methods.
  */
 import { getContractEvents, type ContractEvent, type KoraEventType } from "./client";
-import type { Invoice, MarketplaceFilters, MarketplaceSort, PaginatedResponse, DebtorPrivacyLevel } from "@/types";
+import type {
+  Invoice,
+  MarketplaceFilters,
+  MarketplaceSort,
+  PaginatedResponse,
+  DebtorPrivacyLevel,
+} from "@/types";
 import { fetchIpfsJsonWithFallback, isValidCID } from "@/lib/ipfs";
 import { sanitizeIpfsMetadata } from "@/lib/security";
 import { env } from "@/lib/env";
@@ -19,7 +25,10 @@ export interface IndexerQueryOptions {
 }
 
 export class RpcNetworkError extends Error {
-  constructor(message: string, public cause?: unknown) {
+  constructor(
+    message: string,
+    public cause?: unknown
+  ) {
     super(message);
     this.name = "RpcNetworkError";
   }
@@ -28,6 +37,7 @@ export class RpcNetworkError extends Error {
 export class StellarIndexerClient {
   private indexedInvoices: Map<string, Invoice> = new Map();
   private lastIngestedLedger: number = 0;
+  private lastSyncedAt: number | null = null;
   private isIngesting: boolean = false;
   private contractId: string;
 
@@ -43,7 +53,17 @@ export class StellarIndexerClient {
   reset(): void {
     this.indexedInvoices.clear();
     this.lastIngestedLedger = 0;
+    this.lastSyncedAt = null;
     this.isIngesting = false;
+  }
+
+  /**
+   * Wall-clock time of the last successful event sync, or `null` when no sync
+   * has completed yet. Marketplace surfaces this as a freshness watermark so
+   * investors do not fund against silently stale availability (#1244).
+   */
+  getLastSyncedAt(): number | null {
+    return this.lastSyncedAt;
   }
 
   /**
@@ -86,6 +106,8 @@ export class StellarIndexerClient {
 
         await this.processEvents(events);
       }
+
+      this.lastSyncedAt = Date.now();
     } catch (err) {
       if (process.env.NODE_ENV === "development") {
         console.warn("[StellarIndexerClient] Error syncing events:", err);
@@ -103,6 +125,10 @@ export class StellarIndexerClient {
    * Directly ingest event objects into the indexer cache.
    */
   async processEvents(events: ContractEvent[]): Promise<void> {
+    if (events.length > 0) {
+      this.lastSyncedAt = Date.now();
+    }
+
     for (const event of events) {
       switch (event.type) {
         case "mint_invoice":
@@ -170,9 +196,7 @@ export class StellarIndexerClient {
     // Apply cursor or page-based pagination
     let startIndex = (page - 1) * pageSize;
     if (cursor) {
-      const cursorIndex = invoices.findIndex(
-        (i) => i.id === cursor || i.tokenId === cursor
-      );
+      const cursorIndex = invoices.findIndex((i) => i.id === cursor || i.tokenId === cursor);
       if (cursorIndex >= 0) {
         startIndex = cursorIndex + 1;
       }
@@ -197,9 +221,7 @@ export class StellarIndexerClient {
   async getInvoicesByOwner(ownerAddress: string): Promise<Invoice[]> {
     await this.syncEvents();
     const invoices = Array.from(new Set(this.indexedInvoices.values()));
-    return invoices.filter(
-      (inv) => inv.ownerAddress?.toLowerCase() === ownerAddress.toLowerCase()
-    );
+    return invoices.filter((inv) => inv.ownerAddress?.toLowerCase() === ownerAddress.toLowerCase());
   }
 
   private async handleMintInvoiceEvent(event: ContractEvent): Promise<void> {
@@ -209,8 +231,7 @@ export class StellarIndexerClient {
     const id = `inv_${tokenId}`;
     const existing = this.indexedInvoices.get(id);
 
-    const ownerAddress =
-      event.participantAddress || (event.rawTopics[2] ?? "");
+    const ownerAddress = event.participantAddress || (event.rawTopics[2] ?? "");
     const ipfsCid = event.rawTopics[3] || "";
     const amount = event.amount || 0;
 
@@ -233,13 +254,10 @@ export class StellarIndexerClient {
 
     if (ipfsCid && isValidCID(ipfsCid)) {
       try {
-        const { data } = await fetchIpfsJsonWithFallback<Record<string, unknown>>(
-          ipfsCid,
-          {
-            timeoutMs: 5_000,
-            skipIntegrity: env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
-          }
-        );
+        const { data } = await fetchIpfsJsonWithFallback<Record<string, unknown>>(ipfsCid, {
+          timeoutMs: 5_000,
+          skipIntegrity: env.NEXT_PUBLIC_ENABLE_MOCK_DATA,
+        });
         const sanitized = sanitizeIpfsMetadata(data);
         metadata = { ...metadata, ...sanitized };
       } catch {
@@ -290,9 +308,7 @@ export class StellarIndexerClient {
     const tokenId = event.tokenId;
     if (!tokenId) return;
 
-    const invoice =
-      this.indexedInvoices.get(`inv_${tokenId}`) ||
-      this.indexedInvoices.get(tokenId);
+    const invoice = this.indexedInvoices.get(`inv_${tokenId}`) || this.indexedInvoices.get(tokenId);
     if (!invoice) return;
 
     const addedAmount = event.amount;
@@ -312,9 +328,7 @@ export class StellarIndexerClient {
     const tokenId = event.tokenId;
     if (!tokenId) return;
 
-    const invoice =
-      this.indexedInvoices.get(`inv_${tokenId}`) ||
-      this.indexedInvoices.get(tokenId);
+    const invoice = this.indexedInvoices.get(`inv_${tokenId}`) || this.indexedInvoices.get(tokenId);
     if (!invoice) return;
 
     invoice.status = "repaid";
@@ -325,9 +339,7 @@ export class StellarIndexerClient {
     const tokenId = event.tokenId;
     if (!tokenId) return;
 
-    const invoice =
-      this.indexedInvoices.get(`inv_${tokenId}`) ||
-      this.indexedInvoices.get(tokenId);
+    const invoice = this.indexedInvoices.get(`inv_${tokenId}`) || this.indexedInvoices.get(tokenId);
     if (!invoice) return;
 
     invoice.status = "cancelled";

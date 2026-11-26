@@ -194,6 +194,10 @@
     "title": "Mercado de Faturas",
     "subtitle": "Descobrindo oportunidades...",
     "showing": "Exibindo {count} faturas listadas",
+    "indexerWatermark": {
+      "fresh": "Indexador sincronizado {time}",
+      "stale": "Dados do indexador desatualizados — última sincronização {time}"
+    },
     "shareFilters": "Compartilhar Filtros",
     "shareFiltersCopied": "Link do filtro copiado para a área de transferência",
     "exportCsv": "Exportar CSV",
