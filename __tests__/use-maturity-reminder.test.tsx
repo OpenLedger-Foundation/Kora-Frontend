@@ -32,7 +32,7 @@ vi.mock("@/lib/export", () => ({
   exportInvoiceCalendarIcs: (invoice: unknown) => exportIcs(invoice),
 }));
 
-import { useMaturityReminder } from "@/hooks/useMaturityReminder";
+import { useMaturityReminder, isInQuietHours } from "@/hooks/useMaturityReminder";
 
 /** An invoice maturing exactly `days` from now. */
 function invoiceMaturingIn(days: number, overrides: Partial<Invoice> = {}): Invoice {
@@ -213,6 +213,184 @@ describe("useMaturityReminder", () => {
       result.current.downloadCalendarForInvoice(invoice);
 
       expect(exportIcs).toHaveBeenCalledWith(invoice);
+    });
+  });
+
+  describe("quiet hours", () => {
+    function setQuietHours(
+      enabled: boolean,
+      start = "22:00",
+      end = "08:00"
+    ) {
+      useSettingsStore.setState((state) => ({
+        notifications: {
+          ...state.notifications,
+          quietHoursEnabled: enabled,
+          quietHoursStart: start,
+          quietHoursEnd: end,
+        },
+      }));
+    }
+
+    it("suppresses the toast when quiet hours are active", () => {
+      // Current time is 23:00 — inside the 22:00–08:00 window.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T23:00:00"));
+
+      setQuietHours(true, "22:00", "08:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_quiet" })]));
+
+      expect(toastSuccess).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it("does not record a dedupe key when suppressed by quiet hours", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T23:00:00"));
+
+      setQuietHours(true, "22:00", "08:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_quiet_key" })]));
+
+      expect(localStorage.getItem(REMINDER_STORAGE_KEY)).toBeNull();
+      vi.useRealTimers();
+    });
+
+    it("fires normally when quiet hours are enabled but current time is outside the window", () => {
+      // Current time is 12:00 — outside the 22:00–08:00 window.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T12:00:00"));
+
+      setQuietHours(true, "22:00", "08:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_outside_quiet" })]));
+
+      expect(toastSuccess).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+    });
+
+    it("fires normally when quiet hours are disabled regardless of time", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T23:30:00"));
+
+      setQuietHours(false, "22:00", "08:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_quiet_off" })]));
+
+      expect(toastSuccess).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+    });
+
+    it("suppresses at the exact quiet-hours start boundary", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T22:00:00"));
+
+      setQuietHours(true, "22:00", "08:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_start_boundary" })]));
+
+      expect(toastSuccess).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it("fires at the quiet-hours end boundary (window is half-open [start, end))", () => {
+      // 08:00 is the end: the window is [22:00, 08:00), so 08:00 is NOT quiet.
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T08:00:00"));
+
+      setQuietHours(true, "22:00", "08:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_end_boundary" })]));
+
+      expect(toastSuccess).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+    });
+
+    it("handles a same-day quiet window (e.g. 09:00–17:00)", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T10:00:00"));
+
+      setQuietHours(true, "09:00", "17:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_sameday_quiet" })]));
+
+      expect(toastSuccess).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it("fires outside a same-day quiet window", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2024-01-15T18:00:00"));
+
+      setQuietHours(true, "09:00", "17:00");
+      renderHook(() => useMaturityReminder([invoiceMaturingIn(7, { id: "inv_sameday_outside" })]));
+
+      expect(toastSuccess).toHaveBeenCalledTimes(1);
+      vi.useRealTimers();
+    });
+  });
+});
+
+// ── isInQuietHours unit tests ──────────────────────────────────────────────────
+
+describe("isInQuietHours", () => {
+  function at(hour: number, minute = 0): Date {
+    const d = new Date("2024-01-15T00:00:00");
+    d.setHours(hour, minute, 0, 0);
+    return d;
+  }
+
+  describe("overnight window (22:00–08:00)", () => {
+    it("returns true at 22:00 (start boundary)", () => {
+      expect(isInQuietHours("22:00", "08:00", at(22, 0))).toBe(true);
+    });
+
+    it("returns true at 23:30", () => {
+      expect(isInQuietHours("22:00", "08:00", at(23, 30))).toBe(true);
+    });
+
+    it("returns true at 00:00 (midnight)", () => {
+      expect(isInQuietHours("22:00", "08:00", at(0, 0))).toBe(true);
+    });
+
+    it("returns true at 07:59", () => {
+      expect(isInQuietHours("22:00", "08:00", at(7, 59))).toBe(true);
+    });
+
+    it("returns false at 08:00 (end boundary — half-open)", () => {
+      expect(isInQuietHours("22:00", "08:00", at(8, 0))).toBe(false);
+    });
+
+    it("returns false at 12:00", () => {
+      expect(isInQuietHours("22:00", "08:00", at(12, 0))).toBe(false);
+    });
+
+    it("returns false at 21:59", () => {
+      expect(isInQuietHours("22:00", "08:00", at(21, 59))).toBe(false);
+    });
+  });
+
+  describe("same-day window (09:00–17:00)", () => {
+    it("returns true at 09:00 (start boundary)", () => {
+      expect(isInQuietHours("09:00", "17:00", at(9, 0))).toBe(true);
+    });
+
+    it("returns true at 12:00", () => {
+      expect(isInQuietHours("09:00", "17:00", at(12, 0))).toBe(true);
+    });
+
+    it("returns false at 17:00 (end boundary — half-open)", () => {
+      expect(isInQuietHours("09:00", "17:00", at(17, 0))).toBe(false);
+    });
+
+    it("returns false at 08:59", () => {
+      expect(isInQuietHours("09:00", "17:00", at(8, 59))).toBe(false);
+    });
+
+    it("returns false at 23:00", () => {
+      expect(isInQuietHours("09:00", "17:00", at(23, 0))).toBe(false);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("returns false when start equals end (zero-width window)", () => {
+      // start === end means the same-day branch fires but start <= end (equal),
+      // so it's treated as a zero-width window — no time can be inside it.
+      expect(isInQuietHours("08:00", "08:00", at(8, 0))).toBe(false);
     });
   });
 });

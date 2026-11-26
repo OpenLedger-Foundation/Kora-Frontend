@@ -130,6 +130,14 @@ export interface NotificationPrefs {
   fundingProgress: boolean;
   status: boolean;
   apr: boolean;
+  // Quiet hours — suppress maturity reminders between quietHoursStart and
+  // quietHoursEnd (local time, 24-hour "HH:MM" strings). When the window
+  // crosses midnight (start > end) the check wraps correctly.
+  quietHoursEnabled: boolean;
+  /** Local-time start of the quiet window, e.g. "22:00". */
+  quietHoursStart: string;
+  /** Local-time end of the quiet window, e.g. "08:00". */
+  quietHoursEnd: string;
 }
 
 export interface TourSettings {
@@ -150,6 +158,9 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   fundingProgress: true,
   status: true,
   apr: false,
+  quietHoursEnabled: false,
+  quietHoursStart: "22:00",
+  quietHoursEnd: "08:00",
 };
 
 export const DEFAULT_TOUR_SETTINGS: TourSettings = {
@@ -231,7 +242,7 @@ export const LEGACY_INVOICE_STORE_KEY = "kora-invoice-store";
 type StorageReader = (key: string) => string | null;
 type StorageWriter = (key: string, value: string) => void;
 
-const LEGACY_BOOLEAN_KEYS: Array<Exclude<keyof NotificationPrefs, "maturityReminderDays">> = [
+const LEGACY_BOOLEAN_KEYS: Array<Exclude<keyof NotificationPrefs, "maturityReminderDays" | "quietHoursStart" | "quietHoursEnd">> = [
   "txConfirmed",
   "invoiceFunded",
   "yieldAvailable",
@@ -241,6 +252,7 @@ const LEGACY_BOOLEAN_KEYS: Array<Exclude<keyof NotificationPrefs, "maturityRemin
   "fundingProgress",
   "status",
   "apr",
+  "quietHoursEnabled",
 ];
 
 function extractLegacyPrefs(legacy: Record<string, unknown>): Partial<NotificationPrefs> {

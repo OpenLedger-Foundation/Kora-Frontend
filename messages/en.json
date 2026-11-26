@@ -1266,6 +1266,14 @@
       },
       "resetDefaults": "Reset to defaults",
       "toggleAriaLabel": "Toggle {label}",
+      "quietHours": {
+        "label": "Quiet Hours",
+        "description": "Silence maturity reminders during the hours you set.",
+        "toggleAriaLabel": "Toggle quiet hours",
+        "startLabel": "From",
+        "endLabel": "To",
+        "hint": "Reminders are silenced from {start} to {end}."
+      },
       "tourSection": {
         "title": "Onboarding Tour",
         "status": "Status:",

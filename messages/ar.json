@@ -1264,6 +1264,14 @@
       },
       "resetDefaults": "إعادة الضبط إلى الافتراضي",
       "toggleAriaLabel": "تبديل {label}",
+      "quietHours": {
+        "label": "ساعات الهدوء",
+        "description": "أوقف تشغيل تذكيرات الاستحقاق خلال الساعات التي تحددها.",
+        "toggleAriaLabel": "تفعيل/تعطيل ساعات الهدوء",
+        "startLabel": "من",
+        "endLabel": "إلى",
+        "hint": "يتم إسكات التذكيرات من {start} إلى {end}."
+      },
       "tourSection": {
         "title": "جولة الإعداد",
         "status": "الحالة:",

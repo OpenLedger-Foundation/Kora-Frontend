@@ -1266,6 +1266,14 @@
       },
       "resetDefaults": "Restablecer valores predeterminados",
       "toggleAriaLabel": "Activar/desactivar {label}",
+      "quietHours": {
+        "label": "Horas de Silencio",
+        "description": "Silencia los recordatorios de vencimiento durante las horas que configures.",
+        "toggleAriaLabel": "Activar/desactivar horas de silencio",
+        "startLabel": "Desde",
+        "endLabel": "Hasta",
+        "hint": "Los recordatorios se silencian de {start} a {end}."
+      },
       "tourSection": {
         "title": "Recorrido de Incorporación",
         "status": "Estado:",
