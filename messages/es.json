@@ -1562,7 +1562,8 @@
     "totalFeeAria": "Cómo se calcula el total",
     "protocolFeeTooltip": "Una comisión del protocolo del {rate} financia los contratos Soroban de Kora que mantienen esta operación en custodia.",
     "marketFeeTooltip": "Una comisión del mercado del {rate} se destina a la plataforma que publica esta factura.",
-    "totalFeeTooltip": "El precio de la posición más {fees} en comisiones. Pagas {total}."
+    "totalFeeTooltip": "El precio de la posición más {fees} en comisiones. Pagas {total}.",
+    "tooltipTriggerLabel": "Ver desglose de comisiones"
   },
   "concentrationRisk": {
     "title": "Riesgo de concentración",

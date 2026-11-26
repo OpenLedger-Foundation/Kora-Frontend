@@ -1544,7 +1544,8 @@
     "totalFeeAria": "How the total is calculated",
     "protocolFeeTooltip": "A {rate} protocol fee funds the Kora Soroban contracts that hold this trade in escrow.",
     "marketFeeTooltip": "A {rate} marketplace fee goes to the venue that hosts this listing.",
-    "totalFeeTooltip": "The position price plus {fees} in fees. You pay {total}."
+    "totalFeeTooltip": "The position price plus {fees} in fees. You pay {total}.",
+    "tooltipTriggerLabel": "Show fee breakdown"
   },
   "concentrationRisk": {
     "title": "Concentration risk",

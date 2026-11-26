@@ -1560,7 +1560,8 @@
     "totalFeeAria": "كيف يتم احتساب الإجمالي",
     "protocolFeeTooltip": "تدعم رسوم البروتوكول البالغة {rate} عقود Kora على Soroban التي تحتفظ بهذه الصفقة في الضمان.",
     "marketFeeTooltip": "تذهب رسوم السوق البالغة {rate} إلى المنصة التي تُدرج هذه الفاتورة.",
-    "totalFeeTooltip": "سعر المركز بالإضافة إلى {fees} رسومًا. تدفع {total}."
+    "totalFeeTooltip": "سعر المركز بالإضافة إلى {fees} رسومًا. تدفع {total}.",
+    "tooltipTriggerLabel": "عرض تفاصيل الرسوم"
   },
   "concentrationRisk": {
     "title": "مخاطر التركّز",
