@@ -16,6 +16,9 @@
  *
  * Destructive transitions (isDestructive=true) always open a confirmation dialog
  * before any on-chain call is fired. Non-destructive transitions confirm inline.
+ *
+ * Illegal transitions (rejected by the state machine) surface a localized toast
+ * carrying a stable, copyable support code so support can trace the failure.
  */
 
 import { useState } from "react";
@@ -33,10 +36,12 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import {
   getAllowedTransitions,
   getBlockedReason,
+  getIllegalTransitionSupportCode,
   STATUS_TO_CHAIN_INDEX,
 } from "@/lib/invoiceStateMachine";
 import { useTransaction } from "@/hooks/useTransaction";
 import { useTxSimulation } from "@/hooks/useTxSimulation";
+import { useToast } from "@/hooks/useToast";
 import { TxSimulationPreview } from "@/components/invoice/TxSimulationPreview";
 import { queryKeys } from "@/lib/queryKeys";
 import { CancelInvoiceDialog } from "@/components/invoice/CancelInvoiceDialog";
@@ -116,6 +121,7 @@ export function StatusTransitionButtons({
   const queryClient = useQueryClient();
   const { execute, status: txStatus } = useTransaction();
   const { simulationDialogProps, onSimulationPreview } = useTxSimulation();
+  const { error: showErrorToast } = useToast();
 
   // Inline confirm dialog (non-destructive, e.g. "Mark as Funded")
   const [inlineConfirm, setInlineConfirm] = useState<InlineConfirm | null>(null);
@@ -133,6 +139,26 @@ export function StatusTransitionButtons({
   const transitions = getAllowedTransitions(invoice.status);
   if (transitions.length === 0) return null;
 
+  // ── Illegal transition toast ─────────────────────────────────────────────
+
+  /**
+   * Surface a localized toast for a transition the state machine rejected.
+   * The stable support code is derived from the current status and the
+   * attempted target so support can reproduce the exact failure.
+   */
+  function notifyIllegalTransition(from: InvoiceStatus, to: InvoiceStatus) {
+    const supportCode = getIllegalTransitionSupportCode(from, to);
+    showErrorToast(
+      t("illegalTransition.title"),
+      t("illegalTransition.description", {
+        from: t(`statuses.${from}`),
+        to: t(`statuses.${to}`),
+        supportCode,
+      }),
+      { supportCode }
+    );
+  }
+
   // ── Core on-chain dispatcher ─────────────────────────────────────────────
 
   async function fireTransition(
@@ -142,8 +168,24 @@ export function StatusTransitionButtons({
   ) {
     if (!walletAddress) return;
 
+    // Guard: the transition must still be legal for the invoice's current
+    // status. This catches stale UI (e.g. status changed in another tab) and
+    // surfaces a support-coded toast instead of a generic error.
+    const stillAllowed = getAllowedTransitions(invoice.status).some(
+      (allowed) => allowed.to === transition.to
+    );
+    if (!stillAllowed) {
+      notifyIllegalTransition(invoice.status, transition.to);
+      return;
+    }
+
     if (onTransition) {
-      await onTransition(invoice, transition.to);
+      try {
+        await onTransition(invoice, transition.to);
+      } catch (err) {
+        notifyIllegalTransition(invoice.status, transition.to);
+        throw err;
+      }
       return;
     }
 
@@ -178,6 +220,16 @@ export function StatusTransitionButtons({
   // ── Button click handler ─────────────────────────────────────────────────
 
   function handleClick(transition: StatusTransition) {
+    // Re-validate against the current status before opening any dialog so an
+    // illegal attempt is reported immediately with a support code.
+    const stillAllowed = getAllowedTransitions(invoice.status).some(
+      (allowed) => allowed.to === transition.to
+    );
+    if (!stillAllowed) {
+      notifyIllegalTransition(invoice.status, transition.to);
+      return;
+    }
+
     if (transition.contractMethod === "cancel") {
       setCancelError(undefined);
       setCancelDialogOpen(true);
@@ -197,7 +249,7 @@ export function StatusTransitionButtons({
       await fireTransition(cancelTransition, reason, notes);
       setCancelDialogOpen(false);
     } catch (err) {
-      setCancelError(err instanceof Error ? err.message : "Cancellation failed. Please try again.");
+      setCancelError(err instanceof Error ? err.message : t("cancelFailed"));
     }
   }
 

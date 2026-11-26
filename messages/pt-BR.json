@@ -64,6 +64,11 @@
     "termsLink": "Termos de Serviço",
     "connectGuardTitle": "Conecte sua carteira para continuar",
     "connectGuardDesc": "Esta página requer uma carteira conectada.",
+    "insufficientUsdcTitle": "USDC insuficiente para financiar",
+    "insufficientUsdcDesc": "Você precisa de mais {shortfall} USDC para financiar este valor. Seu saldo é {balance}.",
+    "insufficientUsdcEmpty": "Sua carteira ainda não tem USDC. Adicione USDC para começar a financiar faturas.",
+    "insufficientUsdcCta": "Obter USDC",
+    "insufficientUsdcBridge": "Transferir USDC para a Stellar",
     "sessionExpiredTitle": "Sessão da carteira inativa",
     "sessionExpiredDesc": "Desbloqueie sua extensão de carteira ou reconecte para continuar.",
     "reconnect": "Reconectar Carteira",
@@ -194,6 +199,14 @@
     "title": "Mercado de Faturas",
     "subtitle": "Descobrindo oportunidades...",
     "showing": "Exibindo {count} faturas listadas",
+    "indexerWatermark": {
+      "fresh": "Indexador sincronizado {time}",
+      "stale": "Dados do indexador desatualizados — última sincronização {time}"
+    },
+    "indexer": {
+      "synced": "Indexado {time} · ledger {ledger}",
+      "stale": "A disponibilidade pode estar desatualizada — última indexação {time}"
+    },
     "shareFilters": "Compartilhar Filtros",
     "shareFiltersCopied": "Link do filtro copiado para a área de transferência",
     "exportCsv": "Exportar CSV",
@@ -211,6 +224,10 @@
     "filterRemoved": "Filtro \"{label}\" removido",
     "activeFilterRiskTier": "Risco: {tier}",
     "activeFilterAprRange": "APR: {min}%–{max}%",
+    "removeFilterAria": "Remover filtro: {label}",
+    "clearAllFiltersAria": "Limpar todos os filtros ativos",
+    "allFiltersCleared": "Todos os filtros foram limpos",
+    "activeFiltersKeyboardHint": "Use as setas para navegar entre os filtros ativos. Pressione Delete ou Backspace para remover o filtro em foco.",
     "activeOnlyDesc": "Ocultar faturas totalmente financiadas ou inadimplentes",
     "showExpired": "Mostrar expiradas",
     "showExpiredDesc": "Incluir listagens cuja data de expiração já passou",
@@ -223,6 +240,8 @@
     "noResults": "Nenhuma fatura corresponde aos seus filtros",
     "noResultsDesc": "Não encontramos nenhuma listagem ativa com sua seleção atual. Tente redefinir seus filtros para explorar outras oportunidades.",
     "clearAllFilters": "Limpar Todos os Filtros",
+    "offlineEmptyTitle": "Nenhuma fatura em cache disponível offline",
+    "offlineEmptyDesc": "Conecte-se à internet para carregar o mercado. Os anúncios em cache aparecerão aqui quando você estiver offline após uma visita anterior.",
     "recovery": {
       "clearRiskTiers": "Limpar níveis de risco",
       "widenApr": "Ampliar faixa de APR",
@@ -232,6 +251,8 @@
     },
     "loadingMore": "Carregando mais…",
     "allLoaded": "Todas as faturas carregadas",
+    "newInvoicesAnnouncement": "{count, plural, one {# nova fatura carregada} other {# novas faturas carregadas}} — {total} exibidas",
+    "allLoadedAnnouncement": "Todas as faturas carregadas — fim da lista",
     "backToTop": "↑ Topo",
     "recent": "Recente",
     "clear": "Limpar",
@@ -310,7 +331,9 @@
       "copied": "Copiado!",
       "clearAriaLabel": "Limpar todas as comparações",
       "selectAtLeastTwo": "Selecione pelo menos 2 faturas para comparar",
-      "openTable": "Abrir tabela de comparação"
+      "openTable": "Abrir tabela de comparação",
+      "maxReached": "Máx atingido",
+      "limitReached": "A comparação está cheia: máximo de {max} faturas. Remova uma para adicionar outra."
     },
     "watchlist": {
       "ariaLabel": "Lista de monitoramento de faturas",
@@ -337,6 +360,20 @@
     "retryLoading": "Tentar carregar novamente"
   },
   "invoiceDetail": {
+    "yieldCalculator": {
+      "title": "Projeção de rendimento",
+      "expectedReturn": "Retorno esperado",
+      "annualisedYield": "Rendimento anualizado",
+      "breakEvenDate": "Data de equilíbrio",
+      "netYield": "Rendimento líquido",
+      "approxUsd": "Aprox. USD",
+      "invalidData": "Projeção de rendimento indisponível: os dados de financiamento são inválidos.",
+      "capReached": "O valor excede o limite de financiamento restante. Reduza seu investimento para ver uma projeção válida.",
+      "zeroApr": "APR de 0%: este investimento não gerará rendimento.",
+      "noYield": "Nenhum rendimento será gerado com estas condições.",
+      "priceUnavailable": "Estimativa em USD indisponível: preço do oráculo ausente.",
+      "a11yLabel": "Projeção de rendimento do seu investimento"
+    },
     "backToMarketplace": "Voltar ao Mercado",
     "financingTerms": "Condições de Financiamento",
     "fundingProgress": "Progresso do Financiamento",
@@ -346,6 +383,11 @@
     "maturity": "Vencimento",
     "connectToInvest": "Conecte sua carteira Stellar para visualizar rendimentos e começar a investir.",
     "connectWalletToInvest": "Conectar Carteira para Investir",
+    "insufficientUsdc": {
+      "title": "Saldo USDC insuficiente",
+      "description": "Sua carteira tem {available} USDC, mas este investimento exige {required}. Adquira USDC e atualize seu saldo para continuar.",
+      "acquire": "Adquirir USDC"
+    },
     "selfFundBlocked": "Auto-Financiamento Bloqueado",
     "selfFundDesc": "Você não pode financiar sua própria fatura. As regras de escrow de factoring descoupado restringem os proprietários de faturas de participar como provedores de liquidez.",
     "cannotFundOwn": "Você não pode financiar sua própria fatura",
@@ -712,6 +754,20 @@
     }
   },
   "transactions": {
+    "csv": {
+      "columns": {
+        "hash": "Hash da transação",
+        "type": "Tipo",
+        "status": "Status",
+        "amount": "Valor",
+        "asset": "Ativo",
+        "date": "Data",
+        "timestampUtc": "Data e hora (UTC, ISO 8601)",
+        "description": "Descrição",
+        "error": "Erro"
+      },
+      "exportFailed": "Não foi possível exportar as transações. Tente novamente."
+    },
     "title": "Histórico de Transações",
     "subtitle": "Toda sua atividade on-chain no Kora Protocol",
     "exportCsv": "Exportar CSV",
@@ -756,6 +812,9 @@
     "viewStellar": "Ver no Stellar Expert",
     "remove": "Remover transação",
     "listTitle": "Transações",
+    "groups": {
+      "other": "Geral"
+    },
     "reason": "Motivo:",
     "searchAria": "Buscar transações",
     "typeFilterAria": "Filtrar por tipo de transação",
@@ -800,6 +859,8 @@
       "type": "Tipo",
       "txHash": "Hash da Transação",
       "copyHashAria": "Copiar hash",
+      "hashCopied": "Hash copiado",
+      "hashCopyFailed": "Falha ao copiar o hash",
       "status": "Status",
       "amount": "Valor",
       "dateTime": "Data e Hora",
@@ -889,10 +950,18 @@
       "title": "Resumo da carteira",
       "share": "Compartilhar resumo"
     },
+    "copyLink": "Copiar link filtrado",
+    "linkCopied": "Link copiado",
+    "linkCopyFailed": "Não foi possível copiar o link",
     "a11y": {
       "filterJurisdiction": "Filtrar por jurisdição",
       "filterCategory": "Filtrar por categoria",
       "clearFilters": "Limpar todos os filtros",
+      "filterChips": "Filtros ativos",
+      "filterChip": "Filtro {label}",
+      "removeFilterChip": "Remover filtro {label}",
+      "filterChipRemoved": "Filtro {label} removido",
+      "filterChipHint": "Use as setas para navegar entre os filtros, Enter para editar e Delete ou Backspace para remover.",
       "exportPortfolio": "Exportar dados da carteira",
       "exportYield": "Exportar dados de rendimento",
       "exportRisk": "Exportar dados de risco",
@@ -972,6 +1041,9 @@
     "writeBytes": "Bytes Escritos",
     "simulationError": "Erro de Simulação",
     "simulationErrorDesc": "Esta transação não pode ser executada. Revise o erro abaixo.",
+    "simulationErrorHint": "Nada foi assinado ou enviado. Revise o valor e tente novamente.",
+    "rpcUnavailable": "Serviço de simulação indisponível",
+    "rpcUnavailableDesc": "O RPC da Stellar não respondeu. Verifique o endpoint do RPC ou tente novamente.",
     "timeout": "A simulação expirou após 10 segundos. Tente novamente.",
     "simulating": "Simulando transação…",
     "proceed": "Prosseguir e Assinar",
@@ -983,6 +1055,7 @@
     "kb": "{count} KB"
   },
   "network": {
+    "serviceUnavailable": "Um serviço da Stellar está indisponível. Tente novamente em instantes.",
     "operational": "Operacional",
     "degraded": "Degradado",
     "down": "Indisponível",
@@ -1150,7 +1223,8 @@
     "pickContact": "Escolher um contato salvo",
     "noContacts": "Nenhum contato salvo ainda",
     "pickFromAddressBook": "Escolher da Agenda",
-    "verifiedLabel": "Label verified with signature",
+    "verifiedLabel": "Etiqueta verificada com assinatura",
+    "unverifiedLabel": "Etiqueta não verificada: assinatura ausente ou inválida",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"
@@ -1184,12 +1258,38 @@
     "connectCta": "Conectar carteira",
     "navLabel": "Configurações",
     "openFull": "Abrir configurações completas",
+    "transfer": {
+      "title": "Exportar e importar preferências",
+      "description": "Faça backup das suas configurações e catálogo de endereços como um arquivo criptografado. Você precisará da mesma senha para importá-lo.",
+      "passphrase": "Senha",
+      "passphraseHint": "Pelo menos {min} caracteres. Nunca é armazenada nem enviada.",
+      "export": "Exportar criptografado",
+      "import": "Importar arquivo",
+      "exported": "Preferências exportadas.",
+      "exportFailed": "Não foi possível exportar as preferências.",
+      "imported": "Preferências importadas.",
+      "importFailed": "Não foi possível importar. Verifique o arquivo e a senha."
+    },
     "notifications": {
       "sectionTitle": "Preferências de Notificação",
       "sectionDesc": "Controle quais alertas aparecem durante seu fluxo de trabalho.",
       "maturityReminder": {
         "label": "Lembretes de Vencimento",
         "description": "Lembrar antes da data de vencimento da fatura."
+      },
+      "quietHours": {
+        "label": "Horário de silêncio",
+        "description": "Pausar lembretes de vencimento durante o horário escolhido.",
+        "enableLabel": "Ativar horário de silêncio",
+        "enableDesc": "Os lembretes de vencimento serão adiados até o fim do horário de silêncio.",
+        "startLabel": "Início",
+        "endLabel": "Fim",
+        "startAria": "Hora de início do horário de silêncio",
+        "endAria": "Hora de término do horário de silêncio",
+        "timezoneNote": "Usa o fuso horário do seu navegador: {timezone}.",
+        "invalidRange": "O horário de término deve ser diferente do horário de início.",
+        "overnightHint": "O horário de silêncio atravessa a meia-noite.",
+        "deferredNotice": "Um lembrete de vencimento foi adiado até o fim do horário de silêncio."
       },
       "fundingAlerts": {
         "label": "Alertas de Financiamento",
@@ -1208,6 +1308,14 @@
       },
       "resetDefaults": "Restaurar padrões",
       "toggleAriaLabel": "Alternar {label}",
+      "quietHours": {
+        "label": "Horas de Silêncio",
+        "description": "Silencie os lembretes de vencimento durante os horários definidos.",
+        "toggleAriaLabel": "Alternar horas de silêncio",
+        "startLabel": "De",
+        "endLabel": "Até",
+        "hint": "Os lembretes são silenciados das {start} às {end}."
+      },
       "tourSection": {
         "title": "Tour de Integração",
         "status": "Status:",
@@ -1335,7 +1443,7 @@
     "fundInvoice": "Financiar Fatura",
     "addToCompare": "Adicionar {debtor} à comparação",
     "removeFromCompare": "Remover {debtor} da comparação",
-    "comparisonFull": "Lista de comparação cheia (máx. 3)",
+    "comparisonFull": "Lista de comparação cheia (máx. {max})",
     "addToCompareButton": "Adicionar à Comparação",
     "removeFromCompareButton": "Remover da Comparação",
     "viewDetails": "Ver Detalhes"
@@ -1376,7 +1484,15 @@
     "onChainWarning": "Esta ação é registrada na blockchain e não pode ser revertida.",
     "goBack": "Voltar",
     "confirm": "Confirmar",
-    "processing": "Processando…"
+    "processing": "Processando…",
+    "illegalTransitionTitle": "Transição de status não permitida",
+    "illegalTransitionBody": "A fatura {invoiceNumber} não pode passar de {from} para {to}.",
+    "illegalTransitionSupportCode": "Código de suporte: {code}",
+    "illegalTransitionHint": "Informe este código ao suporte para que possamos ajudar mais rápido.",
+    "copySupportCode": "Copiar código de suporte",
+    "supportCodeCopied": "Código de suporte copiado",
+    "supportCodeCopyFailed": "Não foi possível copiar o código de suporte",
+    "dismiss": "Fechar"
   },
   "batchToolbar": {
     "invoicesSelected": "{count} Faturas Selecionadas",
@@ -1498,7 +1614,14 @@
     "totalFees": "Taxas totais ({rate})",
     "total": "Total a pagar",
     "noFees": "Esta aquisição não possui taxas.",
-    "listingNote": "O comprador paga {rate} em taxas sobre o preço pedido."
+    "listingNote": "O comprador paga {rate} em taxas sobre o preço pedido.",
+    "protocolFeeAria": "O que é a taxa do protocolo?",
+    "marketFeeAria": "O que é a taxa do mercado?",
+    "totalFeeAria": "Como o total é calculado",
+    "protocolFeeTooltip": "Uma taxa do protocolo de {rate} financia os contratos Soroban da Kora que mantêm esta negociação em custódia.",
+    "marketFeeTooltip": "Uma taxa do mercado de {rate} vai para a plataforma que lista esta fatura.",
+    "totalFeeTooltip": "O preço da posição mais {fees} em taxas. Você paga {total}.",
+    "tooltipTriggerLabel": "Ver detalhamento de taxas"
   },
   "concentrationRisk": {
     "title": "Risco de concentração",
@@ -1557,6 +1680,10 @@
         "15": "15%+ de Rendimento"
       }
     }
+  },
+  "killSwitch": {
+    "title": "As ações estão pausadas temporariamente",
+    "description": "Esta ação está desativada nesta implantação. Tente novamente mais tarde."
   },
   "secondaryMarket": {
     "title": "Mercado Secundário",
@@ -1746,5 +1873,8 @@
       "optionsLoaded": "{count, plural, =0 {Nenhuma opção disponível} one {# opção disponível} other {# opções disponíveis}}",
       "loadError": "Não foi possível carregar as opções"
     }
+  },
+  "featureFlags": {
+    "featureDisabled": "Este recurso está desativado no momento ({flag})."
   }
 }

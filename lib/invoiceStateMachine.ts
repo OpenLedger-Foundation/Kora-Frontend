@@ -163,6 +163,118 @@ export function getTransition(
   return getAllowedTransitions(from).find((t) => t.to === to) ?? null;
 }
 
+// ─── Illegal transition support codes (#1259) ────────────────────────────────
+
+/**
+ * Prefix for all invoice state-machine support codes. Kept stable so support
+ * tooling can grep logs / screenshots for a single token.
+ */
+export const ILLEGAL_TRANSITION_CODE_PREFIX = "INV-TRANS";
+
+/**
+ * Returns a deterministic, stable support code for an illegal transition.
+ *
+ * The code is derived purely from the `from`/`to` statuses so it is identical
+ * across sessions, devices and locales — support can reproduce an issue from
+ * the code alone. Example: `INV-TRANS-LISTED-REPAID`.
+ */
+export function getIllegalTransitionSupportCode(
+  from: InvoiceStatus,
+  to: InvoiceStatus
+): string {
+  const normalize = (status: InvoiceStatus) => status.toUpperCase().replace(/_/g, "-");
+  return `${ILLEGAL_TRANSITION_CODE_PREFIX}-${normalize(from)}-${normalize(to)}`;
+}
+
+/** Structured payload describing an illegal transition. */
+export interface IllegalTransitionMessage {
+  /** Stable support code, e.g. `INV-TRANS-LISTED-REPAID`. */
+  code: string;
+  /** The status the invoice was in. */
+  from: InvoiceStatus;
+  /** The status the caller attempted to reach. */
+  to: InvoiceStatus;
+}
+
+/**
+ * Returns a structured description of an illegal transition, including the
+ * stable support code. Used by the toast so the code can be surfaced to users
+ * and copied into support tickets.
+ */
+export function getIllegalTransitionMessage(
+  from: InvoiceStatus,
+  to: InvoiceStatus
+): IllegalTransitionMessage {
+  return {
+    code: getIllegalTransitionSupportCode(from, to),
+    from,
+    to,
+  };
+}
+
+/**
+ * Stable support codes for blocked invoice transitions.
+ *
+ * These codes are surfaced to users (and included in support toasts) so that
+ * support agents can identify the exact failure without guessing. They are
+ * part of the public contract — do not rename without a migration.
+ */
+export const INVOICE_TRANSITION_ERROR_CODES = {
+  /** Wallet is not connected. */
+  WALLET_NOT_CONNECTED: "INV_WALLET_NOT_CONNECTED",
+  /** Caller is not the invoice owner. */
+  NOT_OWNER: "INV_NOT_OWNER",
+  /** Transition is not part of the state machine. */
+  ILLEGAL_TRANSITION: "INV_ILLEGAL_TRANSITION",
+} as const;
+
+export type InvoiceTransitionErrorCode =
+  (typeof INVOICE_TRANSITION_ERROR_CODES)[keyof typeof INVOICE_TRANSITION_ERROR_CODES];
+
+/** Result of evaluating whether a transition is blocked. */
+export interface BlockedTransitionResult {
+  /** Stable support code identifying the failure. */
+  code: InvoiceTransitionErrorCode;
+  /** Human-readable reason (English fallback; UI should localize via `code`). */
+  reason: string;
+}
+
+/**
+ * Returns the stable support code + human-readable reason why a transition is
+ * blocked, or `null` when the transition is allowed.
+ *
+ * Checks (in order):
+ *  1. Wallet not connected
+ *  2. Caller is not the invoice owner
+ *  3. Transition not in the state machine
+ */
+export function getBlockedTransition(
+  from: InvoiceStatus,
+  to: InvoiceStatus,
+  isOwner: boolean,
+  walletConnected = true
+): BlockedTransitionResult | null {
+  if (!walletConnected) {
+    return {
+      code: INVOICE_TRANSITION_ERROR_CODES.WALLET_NOT_CONNECTED,
+      reason: "Connect your wallet to manage invoice status.",
+    };
+  }
+  if (!isOwner) {
+    return {
+      code: INVOICE_TRANSITION_ERROR_CODES.NOT_OWNER,
+      reason: "Only the invoice owner can trigger status changes.",
+    };
+  }
+  if (!isValidTransition(from, to)) {
+    return {
+      code: INVOICE_TRANSITION_ERROR_CODES.ILLEGAL_TRANSITION,
+      reason: `Cannot transition from "${from.replace(/_/g, " ")}" to "${to.replace(/_/g, " ")}".`,
+    };
+  }
+  return null;
+}
+
 /**
  * Returns a human-readable reason why a transition is blocked.
  * Returns null when the transition is allowed.
@@ -178,16 +290,40 @@ export function getBlockedReason(
   isOwner: boolean,
   walletConnected = true
 ): string | null {
-  if (!walletConnected) {
-    return "Connect your wallet to manage invoice status.";
+  return getBlockedTransition(from, to, isOwner, walletConnected)?.reason ?? null;
+}
+
+/** A blocked-reason result that optionally carries a support code. */
+export interface BlockedReasonWithCode {
+  /** Human-readable reason, or `null` when the transition is allowed. */
+  reason: string | null;
+  /**
+   * Stable support code for illegal transitions, or `null` for allowed
+   * transitions and for wallet/owner blocks (which are user-actionable and
+   * do not need a support code).
+   */
+  code: string | null;
+}
+
+/**
+ * Like {@link getBlockedReason}, but also returns the stable support code when
+ * the transition is illegal per the state machine. Wallet/owner checks keep
+ * their existing behaviour and yield `code: null`.
+ */
+export function getBlockedReasonWithCode(
+  from: InvoiceStatus,
+  to: InvoiceStatus,
+  isOwner: boolean,
+  walletConnected = true
+): BlockedReasonWithCode {
+  const reason = getBlockedReason(from, to, isOwner, walletConnected);
+  if (reason === null) {
+    return { reason: null, code: null };
   }
-  if (!isOwner) {
-    return "Only the invoice owner can trigger status changes.";
+  if (walletConnected && isOwner && !isValidTransition(from, to)) {
+    return { reason, code: getIllegalTransitionSupportCode(from, to) };
   }
-  if (!isValidTransition(from, to)) {
-    return `Cannot transition from "${from.replace(/_/g, " ")}" to "${to.replace(/_/g, " ")}".`;
-  }
-  return null;
+  return { reason, code: null };
 }
 
 /**
@@ -203,6 +339,61 @@ export const TERMINAL_STATUSES: ReadonlySet<InvoiceStatus> = new Set([
 
 export function isTerminalStatus(status: InvoiceStatus): boolean {
   return TERMINAL_STATUSES.has(status);
+}
+
+// ─── UI CTA guards (#1163) ───────────────────────────────────────────────────
+
+/**
+ * A CTA rendered in the invoice UI. Each CTA maps to exactly one target
+ * status; the guard below decides whether it may be clicked.
+ */
+export type InvoiceCta = "mark_funded" | "mark_repaid" | "cancel";
+
+/** Maps each CTA to the target status it would request on-chain. */
+export const CTA_TARGET_STATUS: Record<InvoiceCta, InvoiceStatus> = {
+  mark_funded: "fully_funded",
+  mark_repaid: "repaid",
+  cancel: "cancelled",
+};
+
+export interface CtaGuardResult {
+  /** Whether the CTA may be clicked. */
+  enabled: boolean;
+  /** Whether the CTA should be rendered at all. */
+  visible: boolean;
+  /** Reason the CTA is disabled, or null when enabled. */
+  reason: string | null;
+}
+
+/**
+ * Resolves whether a CTA is enabled/visible for the given invoice status.
+ *
+ * Guards against illegal transitions and stale indexer status: when the
+ * caller passes the last-known on-chain status via `onChainStatus`, the
+ * guard uses that authoritative value instead of the possibly-stale
+ * `displayStatus` from the indexer.
+ */
+export function getCtaGuard(
+  cta: InvoiceCta,
+  displayStatus: InvoiceStatus,
+  options: {
+    isOwner?: boolean;
+    walletConnected?: boolean;
+    /** Authoritative on-chain status, if known. Overrides displayStatus. */
+    onChainStatus?: InvoiceStatus | null;
+  } = {}
+): CtaGuardResult {
+  const { isOwner = true, walletConnected = true, onChainStatus = null } = options;
+  const status = onChainStatus ?? displayStatus;
+  const target = CTA_TARGET_STATUS[cta];
+
+  // Hide CTAs that are not part of the state machine for this status at all.
+  if (!isValidTransition(status, target)) {
+    return { enabled: false, visible: false, reason: null };
+  }
+
+  const reason = getBlockedReason(status, target, isOwner, walletConnected);
+  return { enabled: reason === null, visible: true, reason };
 }
 
 // ─── Amendment eligibility (#568) ────────────────────────────────────────────
@@ -259,74 +450,4 @@ export function getAmendBlockedReason(
     return `Amendments are not allowed for invoices with status "${label}". Only listed or partially funded invoices may be amended.`;
   }
   return null;
-}
-
-// ─── Contract method map (#898) ──────────────────────────────────────────────
-
-/**
- * Maps each transition contract method to the contract call it represents.
- *
- * This is the single source of truth for the invoice state machine ↔ contract
- * boundary. `StatusTransitionButtons` routes on-chain calls through this map
- * instead of casting payloads `as any`, so an unsupported transition fails at
- * type-check time rather than at runtime.
- */
-export interface TransitionContractCall {
-  /** Which contract exposes the method. */
-  contract: "invoice" | "marketplace";
-  /** The contract method name to invoke. */
-  method: "cancelInvoice" | "updateStatus" | "repayInvoice";
-}
-
-export const TRANSITION_CONTRACT_METHODS: Record<
-  TransitionContractMethod,
-  TransitionContractCall
-> = {
-  cancel: { contract: "invoice", method: "cancelInvoice" },
-  update_status: { contract: "invoice", method: "updateStatus" },
-  repay: { contract: "marketplace", method: "repayInvoice" },
-};
-
-/**
- * Resolves the contract call for a transition, or `null` when the transition
- * is not part of the state machine.
- */
-export function getTransitionContractCall(
-  transition: StatusTransition
-): TransitionContractCall {
-  return TRANSITION_CONTRACT_METHODS[transition.contractMethod];
-}
-
-/**
- * Exhaustive switch over invoice statuses.
- *
- * The `never` default arm guarantees that adding a new `InvoiceStatus` without
- * handling it here is a compile-time error, keeping the state machine in sync
- * with the status union.
- */
-export function describeStatus(status: InvoiceStatus): string {
-  switch (status) {
-    case "draft":
-      return "Draft";
-    case "pending_mint":
-      return "Pending mint";
-    case "listed":
-      return "Listed";
-    case "partially_funded":
-      return "Partially funded";
-    case "fully_funded":
-      return "Fully funded";
-    case "active":
-      return "Active";
-    case "repaid":
-      return "Repaid";
-    case "defaulted":
-      return "Defaulted";
-    case "cancelled":
-      return "Cancelled";
-    default: {
-      const exhaustive: never = status;
-      return exhaustive;
-    }
-  }
 }

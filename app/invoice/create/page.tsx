@@ -781,6 +781,7 @@ export default function CreateInvoicePage() {
           {!showKybGate && step === 0 && (
             <motion.div
               key="step0"
+              data-visual-anchor="invoice-details"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -949,6 +950,7 @@ export default function CreateInvoicePage() {
           {!showKybGate && step === 1 && (
             <motion.div
               key="step1"
+              data-visual-anchor="financing-terms"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
@@ -1144,6 +1146,7 @@ export default function CreateInvoicePage() {
           {!showKybGate && step === 2 && (
             <motion.div
               key="step2"
+              data-visual-anchor="upload-review"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}

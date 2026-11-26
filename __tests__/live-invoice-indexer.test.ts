@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { StellarIndexerClient, indexerClient } from "@/lib/stellar/indexerClient";
+import { getIndexerFreshness, INDEXER_STALE_AFTER_MS } from "@/lib/stellar/indexerFreshness";
 import { createInvoiceService } from "@/services/invoiceService";
 import type { Invoice, ContractEvent } from "@/types";
 
@@ -161,8 +162,22 @@ describe("LiveInvoiceIndexer Integration Tests", () => {
         documentHash: "",
         documentUrl: "",
       },
-      terms: { apr: 10, discountRate: 0.05, financingAmount: 5000, minInvestment: 0, maxInvestment: 5000, tenor: 30, repaymentDate: "" },
-      funding: { totalRaised: 0, targetAmount: 5000, fundingProgress: 0, investorCount: 0, remainingCapacity: 5000 },
+      terms: {
+        apr: 10,
+        discountRate: 0.05,
+        financingAmount: 5000,
+        minInvestment: 0,
+        maxInvestment: 5000,
+        tenor: 30,
+        repaymentDate: "",
+      },
+      funding: {
+        totalRaised: 0,
+        targetAmount: 5000,
+        fundingProgress: 0,
+        investorCount: 0,
+        remainingCapacity: 5000,
+      },
       riskTier: "A",
       riskScore: 90,
       status: "listed",
@@ -277,7 +292,13 @@ describe("LiveInvoiceIndexer Integration Tests", () => {
     expect(page2.data[0].id).toBe("inv_3");
 
     // Cursor-based pagination
-    const cursorPage = await indexer.getInvoices({}, { key: "apr", direction: "asc" }, 1, 2, "inv_2");
+    const cursorPage = await indexer.getInvoices(
+      {},
+      { key: "apr", direction: "asc" },
+      1,
+      2,
+      "inv_2"
+    );
     expect(cursorPage.data[0].id).toBe("inv_3");
   });
 
@@ -314,7 +335,32 @@ describe("LiveInvoiceIndexer Integration Tests", () => {
     expect(invoice.status).toBe("listed");
   });
 
-  // ─── 8. User-friendly Error Handling ─────────────────────────────────────
+  // ─── 8. Indexer freshness watermark (#1244) ──────────────────────────────
+  it("records the last successful sync time and flags stale data", async () => {
+    indexer.reset();
+    expect(indexer.getLastSyncedAt()).toBeNull();
+
+    await indexer.syncEvents();
+
+    const syncedAt = indexer.getLastSyncedAt();
+    expect(typeof syncedAt).toBe("number");
+
+    const fresh = getIndexerFreshness(syncedAt, syncedAt + 30_000);
+    expect(fresh.isStale).toBe(false);
+    expect(fresh.ageMs).toBe(30_000);
+
+    const stale = getIndexerFreshness(syncedAt, (syncedAt as number) + INDEXER_STALE_AFTER_MS + 1);
+    expect(stale.isStale).toBe(true);
+  });
+
+  it("treats an indexer that has never synced as unknown rather than stale", () => {
+    const never = getIndexerFreshness(null, Date.now());
+    expect(never.lastSyncedAt).toBeNull();
+    expect(never.ageMs).toBeNull();
+    expect(never.isStale).toBe(false);
+  });
+
+  // ─── 9. User-friendly Error Handling ─────────────────────────────────────
   it("surfaces user-friendly error messages when getInvoices fails", async () => {
     vi.spyOn(indexer, "syncEvents").mockRejectedValueOnce(new Error("RPC Connection Failed"));
 

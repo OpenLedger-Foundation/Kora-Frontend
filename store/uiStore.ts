@@ -6,7 +6,6 @@ import { useSettingsStore } from "./settingsStore";
 export type Theme = "light" | "dark" | "system";
 
 export type MaturityReminderDays = 1 | 3 | 7;
-
 export interface NotificationPreferences {
   txConfirmed: boolean;
   invoiceFunded: boolean;
@@ -25,6 +24,17 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 export const DEFAULT_SHORTCUTS_ENABLED = true;
+
+// ── Data table column visibility ──────────────────────────────────────────────
+/**
+ * Bump when the shape of persisted column-visibility entries changes. Any
+ * persisted map written under a different version is discarded on rehydrate
+ * so stale column ids can't leak into a table after a schema change.
+ */
+export const COLUMN_VISIBILITY_SCHEMA_VERSION = 1;
+
+/** Per-route map of column id → visible. */
+export type ColumnVisibilityMap = Record<string, Record<string, boolean>>;
 
 interface UIStore {
   walletModalOpen: boolean;
@@ -66,6 +76,16 @@ interface UIStore {
   // Keyboard shortcuts
   shortcutsEnabled: boolean;
   setShortcutsEnabled: (enabled: boolean) => void;
+
+  // Data table column visibility, keyed per route
+  columnVisibility: ColumnVisibilityMap;
+  columnVisibilitySchemaVersion: number;
+  /** Read the persisted visibility for a route (undefined if never set). */
+  getColumnVisibility: (route: string) => Record<string, boolean> | undefined;
+  /** Merge a partial visibility update into a route's entry. */
+  setColumnVisibility: (route: string, visibility: Record<string, boolean>) => void;
+  /** Drop a route's persisted visibility so defaults apply again. */
+  resetColumnVisibility: (route: string) => void;
 }
 
 export const useUIStore = create<UIStore>()(
@@ -130,16 +150,51 @@ export const useUIStore = create<UIStore>()(
       // Keyboard shortcuts
       shortcutsEnabled: DEFAULT_SHORTCUTS_ENABLED,
       setShortcutsEnabled: (shortcutsEnabled) => set({ shortcutsEnabled }),
+
+      // Data table column visibility, keyed per route
+      columnVisibility: {},
+      columnVisibilitySchemaVersion: COLUMN_VISIBILITY_SCHEMA_VERSION,
+      getColumnVisibility: (route) => get().columnVisibility[route],
+      setColumnVisibility: (route, visibility) =>
+        set((s) => ({
+          columnVisibility: {
+            ...s.columnVisibility,
+            [route]: { ...s.columnVisibility[route], ...visibility },
+          },
+        })),
+      resetColumnVisibility: (route) =>
+        set((s) => {
+          if (!(route in s.columnVisibility)) return s;
+          const next = { ...s.columnVisibility };
+          delete next[route];
+          return { columnVisibility: next };
+        }),
     }),
     {
       name: "kora-ui-store",
+      version: COLUMN_VISIBILITY_SCHEMA_VERSION,
       // Notification preferences are intentionally omitted: they are persisted
       // once, in `settingsStore`, and duplicating them here is what let the two
       // copies drift apart. `settingsStore` migrates any legacy payload.
       partialize: (state) => ({
         theme: state.theme,
         shortcutsEnabled: state.shortcutsEnabled,
+        columnVisibility: state.columnVisibility,
+        columnVisibilitySchemaVersion: state.columnVisibilitySchemaVersion,
       }),
+      // Schema change invalidates: drop persisted column visibility when the
+      // stored version doesn't match the current schema version.
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<UIStore>;
+        if (version !== COLUMN_VISIBILITY_SCHEMA_VERSION) {
+          return {
+            ...state,
+            columnVisibility: {},
+            columnVisibilitySchemaVersion: COLUMN_VISIBILITY_SCHEMA_VERSION,
+          } as UIStore;
+        }
+        return state as UIStore;
+      },
     }
   )
 );

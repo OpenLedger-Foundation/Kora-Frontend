@@ -19,8 +19,13 @@
  * unless RUN_FREIGHTER_E2E=true, FREIGHTER_EXTENSION_PATH and
  * TESTNET_E2E_FREIGHTER_MNEMONIC are all present. Full setup and skip rules:
  * docs/testnet-nightly-e2e.md.
+ *
+ * A third suite (Issue #1266) asserts that critical paths (marketplace, invoice
+ * detail, dashboard) log no console errors on desktop and mobile viewports.
+ * Known-benign messages are filtered via CONSOLE_ERROR_ALLOWLIST; see
+ * docs/testnet-nightly-e2e.md for the allowlist and behavior.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, type ConsoleMessage, type Page } from "@playwright/test";
 import {
   FREIGHTER_TEST_TIMEOUT_MS,
   FREIGHTER_TIMEOUTS,
@@ -41,6 +46,154 @@ import {
 
 const RUN_TESTNET_E2E = process.env.RUN_TESTNET_E2E === "true";
 const SECRET_KEY = process.env.TESTNET_E2E_SECRET_KEY;
+
+// ─── Console error collection (Issue #1266) ─────────────────────────────────
+//
+// The nightly run fails if any critical path logs a console error or throws an
+// uncaught page error. Known-benign noise (favicon 404s, wallet-extension
+// chatter, testnet RPC flakiness) is filtered through an allowlist so the
+// assertion stays actionable. See docs/testnet-nightly-e2e.md.
+
+/** Console/page errors matching any of these patterns are ignored. */
+export const CONSOLE_ERROR_ALLOWLIST: readonly RegExp[] = [
+  // Browser auto-requests /favicon.ico; a 404 is not an app error.
+  /favicon\.ico/i,
+  /Failed to load resource.*404.*favicon/i,
+  // Wallet extensions inject scripts that log into the page console.
+  /freighter/i,
+  /walletconnect/i,
+  /chrome-extension:\/\//i,
+  /moz-extension:\/\//i,
+  // Transient testnet RPC / Horizon hiccups surfaced by the SDK.
+  /horizon-testnet\.stellar\.org/i,
+  /soroban-testnet\.stellar\.org/i,
+  /friendbot\.stellar\.org/i,
+  /NetworkError when attempting to fetch resource/i,
+  /Failed to fetch/i,
+];
+
+/** Returns true when a console/page error message is known-benign. */
+export function isAllowlistedConsoleError(message: string): boolean {
+  return CONSOLE_ERROR_ALLOWLIST.some((pattern) => pattern.test(message));
+}
+
+export interface ConsoleErrorCollector {
+  /** Non-allowlisted console errors and uncaught page errors, in order. */
+  errors: string[];
+  /** Detach listeners (called automatically in afterEach). */
+  dispose: () => void;
+}
+
+/**
+ * Attach console + pageerror listeners to a page and collect every
+ * non-allowlisted error. Console `error` messages and uncaught exceptions are
+ * both recorded; warnings/info/log are ignored.
+ */
+export function collectConsoleErrors(page: Page): ConsoleErrorCollector {
+  const errors: string[] = [];
+
+  const onConsole = (msg: ConsoleMessage) => {
+    if (msg.type() !== "error") return;
+    const text = msg.text();
+    if (isAllowlistedConsoleError(text)) return;
+    errors.push(`console.error: ${text}`);
+  };
+
+  const onPageError = (err: Error) => {
+    const text = err?.message ?? String(err);
+    if (isAllowlistedConsoleError(text)) return;
+    errors.push(`pageerror: ${text}`);
+  };
+
+  page.on("console", onConsole);
+  page.on("pageerror", onPageError);
+
+  return {
+    errors,
+    dispose: () => {
+      page.off("console", onConsole);
+      page.off("pageerror", onPageError);
+    },
+  };
+}
+
+// Critical paths exercised on both desktop and mobile viewports.
+const CRITICAL_PATHS = [
+  { name: "marketplace", path: "/marketplace" },
+  { name: "invoice detail", path: "/invoice/0" },
+  { name: "dashboard", path: "/dashboard" },
+] as const;
+
+const VIEWPORTS = [
+  { name: "desktop", viewport: { width: 1280, height: 800 } },
+  { name: "mobile", viewport: { width: 390, height: 844 } },
+] as const;
+
+test.describe("Testnet — no console errors on critical paths", () => {
+  test.skip(
+    !RUN_TESTNET_E2E,
+    "Opt-in nightly-only suite. Set RUN_TESTNET_E2E=true to run against live testnet contracts."
+  );
+
+  let collector: ConsoleErrorCollector | undefined;
+
+  test.beforeEach(async ({ page }) => {
+    collector = collectConsoleErrors(page);
+  });
+
+  test.afterEach(async () => {
+    collector?.dispose();
+    collector = undefined;
+  });
+
+  for (const viewport of VIEWPORTS) {
+    for (const criticalPath of CRITICAL_PATHS) {
+      test(`${criticalPath.name} (${viewport.name}) logs no console errors`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport.viewport);
+        await page.goto(criticalPath.path, { waitUntil: "networkidle" });
+
+        // Give deferred client-side work (data fetches, hydration) a beat to
+        // surface any late console errors before asserting.
+        await page.waitForTimeout(500);
+
+        expect(
+          collector!.errors,
+          `Critical path "${criticalPath.name}" (${viewport.name}) logged console errors:\n` +
+            collector!.errors.join("\n")
+        ).toEqual([]);
+      });
+    }
+  }
+
+  test("negative control — an intentional console error fails the assertion", async ({
+    page,
+  }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      // eslint-disable-next-line no-console
+      console.error("kora-nightly-e2e intentional console error");
+    });
+    await page.waitForTimeout(100);
+
+    expect(collector!.errors.length).toBeGreaterThan(0);
+    expect(collector!.errors.join("\n")).toContain("intentional console error");
+  });
+
+  test("allowlist filters known-benign messages", async ({ page }) => {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => {
+      // eslint-disable-next-line no-console
+      console.error("Failed to load resource: favicon.ico 404");
+      // eslint-disable-next-line no-console
+      console.error("chrome-extension://abc freighter noise");
+    });
+    await page.waitForTimeout(100);
+
+    expect(collector!.errors).toEqual([]);
+  });
+});
 
 test.describe("Testnet — mint, fund, repay (real contracts)", () => {
   test.skip(

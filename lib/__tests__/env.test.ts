@@ -104,6 +104,9 @@ describe("lib/env parseEnv", () => {
       expect(env.NEXT_PUBLIC_ENABLE_MOCK_DATA).toBe(false);
       expect(env.NEXT_PUBLIC_ENABLE_DEVTOOLS).toBe(false);
       expect(env.NEXT_PUBLIC_KYC_FUND_THRESHOLD).toBe(10000);
+      expect(env.NEXT_PUBLIC_USDC_ACQUIRE_URL).toBe(
+        "https://stellar.org/products-and-tools/circle-usdc-eurc"
+      );
       expect(env.NEXT_PUBLIC_SECONDARY_PROTOCOL_FEE_BPS).toBe(50);
       expect(env.NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS).toBe(25);
     });
@@ -115,6 +118,7 @@ describe("lib/env parseEnv", () => {
         NEXT_PUBLIC_STELLAR_NETWORK: "mainnet",
         NEXT_PUBLIC_ENABLE_MOCK_DATA: "true",
         NEXT_PUBLIC_KYC_FUND_THRESHOLD: "2500",
+        NEXT_PUBLIC_USDC_ACQUIRE_URL: "https://example.com/bridge",
         NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS: "0",
       });
 
@@ -123,13 +127,18 @@ describe("lib/env parseEnv", () => {
       expect(env.NEXT_PUBLIC_STELLAR_NETWORK).toBe("mainnet");
       expect(env.NEXT_PUBLIC_ENABLE_MOCK_DATA).toBe(true);
       expect(env.NEXT_PUBLIC_KYC_FUND_THRESHOLD).toBe(2500);
+      expect(env.NEXT_PUBLIC_USDC_ACQUIRE_URL).toBe("https://example.com/bridge");
       expect(env.NEXT_PUBLIC_SECONDARY_MARKET_FEE_BPS).toBe(0);
     });
   });
 
   describe("live-mode zero-address guard", () => {
     it("throws when a contract ID is the zero-address and mock data is off", async () => {
-      setEnv({ ...REQUIRED_CLIENT, PINATA_JWT: "jwt", NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: ZERO_CONTRACT });
+      setEnv({
+        ...REQUIRED_CLIENT,
+        PINATA_JWT: "jwt",
+        NEXT_PUBLIC_MARKETPLACE_CONTRACT_ID: ZERO_CONTRACT,
+      });
 
       const error = await loadEnv().catch((e: Error) => e);
       expect((error as Error).message).toMatch(/Live mode is enabled/);

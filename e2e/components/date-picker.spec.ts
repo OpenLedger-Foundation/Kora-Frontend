@@ -25,6 +25,13 @@
  *  - Clicking a disabled date leaves the hidden input empty
  *  - Pressing Escape closes the calendar
  *  - Clicking outside the popover closes the calendar
+ *
+ * Accessibility coverage (issue #1161):
+ *  - Trigger exposes an accessible name derived from the label
+ *  - Trigger is keyboard focusable and opens the calendar via Enter / Space
+ *  - Escape returns focus to the trigger
+ *  - Month navigation chevrons expose accessible names
+ *  - Day cells expose accessible names and are keyboard operable
  */
 
 import { test, expect, type Page } from "@playwright/test";
@@ -227,35 +234,130 @@ test.describe("DatePicker component — date selection", () => {
 
     const cal = getCalendar(page);
     const disabledDay = cal.locator("button[disabled]").first();
+    await disabledDay.click({ force: true });
 
-    if (await disabledDay.isVisible()) {
-      await disabledDay.click({ force: true });
-    }
-
-    // No date value should have been written
-    await expect(page.getByTestId("selected-date-value")).not.toBeVisible();
+    // No selection should have been recorded
+    await expect(page.getByTestId("selected-date-value")).toContainText(
+      "Value:"
+    );
+    await expect(page.getByTestId("selected-date-value")).not.toContainText(
+      /\d{4}-\d{2}-\d{2}/
+    );
   });
 
-  // ── Dismissal ─────────────────────────────────────────────────────────────
+  // ── Closing the calendar ───────────────────────────────────────────────────
 
   test("pressing Escape closes the calendar", async ({ page }) => {
     await getTrigger(page).click();
-    await expect(getCalendar(page)).toBeVisible();
+    await expect(getCalendar(page)).toBeVisible({ timeout: 5_000 });
 
     await page.keyboard.press("Escape");
-
     await expect(getCalendar(page)).not.toBeVisible({ timeout: 3_000 });
   });
 
   test("clicking outside the popover closes the calendar", async ({ page }) => {
     await getTrigger(page).click();
-    await expect(getCalendar(page)).toBeVisible();
+    await expect(getCalendar(page)).toBeVisible({ timeout: 5_000 });
 
-    // Click the page heading — always outside the popover
-    await page
-      .locator("h1", { hasText: /Component Test Fixtures/i })
-      .click();
+    await page.locator("body").click({ position: { x: 5, y: 5 } });
+    await expect(getCalendar(page)).not.toBeVisible({ timeout: 3_000 });
+  });
+});
 
+// ── Accessibility ────────────────────────────────────────────────────────────
+
+test.describe("DatePicker component — accessibility", () => {
+  test.beforeEach(async ({ page }) => {
+    await gotoFixture(page);
+  });
+
+  test("trigger exposes an accessible name from its label", async ({
+    page,
+  }) => {
+    const trigger = getTrigger(page);
+    await expect(trigger).toBeVisible();
+    // The trigger must have a non-empty accessible name (label or placeholder)
+    const name = await trigger.getAttribute("aria-label");
+    const text = (await trigger.textContent())?.trim() ?? "";
+    expect((name ?? "").length > 0 || text.length > 0).toBe(true);
+  });
+
+  test("trigger is keyboard focusable", async ({ page }) => {
+    const trigger = getTrigger(page);
+    await trigger.focus();
+    await expect(trigger).toBeFocused();
+  });
+
+  test("pressing Enter on the trigger opens the calendar", async ({ page }) => {
+    const trigger = getTrigger(page);
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+
+    const monthYear = format(new Date(), "MMMM yyyy");
+    await expect(
+      page.locator('[data-radix-popper-content-wrapper]').getByText(monthYear)
+    ).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("pressing Space on the trigger opens the calendar", async ({ page }) => {
+    const trigger = getTrigger(page);
+    await trigger.focus();
+    await page.keyboard.press("Space");
+
+    const monthYear = format(new Date(), "MMMM yyyy");
+    await expect(
+      page.locator('[data-radix-popper-content-wrapper]').getByText(monthYear)
+    ).toBeVisible({ timeout: 5_000 });
+  });
+
+  test("Escape returns focus to the trigger", async ({ page }) => {
+    const trigger = getTrigger(page);
+    await trigger.click();
+    await expect(getCalendar(page)).toBeVisible({ timeout: 5_000 });
+
+    await page.keyboard.press("Escape");
+    await expect(getCalendar(page)).not.toBeVisible({ timeout: 3_000 });
+    await expect(trigger).toBeFocused();
+  });
+
+  test("month navigation chevrons expose accessible names", async ({
+    page,
+  }) => {
+    await getTrigger(page).click();
+    const cal = getCalendar(page);
+    await expect(cal).toBeVisible({ timeout: 5_000 });
+
+    // Both chevrons must be reachable by an accessible name
+    await expect(
+      cal.getByRole("button", { name: /prev|previous|back/i })
+    ).toBeVisible();
+    await expect(
+      cal.getByRole("button", { name: /next|forward/i })
+    ).toBeVisible();
+  });
+
+  test("day cells expose accessible names", async ({ page }) => {
+    await getTrigger(page).click();
+    await getNextMonthBtn(page).click();
+
+    const cal = getCalendar(page);
+    const day = cal.getByRole("button", { name: "15" }).first();
+    await expect(day).toBeVisible();
+    const name = await day.getAttribute("aria-label");
+    const text = (await day.textContent())?.trim() ?? "";
+    expect((name ?? "").length > 0 || text.length > 0).toBe(true);
+  });
+
+  test("day cells are keyboard operable", async ({ page }) => {
+    await getTrigger(page).click();
+    await getNextMonthBtn(page).click();
+
+    const cal = getCalendar(page);
+    const day = cal.getByRole("button", { name: "15" }).first();
+    await day.focus();
+    await expect(day).toBeFocused();
+
+    await page.keyboard.press("Enter");
     await expect(getCalendar(page)).not.toBeVisible({ timeout: 3_000 });
   });
 });

@@ -10,6 +10,7 @@ import {
   safeStorageSetItem,
 } from "./storageAdapter";
 import {
+  MAX_COMPARISON_INVOICES,
   normalizeComparisonList,
   toggleComparisonId,
 } from "@/lib/comparison";
@@ -78,8 +79,31 @@ export const DEFAULT_FILTERS: FilterState = {
 };
 
 const DEFAULT_SORT: SortState = { sortBy: "apr", sortDir: "desc" };
+
+/** Flat sort key (`<sortBy>_<sortDir>`) mirroring {@link DEFAULT_SORT}. */
+export const DEFAULT_SORT_KEY = "apr_desc";
+
 export const MAX_WATCHLIST_ITEMS = 50;
 export const MAX_SAVED_PRESETS = 20;
+/** Recent marketplace searches retained for the history dropdown. */
+export const MAX_SEARCH_HISTORY = 8;
+
+/**
+ * Parse a flat marketplace sort key (`"amount_asc"`, `"due_soonest"`, …) into
+ * the structured {@link SortState} the filtering helpers expect. Unknown keys
+ * fall back to APR-descending so a hand-edited share link can never break
+ * sorting.
+ */
+export function parseSortKey(value: string): SortState {
+  if (value === "newest") return { sortBy: "listed", sortDir: "desc" };
+  if (value === "due_soonest") return { sortBy: "dueDate", sortDir: "asc" };
+  if (value === "due_latest") return { sortBy: "dueDate", sortDir: "desc" };
+  const [key, dir] = value.split("_");
+  const sortBy = (["apr", "amount", "dueDate", "listed"].includes(key)
+    ? key
+    : "apr") as SortState["sortBy"];
+  return { sortBy, sortDir: dir === "asc" ? "asc" : "desc" };
+}
 
 /**
  * @deprecated Watchlist alert preferences are owned by `settingsStore`. This
@@ -355,13 +379,19 @@ export function detectInvoiceDraftConflict(
 
 export interface InvoiceStoreState {
   invoices: Invoice[];
+  /** Invoices keyed by on-chain tokenId, populated by contract-event polling. */
+  invoicesByTokenId: Record<string, Invoice>;
   funding: Record<string, InvoiceFunding>;
   filters: FilterState;
   sort: SortState;
+  /** Flat sort key mirroring `sort` (e.g. "apr_desc"), used by the URL + UI. */
+  sortBy: string;
   searchQuery: string;
-  watchlist: string[];
+  /** Recent marketplace searches, newest first (capped at MAX_SEARCH_HISTORY). */
+  searchHistory: string[];
+  watchedInvoiceIds: string[];
   savedPresets: SavedMarketplacePreset[];
-  comparisonIds: string[];
+  comparisonList: string[];
   /** In-memory wizard draft envelope (autosaved to storage). */
   invoiceDraft: InvoiceDraftEnvelope | null;
   /** Pending conflict awaiting user resolution. */
@@ -369,13 +399,31 @@ export interface InvoiceStoreState {
   setInvoices: (invoices: Invoice[]) => void;
   setFunding: (funding: Record<string, InvoiceFunding>) => void;
   setFilters: (filters: Partial<FilterState>) => void;
+  /** Update a single filter key without touching the rest of the filter state. */
+  updateSingleFilter: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
+  /** Reset filters, search query, and sort order back to their defaults. */
+  resetFilters: () => void;
   setSort: (sort: SortState) => void;
+  /** Set the sort order from a flat URL/UI key (e.g. "amount_asc"). */
+  setSortBy: (sortBy: string) => void;
   setSearchQuery: (q: string) => void;
-  toggleWatchlist: (id: string) => void;
+  clearSearchHistory: () => void;
+  /** Filtered + sorted invoices for the current filters/sort/search state. */
+  getFiltered: () => Invoice[];
+  toggleWatchedInvoice: (id: string) => void;
+  isInvoiceWatched: (id: string) => boolean;
   addSavedPreset: (preset: SavedMarketplacePreset) => void;
   removeSavedPreset: (id: string) => void;
   toggleComparison: (id: string) => void;
+  /** Replace the whole comparison selection (deduped, capped at 4). */
+  setComparisonList: (ids: string[]) => void;
+  /** Remove a single invoice from the comparison selection. */
+  removeFromComparison: (id: string) => void;
   clearComparison: () => void;
+  /** Merge a batch of invoices into the token-keyed map (contract-event polling). */
+  mergeInvoicesBatch: (invoices: Invoice[]) => void;
+  /** Optimistically update an invoice's raised amount + derived funding fields. */
+  updateInvoiceFunding: (id: string, newTotalRaised: number) => void;
   /** Autosave the wizard draft (bumps version, persists to storage). */
   saveInvoiceDraft: (data: InvoiceCreateDraft) => void;
   /** Restore the persisted draft on wizard mount; surfaces conflicts. */
@@ -390,29 +438,67 @@ export const useInvoiceStore = create<InvoiceStoreState>()(
   persist(
     (set, get) => ({
       invoices: [],
+      invoicesByTokenId: {},
       funding: {},
       filters: DEFAULT_FILTERS,
       sort: DEFAULT_SORT,
+      sortBy: DEFAULT_SORT_KEY,
       searchQuery: "",
-      watchlist: [],
+      searchHistory: [],
+      watchedInvoiceIds: [],
       savedPresets: [],
-      comparisonIds: [],
+      comparisonList: [],
       invoiceDraft: null,
       invoiceDraftConflict: null,
       setInvoices: (invoices) => set({ invoices }),
       setFunding: (funding) => set({ funding }),
       setFilters: (filters) =>
         set((state) => ({ filters: { ...state.filters, ...filters } })),
-      setSort: (sort) => set({ sort }),
-      setSearchQuery: (searchQuery) => set({ searchQuery }),
-      toggleWatchlist: (id) =>
-        set((state) => {
-          if (state.watchlist.includes(id)) {
-            return { watchlist: state.watchlist.filter((w) => w !== id) };
-          }
-          if (state.watchlist.length >= MAX_WATCHLIST_ITEMS) return state;
-          return { watchlist: [...state.watchlist, id] };
+      updateSingleFilter: (key, value) =>
+        set((state) => ({
+          filters: { ...state.filters, [key]: value } as FilterState,
+        })),
+      resetFilters: () =>
+        set({
+          filters: DEFAULT_FILTERS,
+          searchQuery: "",
+          sort: DEFAULT_SORT,
+          sortBy: DEFAULT_SORT_KEY,
         }),
+      setSort: (sort) =>
+        set({ sort, sortBy: `${sort.sortBy}_${sort.sortDir}` }),
+      setSortBy: (sortBy) => set({ sortBy, sort: parseSortKey(sortBy) }),
+      setSearchQuery: (searchQuery) =>
+        set((state) => {
+          const trimmed = searchQuery.trim();
+          if (trimmed.length < 2) return { searchQuery };
+          return {
+            searchQuery,
+            searchHistory: [
+              trimmed,
+              ...state.searchHistory.filter((h) => h !== trimmed),
+            ].slice(0, MAX_SEARCH_HISTORY),
+          };
+        }),
+      clearSearchHistory: () => set({ searchHistory: [] }),
+      getFiltered: () =>
+        readFilteredInvoices(
+          get().invoices,
+          get().filters,
+          get().sort,
+          get().searchQuery
+        ),
+      toggleWatchedInvoice: (id) =>
+        set((state) => {
+          if (state.watchedInvoiceIds.includes(id)) {
+            return {
+              watchedInvoiceIds: state.watchedInvoiceIds.filter((w) => w !== id),
+            };
+          }
+          if (state.watchedInvoiceIds.length >= MAX_WATCHLIST_ITEMS) return state;
+          return { watchedInvoiceIds: [...state.watchedInvoiceIds, id] };
+        }),
+      isInvoiceWatched: (id) => get().watchedInvoiceIds.includes(id),
       addSavedPreset: (preset) =>
         set((state) => ({
           savedPresets: [preset, ...state.savedPresets].slice(0, MAX_SAVED_PRESETS),
@@ -423,9 +509,48 @@ export const useInvoiceStore = create<InvoiceStoreState>()(
         })),
       toggleComparison: (id) =>
         set((state) => ({
-          comparisonIds: toggleComparisonId(state.comparisonIds, id),
+          comparisonList: toggleComparisonId(state.comparisonList, id),
         })),
-      clearComparison: () => set({ comparisonIds: [] }),
+      setComparisonList: (ids) =>
+        set({
+          comparisonList: Array.from(new Set(ids.filter(Boolean))).slice(
+            0,
+            MAX_COMPARISON_INVOICES
+          ),
+        }),
+      removeFromComparison: (id) =>
+        set((state) => ({
+          comparisonList: state.comparisonList.filter((entry) => entry !== id),
+        })),
+      clearComparison: () => set({ comparisonList: [] }),
+      mergeInvoicesBatch: (incoming) =>
+        set((state) => {
+          const next = { ...state.invoicesByTokenId };
+          for (const invoice of incoming) {
+            next[invoice.tokenId] = invoice;
+          }
+          return { invoicesByTokenId: next };
+        }),
+      updateInvoiceFunding: (id, newTotalRaised) =>
+        set((state) => ({
+          invoices: state.invoices.map((invoice) => {
+            if (invoice.id !== id) return invoice;
+            const target =
+              invoice.funding.targetAmount || invoice.terms.financingAmount || 0;
+            return {
+              ...invoice,
+              funding: {
+                ...invoice.funding,
+                totalRaised: newTotalRaised,
+                fundingProgress:
+                  target > 0
+                    ? Math.min(newTotalRaised / target, 1)
+                    : invoice.funding.fundingProgress,
+                remainingCapacity: Math.max(target - newTotalRaised, 0),
+              },
+            };
+          }),
+        })),
       saveInvoiceDraft: (data) => {
         const current = get().invoiceDraft;
         const nextVersion = (current?.version ?? 0) + 1;
@@ -466,9 +591,9 @@ export const useInvoiceStore = create<InvoiceStoreState>()(
       name: "kora-invoice-store",
       storage: createPersistentJSONStorage(),
       partialize: (state) => ({
-        watchlist: state.watchlist,
+        watchedInvoiceIds: state.watchedInvoiceIds,
         savedPresets: state.savedPresets,
-        comparisonIds: normalizeComparisonList(state.comparisonIds),
+        comparisonList: normalizeComparisonList(state.comparisonList),
       }),
     }
   )

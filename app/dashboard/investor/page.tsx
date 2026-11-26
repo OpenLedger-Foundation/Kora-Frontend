@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useMemo, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -42,6 +42,7 @@ import { StaleDataBadge } from "@/components/layout/StaleDataBadge";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import EmptyState from "@/components/ui/EmptyState";
 import { exportCsv, exportPdf } from "@/lib/export";
+import { DIGEST_DASHBOARD_SECTION_ID } from "@/lib/portfolioDigest";
 import {
   PORTFOLIO_EXPORT_HEADERS,
   positionsToExportRows,
@@ -210,6 +211,17 @@ export default function InvestorDashboardPage() {
     }
   }, [positionsQuery.isSuccess, positionsQuery.isError]);
 
+  // Digest email deep link (#1225). The card is not mounted during the skeleton,
+  // so native hash scrolling on page load misses it; scroll once it has rendered.
+  const digestLandedRef = useRef(false);
+  useEffect(() => {
+    if (digestLandedRef.current || window.location.hash !== `#${DIGEST_DASHBOARD_SECTION_ID}`) return;
+    const target = document.getElementById(DIGEST_DASHBOARD_SECTION_ID);
+    if (!target) return;
+    digestLandedRef.current = true;
+    target.scrollIntoView({ block: "start" });
+  }, [isConnected, isInitialLoading, loadTimedOut]);
+
   /**
    * Claiming yield moves funds, so it sits behind the same verification session
    * SME repayment does (#681). Previously this called `execute` directly, which
@@ -295,7 +307,7 @@ export default function InvestorDashboardPage() {
       }
 
       if (result.error && result.error !== "Wallet not connected") {
-        toast.error(t("listing.failedTitle"), result.error, () => {
+        toast.error("Listing failed", result.error, () => {
           handleListSubmit(askPrice, expiresAt);
         });
       }

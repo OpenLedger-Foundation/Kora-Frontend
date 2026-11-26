@@ -7,8 +7,10 @@
  * - setTheme: explicit assignments
  * - persistence: only `theme` is serialised (partialize)
  * - initial default is "system" (respects prefers-color-scheme on first visit)
+ * - SSR hydration: persisted theme is applied without flash / mismatch
+ * - system preference changes are tracked while theme is "system"
  */
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useUIStore } from "../uiStore";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -18,10 +20,42 @@ function resetStore() {
   useUIStore.setState({ theme: "system" });
 }
 
+/** Build a controllable matchMedia mock that supports change listeners. */
+function mockMatchMedia(initialMatches: boolean) {
+  const listeners = new Set<(e: MediaQueryListEvent) => void>();
+  const mql = {
+    matches: initialMatches,
+    media: "(prefers-color-scheme: dark)",
+    onchange: null,
+    addEventListener: (_: string, cb: (e: MediaQueryListEvent) => void) => {
+      listeners.add(cb);
+    },
+    removeEventListener: (_: string, cb: (e: MediaQueryListEvent) => void) => {
+      listeners.delete(cb);
+    },
+    addListener: (cb: (e: MediaQueryListEvent) => void) => listeners.add(cb),
+    removeListener: (cb: (e: MediaQueryListEvent) => void) => listeners.delete(cb),
+    dispatchEvent: () => true,
+  } as unknown as MediaQueryList;
+
+  vi.stubGlobal("matchMedia", vi.fn().mockReturnValue(mql));
+
+  return {
+    mql,
+    emit(matches: boolean) {
+      (mql as unknown as { matches: boolean }).matches = matches;
+      listeners.forEach((cb) =>
+        cb({ matches } as MediaQueryListEvent),
+      );
+    },
+  };
+}
+
 // ─── toggleTheme ─────────────────────────────────────────────────────────────
 
 describe("toggleTheme", () => {
   beforeEach(resetStore);
+  afterEach(() => vi.unstubAllGlobals());
 
   it("starts with 'system' as the default theme", () => {
     expect(useUIStore.getState().theme).toBe("system");
@@ -48,33 +82,21 @@ describe("toggleTheme", () => {
 
   describe("when theme is 'system'", () => {
     it("resolves system→dark and flips to light (dark OS preference)", () => {
-      // Mock matchMedia to report dark preference
-      vi.stubGlobal(
-        "matchMedia",
-        vi.fn().mockReturnValue({ matches: true } as MediaQueryList),
-      );
+      mockMatchMedia(true);
 
       useUIStore.setState({ theme: "system" });
       useUIStore.getState().toggleTheme();
 
       expect(useUIStore.getState().theme).toBe("light");
-
-      vi.unstubAllGlobals();
     });
 
     it("resolves system→light and flips to dark (light OS preference)", () => {
-      // Mock matchMedia to report light preference
-      vi.stubGlobal(
-        "matchMedia",
-        vi.fn().mockReturnValue({ matches: false } as MediaQueryList),
-      );
+      mockMatchMedia(false);
 
       useUIStore.setState({ theme: "system" });
       useUIStore.getState().toggleTheme();
 
       expect(useUIStore.getState().theme).toBe("dark");
-
-      vi.unstubAllGlobals();
     });
   });
 });
@@ -113,5 +135,67 @@ describe("persistence partialize", () => {
 
     expect(Object.keys(serialised)).toEqual(["theme"]);
     expect(serialised.theme).toBe(fullState.theme);
+  });
+});
+
+// ─── SSR hydration ───────────────────────────────────────────────────────────
+
+describe("SSR hydration", () => {
+  beforeEach(resetStore);
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("rehydrates the persisted theme from storage", async () => {
+    // Simulate a persisted value written on a previous visit.
+    localStorage.setItem(
+      "kora-ui",
+      JSON.stringify({ state: { theme: "dark" }, version: 0 }),
+    );
+
+    await useUIStore.persist.rehydrate();
+
+    expect(useUIStore.getState().theme).toBe("dark");
+  });
+
+  it("falls back to 'system' when storage is empty (no mismatch)", async () => {
+    localStorage.removeItem("kora-ui");
+
+    await useUIStore.persist.rehydrate();
+
+    expect(useUIStore.getState().theme).toBe("system");
+  });
+
+  it("keeps the persisted theme across a locale switch (no reset)", async () => {
+    useUIStore.getState().setTheme("light");
+
+    // A locale switch re-renders the tree but must not touch the theme.
+    await useUIStore.persist.rehydrate();
+
+    expect(useUIStore.getState().theme).toBe("light");
+  });
+});
+
+// ─── system preference changes ───────────────────────────────────────────────
+
+describe("system preference changes", () => {
+  beforeEach(resetStore);
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("tracks OS changes while theme is 'system'", () => {
+    const media = mockMatchMedia(false);
+
+    useUIStore.setState({ theme: "system" });
+    expect(useUIStore.getState().resolvedTheme()).toBe("light");
+
+    media.emit(true);
+    expect(useUIStore.getState().resolvedTheme()).toBe("dark");
+  });
+
+  it("ignores OS changes once an explicit theme is chosen", () => {
+    const media = mockMatchMedia(false);
+
+    useUIStore.getState().setTheme("light");
+    media.emit(true);
+
+    expect(useUIStore.getState().resolvedTheme()).toBe("light");
   });
 });

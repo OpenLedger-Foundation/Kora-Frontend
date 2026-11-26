@@ -27,6 +27,7 @@ import { useSyncExternalStore } from "react";
  * | category-taxonomy-preview | NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW | Developer taxonomy preview panel in marketplace filters |
  * | test-components           | NEXT_PUBLIC_ENABLE_TEST_COMPONENTS           | Render isolated test harness page for component testing  |
  * | hw-wallet-signing         | NEXT_PUBLIC_ENABLE_HW_WALLET_SIGNING         | Hardware wallet signing path (Ledger/Trezor)            |
+ * | pwa-install-analytics      | NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS      | Privacy-safe PWA install prompt analytics (default off) |
  */
 export type FeatureFlag =
   | "mock-data"
@@ -38,7 +39,8 @@ export type FeatureFlag =
   | "secondary-market"
   | "category-taxonomy-preview"
   | "test-components"
-  | "hw-wallet-signing";
+  | "hw-wallet-signing"
+  | "pwa-install-analytics";
 
 export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "mock-data",
@@ -51,6 +53,7 @@ export const FEATURE_FLAGS: readonly FeatureFlag[] = [
   "category-taxonomy-preview",
   "test-components",
   "hw-wallet-signing",
+  "pwa-install-analytics",
 ];
 
 export type FeatureFlagState = Record<FeatureFlag, boolean>;
@@ -85,6 +88,7 @@ const FLAG_ENV_MAP: Record<FeatureFlag, string> = {
   "category-taxonomy-preview": "NEXT_PUBLIC_ENABLE_CATEGORY_TAXONOMY_PREVIEW",
   "test-components": "NEXT_PUBLIC_ENABLE_TEST_COMPONENTS",
   "hw-wallet-signing": "NEXT_PUBLIC_ENABLE_HW_WALLET_SIGNING",
+  "pwa-install-analytics": "NEXT_PUBLIC_ENABLE_PWA_INSTALL_ANALYTICS",
 };
 
 /**
@@ -253,6 +257,10 @@ export function clearFeatureFlagOverrides(): void {
   writeOverrides({});
 }
 
+export function resetFeatureFlagOverrides(): void {
+  clearFeatureFlagOverrides();
+}
+
 /**
  * React hook returning the live feature flag state.
  * Re-renders when overrides change (same tab or cross-tab).
@@ -264,4 +272,77 @@ export function useFeatureFlags(): FeatureFlagState {
     serializeEnvFeatureFlagState,
   );
   return JSON.parse(serialized) as FeatureFlagState;
+}
+
+// ─── Network mode & query tuning (Issue #436) ────────────────────────────────
+
+/**
+ * Active data source for invoice queries.
+ *
+ * `mock` resolves from the static `MOCK_INVOICES` fixture, `live` talks to the
+ * Soroban indexer/RPC. Driven by the `mock-data` flag so cache-key namespacing
+ * (`lib/queryKeys.ts`) and query tuning can never disagree about which mode is
+ * active.
+ */
+export type NetworkMode = "mock" | "live";
+
+/** Resolve the active network mode from the `mock-data` feature flag. */
+export function getNetworkMode(): NetworkMode {
+  return isEnabled("mock-data") ? "mock" : "live";
+}
+
+/**
+ * TanStack Query timings for one network mode.
+ *
+ * `staleTime`/`gcTime` are passed straight to `useQuery`; the refetch fields
+ * are backstop intervals (a hidden tab is skipped by `whenVisible()` in
+ * `hooks/useInvoices.ts`), and `false` disables polling outright.
+ */
+export interface QueryTuning {
+  staleTime: number;
+  gcTime: number;
+  listRefetchInterval: number | false;
+  detailRefetchInterval: number | false;
+  ownerRefetchInterval: number | false;
+  batchRefetchInterval: number | false;
+}
+
+/**
+ * Single source of truth for per-mode query tuning (see docs/architecture.md).
+ *
+ * Live mode is event-driven — `useContractEvents` invalidates the affected
+ * keys as events arrive, so these timers are a slow safety net for a degraded
+ * stream. Mock fixtures are immutable, so polling is disabled entirely.
+ */
+export const QUERY_TUNING: Readonly<Record<NetworkMode, QueryTuning>> = {
+  live: {
+    staleTime: 5_000,
+    gcTime: 5 * 60_000,
+    listRefetchInterval: 2 * 60_000,
+    detailRefetchInterval: 2 * 60_000,
+    ownerRefetchInterval: 2 * 60_000,
+    batchRefetchInterval: 2 * 60_000,
+  },
+  mock: {
+    staleTime: 5 * 60_000,
+    gcTime: 5 * 60_000,
+    listRefetchInterval: false,
+    detailRefetchInterval: false,
+    ownerRefetchInterval: false,
+    batchRefetchInterval: false,
+  },
+};
+
+/**
+ * React hook returning the query tuning for the active network mode.
+ * Re-renders when the `mock-data` flag flips at runtime.
+ */
+export function useQueryTuning(): QueryTuning {
+  const flags = useFeatureFlags();
+  return QUERY_TUNING[flags["mock-data"] ? "mock" : "live"];
+}
+
+/** React hook returning whether a single flag is enabled (live, like `useFeatureFlags`). */
+export function useFeatureFlag(flag: FeatureFlag): boolean {
+  return useFeatureFlags()[flag] === true;
 }

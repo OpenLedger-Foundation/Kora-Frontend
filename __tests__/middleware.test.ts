@@ -9,26 +9,17 @@ function createRequest(
   options: {
     cookie?: string;
     acceptLanguage?: string;
+    userAgent?: string;
+    botToken?: string;
   } = {}
 ) {
   const url = `http://localhost:3000${pathname}`;
-  return new NextRequest(url, {
-    headers: {
-      ...(options.acceptLanguage
-        ? { "accept-language": options.acceptLanguage }
-        : {}),
-    },
-    ...(options.cookie
-      ? {
-          headers: {
-            cookie: `${LOCALE_COOKIE_NAME}=${options.cookie}`,
-            ...(options.acceptLanguage
-              ? { "accept-language": options.acceptLanguage }
-              : {}),
-          },
-        }
-      : {}),
-  });
+  const headers = new Headers();
+  if (options.acceptLanguage) headers.set("accept-language", options.acceptLanguage);
+  if (options.cookie) headers.set("cookie", `${LOCALE_COOKIE_NAME}=${options.cookie}`);
+  if (options.userAgent) headers.set("user-agent", options.userAgent);
+  if (options.botToken) headers.set("x-kora-bot-token", options.botToken);
+  return new NextRequest(url, { headers });
 }
 
 describe("middleware locale handling", () => {
@@ -368,5 +359,107 @@ describe("middleware CSP nonce — no-CSP path (#1022)", () => {
     const res = runWithCsp("/", null);
     // With no existingCsp, no Content-Security-Policy header should be set
     expect(res.headers.get("Content-Security-Policy")).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// #1228 — bot challenge allowlist
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("middleware bot challenge allowlist (#1228)", () => {
+  const originalEnv = { ...process.env };
+  const BOT_UA = "curl/8.4.0";
+  const UPTIME_UA = "UptimeRobot/2.0 (https://uptimerobot.com/)";
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    vi.stubGlobal("crypto", { randomUUID: () => TEST_NONCE });
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    vi.unstubAllGlobals();
+  });
+
+  it("does not challenge any request when BOT_CHALLENGE_TOKEN is unset", () => {
+    delete process.env.BOT_CHALLENGE_TOKEN;
+    const res = middleware(createRequest("/marketplace", { userAgent: BOT_UA }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-kora-bot-challenge")).toBeNull();
+  });
+
+  it("challenges an automated client without the token", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(createRequest("/marketplace", { userAgent: BOT_UA }));
+
+    expect(res.status).toBe(403);
+    expect(res.headers.get("x-kora-bot-challenge")).toBe("required");
+  });
+
+  it("allows an automated client that sends the correct token", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(
+      createRequest("/marketplace", { userAgent: BOT_UA, botToken: "secret-token" })
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("still challenges an automated client with a wrong token", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(
+      createRequest("/marketplace", { userAgent: BOT_UA, botToken: "wrong" })
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it("bypasses the challenge for health endpoints and exposes the marker", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(createRequest("/api/health", { userAgent: BOT_UA }));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-kora-bot-bypass")).toBe("true");
+  });
+
+  it("bypasses the challenge for uptime bots on public routes", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(createRequest("/marketplace", { userAgent: UPTIME_UA }));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-kora-bot-bypass")).toBe("true");
+  });
+
+  it("does not bypass auth paths for an uptime bot", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(
+      createRequest("/api/auth/challenge", { userAgent: UPTIME_UA })
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-kora-bot-bypass")).toBeNull();
+  });
+
+  it("keeps locale and security headers on a bypassed health request", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(
+      createRequest("/api/health", {
+        userAgent: UPTIME_UA,
+        acceptLanguage: "es-ES,es;q=0.9",
+      })
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.cookies.get(LOCALE_COOKIE_NAME)?.value).toBe("es");
+    expect(res.headers.get("x-request-id")).toBe(TEST_NONCE);
+    expect(res.headers.get("x-nonce")).toBe(TEST_NONCE);
+  });
+
+  it("never challenges a regular browser", () => {
+    process.env.BOT_CHALLENGE_TOKEN = "secret-token";
+    const res = middleware(
+      createRequest("/marketplace", {
+        userAgent:
+          "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+      })
+    );
+    expect(res.status).toBe(200);
   });
 });

@@ -370,6 +370,97 @@ test.describe("InvoiceCard — visual regression", () => {
   });
 });
 
+// ─── Invoice Wizard — visual regression ──────────────────────────────────────
+
+test.describe("InvoiceWizard — step visual regression", () => {
+  test.beforeEach(async ({ page }) => {
+    await injectTestEnvironment(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("kora-tour-done", "true");
+      localStorage.setItem("kora-changelog-seen-version", "0.1.0");
+    });
+  });
+
+  test("Step 1 — Invoice Details form matches baseline", async ({ page }) => {
+    await page.goto("/invoice/create");
+    await page.waitForSelector("h1, form, [data-testid='wizard-step-indicator']", { timeout: 15_000 });
+    await page.waitForTimeout(150);
+    await expect(page).toHaveScreenshot("wizard-step-1.png", {
+      maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,
+      mask: [page.locator("[data-testid='countdown-timer']"), page.locator(".animate-ping")],
+      clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
+    });
+  });
+
+  test("Step 2 — Financing Terms form matches baseline", async ({ page }) => {
+    await page.goto("/invoice/create");
+    await page.waitForSelector("form", { timeout: 15_000 });
+    // Fill Step 1 minimum to unlock Next, then advance
+    await page.getByLabel(/invoice number/i).fill("VR-WIZARD-S2");
+    await page.getByLabel(/debtor company name/i).fill("VR Corp");
+    await page.getByLabel(/debtor address/i).fill("1 Test St");
+    await page.getByRole("spinbutton", { name: /invoice amount/i }).fill("10000");
+    // Set due date via hidden input
+    await page.evaluate(() => {
+      const inputs = document.querySelectorAll<HTMLInputElement>('input[type="hidden"]');
+      for (const inp of inputs) {
+        const label = document.querySelector<HTMLLabelElement>(`label[for="${inp.id}"]`);
+        if (label && /due date/i.test(label.textContent ?? "")) {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+          setter?.call(inp, "2026-12-31");
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+          inp.dispatchEvent(new Event("change", { bubbles: true }));
+          break;
+        }
+      }
+    });
+    const nextBtn = page.getByRole("button", { name: /next/i });
+    await expect(nextBtn).toBeEnabled({ timeout: 5_000 });
+    await nextBtn.click();
+    await page.waitForSelector("[data-testid='wizard-step-2'], [role='slider']", { timeout: 10_000 });
+    await page.waitForTimeout(150);
+    await expect(page).toHaveScreenshot("wizard-step-2.png", {
+      maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,
+      mask: [page.locator("[data-testid='countdown-timer']"), page.locator(".animate-ping")],
+      clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
+    });
+  });
+
+  test("Step 3 — Upload & Review matches baseline", async ({ page }) => {
+    await page.goto("/invoice/create");
+    await page.waitForSelector("form", { timeout: 15_000 });
+    // Step 1
+    await page.getByLabel(/invoice number/i).fill("VR-WIZARD-S3");
+    await page.getByLabel(/debtor company name/i).fill("VR Corp");
+    await page.getByLabel(/debtor address/i).fill("1 Test St");
+    await page.getByRole("spinbutton", { name: /invoice amount/i }).fill("10000");
+    await page.evaluate(() => {
+      const inputs = document.querySelectorAll<HTMLInputElement>('input[type="hidden"]');
+      for (const inp of inputs) {
+        const label = document.querySelector<HTMLLabelElement>(`label[for="${inp.id}"]`);
+        if (label && /due date/i.test(label.textContent ?? "")) {
+          const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+          setter?.call(inp, "2026-12-31");
+          inp.dispatchEvent(new Event("input", { bubbles: true }));
+          inp.dispatchEvent(new Event("change", { bubbles: true }));
+          break;
+        }
+      }
+    });
+    await page.getByRole("button", { name: /next/i }).click();
+    await page.waitForSelector("[role='slider']", { timeout: 10_000 });
+    // Step 2 — advance with defaults
+    await page.getByRole("button", { name: /next/i }).click();
+    await page.waitForSelector("[data-testid='wizard-step-3'], [data-testid='upload'], h2", { timeout: 10_000 });
+    await page.waitForTimeout(150);
+    await expect(page).toHaveScreenshot("wizard-step-3.png", {
+      maxDiffPixelRatio: MAX_DIFF_PIXEL_RATIO,
+      mask: [page.locator("[data-testid='countdown-timer']"), page.locator(".animate-ping")],
+      clip: { x: 0, y: 0, width: VIEWPORT.width, height: VIEWPORT.height },
+    });
+  });
+});
+
 // ─── Full-grid smoke screenshot ───────────────────────────────────────────────
 
 test.describe("InvoiceCard — full grid visual regression", () => {

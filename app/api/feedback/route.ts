@@ -25,6 +25,54 @@ const MAX_CONTEXT_FIELD_LENGTH = 2048;
 const ALLOWED_KEYS = new Set(["type", "title", "description", "screenshot", "context"]);
 const CONTEXT_KEYS = new Set(["url", "walletAddress", "userAgent", "timestamp"]);
 
+// ── Rate limiting (Issue #1265) ─────────────────────────────────────────────
+// Lightweight in-memory limiter keyed by wallet address (when present) or IP.
+// Defaults: 5 submissions per 10 minutes. Override via env if needed.
+const RATE_LIMIT_MAX = Number(process.env.FEEDBACK_RATE_LIMIT_MAX ?? 5);
+const RATE_LIMIT_WINDOW_MS = Number(process.env.FEEDBACK_RATE_LIMIT_WINDOW_MS ?? 10 * 60 * 1000);
+
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const rateLimitStore = new Map<string, RateLimitEntry>();
+
+function getClientKey(req: NextRequest, walletAddress?: string | null): string {
+  if (walletAddress) return `wallet:${walletAddress.toLowerCase()}`;
+  const forwarded = req.headers.get("x-forwarded-for");
+  const ip = forwarded?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+  return `ip:${ip}`;
+}
+
+/**
+ * Returns the number of seconds to wait if the key is over the limit,
+ * otherwise records the hit and returns 0.
+ */
+function checkRateLimit(key: string): number {
+  const now = Date.now();
+  const entry = rateLimitStore.get(key);
+
+  if (!entry || entry.resetAt <= now) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return 0;
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+  }
+
+  entry.count += 1;
+  return 0;
+}
+
+function rateLimitedResponse(requestId: string, retryAfterSeconds: number): NextResponse {
+  return NextResponse.json(
+    { error: "Too many feedback submissions. Please try again later.", requestId, retryAfterSeconds },
+    { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+  );
+}
+
 /**
  * Like sanitizeInput, but keeps line breaks and tabs so multi-line
  * descriptions survive. Emoji and other non-ASCII text are preserved.
@@ -143,6 +191,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // ── Rate limiting (Issue #1265) ──────────────────────────────────────────
+    const clientKey = getClientKey(req, body.context?.walletAddress);
+    const retryAfterSeconds = checkRateLimit(clientKey);
+    if (retryAfterSeconds > 0) {
+      logger.warn("Feedback rate limit exceeded", {
+        requestId,
+        route: "/api/feedback",
+        retryAfterSeconds,
+      });
+      return rateLimitedResponse(requestId, retryAfterSeconds);
+    }
+
     // ── Screenshot validation (Issue #959) ────────────────────────────────
     const MAX_SCREENSHOT_BYTES = 2 * 1024 * 1024; // 2 MiB
     const ALLOWED_SCREENSHOT_MIME = ["image/png", "image/jpeg", "image/webp"];
@@ -220,8 +280,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
       if (!ghRes.ok) {
         const err = await ghRes.text();
-        logger.error("GitHub Issues API error", { requestId, route: "/api/feedback", error: err });
-        // Don't fail the user request — log and continue
+        logger.error("GitHub Issues API error", {
+          requestId,
+          route: "/api/feedback",
+          status: ghRes.status,
+          error: err,
+        });
+        // Surface upstream rate limiting so the client can back off gracefully.
+        if (ghRes.status === 429) {
+          const retryAfterHeader = Number(ghRes.headers.get("retry-after"));
+          const upstreamRetry =
+            Number.isFinite(retryAfterHeader) && retryAfterHeader > 0 ? retryAfterHeader : 60;
+          return rateLimitedResponse(requestId, upstreamRetry);
+        }
+        // Other upstream failures: don't fail the user request — log and continue
       } else {
         const issue = await ghRes.json();
         logger.info("GitHub issue created", { requestId, route: "/api/feedback", issueUrl: issue.html_url });
@@ -233,4 +305,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     logger.error("Feedback submission error", { requestId, route: "/api/feedback", error: err });
     return NextResponse.json({ error: "Server error", requestId }, { status: 500 });
   }
+}
+
+/** Test-only helper to reset the in-memory rate limiter between cases. */
+export function __resetFeedbackRateLimit(): void {
+  rateLimitStore.clear();
 }

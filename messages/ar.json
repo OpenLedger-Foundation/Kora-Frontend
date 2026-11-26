@@ -64,6 +64,11 @@
     "termsLink": "شروط الخدمة",
     "connectGuardTitle": "ربط محفظتك للمتابعة",
     "connectGuardDesc": "تتطلب هذه الصفحة محفظة مربوطة.",
+    "insufficientUsdcTitle": "رصيد USDC غير كافٍ للتمويل",
+    "insufficientUsdcDesc": "تحتاج إلى {shortfall} USDC إضافية لتمويل هذا المبلغ. رصيدك {balance}.",
+    "insufficientUsdcEmpty": "لا تحتوي محفظتك على USDC بعد. أضف USDC لبدء تمويل الفواتير.",
+    "insufficientUsdcCta": "احصل على USDC",
+    "insufficientUsdcBridge": "انقل USDC إلى Stellar",
     "sessionExpiredTitle": "جلسة المحفظة غير نشطة",
     "sessionExpiredDesc": "افتح ملحق المحفظة أو أعد الاتصال للمتابعة.",
     "reconnect": "إعادة ربط المحفظة",
@@ -194,6 +199,14 @@
     "title": "سوق الفواتير",
     "subtitle": "جارٍ اكتشاف الصفقات...",
     "showing": "عرض {count} فاتورة مدرجة",
+    "indexerWatermark": {
+      "fresh": "تمت مزامنة المفهرس {time}",
+      "stale": "بيانات المفهرس قديمة — آخر مزامنة {time}"
+    },
+    "indexer": {
+      "synced": "تمت الفهرسة {time} · دفتر {ledger}",
+      "stale": "قد يكون التوفر قديمًا — آخر فهرسة {time}"
+    },
     "shareFilters": "مشاركة الفلاتر",
     "shareFiltersCopied": "تم نسخ رابط الفلتر إلى الحافظة",
     "exportCsv": "تصدير CSV",
@@ -211,6 +224,10 @@
     "filterRemoved": "تمت إزالة التصفيّة \"{label}\"",
     "activeFilterRiskTier": "المخاطر: {tier}",
     "activeFilterAprRange": "APR: {min}%–{max}%",
+    "removeFilterAria": "إزالة التصفية: {label}",
+    "clearAllFiltersAria": "مسح جميع التصفيات النشطة",
+    "allFiltersCleared": "تم مسح جميع التصفيات",
+    "activeFiltersKeyboardHint": "استخدم مفاتيح الأسهم للتنقل بين التصفيات النشطة. اضغط Delete أو Backspace لإزالة التصفية المحددة.",
     "activeOnlyDesc": "إخفاء الفواتير الممولة بالكامل أو المتعثرة",
     "showExpired": "إظهار منتهية الصلاحية",
     "showExpiredDesc": "إدراج العروض التي مرت تاريخ صلاحيتها",
@@ -223,6 +240,8 @@
     "noResults": "لا توجد فواتير تطابق الفلاتر",
     "noResultsDesc": "لم نعثر على إدراجات نشطة تطابق تحديدك الحالي. جرب إعادة تعيين الفلاتر لاستكشاف فرص أخرى.",
     "clearAllFilters": "مسح كل الفلاتر",
+    "offlineEmptyTitle": "لا توجد فواتير مخزنة متاحة دون اتصال",
+    "offlineEmptyDesc": "اتصل بالإنترنت لتحميل السوق. ستظهر القوائم المخزنة هنا عند انقطاع الاتصال بعد زيارة سابقة.",
     "recovery": {
       "clearRiskTiers": "مسح مستويات المخاطر",
       "widenApr": "توسيع نطاق APR",
@@ -232,6 +251,8 @@
     },
     "loadingMore": "جارٍ التحميل…",
     "allLoaded": "تم تحميل كل الفواتير",
+    "newInvoicesAnnouncement": "{count, plural, one {تم تحميل فاتورة جديدة (#)} other {تم تحميل # فاتورة جديدة}} — الإجمالي {total}",
+    "allLoadedAnnouncement": "تم تحميل كل الفواتير — نهاية القائمة",
     "backToTop": "↑ للأعلى",
     "recent": "الأحدث",
     "clear": "مسح",
@@ -337,6 +358,20 @@
     "retryLoading": "إعادة محاولة التحميل"
   },
   "invoiceDetail": {
+    "yieldCalculator": {
+      "title": "توقع العائد",
+      "expectedReturn": "العائد المتوقع",
+      "annualisedYield": "العائد السنوي",
+      "breakEvenDate": "تاريخ التعادل",
+      "netYield": "صافي العائد",
+      "approxUsd": "القيمة التقريبية بالدولار الأمريكي",
+      "invalidData": "توقع العائد غير متاح — بيانات التمويل غير صالحة.",
+      "capReached": "المبلغ يتجاوز السقف المتبقي للتمويل. قلّل استثمارك لعرض توقع صالح.",
+      "zeroApr": "نسبة APR صفر — لن يحقق هذا الاستثمار أي عائد.",
+      "noYield": "لن يتحقق أي عائد بهذه الشروط.",
+      "priceUnavailable": "تقدير الدولار غير متاح — سعر الأوراكل مفقود.",
+      "a11yLabel": "توقع عائد استثمارك"
+    },
     "backToMarketplace": "العودة إلى السوق",
     "financingTerms": "شروط التمويل",
     "fundingProgress": "تقدم التمويل",
@@ -346,6 +381,11 @@
     "maturity": "تاريخ الاستحقاق",
     "connectToInvest": "ربط محفظة Stellar الخاصة بك لعرض العوائد وبدء الاستثمار.",
     "connectWalletToInvest": "ربط المحفظة للاستثمار",
+    "insufficientUsdc": {
+      "title": "رصيد USDC غير كافٍ",
+      "description": "تحتوي محفظتك على {available} USDC، لكن هذا الاستثمار يتطلب {required}. احصل على USDC ثم حدّث رصيدك للمتابعة.",
+      "acquire": "الحصول على USDC"
+    },
     "selfFundBlocked": "التمويل الذاتي محظور",
     "selfFundDesc": "لا يمكنك تمويل فاتورتك الخاصة. تحظر قواعد الضمان لعزل الفاكتورينج على مالكي الفواتير المشاركة كمزودي سيولة.",
     "cannotFundOwn": "لا يمكنك تمويل فاتورتك الخاصة",
@@ -712,6 +752,20 @@
     }
   },
   "transactions": {
+    "csv": {
+      "columns": {
+        "hash": "رمز المعاملة",
+        "type": "النوع",
+        "status": "الحالة",
+        "amount": "المبلغ",
+        "asset": "الأصل",
+        "date": "التاريخ",
+        "timestampUtc": "الطابع الزمني (UTC، ISO 8601)",
+        "description": "الوصف",
+        "error": "خطأ"
+      },
+      "exportFailed": "تعذّر تصدير المعاملات. يرجى المحاولة مرة أخرى."
+    },
     "title": "سجل المعاملات",
     "subtitle": "نشاطك الكامل على السلسلة في بروتوكول Kora",
     "exportCsv": "تصدير CSV",
@@ -756,6 +810,9 @@
     "viewStellar": "عرض على Stellar Expert",
     "remove": "إزالة المعاملة",
     "listTitle": "المعاملات",
+    "groups": {
+      "other": "عام"
+    },
     "reason": "السبب:",
     "searchAria": "البحث في المعاملات",
     "typeFilterAria": "تصفية حسب نوع المعاملة",
@@ -800,6 +857,8 @@
       "type": "النوع",
       "txHash": "تجزئة المعاملة",
       "copyHashAria": "نسخ التجزئة",
+      "hashCopied": "تم نسخ التجزئة",
+      "hashCopyFailed": "فشل نسخ التجزئة",
       "status": "الحالة",
       "amount": "المبلغ",
       "dateTime": "التاريخ والوقت",
@@ -889,6 +948,9 @@
       "title": "ملخص المحفظة",
       "share": "مشاركة الملخص"
     },
+    "copyLink": "نسخ الرابط المُصفّى",
+    "linkCopied": "تم نسخ الرابط",
+    "linkCopyFailed": "تعذّر نسخ الرابط",
     "a11y": {
       "filterJurisdiction": "التصفية حسب الاختصاص القضائي",
       "filterCategory": "التصفية حسب الفئة",
@@ -972,6 +1034,9 @@
     "writeBytes": "البايت المكتوبة",
     "simulationError": "خطأ في المحاكاة",
     "simulationErrorDesc": "لا يمكن تنفيذ هذه المعاملة. يرجى مراجعة الخطأ أدناه.",
+    "simulationErrorHint": "لم يتم توقيع أي شيء أو إرساله. راجع المبلغ وحاول مجددًا.",
+    "rpcUnavailable": "خدمة المحاكاة غير متاحة",
+    "rpcUnavailableDesc": "لم يستجب خادم Stellar RPC. تحقق من نقطة RPC أو حاول مجددًا.",
     "timeout": "انتهت مهلة المحاكاة بعد 10 ثوانٍ. يرجى المحاولة مجددًا.",
     "simulating": "جارٍ محاكاة المعاملة…",
     "proceed": "متابعة والتوقيع",
@@ -983,6 +1048,7 @@
     "kb": "{count} كيلوبايت"
   },
   "network": {
+    "serviceUnavailable": "إحدى خدمات ستيلر غير متاحة. حاول مرة أخرى بعد قليل.",
     "operational": "تعمل بشكل طبيعي",
     "degraded": "أداء منخفض",
     "down": "متوقفة",
@@ -1150,7 +1216,8 @@
     "pickContact": "اختيار جهة اتصال محفوظة",
     "noContacts": "لا توجد جهات اتصال محفوظة بعد",
     "pickFromAddressBook": "اختيار من دفتر العناوين",
-    "verifiedLabel": "Label verified with signature",
+    "verifiedLabel": "تم التحقق من التسمية بالتوقيع",
+    "unverifiedLabel": "لم يتم التحقق من التسمية: التوقيع مفقود أو غير صالح",
     "signLabel": "Sign label for {label}",
     "labelSigned": "Label signed successfully",
     "signFailed": "Failed to sign label"
@@ -1184,6 +1251,18 @@
     "connectCta": "ربط المحفظة",
     "navLabel": "الإعدادات",
     "openFull": "فتح الإعدادات الكاملة",
+    "transfer": {
+      "title": "تصدير واستيراد التفضيلات",
+      "description": "احفظ نسخة احتياطية من إعداداتك ودفتر العناوين كملف مشفّر. ستحتاج إلى عبارة المرور نفسها لاستيراده.",
+      "passphrase": "عبارة المرور",
+      "passphraseHint": "{min} أحرف على الأقل. لا يتم تخزينها أو إرسالها أبدًا.",
+      "export": "تصدير مشفّر",
+      "import": "استيراد ملف",
+      "exported": "تم تصدير التفضيلات.",
+      "exportFailed": "تعذّر تصدير التفضيلات.",
+      "imported": "تم استيراد التفضيلات.",
+      "importFailed": "تعذّر الاستيراد. تحقق من الملف وعبارة المرور."
+    },
     "notifications": {
       "sectionTitle": "تفضيلات الإشعارات",
       "sectionDesc": "تحكّم في التنبيهات التي تظهر أثناء سير عملك.",
@@ -1208,6 +1287,14 @@
       },
       "resetDefaults": "إعادة الضبط إلى الافتراضي",
       "toggleAriaLabel": "تبديل {label}",
+      "quietHours": {
+        "label": "ساعات الهدوء",
+        "description": "أوقف تشغيل تذكيرات الاستحقاق خلال الساعات التي تحددها.",
+        "toggleAriaLabel": "تفعيل/تعطيل ساعات الهدوء",
+        "startLabel": "من",
+        "endLabel": "إلى",
+        "hint": "يتم إسكات التذكيرات من {start} إلى {end}."
+      },
       "tourSection": {
         "title": "جولة الإعداد",
         "status": "الحالة:",
@@ -1498,7 +1585,14 @@
     "totalFees": "إجمالي الرسوم ({rate})",
     "total": "المبلغ المستحق",
     "noFees": "لا توجد رسوم على هذا الاستحواذ.",
-    "listingNote": "يدفع المشتري {rate} رسومًا فوق السعر المطلوب."
+    "listingNote": "يدفع المشتري {rate} رسومًا فوق السعر المطلوب.",
+    "protocolFeeAria": "ما هي رسوم البروتوكول؟",
+    "marketFeeAria": "ما هي رسوم السوق؟",
+    "totalFeeAria": "كيف يتم احتساب الإجمالي",
+    "protocolFeeTooltip": "تدعم رسوم البروتوكول البالغة {rate} عقود Kora على Soroban التي تحتفظ بهذه الصفقة في الضمان.",
+    "marketFeeTooltip": "تذهب رسوم السوق البالغة {rate} إلى المنصة التي تُدرج هذه الفاتورة.",
+    "totalFeeTooltip": "سعر المركز بالإضافة إلى {fees} رسومًا. تدفع {total}.",
+    "tooltipTriggerLabel": "عرض تفاصيل الرسوم"
   },
   "concentrationRisk": {
     "title": "مخاطر التركّز",
@@ -1557,6 +1651,10 @@
         "15": "عائد 15%+"
       }
     }
+  },
+  "killSwitch": {
+    "title": "الإجراءات متوقفة مؤقتًا",
+    "description": "هذا الإجراء معطّل في هذا النشر. حاول مرة أخرى لاحقًا."
   },
   "secondaryMarket": {
     "title": "السوق الثانوي",

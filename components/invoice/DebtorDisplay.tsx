@@ -9,6 +9,8 @@ import {
   getMaskedDebtorName,
   getMaskedDebtorAddress,
   getDebtorAriaLabel,
+  getPrintDebtorAddress,
+  getPrintDebtorName,
 } from "@/lib/debtorPrivacy";
 import type { Invoice } from "@/types/invoice";
 
@@ -137,7 +139,23 @@ export function DebtorDisplay({
 
   return (
     <div className={cn("flex flex-col", className)} aria-label={ariaLabel}>
-      {renderContent()}
+      {/* Screen rendering — hidden by the print stylesheet (#1182). */}
+      <div data-print-redact>{renderContent()}</div>
+      <PrintDebtorDetails invoice={invoice} />
+    </div>
+  );
+}
+
+/**
+ * Print-only debtor block (#1182): hidden on screen, shown instead of the
+ * screen rendering when printing. Uses `getPrintDebtor*`, which never prints
+ * a street address and ignores the post-funding reveal.
+ */
+export function PrintDebtorDetails({ invoice }: { invoice: Partial<Invoice> }) {
+  return (
+    <div data-print-only data-testid="debtor-print-details" className="hidden print:block">
+      <p className="font-semibold">{getPrintDebtorName(invoice)}</p>
+      <p className="text-xs">{getPrintDebtorAddress(invoice)}</p>
     </div>
   );
 }

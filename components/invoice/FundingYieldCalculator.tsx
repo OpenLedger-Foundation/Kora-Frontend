@@ -7,6 +7,8 @@
  *  - Uses the SAME APR formula as APRDisplay: amount * (1 + (apr/100) * (days/365))
  *  - Values update with a 300ms debounce — not on every keystroke
  *  - Stale-proof: recalculates whenever `apr` or `daysToMaturity` props change
+ *  - Never renders NaN/Infinity: malformed terms, zero APR, a reached funding
+ *    cap, and a missing oracle price all have explicit localized copy (#1131)
  *
  * Shows:
  *  - Expected return (total payoff at maturity)
@@ -15,7 +17,8 @@
  */
 
 import React, { useMemo } from "react";
-import { TrendingUp, Calendar, Percent } from "lucide-react";
+import { TrendingUp, Calendar, Percent, AlertCircle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useDebounce } from "@/hooks/useDebounce";
 import { cn } from "@/lib/utils";
 import { useFormatters } from "@/hooks/useFormatters";
@@ -31,22 +34,44 @@ interface FundingYieldCalculatorProps {
   repaymentDate: string;
   /** Currency label, e.g. "USDC" */
   currency: string;
+  /** Remaining funding capacity; when exceeded the projection is suppressed */
+  remainingCapacity?: number;
+  /**
+   * Price of one currency unit in USD. `undefined` means the consumer does not
+   * request a USD estimate; `null` means it requested one but the oracle did
+   * not return a price.
+   */
+  oraclePrice?: number | null;
   /** Optional extra className on the wrapper */
   className?: string;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 
 /**
  * Core yield formula — identical to what InvoiceDetailClient uses:
  *   expectedReturn = amount * (1 + (apr / 100) * (days / 365))
  *
- * This keeps both consistent per the PR constraint.
+ * Returns `null` for malformed inputs so the caller can show explicit copy
+ * instead of a silent NaN/Infinity.
  */
-function computeYield(amount: number, apr: number, daysToMaturity: number) {
-  if (amount <= 0 || apr <= 0 || daysToMaturity <= 0) {
-    return { expectedReturn: 0, netYield: 0 };
+export function computeYield(
+  amount: number,
+  apr: number,
+  daysToMaturity: number
+): { expectedReturn: number; netYield: number } | null {
+  if (!isFiniteNumber(amount) || !isFiniteNumber(apr) || !isFiniteNumber(daysToMaturity)) {
+    return null;
+  }
+  if (amount <= 0 || apr < 0 || daysToMaturity < 0) return null;
+  if (apr === 0 || daysToMaturity === 0) {
+    return { expectedReturn: amount, netYield: 0 };
   }
   const expectedReturn = amount * (1 + (apr / 100) * (daysToMaturity / 365));
   const netYield = expectedReturn - amount;
+  if (!isFiniteNumber(expectedReturn) || !isFiniteNumber(netYield)) return null;
   return { expectedReturn, netYield };
 }
 
@@ -56,24 +81,61 @@ export function FundingYieldCalculator({
   daysToMaturity,
   repaymentDate,
   currency,
+  remainingCapacity,
+  oraclePrice,
   className,
 }: FundingYieldCalculatorProps) {
+  const t = useTranslations("invoiceDetail.yieldCalculator");
   const { formatCurrency, formatDate, formatApr } = useFormatters();
   // Debounce the raw string to avoid computing on every keystroke
   const debouncedInput = useDebounce(amountInput, 300);
   const debouncedApr = useDebounce(apr, 300);
 
   const amount = useMemo(() => {
-    const parsed = parseFloat(debouncedInput);
-    return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    const parsed = Number.parseFloat(debouncedInput);
+    return isFiniteNumber(parsed) && parsed >= 0 ? parsed : 0;
   }, [debouncedInput]);
 
-  const { expectedReturn, netYield } = useMemo(
+  const projection = useMemo(
     () => computeYield(amount, debouncedApr, daysToMaturity),
     [amount, debouncedApr, daysToMaturity]
   );
 
+  const hasOraclePrice = isFiniteNumber(oraclePrice) && oraclePrice > 0;
+  // `null` explicitly means "price was requested but unavailable"; omitting the
+  // prop means this surface does not show a USD estimate at all.
+  const priceMissing = oraclePrice === null || (oraclePrice !== undefined && !hasOraclePrice);
+  const usdEstimate = hasOraclePrice && projection ? projection.expectedReturn * oraclePrice : null;
+
+  const edgeMessage = useMemo(() => {
+    if (!projection) return t("invalidData");
+    if (isFiniteNumber(remainingCapacity) && amount > remainingCapacity) return t("capReached");
+    if (debouncedApr === 0) return t("zeroApr");
+    if (daysToMaturity === 0) return t("noYield");
+    return null;
+  }, [projection, remainingCapacity, amount, debouncedApr, daysToMaturity, t]);
+
   if (amount <= 0) return null;
+
+  if (edgeMessage) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border border-amber-500/30 bg-amber-500/5 p-4",
+          className
+        )}
+        role="status"
+        data-testid="yield-edge-message"
+      >
+        <div className="flex items-start gap-2 text-amber-200">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p className="text-xs">{edgeMessage}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { expectedReturn, netYield } = projection!;
 
   return (
     <div
@@ -81,18 +143,18 @@ export function FundingYieldCalculator({
         "rounded-xl border border-kora-500/20 bg-kora-500/5 p-4 space-y-3",
         className
       )}
-      aria-label="Yield projection for your investment"
+      aria-label={t("a11yLabel")}
       data-testid="funding-yield-calculator"
     >
       <p className="text-xs font-semibold text-kora-400 uppercase tracking-wider">
-        Yield Projection
+        {t("title")}
       </p>
 
       {/* Expected Return */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs text-zinc-400">
           <TrendingUp className="h-3.5 w-3.5 text-kora-400" aria-hidden="true" />
-          <span>Expected Return</span>
+          <span>{t("expectedReturn")}</span>
         </div>
         <span
           className="font-mono text-sm font-semibold text-zinc-100"
@@ -106,13 +168,13 @@ export function FundingYieldCalculator({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs text-zinc-400">
           <Percent className="h-3.5 w-3.5 text-kora-400" aria-hidden="true" />
-          <span>Annualised Yield</span>
+          <span>{t("annualisedYield")}</span>
         </div>
         <span
           className="font-mono text-sm font-semibold text-kora-400"
           data-testid="annualised-yield"
         >
-          {formatApr(apr)}
+          {formatApr(debouncedApr)}
         </span>
       </div>
 
@@ -120,7 +182,7 @@ export function FundingYieldCalculator({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs text-zinc-400">
           <Calendar className="h-3.5 w-3.5 text-kora-400" aria-hidden="true" />
-          <span>Break-even Date</span>
+          <span>{t("breakEvenDate")}</span>
         </div>
         <span
           className="text-sm font-medium text-zinc-300"
@@ -132,7 +194,7 @@ export function FundingYieldCalculator({
 
       {/* Net Yield summary */}
       <div className="border-t border-kora-500/10 pt-2 flex items-center justify-between">
-        <span className="text-xs font-medium text-zinc-400">Net Yield</span>
+        <span className="text-xs font-medium text-zinc-400">{t("netYield")}</span>
         <span
           className="font-mono text-sm font-bold text-kora-400"
           data-testid="net-yield"
@@ -140,6 +202,26 @@ export function FundingYieldCalculator({
           +{formatCurrency(netYield, currency)}
         </span>
       </div>
+
+      {hasOraclePrice && usdEstimate !== null && (
+        <div className="flex items-center justify-between gap-2 border-t border-kora-500/10 pt-2">
+          <span className="text-xs text-zinc-400">{t("approxUsd")}</span>
+          <span className="font-mono text-xs text-zinc-300" data-testid="yield-usd-estimate">
+            ≈ {formatCurrency(usdEstimate, "USD")}
+          </span>
+        </div>
+      )}
+
+      {priceMissing && (
+        <p
+          className="flex items-start gap-1.5 text-xs text-amber-200"
+          role="status"
+          data-testid="yield-edge-message"
+        >
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {t("priceUnavailable")}
+        </p>
+      )}
     </div>
   );
 }

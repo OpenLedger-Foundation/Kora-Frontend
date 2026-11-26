@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 
 // next-intl needs a provider; substituting the real catalog keeps the assertions
@@ -24,6 +25,13 @@ vi.mock("next-intl", () => ({
         total: "You pay",
         noFees: "No fees apply to this acquisition.",
         listingNote: "Buyer pays {rate} in fees on top of the ask price.",
+        protocolFeeAria: "What is the protocol fee?",
+        marketFeeAria: "What is the marketplace fee?",
+        totalFeeAria: "How the total is calculated",
+        protocolFeeTooltip:
+          "A {rate} protocol fee funds the Kora Soroban contracts that hold this trade in escrow.",
+        marketFeeTooltip: "A {rate} marketplace fee goes to the venue that hosts this listing.",
+        totalFeeTooltip: "The position price plus {fees} in fees. You pay {total}.",
       },
     };
     return (key: string, values?: Record<string, string | number>) => {
@@ -35,6 +43,13 @@ vi.mock("next-intl", () => ({
     };
   },
 }));
+
+// Radix's popper sizing needs ResizeObserver, which jsdom does not provide.
+globalThis.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
 
 import { FeeDisclosure } from "@/components/secondary/FeeDisclosure";
 import { computeAcquisitionFees, type FeeBreakdown } from "@/lib/secondaryFees";
@@ -61,9 +76,7 @@ describe("FeeDisclosure", () => {
 
   it("states plainly when no fees apply rather than rendering an empty table", () => {
     render(
-      <FeeDisclosure
-        fees={computeAcquisitionFees(10_000, { protocolBps: 0, marketBps: 0 })}
-      />
+      <FeeDisclosure fees={computeAcquisitionFees(10_000, { protocolBps: 0, marketBps: 0 })} />
     );
 
     expect(screen.getByTestId("fee-disclosure-none")).toBeDefined();
@@ -72,9 +85,7 @@ describe("FeeDisclosure", () => {
 
   it("omits a fee line whose rate is zero", () => {
     render(
-      <FeeDisclosure
-        fees={computeAcquisitionFees(10_000, { protocolBps: 50, marketBps: 0 })}
-      />
+      <FeeDisclosure fees={computeAcquisitionFees(10_000, { protocolBps: 50, marketBps: 0 })} />
     );
 
     expect(screen.getByText("Protocol fee (0.5%)")).toBeDefined();
@@ -82,12 +93,7 @@ describe("FeeDisclosure", () => {
   });
 
   it("renders a one-line summary in the inline variant", () => {
-    render(
-      <FeeDisclosure
-        variant="inline"
-        fees={computeAcquisitionFees(10_000, SCHEDULE)}
-      />
-    );
+    render(<FeeDisclosure variant="inline" fees={computeAcquisitionFees(10_000, SCHEDULE)} />);
 
     expect(screen.getByTestId("fee-disclosure-inline").textContent).toContain("0.75%");
   });
@@ -111,9 +117,7 @@ describe("FeeDisclosure", () => {
 
   it("shows the marketplace row when only the venue charges a fee", () => {
     render(
-      <FeeDisclosure
-        fees={computeAcquisitionFees(10_000, { protocolBps: 0, marketBps: 25 })}
-      />
+      <FeeDisclosure fees={computeAcquisitionFees(10_000, { protocolBps: 0, marketBps: 25 })} />
     );
 
     expect(screen.getByText("Marketplace fee (0.25%)")).toBeDefined();
@@ -157,10 +161,29 @@ describe("FeeDisclosure", () => {
     expect(screen.getByText("$2.50 USDC")).toBeDefined();
   });
 
-  it("passes a caller-supplied className to the rendered root", () => {
-    render(
-      <FeeDisclosure className="mt-4" fees={computeAcquisitionFees(10_000, SCHEDULE)} />
+  // --- Tooltip a11y and localization (issue #1242) ---
+  it("gives each fee tooltip a translated accessible name", () => {
+    render(<FeeDisclosure fees={computeAcquisitionFees(10_000, SCHEDULE)} />);
+
+    expect(screen.getByRole("button", { name: "What is the protocol fee?" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "What is the marketplace fee?" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "How the total is calculated" })).toBeDefined();
+  });
+
+  it("opens localized tooltip copy on hover", async () => {
+    const user = userEvent.setup();
+    render(<FeeDisclosure fees={computeAcquisitionFees(10_000, SCHEDULE)} />);
+
+    await user.hover(screen.getByRole("button", { name: "What is the protocol fee?" }));
+
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip.textContent).toContain(
+      "A 0.5% protocol fee funds the Kora Soroban contracts that hold this trade in escrow."
     );
+  });
+
+  it("passes a caller-supplied className to the rendered root", () => {
+    render(<FeeDisclosure className="mt-4" fees={computeAcquisitionFees(10_000, SCHEDULE)} />);
 
     expect(screen.getByTestId("fee-disclosure").className).toContain("mt-4");
   });

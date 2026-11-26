@@ -174,6 +174,20 @@ function parseSimulationPreview(
   return { feeStroops, feeXlm, resourceFee: feeStroops, cpuInstructions, memoryBytes, readBytes, writeBytes };
 }
 
+/** Preview shape used when the RPC cannot simulate at all (#1132). */
+function failedSimulationPreview(error: string): SimulationPreview {
+  return {
+    feeStroops: 0,
+    feeXlm: 0,
+    resourceFee: 0,
+    cpuInstructions: 0,
+    memoryBytes: 0,
+    readBytes: 0,
+    writeBytes: 0,
+    error,
+  };
+}
+
 export interface ProviderSigningConfig {
   timeoutMs: number;
   providerName: string;
@@ -262,6 +276,7 @@ export function useTransaction() {
   const { isNetworkMismatch, errorMessage } = useNetworkValidation();
   const toast = useToast();
   const t = useTranslations("transaction");
+  const tSim = useTranslations("txSimulation");
   const setTxState = useUIStore((s) => s.setTxState);
   const addTransaction = useTransactionHistoryStore((s) => s.addTransaction);
   const updateTransactionStatus = useTransactionHistoryStore((s) => s.updateTransactionStatus);
@@ -442,19 +457,48 @@ export function useTransaction() {
             env.NEXT_PUBLIC_STELLAR_NETWORK_PASSPHRASE
           );
 
-          // Race simulation against a 10-second timeout
-          const simPromise = rpc.simulateTransaction(tx);
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error("Simulation timed out after 10 seconds. Please try again.")),
+          // Race simulation against a 10-second timeout. A dead RPC must not
+          // surface as a raw "fetch failed" — callers (and users) need an
+          // actionable, localized reason (#1132). The timer is always cleared
+          // so a late resolution cannot keep a Node test/worker alive.
+          const simPromise = rpc.simulateTransaction(tx).catch(() => {
+            throw new Error(`${tSim("rpcUnavailable")}: ${tSim("rpcUnavailableDesc")}`);
+          });
+          let simulationTimeout: ReturnType<typeof setTimeout> | null = null;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            simulationTimeout = setTimeout(
+              () => reject(new Error(tSim("timeout"))),
               SIMULATION_TIMEOUT_MS
-            )
-          );
+            );
+          });
 
-          const sim = await Promise.race([simPromise, timeoutPromise]);
+          let sim: Awaited<ReturnType<typeof rpc.simulateTransaction>> | null = null;
+          let simulationError: string | null = null;
+          try {
+            sim = await Promise.race([simPromise, timeoutPromise]);
+          } catch (err) {
+            simulationError =
+              err instanceof Error ? err.message : tSim("simulationError");
+          } finally {
+            if (simulationTimeout) clearTimeout(simulationTimeout);
+          }
 
           if (abortController.signal.aborted) {
             throw new Error("SIGNING_CANCELLED");
+          }
+
+          // An RPC outage or timeout has no simulation result to inspect, but
+          // the user still needs the same blocked preview as a contract revert:
+          // Cancel/close is the only way forward, and signing never starts.
+          if (simulationError || !sim) {
+            const preview = failedSimulationPreview(
+              simulationError ?? tSim("rpcUnavailableDesc")
+            );
+            setSimulationPreview(preview);
+            if (options?.onSimulationPreview) {
+              await options.onSimulationPreview(preview);
+            }
+            throw new Error(preview.error);
           }
 
           if (StellarSdk.rpc.Api.isSimulationError(sim)) {
@@ -690,6 +734,7 @@ export function useTransaction() {
       updateTransactionStatus,
       toast,
       t,
+      tSim,
       resumeInterruptedSignature,
     ]
   );

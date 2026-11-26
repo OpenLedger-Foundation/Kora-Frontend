@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Columns3, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,47 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import type { ColumnDef, DataTableProps, TableSortDirection } from "@/types/table";
 import { Pagination } from "./pagination";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+
+const COLUMN_VISIBILITY_SCHEMA_VERSION = 1;
+const COLUMN_VISIBILITY_STORAGE_PREFIX = "dataTable:columnVisibility";
+
+interface PersistedColumnVisibility {
+  schemaVersion: number;
+  hidden: string[];
+}
+
+function getColumnVisibilityStorageKey(route: string) {
+  return `${COLUMN_VISIBILITY_STORAGE_PREFIX}:${route}`;
+}
+
+function readPersistedColumnVisibility(route: string): string[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(getColumnVisibilityStorageKey(route));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PersistedColumnVisibility;
+    if (!parsed || parsed.schemaVersion !== COLUMN_VISIBILITY_SCHEMA_VERSION) {
+      window.localStorage.removeItem(getColumnVisibilityStorageKey(route));
+      return null;
+    }
+    return Array.isArray(parsed.hidden) ? parsed.hidden : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedColumnVisibility(route: string, hidden: string[]) {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: PersistedColumnVisibility = {
+      schemaVersion: COLUMN_VISIBILITY_SCHEMA_VERSION,
+      hidden,
+    };
+    window.localStorage.setItem(getColumnVisibilityStorageKey(route), JSON.stringify(payload));
+  } catch {
+    // Ignore storage failures (quota, privacy mode, etc.)
+  }
+}
 
 function getSortValue<T>(row: T, column: ColumnDef<T>): string | number {
   if (column.accessor) {
@@ -52,6 +93,18 @@ export function DataTable<T extends { id: string }>({
   pageSizeParamName = "pageSize",
 }: DataTableProps<T>) {
   const t = useTranslations("dataTable");
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  // Sticky header classes: keep the header sticky in both modes, but only
+  // apply motion-related transitions when the user has not requested reduced
+  // motion. The header remains static (no animated shadow/transition) when
+  // prefers-reduced-motion is enabled.
+  const stickyHeaderClasses = cn(
+    "sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
+    prefersReducedMotion
+      ? "shadow-none"
+      : "transition-shadow duration-200 shadow-sm"
+  );
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -62,8 +115,52 @@ export function DataTable<T extends { id: string }>({
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false);
   const { width } = useBreakpoint();
   const isMobileView = width < 640;
+
+  const routeKey = pathname ?? "/";
+
+  // Restore persisted column visibility for the current route
+  useEffect(() => {
+    const persisted = readPersistedColumnVisibility(routeKey);
+    if (!persisted) {
+      setHiddenColumns(new Set());
+      return;
+    }
+    const validIds = new Set(columns.map((c) => c.id));
+    setHiddenColumns(new Set(persisted.filter((id) => validIds.has(id))));
+  }, [routeKey, columns]);
+
+  const toggleColumnVisibility = useCallback(
+    (columnId: string) => {
+      setHiddenColumns((prev) => {
+        const next = new Set(prev);
+        if (next.has(columnId)) next.delete(columnId);
+        else next.add(columnId);
+        writePersistedColumnVisibility(routeKey, Array.from(next));
+        return next;
+      });
+    },
+    [routeKey]
+  );
+
+  const resetColumnVisibility = useCallback(() => {
+    setHiddenColumns(new Set());
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(getColumnVisibilityStorageKey(routeKey));
+      } catch {
+        // Ignore storage failures
+      }
+    }
+  }, [routeKey]);
+
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => !hiddenColumns.has(c.id)),
+    [columns, hiddenColumns]
+  );
 
   // Sync state from URL parameters on mount and searchParams changes
   useEffect(() => {
@@ -203,12 +300,59 @@ export function DataTable<T extends { id: string }>({
     );
   };
 
-  // Sticky header classes: keep position: sticky in both modes so the header
-  // still sticks on desktop and mobile. When reduced motion is preferred, drop
-  // transition/animation classes and scroll-driven motion.
-  const stickyHeaderClasses = cn(
-    "sticky top-0 z-10 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80",
-    prefersReducedMotion ? "transition-none" : "transition-shadow duration-200"
+  const ColumnVisibilityMenu = () => (
+    <div className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-haspopup="true"
+        aria-expanded={columnMenuOpen}
+        aria-label={t("columnsAria")}
+        onClick={() => setColumnMenuOpen((open) => !open)}
+      >
+        <Columns3 className="h-4 w-4" aria-hidden />
+        <span className="ml-2 hidden sm:inline">{t("columns")}</span>
+      </Button>
+      {columnMenuOpen && (
+        <div
+          role="menu"
+          className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-card p-2 shadow-lg"
+        >
+          <div className="max-h-64 overflow-y-auto">
+            {columns.map((column) => {
+              const isHidden = hiddenColumns.has(column.id);
+              return (
+                <label
+                  key={column.id}
+                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                >
+                  <input
+                    type="checkbox"
+                    className="rounded border-input"
+                    checked={!isHidden}
+                    onChange={() => toggleColumnVisibility(column.id)}
+                  />
+                  <span className="truncate">{column.header}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-2 border-t border-border pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start"
+              onClick={resetColumnVisibility}
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              <span className="ml-2">{t("resetColumns")}</span>
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 
   if (!isLoading && data.length === 0) {
@@ -256,177 +400,63 @@ export function DataTable<T extends { id: string }>({
               {t("selectAllOnPage")}
             </label>
           )}
-
-          <div className="flex items-center gap-2">
-            <label htmlFor="mobile-sort-select" className="text-xs text-muted-foreground whitespace-nowrap">
-              {t("sortByLabel")}
-            </label>
-            <select
-              id="mobile-sort-select"
-              className="h-9 rounded-lg border border-input bg-card px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              value={sortColumn && sortDirection ? `${sortColumn}:${sortDirection}` : ""}
-              onChange={(e) => {
-                if (e.target.value === "") {
-                  setSortColumn(null);
-                  setSortDirection(null);
-                  if (syncToUrl) {
-                    const params = new URLSearchParams(searchParams.toString());
-                    params.delete(sortParamName);
-                    router.push(`${pathname}?${params.toString()}`);
-                  }
-                } else {
-                  const [col, dir] = e.target.value.split(":");
-                  setSortColumn(col);
-                  setSortDirection(dir as TableSortDirection);
-                  if (syncToUrl) {
-                    const params = new URLSearchParams(searchParams.toString());
-                    params.set(sortParamName, `${col}:${dir}`);
-                    router.push(`${pathname}?${params.toString()}`);
-                  }
-                }
-              }}
-            >
-              <option value="">{t("sortNone")}</option>
-              {columns
-                .filter((c) => c.sortable !== false && c.accessor)
-                .flatMap((column) => [
-                  {
-                    value: `${column.id}:asc`,
-                    label: t("sortOptionAsc", { column: column.header }),
-                  },
-                  {
-                    value: `${column.id}:desc`,
-                    label: t("sortOptionDesc", { column: column.header }),
-                  },
-                ])
-                .map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-            </select>
-          </div>
+          <ColumnVisibilityMenu />
         </div>
-
-        {enableSelection && selected.size > 0 && bulkActions && (
-          <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-2">
-            <span className="text-sm text-muted-foreground">
-              {t("rowsSelected", { count: selected.size })}
-            </span>
-            {bulkActions}
-          </div>
-        )}
-
         {isLoading
-          ? Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+          ? Array.from({ length: skeletonRowCount }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border bg-card p-4">
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="mt-2 h-3 w-3/4" />
+              </div>
+            ))
+          : pageData.map((row) => (
               <div
-                key={`skeleton-mobile-${rowIndex}`}
-                className="rounded-2xl border border-border bg-card p-4 space-y-4"
+                key={getRowId(row)}
+                className="rounded-xl border border-border bg-card p-4"
+                {...getRowProps(row)}
               >
-                {Array.from({ length: Math.min(columns.length, 4) }).map((_, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="h-3 w-24 rounded bg-muted" />
-                    <div className="h-4 w-full rounded bg-muted/80" />
+                {visibleColumns.map((column) => (
+                  <div key={column.id} className="flex justify-between gap-4 py-1 text-sm">
+                    <span className="text-muted-foreground">{column.header}</span>
+                    <span className="text-right text-foreground">{renderCellValue(row, column)}</span>
                   </div>
                 ))}
               </div>
-            ))
-          : pageData.map((row) => {
-              const rowId = getRowId(row);
-              const props = getRowProps(row);
-              return (
-                <div
-                  key={rowId}
-                  {...props}
-                  className={cn(
-                    "rounded-2xl border border-border bg-card p-4 shadow-sm",
-                    props.className
-                  )}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-border/50">
-                    {enableSelection && (
-                      <label className="inline-flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          className="rounded border-input"
-                          checked={selected.has(rowId)}
-                          onChange={() => toggleRow(rowId)}
-                          aria-label={t("selectRowAria", { id: rowId })}
-                        />
-                        {t("selectRow")}
-                      </label>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-foreground">
-                        {renderCellValue(row, columns[0])}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {columns[1] ? renderCellValue(row, columns[1]) : null}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 grid gap-3">
-                    {columns.slice(2).map((column) => {
-                      if (column.id === "actions") {
-                        return (
-                          <div key={column.id} className="mt-2 pt-2 border-t border-border/50 flex items-center justify-end">
-                            {renderCellValue(row, column)}
-                          </div>
-                        );
-                      }
-                      return (
-                        <div key={column.id} className="space-y-1">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            {column.header}
-                          </p>
-                          <div className="text-sm text-foreground">
-                            {renderCellValue(row, column)}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-        {!isLoading && data.length > 0 && (
-          <Pagination
-            totalItems={sortedData.length}
-            pageSize={pageSize}
-            currentPage={page + 1}
-            onPageChange={(p) => setPage(p - 1)}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(0);
-            }}
-            pageSizeOptions={pageSizeOptions}
-            syncToUrl={syncToUrl}
-            pageParamName={pageParamName}
-            pageSizeParamName={pageSizeParamName}
-          />
-        )}
+            ))}
+        <Pagination
+          page={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          pageSizeOptions={pageSizeOptions}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(0);
+          }}
+        />
       </div>
     );
   }
 
   return (
     <div className={cn("space-y-4", className)}>
-      {enableSelection && selected.size > 0 && bulkActions && (
-        <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-2">
-          <span className="text-sm text-muted-foreground">
-            {t("rowsSelected", { count: selected.size })}
-          </span>
-          {bulkActions}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {enableSelection && bulkActions && selected.size > 0 && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            {t("selectedCount", { count: selected.size })}
+            {bulkActions}
+          </div>
+        )}
+        <div className="ml-auto">
+          <ColumnVisibilityMenu />
         </div>
-      )}
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full text-sm">
           <thead className={stickyHeaderClasses}>
-            <tr className="border-b border-border text-left">
+            <tr>
               {enableSelection && (
-                <th className="w-10 px-4 py-3">
+                <th className="w-10 px-3 py-2">
                   <input
                     type="checkbox"
                     className="rounded border-input"
@@ -438,17 +468,13 @@ export function DataTable<T extends { id: string }>({
                   />
                 </th>
               )}
-              {columns.map((column) => (
-                <th
-                  key={column.id}
-                  className={cn("px-4 py-3 text-xs font-medium text-muted-foreground", column.className)}
-                >
-                  {column.sortable !== false && column.accessor ? (
+              {visibleColumns.map((column) => (
+                <th key={column.id} className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  {column.sortable ? (
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 hover:text-foreground"
                       onClick={() => toggleSort(column.id)}
-                      aria-label={t("sortByAria", { column: column.header })}
                     >
                       {column.header}
                       <SortIcon columnId={column.id} />
@@ -462,78 +488,54 @@ export function DataTable<T extends { id: string }>({
           </thead>
           <tbody>
             {isLoading
-              ? Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
-                  <tr key={`skeleton-${rowIndex}`} className="border-b border-border/50">
+              ? Array.from({ length: skeletonRowCount }).map((_, i) => (
+                  <tr key={i} className="border-t border-border">
                     {enableSelection && (
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2">
                         <Skeleton className="h-4 w-4" />
                       </td>
                     )}
-                    {columns.map((column) => (
-                      <td key={column.id} className="px-4 py-3">
-                        <Skeleton className="h-4 w-full max-w-[120px]" />
+                    {visibleColumns.map((column) => (
+                      <td key={column.id} className="px-3 py-2">
+                        <Skeleton className="h-4 w-full" />
                       </td>
                     ))}
                   </tr>
                 ))
-              : pageData.map((row) => {
-                  const rowId = getRowId(row);
-                  const props = getRowProps(row);
-                  return (
-                    <tr
-                      key={rowId}
-                      {...props}
-                      className={cn(
-                        "border-b border-border/50 hover:bg-muted/30",
-                        !prefersReducedMotion && "transition-colors",
-                        props.className
-                      )}
-                    >
-                      {enableSelection && (
-                        <td className="px-4 py-3">
-                          <input
-                            type="checkbox"
-                            className="rounded border-input"
-                            checked={selected.has(rowId)}
-                            onChange={() => toggleRow(rowId)}
-                            aria-label={t("selectRowAria", { id: rowId })}
-                          />
-                        </td>
-                      )}
-                      {columns.map((column) => (
-                        <td key={column.id} className={cn("px-4 py-3", column.className)}>
-                          {column.cell
-                            ? column.cell(row)
-                            : column.accessor
-                              ? typeof column.accessor === "function"
-                                ? column.accessor(row)
-                                : String(row[column.accessor as keyof T] ?? "")
-                              : null}
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
+              : pageData.map((row) => (
+                  <tr key={getRowId(row)} className="border-t border-border" {...getRowProps(row)}>
+                    {enableSelection && (
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          className="rounded border-input"
+                          checked={selected.has(getRowId(row))}
+                          onChange={() => toggleRow(getRowId(row))}
+                          aria-label={t("selectRowAria", { id: getRowId(row) })}
+                        />
+                      </td>
+                    )}
+                    {visibleColumns.map((column) => (
+                      <td key={column.id} className="px-3 py-2 text-foreground">
+                        {renderCellValue(row, column)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
           </tbody>
         </table>
       </div>
-
-      {!isLoading && data.length > 0 && (
-        <Pagination
-          totalItems={sortedData.length}
-          pageSize={pageSize}
-          currentPage={page + 1}
-          onPageChange={(p) => setPage(p - 1)}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setPage(0);
-          }}
-          pageSizeOptions={pageSizeOptions}
-          syncToUrl={syncToUrl}
-          pageParamName={pageParamName}
-          pageSizeParamName={pageSizeParamName}
-        />
-      )}
+      <Pagination
+        page={currentPage}
+        totalPages={totalPages}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(0);
+        }}
+      />
     </div>
   );
 }

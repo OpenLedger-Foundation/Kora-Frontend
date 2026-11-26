@@ -10,9 +10,74 @@
  *  - Explicit redirectTo query param is respected
  *  - Happy path: guard → connect → lands on create page
  *  - External / protocol-relative intended destinations are rejected (open-redirect hardening)
+ *  - Table-driven open-redirect corpus (encoded, backslash, whitespace, javascript:, data:, external hosts)
+ *    across desktop and mobile viewports
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+/**
+ * Reads the persisted intended destination from the kora-ui store.
+ */
+async function readIntendedDestination(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const stored = localStorage.getItem("kora-ui");
+    if (!stored) return null;
+    try {
+      const parsed = JSON.parse(stored);
+      return parsed.state?.intendedDestination ?? null;
+    } catch {
+      return null;
+    }
+  });
+}
+
+/**
+ * Asserts that a stored intended destination is a safe, same-origin path.
+ * Safe means: starts with a single "/", not "//", no backslashes, no scheme,
+ * no control/whitespace characters, and no encoded protocol-relative prefix.
+ */
+function expectSafeIntendedDestination(value: string | null) {
+  if (value === null) return; // falling back to no destination is safe
+  expect(value.startsWith("/")).toBeTruthy();
+  expect(value.startsWith("//")).toBeFalsy();
+  expect(value.startsWith("/\\")).toBeFalsy();
+  expect(value.includes("\\")).toBeFalsy();
+  expect(/^[a-z][a-z0-9+.-]*:/i.test(value)).toBeFalsy();
+  expect(/[\u0000-\u001f\u007f]/.test(value)).toBeFalsy();
+  expect(/\s/.test(value)).toBeFalsy();
+  // Encoded protocol-relative / scheme prefixes must not survive
+  expect(/^\/%2f/i.test(value)).toBeFalsy();
+  expect(/%3a%2f%2f/i.test(value)).toBeFalsy();
+}
+
+/**
+ * Open-redirect corpus. Each entry is a raw `redirectTo` query value that an
+ * attacker might supply to hijack the post-connect destination.
+ */
+const OPEN_REDIRECT_CORPUS: Array<{ name: string; payload: string }> = [
+  { name: "absolute https URL", payload: "https://evil.example.com/phish" },
+  { name: "absolute http URL", payload: "http://evil.example.com/phish" },
+  { name: "protocol-relative", payload: "//evil.example.com/phish" },
+  { name: "backslash protocol-relative", payload: "/\\evil.example.com/phish" },
+  { name: "double backslash", payload: "\\\\evil.example.com/phish" },
+  { name: "encoded protocol-relative", payload: "%2F%2Fevil.example.com/phish" },
+  { name: "encoded scheme", payload: "https%3A%2F%2Fevil.example.com%2Fphish" },
+  { name: "leading whitespace", payload: "  //evil.example.com/phish" },
+  { name: "tab-prefixed", payload: "\t//evil.example.com/phish" },
+  { name: "newline-prefixed", payload: "\n//evil.example.com/phish" },
+  { name: "javascript scheme", payload: "javascript:alert(document.cookie)" },
+  { name: "data scheme", payload: "data:text/html,<script>alert(1)</script>" },
+  { name: "vbscript scheme", payload: "vbscript:msgbox(1)" },
+  { name: "userinfo trick", payload: "https://kora.example.com@evil.example.com/phish" },
+  { name: "subdomain lookalike", payload: "https://kora.example.com.evil.example.com/phish" },
+  { name: "scheme-relative with port", payload: "//evil.example.com:8080/phish" },
+];
+
+const VIEWPORTS = [
+  { name: "desktop", viewport: { width: 1280, height: 800 } },
+  { name: "mobile", viewport: { width: 390, height: 844 } },
+] as const;
 
 test.describe("Wallet connect guard with intended destination", () => {
   test.beforeEach(async ({ page }) => {
@@ -147,6 +212,71 @@ test.describe("Wallet connect guard with intended destination", () => {
       expect(uiStoreState.startsWith("//")).toBeFalsy();
     }
   });
+
+  for (const { name: viewportName, viewport } of VIEWPORTS) {
+    test.describe(`open-redirect corpus (${viewportName})`, () => {
+      test.use({ viewport });
+
+      for (const { name, payload } of OPEN_REDIRECT_CORPUS) {
+        test(`rejects ${name} and stores only a safe same-origin path`, async ({ page }) => {
+          await page.goto(
+            `/invoice/create?redirectTo=${encodeURIComponent(payload)}`
+          );
+
+          // Guard must render on both viewports
+          const modal = page
+            .locator("div[class*='fixed'][class*='inset-0'][class*='z-50']")
+            .filter({ hasText: /connect.*wallet/i })
+            .first();
+          await expect(modal).toBeVisible({ timeout: 5000 });
+
+          const intended = await readIntendedDestination(page);
+
+          // The raw payload must never be persisted verbatim
+          expect(intended).not.toBe(payload);
+
+          // Whatever is stored must be a safe same-origin path (or null fallback)
+          expectSafeIntendedDestination(intended);
+
+          // If a destination was stored, it should fall back to the current path
+          if (intended !== null) {
+            expect(intended).toMatch(/^\/invoice\/create/);
+          }
+        });
+      }
+
+      test("falls back safely when redirectTo is empty", async ({ page }) => {
+        await page.goto("/invoice/create?redirectTo=");
+
+        const modal = page
+          .locator("div[class*='fixed'][class*='inset-0'][class*='z-50']")
+          .filter({ hasText: /connect.*wallet/i })
+          .first();
+        await expect(modal).toBeVisible({ timeout: 5000 });
+
+        const intended = await readIntendedDestination(page);
+        expectSafeIntendedDestination(intended);
+        if (intended !== null) {
+          expect(intended).toMatch(/^\/invoice\/create/);
+        }
+      });
+
+      test("accepts a safe same-origin path", async ({ page }) => {
+        await page.goto(
+          `/invoice/create?redirectTo=${encodeURIComponent("/dashboard/sme")}`
+        );
+
+        const modal = page
+          .locator("div[class*='fixed'][class*='inset-0'][class*='z-50']")
+          .filter({ hasText: /connect.*wallet/i })
+          .first();
+        await expect(modal).toBeVisible({ timeout: 5000 });
+
+        const intended = await readIntendedDestination(page);
+        expect(intended).toBe("/dashboard/sme");
+      });
+    });
+  }
 
   test("happy path: guard → connect → lands on /invoice/create", async ({ page }) => {
     // Navigate to protected route while disconnected

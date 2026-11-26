@@ -23,11 +23,9 @@ Disallow: /invoice/create
 Disallow: /analytics
 Disallow: /settings
 
-# Secondary market (authenticated user positions)
-Disallow: /secondary/
-
-# Allow public marketplace and marketing pages
+# Allow public marketplace, secondary market and marketing pages
 Allow: /marketplace
+Allow: /secondary
 
 Sitemap: ${process.env.NEXT_PUBLIC_APP_URL || "https://kora.finance"}/sitemap.xml
 `;

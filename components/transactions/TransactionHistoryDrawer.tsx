@@ -13,10 +13,12 @@ import {
   Trash2,
   X,
   Copy,
+  Check,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { StellarTxLink } from "@/components/ui/stellar-tx-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTransactionDetails } from "@/lib/stellar/client";
@@ -33,9 +35,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { safeStellarTxUrl } from "@/lib/security";
-import { exportCsv } from "@/lib/export";
+import { exportCsv, formatCsvDate, formatCsvNumber } from "@/lib/export";
 import { useToast } from "@/hooks/useToast";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { toast } from "sonner";
 
 /**
  * TransactionHistoryDrawer
@@ -195,6 +198,16 @@ function TransactionDetail({
 }) {
   const typeConfig = TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other;
   const dateObj = new Date(tx.timestamp);
+  const { copy, copied } = useCopyToClipboard();
+
+  const handleCopyHash = async () => {
+    const ok = await copy(tx.hash);
+    if (ok) {
+      toast.success(t("drawer.hashCopied"));
+    } else {
+      toast.error(t("drawer.hashCopyFailed"));
+    }
+  };
 
   // Only fetch details for confirmed transactions — cache forever (staleTime: Infinity)
   const { data: details, isLoading: loadingDetails } = useQuery({
@@ -246,11 +259,15 @@ function TransactionDetail({
           </span>
           <button
             type="button"
-            onClick={() => navigator.clipboard.writeText(tx.hash)}
-            aria-label={t("drawer.copyHashAria")}
+            onClick={() => void handleCopyHash()}
+            aria-label={copied ? t("drawer.hashCopied") : t("drawer.copyHashAria")}
             className="shrink-0 rounded p-1 hover:bg-muted transition-colors"
           >
-            <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+            )}
           </button>
         </div>
       </div>
@@ -383,6 +400,7 @@ export function TransactionHistoryDrawer({
   limit = 15,
 }: TransactionHistoryDrawerProps) {
   const t = useTranslations("transactions");
+  const locale = useLocale();
   const allTransactions = useTransactionHistoryStore((s) => s.transactions);
   const filterType = useTransactionHistoryStore((s) => s.filterType);
   const filterStartDate = useTransactionHistoryStore((s) => s.filterStartDate);
@@ -414,22 +432,55 @@ export function TransactionHistoryDrawer({
     onEscape: () => onOpenChange(false),
   });
 
+  // #1179: locale-aware export. Headers, type/status labels, numbers and dates
+  // follow the active locale; a raw ISO timestamp column is kept so the file
+  // stays machine-sortable regardless of locale.
   const handleExport = () => {
     if (filteredTransactions.length === 0) return;
 
-    exportCsv(
-      filteredTransactions.map((tx) => ({
-        hash: tx.hash,
-        type: tx.type,
-        status: tx.status,
-        amount: tx.amount || "",
-        asset: tx.assetCode || "",
-        timestamp: new Date(tx.timestamp).toISOString(),
-        description: tx.description || "",
-        error: tx.error || "",
-      })),
-      `kora-transactions-${Date.now()}.csv`
-    );
+    const statusLabel = (status: string) =>
+      status === "confirmed" || status === "failed" || status === "pending"
+        ? t(`statusLabels.${status}`)
+        : status;
+    const columns = [
+      "hash",
+      "type",
+      "status",
+      "amount",
+      "asset",
+      "date",
+      "timestampUtc",
+      "description",
+      "error",
+    ];
+
+    try {
+      exportCsv(
+        filteredTransactions.map((tx) => ({
+          hash: tx.hash,
+          type: t((TX_TYPE_CONFIG[tx.type] || TX_TYPE_CONFIG.other).labelKey),
+          status: statusLabel(tx.status),
+          amount: formatCsvNumber(tx.amount, locale),
+          asset: tx.assetCode || "",
+          date: formatCsvDate(tx.timestamp, locale),
+          timestampUtc: Number.isNaN(new Date(tx.timestamp).getTime())
+            ? ""
+            : new Date(tx.timestamp).toISOString(),
+          description: tx.description || "",
+          error: tx.error || "",
+        })),
+        `kora-transactions-${Date.now()}.csv`,
+        columns,
+        {
+          locale,
+          headerLabels: Object.fromEntries(
+            columns.map((column) => [column, t(`csv.columns.${column}`)])
+          ),
+        }
+      );
+    } catch {
+      toast.error(t("csv.exportFailed"), undefined, "tx-history-export-failed");
+    }
   };
 
   const handleClearHistory = () => {
