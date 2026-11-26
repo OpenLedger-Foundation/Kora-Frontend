@@ -1211,6 +1211,7 @@
     "showingResults": "Showing {shown} of {total}",
     "savedContacts": "Saved contacts",
     "addressCopied": "Address copied to clipboard",
+    "copyFailed": "Failed to copy — please copy manually",
     "copyAddress": "Copy address",
     "select": "Select",
     "selectContact": "Select {label}",
@@ -1485,8 +1486,12 @@
   "copyButton": {
     "copyAriaLabel": "Copy",
     "copiedAriaLabel": "Copied",
+    "failedAriaLabel": "Copy failed",
     "copyTooltip": "Copy",
-    "copiedTooltip": "Copied!"
+    "copiedTooltip": "Copied!",
+    "failedTooltip": "Copy failed",
+    "copiedToast": "Copied!",
+    "failedToast": "Copy failed — please try again"
   },
   "contractEvents": {
     "invoiceFunded": "Invoice Funded",

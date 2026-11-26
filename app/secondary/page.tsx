@@ -45,6 +45,7 @@ import type { Invoice, PositionListing } from "@/types/invoice";
 import { TENOR_OPTIONS, YIELD_OPTIONS } from "@/components/marketplace/filters";
 import { useTranslations } from "next-intl";
 import { useFormatters } from "@/hooks/useFormatters";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { sanitizeQueryParam } from "@/lib/security";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -135,7 +136,7 @@ function SecondaryMarketplaceContent() {
   const [sellerFilter, setSellerFilter] = useState(initialFilters.seller);
   const [highlightId] = useState(initialFilters.highlight);
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copy: copyUrl, copied } = useCopyToClipboard();
   const [acquireItem, setAcquireItem] = useState<SecondaryMarketItem | null>(null);
   const [acceptItem, setAcceptItem] = useState<SecondaryMarketItem | null>(null);
   const [sortBy, setSortBy] = useState<SecondarySortBy>(() =>
@@ -177,11 +178,8 @@ function SecondaryMarketplaceContent() {
 
   const handleCopyUrl = useCallback(() => {
     if (typeof window === "undefined") return;
-    void navigator.clipboard.writeText(window.location.href).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, []);
+    void copyUrl(window.location.href);
+  }, [copyUrl]);
 
   // Build the item list purely from the persisted store + the invoice store.
   // No inline mock array: in mock mode the service layer populates invoices

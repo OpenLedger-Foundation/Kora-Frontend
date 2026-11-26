@@ -12,8 +12,8 @@ import {
   Download,
   Trash2,
   X,
-  Copy,
   Check,
+  Copy,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTransactionHistoryStore } from "@/store/transactionHistoryStore";
@@ -264,9 +264,9 @@ function TransactionDetail({
             className="shrink-0 rounded p-1 hover:bg-muted transition-colors"
           >
             {copied ? (
-              <Check className="h-3.5 w-3.5 text-green-500" />
+              <Check className="h-3.5 w-3.5 text-green-500" aria-hidden="true" />
             ) : (
-              <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+              <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
             )}
           </button>
         </div>

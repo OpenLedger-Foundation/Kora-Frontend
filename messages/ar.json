@@ -1209,6 +1209,7 @@
     "showingResults": "عرض {shown} من {total}",
     "savedContacts": "جهات الاتصال المحفوظة",
     "addressCopied": "تم نسخ العنوان إلى الحافظة",
+    "copyFailed": "فشل النسخ — يرجى النسخ يدويًا",
     "copyAddress": "نسخ العنوان",
     "select": "تحديد",
     "selectContact": "تحديد {label}",
@@ -1501,8 +1502,12 @@
   "copyButton": {
     "copyAriaLabel": "نسخ",
     "copiedAriaLabel": "تم النسخ",
+    "failedAriaLabel": "فشل النسخ",
     "copyTooltip": "نسخ",
-    "copiedTooltip": "تم النسخ!"
+    "copiedTooltip": "تم النسخ!",
+    "failedTooltip": "فشل النسخ",
+    "copiedToast": "تم النسخ!",
+    "failedToast": "فشل النسخ — يرجى المحاولة مجدداً"
   },
   "contractEvents": {
     "invoiceFunded": "تم تمويل الفاتورة",

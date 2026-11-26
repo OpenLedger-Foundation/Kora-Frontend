@@ -53,6 +53,7 @@ vi.mock("sonner", () => ({
 // ── next-intl ────────────────────────────────────────────────────────────────
 
 vi.mock("next-intl", () => ({
+  useLocale: () => "en",
   useTranslations: (ns?: string) => (key: string) => (ns ? `${ns}.${key}` : key),
 }));
 
@@ -323,13 +324,15 @@ describe("InvoiceMetadataViewer — address copy buttons", () => {
   it("hides debtor address and shows 'Address hidden' when privacy is 'anonymized'", () => {
     const invoice: Invoice = { ...BASE_INVOICE, debtorPrivacy: "anonymized" };
     render(<InvoiceMetadataViewer invoice={invoice} isFunded={false} />);
-    expect(screen.getByText("Address hidden")).toBeInTheDocument();
+    // getMaskedDebtorAddress() fully anonymizes the identity at this level
+    expect(screen.getByText("Identity anonymized for privacy")).toBeInTheDocument();
   });
 
   it("hides debtor address and shows 'Address hidden' when privacy is 'partial'", () => {
     const invoice: Invoice = { ...BASE_INVOICE, debtorPrivacy: "partial" };
     render(<InvoiceMetadataViewer invoice={invoice} isFunded={false} />);
-    expect(screen.getByText("Address hidden")).toBeInTheDocument();
+    // Partial privacy masks the street address but keeps the jurisdiction suffix
+    expect(screen.getByText(/^Address hidden · Kenya$/)).toBeInTheDocument();
   });
 
   it("renders debtor address copy button when isFunded overrides privacy to 'full'", () => {

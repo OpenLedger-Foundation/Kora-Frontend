@@ -19,6 +19,7 @@ import { CATEGORIES } from "./filters";
 import { SUPPORTED_CATEGORIES } from "@/lib/invoiceMetadata";
 import { useInvoiceStore } from "@/store/invoiceStore";
 import { useFeatureFlag } from "@/lib/featureFlags";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -139,7 +140,7 @@ export function CategoryTaxonomyPreview({
   const [internalOpen, setInternalOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<"all" | "active" | "unused" | "missing">("all");
-  const [copied, setCopied] = useState(false);
+  const { copy: copyJson, copied } = useCopyToClipboard();
 
   const isModalOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalOpen;
   const handleClose = controlledOnClose || (() => setInternalOpen(false));
@@ -199,9 +200,7 @@ export function CategoryTaxonomyPreview({
       sources: item.sources,
       i18n: item.i18n,
     }));
-    navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    void copyJson(JSON.stringify(exportData, null, 2));
   };
 
   if (!isEnabled) {

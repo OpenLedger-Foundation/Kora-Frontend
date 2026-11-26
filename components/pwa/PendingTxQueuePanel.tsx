@@ -41,6 +41,7 @@ import {
 } from "@/lib/xdrDraftQueue";
 import { submitTransaction } from "@/lib/stellar/client";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useCopyToClipboard } from "@/hooks/useCopyToClipboard";
 import { cn } from "@/lib/utils";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { env } from "@/lib/env";
@@ -112,6 +113,7 @@ export function PendingTxQueuePanel({
 }: PendingTxQueuePanelProps) {
   const t = useTranslations("pendingQueue");
   const { isOnline } = useNetworkStatus();
+  const { copy: copyToClipboard } = useCopyToClipboard();
 
   const [drafts, setDrafts] = useState<DraftState[]>([]);
   const [loading, setLoading] = useState(true);
@@ -277,14 +279,14 @@ export function PendingTxQueuePanel({
 
   const copyXdr = useCallback(
     async (draft: QueuedXdrDraft) => {
-      try {
-        await navigator.clipboard.writeText(draft.signedXdr);
+      const ok = await copyToClipboard(draft.signedXdr);
+      if (ok) {
         toast.success(t("xdrCopied"));
-      } catch {
+      } else {
         toast.error(t("xdrCopyFailed"));
       }
     },
-    [t],
+    [copyToClipboard, t],
   );
 
   // ── Retry all (only when online) ────────────────────────────────────────────
