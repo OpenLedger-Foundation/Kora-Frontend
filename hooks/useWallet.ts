@@ -35,6 +35,7 @@ import type { WalletProvider } from "@/types";
 import { WALLET_ASSETS, hasTrustline } from "@/config/walletAssets";
 import {
   parseWalletDiagnosticsImport,
+  safeInternalPath,
   sanitizeWalletDiagnosticsExport,
   type WalletDiagnosticsExport,
 } from "@/lib/security";
@@ -482,7 +483,8 @@ export function useWallet() {
         if (intended) {
           // Clear the intended destination after one use to prevent redirect loops
           useUIStore.getState().setIntendedDestination(null);
-          router.push(intended);
+          const safe = safeInternalPath(intended);
+          if (safe) router.push(safe);
         }
         // Fallback: if no intended destination is set, stay on current page
         // (e.g., accessed the page normally while connected)

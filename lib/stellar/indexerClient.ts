@@ -57,6 +57,11 @@ export class StellarIndexerClient {
     this.isIngesting = false;
   }
 
+  /** Watermark of the last successful sync (used for staleness indicators). */
+  getSyncWatermark(): { ledger: number; syncedAt: number | null } {
+    return { ledger: this.lastIngestedLedger, syncedAt: this.lastSyncedAt };
+  }
+
   /**
    * Wall-clock time of the last successful event sync, or `null` when no sync
    * has completed yet. Marketplace surfaces this as a freshness watermark so

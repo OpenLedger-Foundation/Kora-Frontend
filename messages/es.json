@@ -64,6 +64,11 @@
     "termsLink": "Términos de Servicio",
     "connectGuardTitle": "Conecta tu billetera para continuar",
     "connectGuardDesc": "Esta página requiere una billetera conectada.",
+    "insufficientUsdcTitle": "USDC insuficiente para financiar",
+    "insufficientUsdcDesc": "Necesitas {shortfall} USDC más para financiar este monto. Tu saldo es {balance}.",
+    "insufficientUsdcEmpty": "Tu billetera aún no tiene USDC. Agrega USDC para empezar a financiar facturas.",
+    "insufficientUsdcCta": "Obtener USDC",
+    "insufficientUsdcBridge": "Transferir USDC a Stellar",
     "sessionExpiredTitle": "Sesión de billetera inactiva",
     "sessionExpiredDesc": "Desbloquea tu extensión de billetera o reconéctate para continuar.",
     "reconnect": "Reconectar Billetera",
@@ -197,6 +202,10 @@
     "indexerWatermark": {
       "fresh": "Indexador sincronizado {time}",
       "stale": "Datos del indexador desactualizados — última sincronización {time}"
+    },
+    "indexer": {
+      "synced": "Indexado {time} · ledger {ledger}",
+      "stale": "La disponibilidad puede estar desactualizada — último indexado {time}"
     },
     "shareFilters": "Compartir Filtros",
     "shareFiltersCopied": "Enlace de filtro copiado al portapapeles",
@@ -1218,6 +1227,18 @@
     "connectCta": "Conectar billetera",
     "navLabel": "Configuración",
     "openFull": "Abrir configuración completa",
+    "transfer": {
+      "title": "Exportar e importar preferencias",
+      "description": "Respalda tu configuración y libreta de direcciones como un archivo cifrado. Necesitarás la misma frase de contraseña para importarlo.",
+      "passphrase": "Frase de contraseña",
+      "passphraseHint": "Al menos {min} caracteres. Nunca se guarda ni se envía.",
+      "export": "Exportar cifrado",
+      "import": "Importar archivo",
+      "exported": "Preferencias exportadas.",
+      "exportFailed": "No se pudieron exportar las preferencias.",
+      "imported": "Preferencias importadas.",
+      "importFailed": "No se pudo importar. Revisa el archivo y la frase de contraseña."
+    },
     "notifications": {
       "sectionTitle": "Preferencias de Notificaciones",
       "sectionDesc": "Controla qué alertas aparecen durante tu flujo de trabajo.",
